@@ -16,7 +16,7 @@ import xarray as xr
 from datetime import datetime
 from typing import Optional
 from mom6_bathy.utils import quadrilateral_areas, mdist
-
+from pyproj import CRS, Transformer
 
 class SupergridBase:
     """Base class defining the MOM6-style supergrid interface."""
@@ -231,22 +231,6 @@ class UniformSphericalSupergrid(SupergridBase):
         return dx, dy, area, angle_dx, axis_units
 
 
-def _haversine(lat1, lon1, lat2, lon2, R=6.378e6):
-    """Great-circle distance (metres) between arrays of points given in degrees."""
-    dlat = np.deg2rad(lat2 - lat1)
-    dlon = np.deg2rad(lon2 - lon1)
-    a = (
-        np.sin(dlat / 2) ** 2
-        + np.cos(np.deg2rad(lat1)) * np.cos(np.deg2rad(lat2)) * np.sin(dlon / 2) ** 2
-    )
-    return 2 * R * np.arcsin(np.sqrt(np.clip(a, 0.0, 1.0)))
-
-
-def _dlon_signed(lon_a, lon_b):
-    """Signed longitude difference lon_b - lon_a mapped to (-180, 180]."""
-    return ((lon_b - lon_a + 180.0) % 360.0) - 180.0
-
-
 class RectilinearCartesianSupergrid(SupergridBase):
     """MOM6-style supergrid with uniform Cartesian spacing (x/y in meters). Originally by Ashley Barnes in regional_mom6"""
 
@@ -328,8 +312,6 @@ class ProjectedSupergrid(SupergridBase):
     - The domain is near a pole (e.g., "EPSG:3995" Arctic / "EPSG:3031" Antarctic).
     - The grid needs to align with a non-lat/lon feature like an estuary mouth
       (use from_center with angle_deg).
-
-    Requires pyproj (available as a dependency of cartopy).
     """
 
     @classmethod
@@ -352,13 +334,6 @@ class ProjectedSupergrid(SupergridBase):
         resolution_m : float
             Grid resolution in metres, uniform in both projected x and y.
         """
-        try:
-            from pyproj import CRS, Transformer
-        except ImportError:
-            raise ImportError(
-                "pyproj is required for ProjectedSupergrid. "
-                "Install it with: conda install pyproj"
-            )
 
         if not isinstance(crs, CRS):
             crs = CRS.from_user_input(crs)
@@ -400,13 +375,6 @@ class ProjectedSupergrid(SupergridBase):
             Example: angle_deg=45 rotates so that the x-axis points NE,
             useful for a NE-SW estuary mouth.
         """
-        try:
-            from pyproj import CRS, Transformer
-        except ImportError:
-            raise ImportError(
-                "pyproj is required for ProjectedSupergrid. "
-                "Install it with: conda install pyproj"
-            )
 
         proj_str = (
             f"+proj=aeqd +lat_0={center_lat} +lon_0={center_lon} "
@@ -475,3 +443,36 @@ class ProjectedSupergrid(SupergridBase):
         )
 
         return cls(lon, lat, dx, dy, area, angle_dx, "degrees")
+
+
+def _haversine(lat1, lon1, lat2, lon2, R=6.378e6):
+    """Great-circle distance (metres) between arrays of points given in degrees."""
+    dlat = np.deg2rad(lat2 - lat1)
+    dlon = np.deg2rad(lon2 - lon1)
+    a = (
+        np.sin(dlat / 2) ** 2
+        + np.cos(np.deg2rad(lat1)) * np.cos(np.deg2rad(lat2)) * np.sin(dlon / 2) ** 2
+    )
+    return 2 * R * np.arctan2(np.sqrt(np.clip(a, 0.0, 1.0)), np.sqrt(np.clip(1.0 - a, 0.0, 1.0)))
+
+
+def _dlon_signed(lon_a, lon_b):
+    """Signed longitude difference lon_b - lon_a mapped to (-180, 180]."""
+    return ((lon_b - lon_a + 180.0) % 360.0) - 180.0
+
+
+def _haversine(lat1, lon1, lat2, lon2, R=6.378e6):
+    """Great-circle distance (metres) between arrays of points given in degrees."""
+    dlat = np.deg2rad(lat2 - lat1)
+    dlon = np.deg2rad(lon2 - lon1)
+    a = (
+        np.sin(dlat / 2) ** 2
+        + np.cos(np.deg2rad(lat1)) * np.cos(np.deg2rad(lat2)) * np.sin(dlon / 2) ** 2
+    )
+    return 2 * R * np.arctan2(np.sqrt(np.clip(a, 0.0, 1.0)), np.sqrt(np.clip(1.0 - a, 0.0, 1.0)))
+
+
+def _dlon_signed(lon_a, lon_b):
+    """Signed longitude difference lon_b - lon_a mapped to (-180, 180]."""
+    return ((lon_b - lon_a + 180.0) % 360.0) - 180.0
+

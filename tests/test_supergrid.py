@@ -23,7 +23,6 @@ def test_even_spacing_hgrid(lat, lon):
 
 def test_projected_supergrid_from_crs():
     """from_crs returns a valid ProjectedSupergrid with correct array shapes."""
-    pytest.importorskip("pyproj")
     resolution_m = 50_000
     x_min, x_max = -500_000, 500_000
     y_min, y_max = -500_000, 500_000
@@ -43,7 +42,6 @@ def test_projected_supergrid_from_crs():
 
 def test_projected_supergrid_from_center():
     """from_center returns a valid ProjectedSupergrid centred near the given location."""
-    pytest.importorskip("pyproj")
     center_lat, center_lon = 40.0, -70.0
     width_m = height_m = 200_000
     resolution_m = 50_000
@@ -63,7 +61,6 @@ def test_projected_supergrid_from_center():
 
 def test_projected_supergrid_from_latlon():
     """_from_latlon builds a valid ProjectedSupergrid from synthetic lat/lon arrays."""
-    pytest.importorskip("pyproj")
     ny, nx = 4, 6  # logical grid cells → supergrid shape (2*ny+1, 2*nx+1)
     lon = np.linspace(-10, 10, 2 * nx + 1)
     lat = np.linspace(30, 40, 2 * ny + 1)
