@@ -59,6 +59,30 @@ def test_projected_supergrid_from_center():
     assert abs(centre_lon - center_lon) < 1.0
 
 
+def test_projected_supergrid_from_center_rotated():
+    """from_center with angle_deg produces a rotated grid distinct from the unrotated one."""
+    pytest.importorskip("pyproj")
+    center_lat, center_lon = 40.0, -70.0
+    width_m = height_m = 200_000
+    resolution_m = 50_000
+    sg_0 = ProjectedSupergrid.from_center(
+        center_lat, center_lon, width_m, height_m, resolution_m, angle_deg=0.0
+    )
+    sg_45 = ProjectedSupergrid.from_center(
+        center_lat, center_lon, width_m, height_m, resolution_m, angle_deg=45.0
+    )
+    # Shapes must be identical
+    assert sg_45.x.shape == sg_0.x.shape
+    # Rotation should shift the corner coordinates
+    assert not np.allclose(sg_0.x, sg_45.x)
+    assert not np.allclose(sg_0.y, sg_45.y)
+    # Centre node should still be near the requested point regardless of rotation
+    cy = sg_45.y[sg_45.y.shape[0] // 2, sg_45.y.shape[1] // 2]
+    cx = sg_45.x[sg_45.x.shape[0] // 2, sg_45.x.shape[1] // 2]
+    assert abs(cy - center_lat) < 1.0
+    assert abs(cx - center_lon) < 1.0
+
+
 def test_projected_supergrid_from_latlon():
     """_from_latlon builds a valid ProjectedSupergrid from synthetic lat/lon arrays."""
     ny, nx = 4, 6  # logical grid cells → supergrid shape (2*ny+1, 2*nx+1)
