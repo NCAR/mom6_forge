@@ -1,0 +1,254 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Topo &amp; The Widgets! &mdash; mom6_bathy 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=2709fde1"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="mom6_bathy" href="modules.html" />
+    <link rel="prev" title="Glossary" href="glossary.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            mom6_bathy
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Topo &amp; The Widgets!</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#creators">Creators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#topo-topoeditor-edits">Topo &amp; TopoEditor Edits</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#undo-redo">Undo &amp; Redo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#how-it-works">How It Works</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#topo-git-functionality-and-how-to-use-it">Topo Git Functionality and How to Use It</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#nuances-initialization-naming-etc">Nuances (Initialization, Naming, etc.)</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Python API:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="modules.html">mom6_bathy</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">mom6_bathy</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Topo &amp; The Widgets!</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/widgets.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="topo-the-widgets">
+<h1>Topo &amp; The Widgets!<a class="headerlink" href="#topo-the-widgets" title="Link to this heading"></a></h1>
+<p>This document explains the widget modules in <code class="docutils literal notranslate"><span class="pre">mom6_bathy</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">mom6_bathy</span></code> comes with three UI modules/classes that wrap the three main
+classes—<code class="docutils literal notranslate"><span class="pre">VGrid</span></code>, <code class="docutils literal notranslate"><span class="pre">Grid</span></code>, and <code class="docutils literal notranslate"><span class="pre">Topo</span></code>—to help with creating vertical grids
+(<code class="docutils literal notranslate"><span class="pre">VGridCreator</span></code>), horizontal grids (<code class="docutils literal notranslate"><span class="pre">GridCreator</span></code>), and editing topography
+(<code class="docutils literal notranslate"><span class="pre">TopoEditor</span></code>).</p>
+<section id="creators">
+<h2>Creators<a class="headerlink" href="#creators" title="Link to this heading"></a></h2>
+<p>The creators act as visual wrappers around the constructors of their respective
+classes, providing sliders and visualizations. They automatically generate
+folders called <code class="docutils literal notranslate"><span class="pre">VgridLibrary</span></code> and <code class="docutils literal notranslate"><span class="pre">GridLibrary</span></code> to store created grids.
+The currently selected grid is directly accessible as an object inside each
+creator.</p>
+</section>
+<section id="topo-topoeditor-edits">
+<h2>Topo &amp; TopoEditor Edits<a class="headerlink" href="#topo-topoeditor-edits" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">Topo</span></code> &amp; <code class="docutils literal notranslate"><span class="pre">TopoEditor</span></code> workflow is a bit more nuanced.</p>
+<p>Grids are simple: they are created once and rarely modified. <code class="docutils literal notranslate"><span class="pre">Topo</span></code> objects,
+however, are built on top of the horizontal grid and are heavily edited during
+the development cycle (filling bays, deepening ridges, etc.).</p>
+<p>Because of this, <code class="docutils literal notranslate"><span class="pre">Topo</span></code> has many editing functions. <code class="docutils literal notranslate"><span class="pre">TopoEditor</span></code> provides a
+visual, point-and-click interface on top of these functions.</p>
+<p>Current editing functions (<code class="docutils literal notranslate"><span class="pre">*</span></code> = available in <code class="docutils literal notranslate"><span class="pre">TopoEditor</span></code>):</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">*</span></code> Edit depth at a specific point</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">*</span></code> Edit the minimum depth</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">*</span></code> Erase a basin at a selected point</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">*</span></code> Erase every basin except the one containing the selected point</p></li>
+<li><p>Generate and apply an ocean mask from a land-fraction dataset</p></li>
+<li><p>Apply a ridge to the bathymetry</p></li>
+</ol>
+<p>You can also reapply an initializer (none supported in the TopoEditor):</p>
+<ol class="arabic simple">
+<li><p>Set flat bathy</p></li>
+<li><p>Set spoon bathy</p></li>
+<li><p>Set bowl bathy</p></li>
+<li><p>Set from dataset</p></li>
+<li><p>Set from previous topo object</p></li>
+</ol>
+</section>
+<section id="undo-redo">
+<h2>Undo &amp; Redo<a class="headerlink" href="#undo-redo" title="Link to this heading"></a></h2>
+<p>To support the iterative editing process, we provide <strong>undo and redo</strong>
+functionality across sessions. This requires maintaining a structured history,
+stored inside a directory associated with your <code class="docutils literal notranslate"><span class="pre">Topo</span></code> object.</p>
+<p>This folder contains:</p>
+<ol class="arabic simple">
+<li><p>The grid underlying the topo</p></li>
+<li><p>The original blank topo</p></li>
+<li><p>A permanent command history</p></li>
+</ol>
+<figure class="align-center" id="id1">
+<a class="reference internal image-reference" href="_images/TopoLibrarySample.png"><img alt="_images/TopoLibrarySample.png" src="_images/TopoLibrarySample.png" style="width: 500px;" />
+</a>
+<figcaption>
+<p><span class="caption-text">Layout of a <code class="docutils literal notranslate"><span class="pre">Topo</span></code> folder.</span><a class="headerlink" href="#id1" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<figure class="align-center" id="id2">
+<a class="reference internal image-reference" href="_images/TopoTempCommandHistory.png"><img alt="_images/TopoTempCommandHistory.png" src="_images/TopoTempCommandHistory.png" style="width: 500px;" />
+</a>
+<figcaption>
+<p><span class="caption-text">Structure of the command history JSON file.</span><a class="headerlink" href="#id2" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+</section>
+<section id="how-it-works">
+<h2>How It Works<a class="headerlink" href="#how-it-works" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p>You create your <code class="docutils literal notranslate"><span class="pre">Topo</span></code> object, which initializes the four files above.</p></li>
+<li><p>You make changes using <code class="docutils literal notranslate"><span class="pre">Topo</span></code> or <code class="docutils literal notranslate"><span class="pre">TopoEditor</span></code>.</p></li>
+<li><p>Each change is added to history.</p></li>
+<li><p>Each change is then <strong>committed via Git</strong>—this powers undo/redo.</p></li>
+</ol>
+</section>
+<section id="topo-git-functionality-and-how-to-use-it">
+<h2>Topo Git Functionality and How to Use It<a class="headerlink" href="#topo-git-functionality-and-how-to-use-it" title="Link to this heading"></a></h2>
+<p>We use Git to implement undo/redo functionality inside the topo directory.</p>
+<p>You can view the history with:</p>
+<p><code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">log</span></code></p>
+<p>The command history is a JSON file mapping commit SHAs to change
+metadata. You can cross-reference the Git log with this JSON file to inspect
+details of each edit.</p>
+<p>We also support simple version-control actions:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">topo.tcm.create_branch(&quot;branchname&quot;)</span></code> — create a branch</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">topo.tcm.checkout(&quot;branchname&quot;)</span></code> — switch branches</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">topo.tcm.tag(&quot;tagname&quot;)</span></code> — create a tag and save a <code class="docutils literal notranslate"><span class="pre">tagname_topog.nc</span></code> file</p></li>
+</ul>
+<p>Tags cannot be checked out (this can cause unexpected states).</p>
+<p>Undo and redo:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">topo.tcm.undo()</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">topo.tcm.redo()</span></code></p></li>
+</ul>
+<p>These appear in the Git log as:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">UNDO-&lt;sha&gt;</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">REDO-&lt;sha&gt;</span></code></p></li>
+</ul>
+<p>Be careful not to undo your initial set-function!</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Do <strong>not</strong> run Git commands inside this folder except for harmless commands like <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">log</span></code>.
+We manage the folder internally. External Git commands (like <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">checkout</span></code>)
+may break state management.</p>
+</div>
+<figure class="align-center" id="id3">
+<a class="reference internal image-reference" href="_images/TopoSampleGitLog.png"><img alt="_images/TopoSampleGitLog.png" src="_images/TopoSampleGitLog.png" style="width: 500px;" />
+</a>
+<figcaption>
+<p><span class="caption-text">Example <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">log</span></code> for a topo editing session.</span><a class="headerlink" href="#id3" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+</section>
+<section id="nuances-initialization-naming-etc">
+<h2>Nuances (Initialization, Naming, etc.)<a class="headerlink" href="#nuances-initialization-naming-etc" title="Link to this heading"></a></h2>
+<p>Folders are named after the hash of the grid’s <code class="docutils literal notranslate"><span class="pre">tlon</span></code> variable.
+This means that <strong>any topo using the same grid</strong> will share the same folder.</p>
+<p>You can initialize <code class="docutils literal notranslate"><span class="pre">Topo</span></code> in three ways:</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Topo()</span></code> — creates an empty topo with the provided minimum depth</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Topo.from_version_control(path)</span></code> — loads a folder, applies saved history, and returns the reconstructed topo</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Topo.from_topo_file(file)</span></code> — loads a topo file and applies it on top of any existing changes in the folder</p></li>
+</ol>
+<p>All of the git versioning (undo, redo, reset, checkout, tag, create branch) is handled by the TopoCommandManager, which can be accessed as the class variable “tcm”. The code for this manager resides in the command_manager class.
+We would use straight git functions, but the topo file itself is handled independently of the commits. (In the future, expect this to use icechunk)</p>
+<p>See also the demonstration notebook:</p>
+<p><a class="reference external" href="https://github.com/NCAR/mom6_bathy/blob/master/notebooks/6_demo_editors.ipynb">6_demo_editors.ipynb</a></p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="glossary.html" class="btn btn-neutral float-left" title="Glossary" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="modules.html" class="btn btn-neutral float-right" title="mom6_bathy" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, NCAR.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
