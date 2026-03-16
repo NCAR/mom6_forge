@@ -72,7 +72,7 @@ class GridCreator(widgets.HBox):
         self.repo_root = Path(repo_root if repo_root is not None else os.getcwd())
         self.grids_dir = Path(os.path.join(self.repo_root, "GridLibrary"))
         self.grids_dir.mkdir(exist_ok=True)
-        (self.grids_dir/".gitignore").write_text("*\n")
+        (self.grids_dir / ".gitignore").write_text("*\n")
 
         self._initial_params = None
         if grid is not None:
@@ -155,12 +155,22 @@ class GridCreator(widgets.HBox):
         )
 
         # --- Lat/Lon mode panel ---
+        self._latlon_grid_type = widgets.ToggleButtons(
+            options=[
+                ("Uniform Spherical", "uniform_spherical"),
+                ("Rectilinear Cartesian", "rectilinear_cartesian"),
+            ],
+            value="uniform_spherical",
+            style={"button_width": "auto"},
+            layout={"width": "90%"},
+        )
         self._latlon_panel = widgets.VBox(
             [
                 widgets.HTML(
                     "<p><b>1st click:</b> one corner &nbsp;"
                     "<b>2nd click:</b> opposite corner</p>"
-                )
+                ),
+                self._latlon_grid_type,
             ]
         )
 
@@ -597,6 +607,7 @@ class GridCreator(widgets.HBox):
             resolution=resolution,
             xstart=xstart,
             ystart=ystart,
+            type=self._latlon_grid_type.value,
         )
         self._grid_mode = "latlon"
         self._initial_params = None
@@ -874,6 +885,11 @@ class GridCreator(widgets.HBox):
                 )
             else:
                 self._grid_mode = "latlon"
+                self._latlon_grid_type.value = (
+                    "rectilinear_cartesian"
+                    if grid_type == "rectilinear_cartesian"
+                    else "uniform_spherical"
+                )
 
             self._stop_click_mode()
             if not isinstance(self._current_map_proj, ccrs.PlateCarree):
@@ -962,6 +978,7 @@ class GridCreator(widgets.HBox):
             xstart=self._xstart_slider.value,
             ystart=self._ystart_slider.value,
             name=self.grid.name,
+            type=self._latlon_grid_type.value,
         )
         self.plot_grid()
 
