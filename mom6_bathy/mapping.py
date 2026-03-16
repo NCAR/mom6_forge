@@ -8,7 +8,7 @@ import datetime
 from time import time
 from pathlib import Path
 from scipy.spatial import cKDTree
-from scipy.sparse import csc_matrix, coo_matrix
+from scipy.sparse import csr_matrix, csc_matrix, coo_matrix
 import xesmf as xe
 
 MPI = None
@@ -73,6 +73,29 @@ def grid_from_esmf_mesh(mesh: xr.Dataset | str | Path) -> "Grid":
     )
 
     return ds
+
+
+def flatten_to_mesh(field_2d):
+    """Flatten a 2D horizontal grid field back to a 1D ESMF mesh array.
+
+    This is the exact inverse of the reshape applied in func:`grid_from_esmf_mesh`:
+    both use row-major (C) order, so element indices are preserved.
+
+    Parameters
+    ----------
+    field_2d : np.ndarray or xr.DataArray
+        2D array with dimensions ``(nlat, nlon)`` representing any grid
+        quantity (mask, lon, lat, a custom field, etc.).
+
+    Returns
+    -------
+    field_1d : np.ndarray
+        1D array whose length equals ``nlat * nlon``, with values in the
+        same element ordering as the original ESMF mesh arrays.
+    """
+    if isinstance(field_2d, xr.DataArray):
+        field_2d = field_2d.data
+    return field_2d.reshape(-1, order="C")
 
 
 def extract_coastline_mask(horiz_grid):
@@ -445,7 +468,11 @@ def write_mapping_file(
         row_data = weights_coo.row + 1
 
     if area_normalization:
-        w.data *= area_a.data[col_data - 1] / area_b.data[row_data - 1]
+        area_scale = area_a.data[col_data - 1] / area_b.data[row_data - 1]
+        if hasattr(w, "data"):
+            w.data *= area_scale
+        else:
+            w *= area_scale
 
     S = xr.DataArray(
         w.data,
@@ -533,6 +560,7 @@ def generate_ESMF_map_via_xesmf(
     method,
     area_normalization=False,
     map_overlap=True,
+    coastline_masking=False,
 ):
     """Generate an ESMF mapping file using xesmf.
 
@@ -551,10 +579,19 @@ def generate_ESMF_map_via_xesmf(
     map_overlap : bool
         If True, only map the overlapping area between the source and destination meshes, i.e.,
         zero out the mask in the source mesh that falls outside the rectangle defined by the destination mesh.
+    coastline_masking : bool
+        If True, apply coastline masking to the destination mesh.
     """
 
     src_grid = grid_from_esmf_mesh(src_mesh_path)
     dst_grid = grid_from_esmf_mesh(dst_mesh_path)
+
+    # update the mask to cover only the coastline area for better nearest neighbor mapping results:
+    if coastline_masking:
+        coastline_mask = extract_coastline_mask(dst_grid)
+        dst_grid["mask"].data = np.where(
+            coastline_mask.data == 1, dst_grid["mask"].data, 0
+        )
 
     # from dst mesh, find the lower left corner and upper right corner
     # then, in the src mesh, zero out the mask falling outside of this rectangle
@@ -700,7 +737,7 @@ def generate_ESMF_map_via_esmpy(
     )
 
 
-def compute_smoothing_weights(mesh_ds, rmax, fold=1.0, xv_data=None, yv_data=None):
+def compute_smoothing_weights(mesh_ds, rmax, fold=1.0, xv_data=None, yv_data=None, coastline_masking=False):
     """Compute smoothing weights for a given mesh dataset, using a radius in kilometers.
 
     Parameters
@@ -715,6 +752,8 @@ def compute_smoothing_weights(mesh_ds, rmax, fold=1.0, xv_data=None, yv_data=Non
         The x-coordinates of the vertices. If not provided, they will be computed from the mesh dataset.
     yv_data : np.ndarray, optional
         The y-coordinates of the vertices. If not provided, they will be computed from the mesh dataset.
+    coastline_masking : bool, optional
+        If True, apply smoothing only to the cells adjacent to the coastline.
 
     Returns
     -------
@@ -724,6 +763,10 @@ def compute_smoothing_weights(mesh_ds, rmax, fold=1.0, xv_data=None, yv_data=Non
 
     if not isinstance(mesh_ds, xr.Dataset):
         raise ValueError("mesh_ds must be an xarray Dataset.")
+    if rmax <= 0:
+        raise ValueError("rmax must be > 0 km.")
+    if fold <= 0:
+        raise ValueError("fold must be > 0 km.")
 
     # Extract coordinates and mask
     coords = mesh_ds["centerCoords"].values
@@ -748,17 +791,34 @@ def compute_smoothing_weights(mesh_ds, rmax, fold=1.0, xv_data=None, yv_data=Non
 
     # Build KDTree in 3D Cartesian space
     tree = cKDTree(xyz)
-    indices = tree.query_ball_tree(tree, rmax)
+    # query_ball_tree uses Euclidean distance in xyz-space (chord length), while
+    # rmax is given as arc length on a sphere. Convert arc-length radius to the
+    # corresponding chord-length radius before querying neighbors.
+    chord_rmax = 2 * R_earth * np.sin(rmax / (2 * R_earth))
+    indices = tree.query_ball_tree(tree, chord_rmax)
 
     row_indices, col_indices, data = [], [], []
+
+    coastline_mask_bool = None
+    if coastline_masking:
+        grid = grid_from_esmf_mesh(mesh_ds)
+        coastline_mask = extract_coastline_mask(grid)
+        coastline_mask_bool = flatten_to_mesh(coastline_mask == 1).astype(bool)
 
     for i, neighbors in enumerate(indices):
         if not mask_bool[i]:
             continue
+        if coastline_masking:
+            # Only apply smoothing to cells adjacent to the coastline
+            if not coastline_mask_bool[i]:
+                row_indices.append(i)
+                col_indices.append(i)
+                data.append(1.0)
+                continue
         neighbors = np.array(neighbors)
         neighbors = neighbors[mask_bool[neighbors]]
-        row_indices.extend([i] * len(neighbors))
-        col_indices.extend(neighbors)
+        row_indices.extend(neighbors)
+        col_indices.extend([i] * len(neighbors))
         # Compute great-circle distances in km
         d_xyz = xyz[i] - xyz[neighbors]
         # Chord length
@@ -874,6 +934,7 @@ def gen_rof_maps(
         mapping_file=nn_map_filepath,
         method="nearest_d2s",
         area_normalization=True,
+        coastline_masking=True,
     )
 
     print(f"  Generated nearest mapping file in {(t1:=time()) - t0:.2f} seconds at:")
@@ -904,6 +965,7 @@ def gen_rof_maps(
             mesh_ds=ocn_mesh,
             rmax=rmax,
             fold=fold,
+            coastline_masking=True
         )
 
         # mesh dimensions
@@ -918,11 +980,11 @@ def gen_rof_maps(
             shape=(ocn_nx * ocn_ny, rof_nx * rof_ny),
         )
 
-        # Apply smoothing by multiplying (transpose of) S_coo and smoothing weights (and taking transpose again):
-        S_smooth = S_coo.transpose().dot(sw).transpose()
+        # Apply smoothing to the mapping weights:
+        S_smooth = sw.dot(S_coo)
         assert isinstance(
-            S_smooth, csc_matrix
-        ), "S_smooth should be a csc_matrix after multiplication"
+            S_smooth, csr_matrix
+        ), "S_smooth should be a csr_matrix after multiplication"
         S_smooth = S_smooth.tocoo()  # Convert to COO format again
 
         nnsm_map_filepath = get_smoothed_map_filepath(
