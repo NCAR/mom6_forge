@@ -11,20 +11,11 @@ from pathlib import Path
 
 class GridCreator(widgets.HBox):
 
-    def __init__(self, grid, repo_root=None):
-        self.grid = grid
-        self.repo_root = Path(repo_root if repo_root is not None else os.getcwd())
-        self.grids_dir = Path(os.path.join(self.repo_root, "GridLibrary"))
+    def __init__(self, working_dir=None):
+        self.grid = None
+        self.working_dir = Path(working_dir if working_dir is not None else os.getcwd())
+        self.grids_dir = Path(os.path.join(self.working_dir, "GridLibrary"))
         self.grids_dir.mkdir(exist_ok=True)
-        self._initial_params = {
-            "lenx": grid.lenx,
-            "leny": grid.leny,
-            "nx": grid.nx,
-            "ny": grid.ny,
-            "xstart": grid.supergrid.x[0, 0],
-            "ystart": grid.supergrid.y[0, 0],
-            "name": grid.name,
-        }
 
         self.construct_control_panel()
         self.construct_observances()
@@ -77,7 +68,7 @@ class GridCreator(widgets.HBox):
         )
 
         # Use initial values for slider ranges
-        initial_xstart = float(self.grid.supergrid.x[0, 0]) % 360
+        initial_xstart = 0
 
         # Handle longitude wrap-around and negative values for slider
         slider_window = 30
@@ -106,7 +97,7 @@ class GridCreator(widgets.HBox):
             value=self.grid.lenx, min=0.01, max=50.0, step=0.01, description="lenx"
         )
 
-        initial_ystart = float(self.grid.supergrid.y[0, 0])
+        initial_ystart = 0
 
         self._ystart_slider = widgets.FloatSlider(
             value=initial_ystart,
@@ -116,11 +107,11 @@ class GridCreator(widgets.HBox):
             description="ystart",
         )
         self._leny_slider = widgets.FloatSlider(
-            value=self.grid.leny, min=0.01, max=50.0, step=0.01, description="leny"
+            value=10, min=0.01, max=50.0, step=0.01, description="leny"
         )
 
         self._resolution_slider = widgets.FloatSlider(
-            value=self.grid.lenx / self.grid.nx,
+            value=0.1,
             min=0.01,
             max=1.0,
             step=0.01,
