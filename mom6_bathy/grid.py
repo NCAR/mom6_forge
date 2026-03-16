@@ -9,6 +9,7 @@ from mom6_bathy._supergrid import (
     RectilinearCartesianSupergrid,
     ProjectedSupergrid,
     SupergridBase,
+    supergrid_class_from_ds,
 )
 from mom6_bathy.utils import normalize_deg
 
@@ -616,13 +617,7 @@ class Grid:
             name=name,
         )
 
-        # override obj.supergrid with the data from the original supergrid file
-        obj.supergrid.x = ds.x.data
-        obj.supergrid.y = ds.y.data
-        obj.supergrid.dx = ds.dx.data
-        obj.supergrid.dy = ds.dy.data
-        obj.supergrid.area = ds.area.data
-        obj.supergrid.angle_dx = ds.angle_dx.data
+        obj.supergrid = SupergridBase.from_ds(ds)
 
         # update the MOM6 grid metrics based on the supergrid data
         obj._compute_MOM6_grid_metrics()
