@@ -13,9 +13,84 @@ Creators
 
 The creators act as visual wrappers around the constructors of their respective
 classes, providing sliders and visualizations. They automatically generate
-folders called ``VgridLibrary`` and ``GridLibrary`` to store created grids.  
+folders called ``VgridLibrary`` and ``GridLibrary`` to store created grids.
 The currently selected grid is directly accessible as an object inside each
 creator.
+
+GridCreator
+^^^^^^^^^^^
+
+``GridCreator`` is a split-panel widget: a control panel on the left and an
+interactive cartopy map on the right.  It supports three creation modes,
+selected via radio buttons before any grid is defined.
+
+**Lat/Lon Corners**
+
+Click two diagonal corners on the map.  A uniform-degree ``Grid`` is created
+from the bounding box.  After creation, five degree sliders appear
+(``xstart``, ``ystart``, ``lenx``, ``leny``, ``resolution``) for live
+adjustment.
+
+**From Center**
+
+Set the domain width (km), height (km), resolution (km), and a clockwise
+rotation angle (degrees from north) in the input fields, then click the
+domain centre on the map.  This calls ``Grid.from_center()``, which builds a
+rotated rectangular grid using an azimuthal equidistant projection centred at
+the clicked point.  This mode is particularly useful for aligning a domain
+with a coastline or estuary.
+
+**From Projection**
+
+Set a CRS (chosen from a preset dropdown or typed as any EPSG string) and
+resolution (km), then click two corners on the map.  This calls
+``Grid.from_projection()``.
+
+When a preset CRS is selected the map axes switches to the matching native
+cartopy projection so that clicks deliver coordinates in that projection's
+metres directly — no additional transformation is needed, and domains near or
+over the poles work correctly.  Supported presets:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 40 30
+
+   * - Preset
+     - Cartopy projection
+     - Default view
+   * - EPSG:4326 (Plate Carrée)
+     - PlateCarree (no switch)
+     - Global
+   * - EPSG:3995 (Arctic Polar Stereographic)
+     - NorthPolarStereo
+     - 45–90°N
+   * - EPSG:3031 (Antarctic Polar Stereographic)
+     - SouthPolarStereo
+     - 90–45°S
+   * - EPSG:5070 (CONUS Albers Equal Area)
+     - AlbersEqualArea
+     - CONUS
+   * - Any other EPSG string
+     - PlateCarree (fallback)
+     - CRS area-of-use (via pyproj)
+
+**Editing projected grids**
+
+After a projected grid (From Center or From Projection) is created or loaded,
+the control panel shows the same parameter inputs pre-filled with the current
+values alongside a **Recreate Grid** button.  Adjust the inputs and click
+Recreate to rebuild the grid without needing to re-click the map.
+
+**GridLibrary**
+
+Grids are saved as MOM6 supergrid NetCDF files under ``<repo_root>/GridLibrary/``
+(naming convention: ``grid_<name>.nc``).  The directory is created automatically
+and a blanket ``.gitignore`` is written into it so saved grids are not
+accidentally committed.
+
+On **Load**, all creation parameters are restored from the file's metadata, so
+the **Recreate** button works immediately after loading a projected grid without
+any additional clicks.
 
 Topo & TopoEditor Edits
 ---------------------------

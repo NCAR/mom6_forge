@@ -49,7 +49,10 @@
 <li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
 <li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Topo &amp; The Widgets!</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#creators">Creators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#creators">Creators</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#gridcreator">GridCreator</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="#topo-topoeditor-edits">Topo &amp; TopoEditor Edits</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#undo-redo">Undo &amp; Redo</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#how-it-works">How It Works</a></li>
@@ -101,6 +104,80 @@ classes, providing sliders and visualizations. They automatically generate
 folders called <code class="docutils literal notranslate"><span class="pre">VgridLibrary</span></code> and <code class="docutils literal notranslate"><span class="pre">GridLibrary</span></code> to store created grids.
 The currently selected grid is directly accessible as an object inside each
 creator.</p>
+<section id="gridcreator">
+<h3>GridCreator<a class="headerlink" href="#gridcreator" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">GridCreator</span></code> is a split-panel widget: a control panel on the left and an
+interactive cartopy map on the right.  It supports three creation modes,
+selected via radio buttons before any grid is defined.</p>
+<p><strong>Lat/Lon Corners</strong></p>
+<p>Click two diagonal corners on the map.  A uniform-degree <code class="docutils literal notranslate"><span class="pre">Grid</span></code> is created
+from the bounding box.  After creation, five degree sliders appear
+(<code class="docutils literal notranslate"><span class="pre">xstart</span></code>, <code class="docutils literal notranslate"><span class="pre">ystart</span></code>, <code class="docutils literal notranslate"><span class="pre">lenx</span></code>, <code class="docutils literal notranslate"><span class="pre">leny</span></code>, <code class="docutils literal notranslate"><span class="pre">resolution</span></code>) for live
+adjustment.</p>
+<p><strong>From Center</strong></p>
+<p>Set the domain width (km), height (km), resolution (km), and a clockwise
+rotation angle (degrees from north) in the input fields, then click the
+domain centre on the map.  This calls <code class="docutils literal notranslate"><span class="pre">Grid.from_center()</span></code>, which builds a
+rotated rectangular grid using an azimuthal equidistant projection centred at
+the clicked point.  This mode is particularly useful for aligning a domain
+with a coastline or estuary.</p>
+<p><strong>From Projection</strong></p>
+<p>Set a CRS (chosen from a preset dropdown or typed as any EPSG string) and
+resolution (km), then click two corners on the map.  This calls
+<code class="docutils literal notranslate"><span class="pre">Grid.from_projection()</span></code>.</p>
+<p>When a preset CRS is selected the map axes switches to the matching native
+cartopy projection so that clicks deliver coordinates in that projection’s
+metres directly — no additional transformation is needed, and domains near or
+over the poles work correctly.  Supported presets:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 40.0%" />
+<col style="width: 30.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Preset</p></th>
+<th class="head"><p>Cartopy projection</p></th>
+<th class="head"><p>Default view</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>EPSG:4326 (Plate Carrée)</p></td>
+<td><p>PlateCarree (no switch)</p></td>
+<td><p>Global</p></td>
+</tr>
+<tr class="row-odd"><td><p>EPSG:3995 (Arctic Polar Stereographic)</p></td>
+<td><p>NorthPolarStereo</p></td>
+<td><p>45–90°N</p></td>
+</tr>
+<tr class="row-even"><td><p>EPSG:3031 (Antarctic Polar Stereographic)</p></td>
+<td><p>SouthPolarStereo</p></td>
+<td><p>90–45°S</p></td>
+</tr>
+<tr class="row-odd"><td><p>EPSG:5070 (CONUS Albers Equal Area)</p></td>
+<td><p>AlbersEqualArea</p></td>
+<td><p>CONUS</p></td>
+</tr>
+<tr class="row-even"><td><p>Any other EPSG string</p></td>
+<td><p>PlateCarree (fallback)</p></td>
+<td><p>CRS area-of-use (via pyproj)</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Editing projected grids</strong></p>
+<p>After a projected grid (From Center or From Projection) is created or loaded,
+the control panel shows the same parameter inputs pre-filled with the current
+values alongside a <strong>Recreate Grid</strong> button.  Adjust the inputs and click
+Recreate to rebuild the grid without needing to re-click the map.</p>
+<p><strong>GridLibrary</strong></p>
+<p>Grids are saved as MOM6 supergrid NetCDF files under <code class="docutils literal notranslate"><span class="pre">&lt;repo_root&gt;/GridLibrary/</span></code>
+(naming convention: <code class="docutils literal notranslate"><span class="pre">grid_&lt;name&gt;.nc</span></code>).  The directory is created automatically
+and a blanket <code class="docutils literal notranslate"><span class="pre">.gitignore</span></code> is written into it so saved grids are not
+accidentally committed.</p>
+<p>On <strong>Load</strong>, all creation parameters are restored from the file’s metadata, so
+the <strong>Recreate</strong> button works immediately after loading a projected grid without
+any additional clicks.</p>
+</section>
 </section>
 <section id="topo-topoeditor-edits">
 <h2>Topo &amp; TopoEditor Edits<a class="headerlink" href="#topo-topoeditor-edits" title="Link to this heading"></a></h2>
