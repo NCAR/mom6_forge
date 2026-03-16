@@ -19,6 +19,7 @@ from mom6_bathy.utils import quadrilateral_areas, mdist, normalize_deg
 from pyproj import CRS, Transformer
 
 
+
 class SupergridBase:
     """Base class defining the MOM6-style supergrid interface."""
 
@@ -65,6 +66,7 @@ class SupergridBase:
         self.area = area
         self.angle_dx = angle_dx
         self.axis_units = axis_units
+        self.grid_type = grid_params.get("grid_type", "base")
         self._grid_params = grid_params
 
     def summary(self):
@@ -126,7 +128,7 @@ class SupergridBase:
             ds.area.data,
             ds.angle_dx.data,
             ds.x.attrs.get("units", "degrees"),
-            {},
+            dict(ds.attrs),
         )
 
 
@@ -588,7 +590,7 @@ _GRID_TYPE_TO_CLASS = {
 }
 
 
-def supergrid_class_from_ds(ds: xr.Dataset):
+def supergrid_type_from_ds(ds: xr.Dataset | str) -> str | None:
     """Return the supergrid class that produced a dataset, without constructing an instance.
 
     Parameters
@@ -603,4 +605,6 @@ def supergrid_class_from_ds(ds: xr.Dataset):
         ProjectedSupergrid, or SupergridBase (fallback for datasets without a
         grid_type attribute).
     """
-    return _GRID_TYPE_TO_CLASS.get(ds.attrs.get("grid_type"), SupergridBase)
+    if type(ds) is str:
+        ds = xr.open_dataset(ds)
+    return ds.attrs.get("grid_type")

@@ -498,6 +498,7 @@ class Grid:
         )
         obj._supergrid = sg
         obj._compute_MOM6_grid_metrics()
+        obj.grid_type = "projected_crs"
         return obj
 
     @classmethod
@@ -553,6 +554,7 @@ class Grid:
         )
         obj._supergrid = sg
         obj._compute_MOM6_grid_metrics()
+        obj.grid_type = "projected_center"
         return obj
 
     @classmethod
