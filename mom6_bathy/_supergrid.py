@@ -18,6 +18,7 @@ from typing import Optional
 from mom6_bathy.utils import quadrilateral_areas, mdist, normalize_deg
 from pyproj import CRS, Transformer
 
+
 class SupergridBase:
     """Base class defining the MOM6-style supergrid interface."""
 
@@ -64,6 +65,7 @@ class SupergridBase:
         self.area = area
         self.angle_dx = angle_dx
         self.axis_units = axis_units
+        self.grid_type = grid_params.get("grid_type", "base")
         self._grid_params = grid_params
 
     def summary(self):
@@ -125,7 +127,7 @@ class SupergridBase:
             ds.area.data,
             ds.angle_dx.data,
             ds.x.attrs.get("units", "degrees"),
-            {},
+            dict(ds.attrs),
         )
 
 
@@ -137,15 +139,24 @@ class UniformSphericalSupergrid(SupergridBase):
         """Create a grid from domain extents (lon/lat degrees)."""
         x, y = cls._calc_xy_from_extents(lon_min, len_x, lat_min, len_y, nx, ny)
         dx, dy, area, angle_dx, axis_units = cls._calc_geometry(x, y)
-        return cls(x, y, dx, dy, area, angle_dx, axis_units, dict(
-            grid_type="uniform_spherical",
-            lon_min=lon_min,
-            len_x=len_x,
-            lat_min=lat_min,
-            len_y=len_y,
-            nx=nx,
-            ny=ny,
-        ))
+        return cls(
+            x,
+            y,
+            dx,
+            dy,
+            area,
+            angle_dx,
+            axis_units,
+            dict(
+                grid_type="uniform_spherical",
+                lon_min=lon_min,
+                len_x=len_x,
+                lat_min=lat_min,
+                len_y=len_y,
+                nx=nx,
+                ny=ny,
+            ),
+        )
 
     @classmethod
     def from_xy(cls, x, y):
@@ -269,14 +280,23 @@ class RectilinearCartesianSupergrid(SupergridBase):
         x, y, dx, dy, area, angle, axis_units = self._build_grid(
             lon_min, len_x, lat_min, len_y, resolution
         )
-        super().__init__(x, y, dx, dy, area, angle, axis_units, dict(
-            grid_type="rectilinear_cartesian",
-            lon_min=lon_min,
-            len_x=len_x,
-            lat_min=lat_min,
-            len_y=len_y,
-            resolution=resolution,
-        ))
+        super().__init__(
+            x,
+            y,
+            dx,
+            dy,
+            area,
+            angle,
+            axis_units,
+            dict(
+                grid_type="rectilinear_cartesian",
+                lon_min=lon_min,
+                len_x=len_x,
+                lat_min=lat_min,
+                len_y=len_y,
+                resolution=resolution,
+            ),
+        )
 
     def _build_grid(self, lon_min, len_x, lat_min, len_y, resolution):
         """Compute full grid geometry for even physical spacing."""
@@ -386,15 +406,19 @@ class ProjectedSupergrid(SupergridBase):
         transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
         lon, lat = transformer.transform(xx, yy)
 
-        return cls._from_latlon(lon, lat, dict(
-            grid_type="projected_crs",
-            crs_wkt=crs.to_wkt(),
-            x_min=x_min,
-            x_max=x_max,
-            y_min=y_min,
-            y_max=y_max,
-            resolution_m=resolution_m,
-        ))
+        return cls._from_latlon(
+            lon,
+            lat,
+            dict(
+                grid_type="projected_crs",
+                crs_wkt=crs.to_wkt(),
+                x_min=x_min,
+                x_max=x_max,
+                y_min=y_min,
+                y_max=y_max,
+                resolution_m=resolution_m,
+            ),
+        )
 
     @classmethod
     def from_center(
@@ -443,15 +467,19 @@ class ProjectedSupergrid(SupergridBase):
         transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
         lon, lat = transformer.transform(xx_rot, yy_rot)
 
-        return cls._from_latlon(lon, lat, dict(
-            grid_type="projected_center",
-            center_lat=center_lat,
-            center_lon=center_lon,
-            width_m=width_m,
-            height_m=height_m,
-            resolution_m=resolution_m,
-            angle_deg=angle_deg,
-        ))
+        return cls._from_latlon(
+            lon,
+            lat,
+            dict(
+                grid_type="projected_center",
+                center_lat=center_lat,
+                center_lon=center_lon,
+                width_m=width_m,
+                height_m=height_m,
+                resolution_m=resolution_m,
+                angle_deg=angle_deg,
+            ),
+        )
 
     @classmethod
     def from_ds(cls, ds: xr.Dataset) -> "ProjectedSupergrid":
@@ -541,7 +569,11 @@ def _haversine(lat1, lon1, lat2, lon2, R=6.378e6):
         np.sin(dlat / 2) ** 2
         + np.cos(np.deg2rad(lat1)) * np.cos(np.deg2rad(lat2)) * np.sin(dlon / 2) ** 2
     )
-    return 2 * R * np.arctan2(np.sqrt(np.clip(a, 0.0, 1.0)), np.sqrt(np.clip(1.0 - a, 0.0, 1.0)))
+    return (
+        2
+        * R
+        * np.arctan2(np.sqrt(np.clip(a, 0.0, 1.0)), np.sqrt(np.clip(1.0 - a, 0.0, 1.0)))
+    )
 
 
 def _dlon_signed(lon_a, lon_b):
@@ -557,7 +589,7 @@ _GRID_TYPE_TO_CLASS = {
 }
 
 
-def supergrid_class_from_ds(ds: xr.Dataset):
+def supergrid_type_from_ds(ds: xr.Dataset | str) -> str | None:
     """Return the supergrid class that produced a dataset, without constructing an instance.
 
     Parameters
@@ -572,5 +604,6 @@ def supergrid_class_from_ds(ds: xr.Dataset):
         ProjectedSupergrid, or SupergridBase (fallback for datasets without a
         grid_type attribute).
     """
-    return _GRID_TYPE_TO_CLASS.get(ds.attrs.get("grid_type"), SupergridBase)
-
+    if type(ds) is str:
+        ds = xr.open_dataset(ds)
+    return ds.attrs.get("grid_type")

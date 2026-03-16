@@ -80,7 +80,7 @@ def test_projected_supergrid_from_center_rotated():
     cx = sg_45.x[sg_45.x.shape[0] // 2, sg_45.x.shape[1] // 2]
     assert abs(cy - center_lat) < 1.0
     assert abs(cx - center_lon) < 1.0
-    assert ((sg_45.angle_dx + np.deg2rad(45.0))<0.1).all()
+    assert ((sg_45.angle_dx + np.deg2rad(45.0)) < 0.1).all()
 
 
 def test_projected_supergrid_from_latlon():
