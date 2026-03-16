@@ -6,10 +6,12 @@ import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 from mom6_bathy.grid import Grid
-from mom6_bathy._supergrid import ProjectedSupergrid
+from mom6_bathy._supergrid import ProjectedSupergrid, supergrid_type_from_ds
 from pathlib import Path
 from pyproj import CRS, Transformer
 
+
+# For projection grid creation, offer some convenient CRS presets in a dropdown
 _CRS_PRESETS = [
     ("Plate Carree / Geographic (EPSG:4326)", "EPSG:4326"),
     ("Arctic Polar Stereographic (EPSG:3995)", "EPSG:3995"),
@@ -53,7 +55,7 @@ class GridCreator(widgets.HBox):
 
     Library
     -------
-    Grids are saved as NetCDF supergrids under <repo_root>/GridLibrary/.
+    Grids are saved as NetCDF supergrids under <working_dir>/GridLibrary/.
     The dropdown lists all grid_*.nc files there; Load restores the full
     creation parameters so Recreate still works after loading.
 
@@ -61,29 +63,16 @@ class GridCreator(widgets.HBox):
     --------------
     Entering "From Projection" mode switches the cartopy axes to the native
     projection for the selected CRS (preset EPSG codes only; unknown codes
-    fall back to PlateCarree zoomed to the CRS area-of-use).  All other modes
-    use PlateCarree.  Grid lines are always drawn in geographic coordinates
-    (transform=PlateCarree) regardless of the active map projection.
+    fall back to PlateCarree).  All other modes
+    use PlateCarree.  
     """
 
-    def __init__(self, grid=None, repo_root=None):
+    def __init__(self, grid=None, working_dir=None):
         self.grid = grid
-        self.repo_root = Path(repo_root if repo_root is not None else os.getcwd())
-        self.grids_dir = Path(os.path.join(self.repo_root, "GridLibrary"))
+        self.working_dir = Path(working_dir if working_dir is not None else os.getcwd())
+        self.grids_dir = Path(os.path.join(self.working_dir, "GridLibrary"))
         self.grids_dir.mkdir(exist_ok=True)
         (self.grids_dir / ".gitignore").write_text("*\n")
-
-        self._initial_params = None
-        if grid is not None:
-            self._initial_params = {
-                "lenx": grid.lenx,
-                "leny": grid.leny,
-                "nx": grid.nx,
-                "ny": grid.ny,
-                "xstart": grid.supergrid.x[0, 0],
-                "ystart": grid.supergrid.y[0, 0],
-                "name": grid.name,
-            }
 
         # Click-capture state
         self._click_points = []  # accumulated (x, y) clicks in current map CRS
@@ -93,7 +82,7 @@ class GridCreator(widgets.HBox):
         self._in_redraw = False
 
         # Grid creation mode and associated stored parameters for Recreate
-        self._grid_mode = "latlon"  # "latlon" | "center" | "projection"
+        self._grid_mode = "latlon"  # "latlon" - default | "center" | "projection"
         self._center_latlon = None  # (lat, lon) set after a From Center click
         self._proj_extents = None  # (x_min, x_max, y_min, y_max) in projected CRS
         self._current_map_proj = ccrs.PlateCarree()  # active cartopy projection
@@ -111,28 +100,28 @@ class GridCreator(widgets.HBox):
         self.fig.canvas.toolbar_visible = True
         self.fig.canvas.toolbar_position = "top"
 
-        self.ax.callbacks.connect("xlim_changed", self._on_extent_changed)
+        self.ax.callbacks.connect("xlim_changed", self._on_extent_changed) # This connects to the ipywidget zoom feature
 
         super().__init__(
             [self._control_panel, self.fig.canvas],
             layout=widgets.Layout(width="100%", align_items="flex-start"),
         )
 
-        self.refresh_commit_dropdown()
+        self.refresh_library_dropdown()
         if self.grid is not None:
-            if isinstance(self.grid.supergrid, ProjectedSupergrid):
+            if self.grid.supergrid.grid_type == "projected_crs" or self.grid.supergrid.grid_type == "projected_center":
                 self._grid_mode = "projection"
-            self.plot_grid()
+            self.load_grid(grid = self.grid)
         else:
             self.plot_world()
-            self._start_click_mode()
+            self._start_click_mode() # Interactivity
 
     # ------------------------------------------------------------------
     # Control panel construction
     # ------------------------------------------------------------------
 
     def construct_control_panel(self):
-        # --- Mode selector (pre-grid only) ---
+        # --- Mode selector (create mode) ---
         self._mode_selector = widgets.RadioButtons(
             options=["Lat/Lon Corners", "From Center", "From Projection"],
             value="Lat/Lon Corners",
@@ -231,22 +220,22 @@ class GridCreator(widgets.HBox):
         )
 
         # --- Library ---
-        self._snapshot_name = widgets.Text(
+        self._grid_name = widgets.Text(
             value="",
             placeholder="Enter grid name",
             description="Name:",
             layout={"width": "90%"},
         )
-        self._commit_msg = widgets.Text(
+        self._grid_msg = widgets.Text(
             value="",
             placeholder="Enter grid message",
             description="Message:",
             layout={"width": "90%"},
         )
-        self._commit_dropdown = widgets.Dropdown(
+        self._library_dropdown = widgets.Dropdown(
             options=[], description="Grids:", layout={"width": "90%"}
         )
-        self._commit_details = widgets.HTML(
+        self._grid_details = widgets.HTML(
             value="", layout={"width": "90%", "min_height": "2em"}
         )
         self._save_button = widgets.Button(
@@ -261,10 +250,10 @@ class GridCreator(widgets.HBox):
         library_section = widgets.VBox(
             [
                 widgets.HTML("<h3>Library</h3>"),
-                self._snapshot_name,
-                self._commit_msg,
-                self._commit_dropdown,
-                self._commit_details,
+                self._grid_name,
+                self._grid_msg,
+                self._library_dropdown,
+                self._grid_details,
                 widgets.HBox([self._save_button, self._load_button]),
             ]
         )
@@ -375,7 +364,7 @@ class GridCreator(widgets.HBox):
                 ]
             )
             self._recreate_button.disabled = self._center_latlon is None
-        else:
+        else: # Projection option
             header = widgets.HTML("<h3>Grid Creator</h3>")
             mode_inputs = widgets.VBox(
                 [
@@ -466,10 +455,10 @@ class GridCreator(widgets.HBox):
         self._load_button.on_click(self.load_grid)
         self._reset_button.on_click(self.reset_grid)
         self._recreate_button.on_click(self._on_recreate_click)
-        self._snapshot_name.observe(
-            lambda change: self.refresh_commit_dropdown(), names="value"
+        self._grid_name.observe(
+            lambda change: self.refresh_library_dropdown(), names="value"
         )
-        self._commit_dropdown.observe(self.update_commit_details, names="value")
+        self._library_dropdown.observe(self.update_grid_details, names="value")
 
         if self.grid is None:
             self._mode_selector.observe(self._on_mode_change, names="value")
@@ -609,7 +598,6 @@ class GridCreator(widgets.HBox):
             type=self._latlon_grid_type.value,
         )
         self._grid_mode = "latlon"
-        self._initial_params = None
         self._switch_to_grid_mode()
         self.plot_grid()
 
@@ -627,7 +615,6 @@ class GridCreator(widgets.HBox):
             print(f"Failed to create grid from centre: {e}")
             return
         self._grid_mode = "center"
-        self._initial_params = None
         self._switch_to_grid_mode()
         self.plot_grid()
 
@@ -657,7 +644,6 @@ class GridCreator(widgets.HBox):
             print(f"Failed to create projected grid: {e}")
             return
         self._grid_mode = "projection"
-        self._initial_params = None
         self._switch_to_grid_mode()
         self.plot_grid()
 
@@ -828,8 +814,8 @@ class GridCreator(widgets.HBox):
     # ------------------------------------------------------------------
 
     def save_grid(self, _btn=None):
-        name = self._snapshot_name.value.strip()
-        msg = self._commit_msg.value.strip()
+        name = self._grid_name.value.strip()
+        msg = self._grid_msg.value.strip()
         if not name:
             print("Enter a grid name!")
             return
@@ -847,40 +833,42 @@ class GridCreator(widgets.HBox):
         nc_path = os.path.join(self.grids_dir, f"grid_{name}.nc")
         self.grid.write_supergrid(nc_path)
         print(f"Saved grid '{os.path.basename(nc_path)}' in '{self.grids_dir}'.")
-        self.refresh_commit_dropdown()
+        self.refresh_library_dropdown()
 
-    def load_grid(self, b=None):
-        val = self._commit_dropdown.value
-        if not val:
-            return
-        nc_path = os.path.join(self.grids_dir, val)
-        try:
+    def load_grid(self, b=None, grid = None):
+        if grid is None:
+            val = self._library_dropdown.value
+            if not val:
+                return
+            nc_path = os.path.join(self.grids_dir, val)
             self.grid = Grid.from_supergrid(nc_path)
-            ds = xr.open_dataset(nc_path)
-            grid_type = ds.attrs.get("grid_type", "uniform_spherical")
+        else:
+            self.grid = grid
+        try:
+            grid_type = self.grid.supergrid.grid_type
 
             self._center_latlon = None
             self._proj_extents = None
 
             if grid_type == "projected_center":
                 self._grid_mode = "center"
-                self._center_latlon = (ds.attrs["center_lat"], ds.attrs["center_lon"])
-                self._center_width.value = ds.attrs["width_m"] / 1000
-                self._center_height.value = ds.attrs["height_m"] / 1000
-                self._center_resolution.value = ds.attrs["resolution_m"] / 1000
-                self._center_angle.value = ds.attrs.get("angle_deg", 0.0)
+                self._center_latlon = (grid.supergrid._grid_params["center_lat"], grid.supergrid._grid_params["center_lon"])
+                self._center_width.value = grid.supergrid._grid_params["width_m"] / 1000
+                self._center_height.value = grid.supergrid._grid_params["height_m"] / 1000
+                self._center_resolution.value = grid.supergrid._grid_params["resolution_m"] / 1000
+                self._center_angle.value = grid.supergrid._grid_params.get("angle_deg", 0.0)
             elif grid_type == "projected_crs":
                 self._grid_mode = "projection"
                 self._proj_extents = (
-                    ds.attrs["x_min"],
-                    ds.attrs["x_max"],
-                    ds.attrs["y_min"],
-                    ds.attrs["y_max"],
+                    grid.supergrid._grid_params["x_min"],
+                    grid.supergrid._grid_params["x_max"],
+                    grid.supergrid._grid_params["y_min"],
+                    grid.supergrid._grid_params["y_max"],
                 )
-                self._proj_resolution.value = ds.attrs["resolution_m"] / 1000
-                epsg = CRS.from_wkt(ds.attrs["crs_wkt"]).to_epsg()
+                self._proj_resolution.value = grid.supergrid._grid_params["resolution_m"] / 1000
+                epsg = CRS.from_wkt(grid.supergrid._grid_params["crs_wkt"]).to_epsg()
                 self._proj_crs_text.value = (
-                    f"EPSG:{epsg}" if epsg else ds.attrs["crs_wkt"]
+                    f"EPSG:{epsg}" if epsg else grid.supergrid._grid_params["crs_wkt"]
                 )
             else:
                 self._grid_mode = "latlon"
@@ -897,7 +885,6 @@ class GridCreator(widgets.HBox):
             if self._grid_mode == "latlon":
                 self.sync_sliders_to_grid()
             self.plot_grid()
-            print(f"Loaded grid from '{nc_path}'.")
         except Exception as e:
             print(f"Failed to load grid: {e}")
             import traceback
@@ -982,50 +969,29 @@ class GridCreator(widgets.HBox):
         self.plot_grid()
 
     def reset_grid(self, b=None):
-        if self._initial_params is None:
-            # No original grid — go back to click-to-create mode
-            self.grid = None
-            self._grid_mode = "latlon"
-            self._center_latlon = None
-            self._proj_extents = None
-            self._control_panel.children = [
-                self._build_creator_controls(),
-                self._control_panel.children[1],
-            ]
-            self.construct_observances()
-            if not isinstance(self._current_map_proj, ccrs.PlateCarree):
-                self._set_map_projection(ccrs.PlateCarree(), None)
-            else:
-                self.plot_world()
-            self._start_click_mode()
-            return
-
+        # go back to click-to-create mode
+        self.grid = None
+        self._grid_mode = "latlon"
+        self._center_latlon = None
+        self._proj_extents = None
+        self._control_panel.children = [
+            self._build_creator_controls(),
+            self._control_panel.children[1],
+        ]
+        self.construct_observances()
         if not isinstance(self._current_map_proj, ccrs.PlateCarree):
             self._set_map_projection(ccrs.PlateCarree(), None)
-        params = self._initial_params
-        name = self._snapshot_name.value.strip() or params["name"]
-        self.grid = Grid(
-            lenx=params["lenx"],
-            leny=params["leny"],
-            resolution=params["lenx"] / params["nx"],
-            xstart=params["xstart"],
-            ystart=params["ystart"],
-            name=name,
-        )
-        self._grid_mode = "latlon"
-        self.sync_sliders_to_grid()
-        self.plot_grid()
-        grid_nc_name = f"grid_{name}.nc"
-        option_values = [v for (l, v) in self._commit_dropdown.options]
-        if grid_nc_name in option_values:
-            self._commit_dropdown.value = grid_nc_name
-        self.update_commit_details()
+        else:
+            self.plot_world()
+        self._start_click_mode()
+        return
+
 
     # ------------------------------------------------------------------
     # Library
     # ------------------------------------------------------------------
 
-    def refresh_commit_dropdown(self):
+    def refresh_library_dropdown(self):
         grid_nc_files = [
             fname
             for fname in os.listdir(self.grids_dir)
@@ -1049,21 +1015,21 @@ class GridCreator(widgets.HBox):
             reverse=True,
         )
 
-        self._commit_dropdown.options = options if options else []
+        self._library_dropdown.options = options if options else []
         if options:
             option_values = [v for (l, v) in options]
             if current_grid_nc and current_grid_nc in option_values:
-                self._commit_dropdown.value = current_grid_nc
-            elif self._commit_dropdown.value not in option_values:
-                self._commit_dropdown.value = options[0][1]
+                self._library_dropdown.value = current_grid_nc
+            elif self._library_dropdown.value not in option_values:
+                self._library_dropdown.value = options[0][1]
         else:
-            self._commit_dropdown.value = None
-        self.update_commit_details()
+            self._library_dropdown.value = None
+        self.update_grid_details()
 
-    def update_commit_details(self, change=None):
-        val = self._commit_dropdown.value
+    def update_grid_details(self, change=None):
+        val = self._library_dropdown.value
         if not val:
-            self._commit_details.value = ""
+            self._grid_details.value = ""
             return
         abs_path = os.path.join(self.grids_dir, val)
         try:
@@ -1078,6 +1044,6 @@ class GridCreator(widgets.HBox):
                 f"<b>Created:</b> {date_short}<br>"
                 f"<b>nx:</b> {grid.nx} <b>ny:</b> {grid.ny}"
             )
-            self._commit_details.value = details
+            self._grid_details.value = details
         except Exception as e:
-            self._commit_details.value = f"<b>Error:</b> {e}"
+            self._grid_details.value = f"<b>Error:</b> {e}"
