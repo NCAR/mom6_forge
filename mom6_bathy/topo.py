@@ -600,13 +600,11 @@ class Topo:
             run_* (Optional[bool]): Whether to run the respective step in the bathymetry processing. Default: ``True``.
 
         """
-        print(
-            """**NOTE**
+        print("""**NOTE**
             If bathymetry setup fails (e.g. kernel crashes), restart the kernel and edit this cell.
             Call ``[topo_object_name].mpi_set_from_dataset()`` instead. Follow the given instructions for using mpi 
             and ESMF_Regrid outside of a python environment. This breaks up the process, so be sure to call
-            ``[topo_object_name].tidy_dataset() after regridding with mpi."""
-        )
+            ``[topo_object_name].tidy_dataset() after regridding with mpi.""")
         if run_config_dataset:
             self.bathymetry_output, self.empty_bathy = self.config_dataset(
                 bathymetry_path=bathymetry_path,
@@ -655,8 +653,7 @@ class Topo:
         verbose=True,
     ):
         if verbose:
-            print(
-                f"""
+            print(f"""
             *MANUAL REGRIDDING INSTRUCTIONS*
             
             Calling `[object_name].mpi_set_from_dataset` sets up the files necessary for regridding
@@ -676,8 +673,7 @@ class Topo:
             Example PBS script using NCAR's Casper Machine: https://gist.github.com/AidanJanney/911290acaef62107f8e2d4ccef9d09be
             
             For additional details see: https://xesmf.readthedocs.io/en/latest/large_problems_on_HPC.html
-            """
-            )
+            """)
 
         self.bathymetry_output, self.empty_bathy = self.config_dataset(
             bathymetry_path=bathymetry_path,

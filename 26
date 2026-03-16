@@ -1,0 +1,45 @@
+
+Pinned packages:
+
+  - python=3.11
+
+
+Transaction
+
+  Prefix: /glade/work/manishrv/conda-envs/CrocoDash
+
+  Updating specs:
+
+   - black
+
+
+  Package            Version  Build            Channel         Size
+─────────────────────────────────────────────────────────────────────
+  Install:
+─────────────────────────────────────────────────────────────────────
+
+  + black             26.1.0  py311h06a4308_0  pkgs/main      510kB
+  + click              8.2.1  py311h06a4308_1  pkgs/main     Cached
+  + mypy_extensions    1.0.0  py311h06a4308_0  pkgs/main     Cached
+  + pathspec           1.0.4  py311h06a4308_0  pkgs/main       89kB
+  + pytokens           0.3.0  py311h06a4308_0  pkgs/main     Cached
+
+  Summary:
+
+  Install: 5 packages
+
+  Total download: 599kB
+
+─────────────────────────────────────────────────────────────────────
+
+
+
+Transaction starting
+Linking click-8.2.1-py311h06a4308_1
+Linking mypy_extensions-1.0.0-py311h06a4308_0
+Linking pathspec-1.0.4-py311h06a4308_0
+Linking pytokens-0.3.0-py311h06a4308_0
+Linking black-26.1.0-py311h06a4308_0
+
+Transaction finished
+

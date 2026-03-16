@@ -10,7 +10,6 @@ from mom6_bathy._supergrid import ProjectedSupergrid
 from pathlib import Path
 from pyproj import CRS, Transformer
 
-
 _CRS_PRESETS = [
     ("Plate Carree / Geographic (EPSG:4326)", "EPSG:4326"),
     ("Arctic Polar Stereographic (EPSG:3995)", "EPSG:3995"),
