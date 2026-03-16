@@ -9,7 +9,6 @@ from mom6_bathy._supergrid import (
     RectilinearCartesianSupergrid,
     ProjectedSupergrid,
     SupergridBase,
-    supergrid_class_from_ds,
 )
 from mom6_bathy.utils import normalize_deg
 
