@@ -10,7 +10,6 @@ from mom6_bathy._supergrid import ProjectedSupergrid, supergrid_type_from_ds
 from pathlib import Path
 from pyproj import CRS, Transformer
 
-
 # For projection grid creation, offer some convenient CRS presets in a dropdown
 _CRS_PRESETS = [
     ("Plate Carree / Geographic (EPSG:4326)", "EPSG:4326"),
@@ -64,7 +63,7 @@ class GridCreator(widgets.HBox):
     Entering "From Projection" mode switches the cartopy axes to the native
     projection for the selected CRS (preset EPSG codes only; unknown codes
     fall back to PlateCarree).  All other modes
-    use PlateCarree.  
+    use PlateCarree.
     """
 
     def __init__(self, grid=None, working_dir=None):
@@ -100,7 +99,9 @@ class GridCreator(widgets.HBox):
         self.fig.canvas.toolbar_visible = True
         self.fig.canvas.toolbar_position = "top"
 
-        self.ax.callbacks.connect("xlim_changed", self._on_extent_changed) # This connects to the ipywidget zoom feature
+        self.ax.callbacks.connect(
+            "xlim_changed", self._on_extent_changed
+        )  # This connects to the ipywidget zoom feature
 
         super().__init__(
             [self._control_panel, self.fig.canvas],
@@ -109,12 +110,15 @@ class GridCreator(widgets.HBox):
 
         self.refresh_library_dropdown()
         if self.grid is not None:
-            if self.grid.supergrid.grid_type == "projected_crs" or self.grid.supergrid.grid_type == "projected_center":
+            if (
+                self.grid.supergrid.grid_type == "projected_crs"
+                or self.grid.supergrid.grid_type == "projected_center"
+            ):
                 self._grid_mode = "projection"
-            self.load_grid(grid = self.grid)
+            self.load_grid(grid=self.grid)
         else:
             self.plot_world()
-            self._start_click_mode() # Interactivity
+            self._start_click_mode()  # Interactivity
 
     # ------------------------------------------------------------------
     # Control panel construction
@@ -364,7 +368,7 @@ class GridCreator(widgets.HBox):
                 ]
             )
             self._recreate_button.disabled = self._center_latlon is None
-        else: # Projection option
+        else:  # Projection option
             header = widgets.HTML("<h3>Grid Creator</h3>")
             mode_inputs = widgets.VBox(
                 [
@@ -835,7 +839,7 @@ class GridCreator(widgets.HBox):
         print(f"Saved grid '{os.path.basename(nc_path)}' in '{self.grids_dir}'.")
         self.refresh_library_dropdown()
 
-    def load_grid(self, b=None, grid = None):
+    def load_grid(self, b=None, grid=None):
         if grid is None:
             val = self._library_dropdown.value
             if not val:
@@ -852,11 +856,20 @@ class GridCreator(widgets.HBox):
 
             if grid_type == "projected_center":
                 self._grid_mode = "center"
-                self._center_latlon = (grid.supergrid._grid_params["center_lat"], grid.supergrid._grid_params["center_lon"])
+                self._center_latlon = (
+                    grid.supergrid._grid_params["center_lat"],
+                    grid.supergrid._grid_params["center_lon"],
+                )
                 self._center_width.value = grid.supergrid._grid_params["width_m"] / 1000
-                self._center_height.value = grid.supergrid._grid_params["height_m"] / 1000
-                self._center_resolution.value = grid.supergrid._grid_params["resolution_m"] / 1000
-                self._center_angle.value = grid.supergrid._grid_params.get("angle_deg", 0.0)
+                self._center_height.value = (
+                    grid.supergrid._grid_params["height_m"] / 1000
+                )
+                self._center_resolution.value = (
+                    grid.supergrid._grid_params["resolution_m"] / 1000
+                )
+                self._center_angle.value = grid.supergrid._grid_params.get(
+                    "angle_deg", 0.0
+                )
             elif grid_type == "projected_crs":
                 self._grid_mode = "projection"
                 self._proj_extents = (
@@ -865,7 +878,9 @@ class GridCreator(widgets.HBox):
                     grid.supergrid._grid_params["y_min"],
                     grid.supergrid._grid_params["y_max"],
                 )
-                self._proj_resolution.value = grid.supergrid._grid_params["resolution_m"] / 1000
+                self._proj_resolution.value = (
+                    grid.supergrid._grid_params["resolution_m"] / 1000
+                )
                 epsg = CRS.from_wkt(grid.supergrid._grid_params["crs_wkt"]).to_epsg()
                 self._proj_crs_text.value = (
                     f"EPSG:{epsg}" if epsg else grid.supergrid._grid_params["crs_wkt"]
@@ -985,7 +1000,6 @@ class GridCreator(widgets.HBox):
             self.plot_world()
         self._start_click_mode()
         return
-
 
     # ------------------------------------------------------------------
     # Library

@@ -19,7 +19,6 @@ from mom6_bathy.utils import quadrilateral_areas, mdist, normalize_deg
 from pyproj import CRS, Transformer
 
 
-
 class SupergridBase:
     """Base class defining the MOM6-style supergrid interface."""
 
