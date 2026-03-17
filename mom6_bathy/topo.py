@@ -100,7 +100,12 @@ class Topo:
 
     @classmethod
     def from_topo_file(
-        cls, grid, topo_file_path, min_depth=0.0, varname="depth", version_control_dir="TopoLibrary"
+        cls,
+        grid,
+        topo_file_path,
+        min_depth=0.0,
+        varname="depth",
+        version_control_dir="TopoLibrary",
     ):
         """
         Create a bathymetry object from an existing topog file.
@@ -367,7 +372,7 @@ class Topo:
         # Save to object
         self.send_entire_depth_change_to_tcm(depth)
 
-    def set_depth_via_topog_file(self, topog_file_path, varname, quietly=False):
+    def set_depth_via_topog_file(self, topog_file_path, varname="depth", quietly=False):
         """
         Apply a bathymetry read from an existing topog file
 
@@ -384,7 +389,9 @@ class Topo:
         ), f"Cannot find topog file at {topog_file_path}."
 
         ds_topo = xr.open_dataset(topog_file_path)
-        assert varname in ds_topo, f"Cannot find the '{varname}' field in topog file {topog_file_path}"
+        assert (
+            varname in ds_topo
+        ), f"Cannot find the '{varname}' field in topog file {topog_file_path}"
         depth = ds_topo[varname]
 
         if depth.shape[0] < self._grid.ny or depth.shape[1] < self._grid.nx:
