@@ -10,6 +10,8 @@ from pathlib import Path
 from scipy.spatial import cKDTree
 from scipy.sparse import csr_matrix, csc_matrix, coo_matrix
 import xesmf as xe
+from collections import deque
+from math import sqrt as _sqrt
 
 MPI = None
 rank = lambda: MPI.COMM_WORLD.Get_rank() if MPI else 0
@@ -789,46 +791,165 @@ def compute_smoothing_weights(mesh_ds, rmax, fold=1.0, xv_data=None, yv_data=Non
     z = R_earth * np.sin(lat)
     xyz = np.stack([x, y, z], axis=1)
 
-    # Build KDTree in 3D Cartesian space
-    tree = cKDTree(xyz)
-    # query_ball_tree uses Euclidean distance in xyz-space (chord length), while
-    # rmax is given as arc length on a sphere. Convert arc-length radius to the
-    # corresponding chord-length radius before querying neighbors.
-    chord_rmax = 2 * R_earth * np.sin(rmax / (2 * R_earth))
-    indices = tree.query_ball_tree(tree, chord_rmax)
-
     row_indices, col_indices, data = [], [], []
 
+    grid = grid_from_esmf_mesh(mesh_ds)
     coastline_mask_bool = None
     if coastline_masking:
-        grid = grid_from_esmf_mesh(mesh_ds)
         coastline_mask = extract_coastline_mask(grid)
         coastline_mask_bool = flatten_to_mesh(coastline_mask == 1).astype(bool)
 
-    for i, neighbors in enumerate(indices):
-        if not mask_bool[i]:
+    dst_is_cyclic_x = is_mesh_cyclic_x(mesh_ds)
+    nx = grid.sizes['nlon']
+
+    # index of the cell to the left of cell i:
+    left = np.arange(len(coords)) - 1
+    row_starts = np.arange(0, len(coords), nx)
+    if dst_is_cyclic_x:
+        left[row_starts] = row_starts + nx - 1  # wrap within each row
+    else:
+        left[row_starts] = -1  # mark out-of-bounds at row boundaries
+
+    # index of the cell to the right of cell i:
+    right = np.arange(len(coords)) + 1
+    row_ends = np.arange(nx - 1, len(coords), nx)
+    if dst_is_cyclic_x:
+        right[row_ends] = row_ends - nx + 1  # wrap within each row
+    else:
+        right[row_ends] = -1  # mark out-of-bounds at row boundaries
+
+    # index of the cell above cell i:
+    top = np.arange(len(coords)) - nx
+    top[top < 0] = -1  # mark out-of-bounds indices with -1
+
+    # index of the cell below cell i:
+    bottom = np.arange(len(coords)) + nx
+    bottom[bottom >= len(coords)] = -1  # mark out-of-bounds indices with -1
+
+    # Diagonal neighbors (composed from cardinal neighbors)
+    n_cells = len(coords)
+    top_left = np.full(n_cells, -1, dtype=np.int64)
+    top_right = np.full(n_cells, -1, dtype=np.int64)
+    bot_left = np.full(n_cells, -1, dtype=np.int64)
+    bot_right = np.full(n_cells, -1, dtype=np.int64)
+    has_top = top != -1
+    has_bot = bottom != -1
+    top_left[has_top] = left[top[has_top]]
+    top_right[has_top] = right[top[has_top]]
+    bot_left[has_bot] = left[bottom[has_bot]]
+    bot_right[has_bot] = right[bottom[has_bot]]
+
+    # Precompute CSR adjacency structure (8-connectivity)
+    adj_list = []
+    adj_offset = np.zeros(n_cells + 1, dtype=np.int64)
+    for c in range(n_cells):
+        nbrs = [n for n in (left[c], right[c], top[c], bottom[c],
+                            top_left[c], top_right[c], bot_left[c], bot_right[c])
+                if n != -1]
+        adj_list.extend(nbrs)
+        adj_offset[c + 1] = adj_offset[c] + len(nbrs)
+    adj_flat = np.array(adj_list, dtype=np.int64)
+
+    # Convert inner-loop arrays to Python lists for fast scalar access
+    # (avoids numpy scalar overhead on indexing, hashing, and comparison)
+    xyz_x = xyz[:, 0].tolist()
+    xyz_y = xyz[:, 1].tolist()
+    xyz_z = xyz[:, 2].tolist()
+    adj_flat = adj_flat.tolist()
+    adj_offset = adj_offset.tolist()
+    mask_list = mask_bool.tolist()
+
+    two_R = 2 * R_earth
+    sqrt = _sqrt
+
+    # Precompute chord-distance threshold for crow's-fly BFS cutoff
+    chord_rmax_sq = (two_R * np.sin(rmax / two_R)) ** 2
+
+    # Progress reporting
+    n_active = int(np.sum(mask_bool))
+    progress_interval = max(n_active // 10, 1)
+    cells_processed = 0
+
+    for i in range(n_cells):
+
+        if not mask_list[i]:
             continue
+
         if coastline_masking:
             # Only apply smoothing to cells adjacent to the coastline
             if not coastline_mask_bool[i]:
                 row_indices.append(i)
                 col_indices.append(i)
                 data.append(1.0)
+                cells_processed += 1
+                if cells_processed % progress_interval == 0:
+                    print(f"  smoothing weights: {100 * cells_processed // n_active}% ({cells_processed}/{n_active} cells)")
                 continue
-        neighbors = np.array(neighbors)
-        neighbors = neighbors[mask_bool[neighbors]]
-        row_indices.extend(neighbors)
-        col_indices.extend([i] * len(neighbors))
-        # Compute great-circle distances in km
-        d_xyz = xyz[i] - xyz[neighbors]
-        # Chord length
-        chord = np.linalg.norm(d_xyz, axis=1)
-        # Convert chord length to arc length (distance on sphere)
-        arc = 2 * R_earth * np.arcsin(np.clip(chord / (2 * R_earth), 0, 1))
+
+        # Cache origin xyz for crow's-fly distance checks
+        xi = xyz_x[i]
+        yi = xyz_y[i]
+        zi = xyz_z[i]
+
+        # BFS with crow's-fly cutoff (circular region) and chord path distance for weights.
+        # For adjacent grid cells, chord ≈ arc distance (error < 0.03% per hop at 1° resolution).
+        # q entries: (cell_index, cumulative_chord_path_distance)
+        q = deque([(i, 0.0)])
+        discovered = {i: 0.0}  # cell -> shortest chord path distance from origin
+        nbr_indices = [i]
+        nbr_path_dist = [0.0]
+        while q:
+            current, current_dist = q.popleft()
+
+            # Iterate over precomputed adjacency (8-connectivity)
+            start = adj_offset[current]
+            end = adj_offset[current + 1]
+            cx = xyz_x[current]
+            cy = xyz_y[current]
+            cz = xyz_z[current]
+            for j in range(start, end):
+                neighbor = adj_flat[j]
+                if neighbor not in discovered and mask_list[neighbor]:
+                    nx_ = xyz_x[neighbor]
+                    ny_ = xyz_y[neighbor]
+                    nz_ = xyz_z[neighbor]
+                    # Crow's-fly distance from origin for BFS cutoff (circular)
+                    dx = xi - nx_
+                    dy = yi - ny_
+                    dz = zi - nz_
+                    if dx*dx + dy*dy + dz*dz <= chord_rmax_sq:
+                        # One-hop chord distance (≈ arc for adjacent cells)
+                        hx = cx - nx_
+                        hy = cy - ny_
+                        hz = cz - nz_
+                        path_dist = current_dist + sqrt(hx*hx + hy*hy + hz*hz)
+                        discovered[neighbor] = path_dist
+                        q.append((neighbor, path_dist))
+                        nbr_indices.append(neighbor)
+                        nbr_path_dist.append(path_dist)
+
+        if len(nbr_indices) == 0:
+            row_indices.append(i)
+            col_indices.append(i)
+            data.append(1.0)
+            cells_processed += 1
+            if cells_processed % progress_interval == 0:
+                print(f"  smoothing weights: {100 * cells_processed // n_active}% ({cells_processed}/{n_active} cells)")
+            continue
+
+        # Compute weights from path distances (topology-aware)
+        neighbor_idx = np.array(nbr_indices, dtype=np.int64)
+        arc = np.array(nbr_path_dist)
         weights_data = np.exp(-arc / fold)
-        # Normalize by area
-        weights_data /= np.sum(weights_data * (areas[neighbors] / areas[i]))
+        weights_data /= np.sum(weights_data * (areas[neighbor_idx] / areas[i]))
+
+        row_indices.extend(neighbor_idx)
+        col_indices.extend([i] * len(nbr_indices))
         data.extend(weights_data)
+
+        cells_processed += 1
+        if cells_processed % progress_interval == 0:
+            print(f"  smoothing weights: {100 * cells_processed // n_active}% ({cells_processed}/{n_active} cells)")
 
     weights = coo_matrix(
         (data, (row_indices, col_indices)), shape=(len(coords), len(coords))
