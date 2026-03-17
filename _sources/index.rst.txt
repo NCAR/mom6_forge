@@ -18,6 +18,7 @@ to learn about the `mom6_bathy` tool.
    quickstart
    examples
    glossary
+   widgets
 
 .. toctree::
    :maxdepth: 2

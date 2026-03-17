@@ -12,8 +12,11 @@ Examples
 3. Custom bathymetry and ridges:
 `3_custom_bathy.ipynb <https://github.com/NCAR/mom6_bathy/blob/master/notebooks/3_custom_bathy.ipynb>`_
 
-4. Apply existing land mask
+4. Apply existing land mask:
 `4_ingest_landmask.ipynb <https://github.com/NCAR/mom6_bathy/blob/master/notebooks/4_ingest_landmask.ipynb>`_
 
 5. Modify existing MOM6 bathymetry via point-and-click widget:
 `5_modify_existing.ipynb <https://github.com/NCAR/mom6_bathy/blob/master/notebooks/5_modify_existing.ipynb>`_
+
+6. Use domain configurators:
+`6_demo_editors.ipynb <https://github.com/NCAR/mom6_bathy/blob/master/notebooks/6_demo_editors.ipynb>`_

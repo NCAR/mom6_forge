@@ -45,6 +45,7 @@
 <li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
 <li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="widgets.html">Topo &amp; The Widgets!</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Python API:</span></p>
 <ul>
@@ -82,10 +83,12 @@
  | <a href="#B"><strong>B</strong></a>
  | <a href="#C"><strong>C</strong></a>
  | <a href="#D"><strong>D</strong></a>
+ | <a href="#E"><strong>E</strong></a>
  | <a href="#F"><strong>F</strong></a>
  | <a href="#G"><strong>G</strong></a>
  | <a href="#I"><strong>I</strong></a>
  | <a href="#K"><strong>K</strong></a>
+ | <a href="#L"><strong>L</strong></a>
  | <a href="#M"><strong>M</strong></a>
  | <a href="#N"><strong>N</strong></a>
  | <a href="#P"><strong>P</strong></a>
@@ -127,6 +130,10 @@
       <li><a href="mom6_bathy.grid.html#mom6_bathy.grid.Grid.check_supergrid">check_supergrid() (mom6_bathy.grid.Grid static method)</a>
 </li>
   </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="mom6_bathy.topo.html#mom6_bathy.topo.Topo.config_dataset">config_dataset() (mom6_bathy.topo.Topo method)</a>
+</li>
+  </ul></td>
 </tr></table>
 
 <h2 id="D">D</h2>
@@ -151,16 +158,30 @@
   </ul></td>
 </tr></table>
 
+<h2 id="E">E</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="mom6_bathy.topo.html#mom6_bathy.topo.Topo.erase_disconnected_basin">erase_disconnected_basin() (mom6_bathy.topo.Topo method)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="mom6_bathy.topo.html#mom6_bathy.topo.Topo.erase_selected_basin">erase_selected_basin() (mom6_bathy.topo.Topo method)</a>
+</li>
+  </ul></td>
+</tr></table>
+
 <h2 id="F">F</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="mom6_bathy.grid.html#mom6_bathy.grid.Grid.from_supergrid">from_supergrid() (mom6_bathy.grid.Grid class method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="mom6_bathy.grid.html#mom6_bathy.grid.Grid.from_supergrid_ds">from_supergrid_ds() (mom6_bathy.grid.Grid class method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="mom6_bathy.topo.html#mom6_bathy.topo.Topo.from_topo_file">from_topo_file() (mom6_bathy.topo.Topo class method)</a>
+</li>
+      <li><a href="mom6_bathy.topo.html#mom6_bathy.topo.Topo.from_version_control">from_version_control() (mom6_bathy.topo.Topo class method)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -168,14 +189,12 @@
 <h2 id="G">G</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="mom6_bathy.grid.html#mom6_bathy.grid.Grid.gen_supergrid_ds">gen_supergrid_ds() (mom6_bathy.grid.Grid method)</a>
-</li>
       <li><a href="mom6_bathy.topo.html#mom6_bathy.topo.Topo.gen_topo_ds">gen_topo_ds() (mom6_bathy.topo.Topo method)</a>
+</li>
+      <li><a href="mom6_bathy.grid.html#mom6_bathy.grid.Grid.get_bounding_boxes_of_rectangular_grid">get_bounding_boxes_of_rectangular_grid() (mom6_bathy.grid.Grid class method)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="mom6_bathy.grid.html#mom6_bathy.grid.Grid.get_bounding_boxes_of_rectangular_grid">get_bounding_boxes_of_rectangular_grid() (mom6_bathy.grid.Grid class method)</a>
-</li>
       <li><a href="mom6_bathy.grid.html#mom6_bathy.grid.Grid.get_indices">get_indices() (mom6_bathy.grid.Grid method)</a>
 </li>
       <li><a href="mom6_bathy.grid.html#mom6_bathy.grid.Grid">Grid (class in mom6_bathy.grid)</a>
@@ -201,6 +220,18 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="mom6_bathy.grid.html#mom6_bathy.grid.Grid.kdtree">kdtree (mom6_bathy.grid.Grid property)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="L">L</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="mom6_bathy.grid.html#mom6_bathy.grid.Grid.lenx">lenx (mom6_bathy.grid.Grid property)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="mom6_bathy.grid.html#mom6_bathy.grid.Grid.leny">leny (mom6_bathy.grid.Grid property)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -246,6 +277,8 @@
         <li><a href="mom6_bathy.topo.html#module-mom6_bathy.topo">module</a>
 </li>
       </ul></li>
+      <li><a href="mom6_bathy.topo.html#mom6_bathy.topo.Topo.mpi_set_from_dataset">mpi_set_from_dataset() (mom6_bathy.topo.Topo method)</a>
+</li>
   </ul></td>
 </tr></table>
 
@@ -294,16 +327,22 @@
 <h2 id="S">S</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="mom6_bathy.topo.html#mom6_bathy.topo.Topo.save">save() (mom6_bathy.topo.Topo method)</a>
+</li>
+      <li><a href="mom6_bathy.topo.html#mom6_bathy.topo.Topo.send_entire_depth_change_to_tcm">send_entire_depth_change_to_tcm() (mom6_bathy.topo.Topo method)</a>
+</li>
       <li><a href="mom6_bathy.topo.html#mom6_bathy.topo.Topo.set_bowl">set_bowl() (mom6_bathy.topo.Topo method)</a>
 </li>
       <li><a href="mom6_bathy.topo.html#mom6_bathy.topo.Topo.set_depth_via_topog_file">set_depth_via_topog_file() (mom6_bathy.topo.Topo method)</a>
 </li>
       <li><a href="mom6_bathy.topo.html#mom6_bathy.topo.Topo.set_flat">set_flat() (mom6_bathy.topo.Topo method)</a>
 </li>
-      <li><a href="mom6_bathy.topo.html#mom6_bathy.topo.Topo.set_spoon">set_spoon() (mom6_bathy.topo.Topo method)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="mom6_bathy.topo.html#mom6_bathy.topo.Topo.set_from_dataset">set_from_dataset() (mom6_bathy.topo.Topo method)</a>
+</li>
+      <li><a href="mom6_bathy.topo.html#mom6_bathy.topo.Topo.set_spoon">set_spoon() (mom6_bathy.topo.Topo method)</a>
+</li>
       <li><a href="mom6_bathy.grid.html#mom6_bathy.grid.Grid.subgrid_from_supergrid">subgrid_from_supergrid() (mom6_bathy.grid.Grid class method)</a>
 </li>
       <li><a href="glossary.html#term-supergrid"><strong>supergrid</strong></a>
@@ -321,6 +360,8 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="mom6_bathy.grid.html#mom6_bathy.grid.Grid.tarea">tarea (mom6_bathy.grid.Grid attribute)</a>
+</li>
+      <li><a href="mom6_bathy.topo.html#mom6_bathy.topo.Topo.tidy_dataset">tidy_dataset() (mom6_bathy.topo.Topo method)</a>
 </li>
       <li><a href="mom6_bathy.grid.html#mom6_bathy.grid.Grid.tlat">tlat (mom6_bathy.grid.Grid attribute)</a>
 </li>

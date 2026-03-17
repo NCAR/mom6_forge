@@ -47,6 +47,7 @@
 <li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
 <li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="widgets.html">Topo &amp; The Widgets!</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Python API:</span></p>
 <ul class="current">
@@ -93,7 +94,7 @@
 <span id="mom6-bathy-topo-module"></span><h1>mom6_bathy.topo module<a class="headerlink" href="#module-mom6_bathy.topo" title="Link to this heading"></a></h1>
 <dl class="py class">
 <dt class="sig sig-object py" id="mom6_bathy.topo.Topo">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mom6_bathy.topo.</span></span><span class="sig-name descname"><span class="pre">Topo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_depth</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_bathy.topo.Topo" title="Link to this definition"></a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mom6_bathy.topo.</span></span><span class="sig-name descname"><span class="pre">Topo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_depth</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version_control_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'TopoLibrary'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_bathy.topo.Topo" title="Link to this definition"></a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Bathymetry Generator for MOM6 grids (mom6_bathy.grid.Grid).</p>
 <p>MOM6 Simpler Models bathymetry constructor.</p>
@@ -146,6 +147,36 @@
 <dd><p>Ocean domain mask at T grid. Seperate number for each connected water cell, 0 if land.</p>
 </dd></dl>
 
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_bathy.topo.Topo.config_dataset">
+<span class="sig-name descname"><span class="pre">config_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bathymetry_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fill_channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">positive_down</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">PosixPath('.')</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">write_to_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_bathy.topo.Topo.config_dataset" title="Link to this definition"></a></dt>
+<dd><p>Sets up necessary objects/files for regridding bathymetry. Can be flexibly used with
+mapping.regrid_bathy_dataset() or user can manually regrid with ESMF_regrid.</p>
+<p>If manual regridding is necessary, write_to_file must be set to True.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>bathymetry_path</strong> (<em>str</em>) – Path to netCDF file with bathymetry data.</p></li>
+<li><p><strong>longitude_coordinate_name</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The name of the longitude coordinate in the bathymetry
+dataset at <code class="docutils literal notranslate"><span class="pre">bathymetry_path</span></code>. For example, for GEBCO bathymetry: <code class="docutils literal notranslate"><span class="pre">'lon'</span></code> (default).</p></li>
+<li><p><strong>latitude_coordinate_name</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The name of the latitude coordinate in the bathymetry
+dataset at <code class="docutils literal notranslate"><span class="pre">bathymetry_path</span></code>. For example, for GEBCO bathymetry: <code class="docutils literal notranslate"><span class="pre">'lat'</span></code> (default).</p></li>
+<li><p><strong>vertical_coordinate_name</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The name of the vertical coordinate in the bathymetry
+dataset at <code class="docutils literal notranslate"><span class="pre">bathymetry_path</span></code>. For example, for GEBCO bathymetry: <code class="docutils literal notranslate"><span class="pre">'elevation'</span></code> (default).</p></li>
+<li><p><strong>output_dir</strong> – str | Path
+The str or Path the write to file should write to. Defaults to the directory the script is running in.</p></li>
+<li><p><strong>write_to_file</strong> (<em>Optional</em><em>[</em><em>bool</em><em>]</em>) – Files saved to <code class="docutils literal notranslate"><span class="pre">output_dir</span></code>. Defaults to <code class="docutils literal notranslate"><span class="pre">True</span></code>. Must be set to true if using manual regridding methods with ESMF_regrid.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>where <code class="docutils literal notranslate"><span class="pre">bathymetry_output</span></code> is the original bathymetry data with proper metadata and attributes and <code class="docutils literal notranslate"><span class="pre">empty_bathy</span></code> is a template for the regridder.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>(<code class="docutils literal notranslate"><span class="pre">bathymetry_output</span></code>,``empty_bathy``) (tuple of Datasets)</p>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py property">
 <dt class="sig sig-object py" id="mom6_bathy.topo.Topo.depth">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">depth</span></span><a class="headerlink" href="#mom6_bathy.topo.Topo.depth" title="Link to this definition"></a></dt>
@@ -153,8 +184,18 @@
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="mom6_bathy.topo.Topo.erase_disconnected_basin">
+<span class="sig-name descname"><span class="pre">erase_disconnected_basin</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_bathy.topo.Topo.erase_disconnected_basin" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_bathy.topo.Topo.erase_selected_basin">
+<span class="sig-name descname"><span class="pre">erase_selected_basin</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_bathy.topo.Topo.erase_selected_basin" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="mom6_bathy.topo.Topo.from_topo_file">
-<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_topo_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topo_file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_depth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_bathy.topo.Topo.from_topo_file" title="Link to this definition"></a></dt>
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_topo_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topo_file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_depth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">varname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'depth'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version_control_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'TopoLibrary'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_bathy.topo.Topo.from_topo_file" title="Link to this definition"></a></dt>
 <dd><p>Create a bathymetry object from an existing topog file.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -162,7 +203,19 @@
 <li><p><strong>grid</strong> (<a class="reference internal" href="mom6_bathy.grid.html#mom6_bathy.grid.Grid" title="mom6_bathy.grid.Grid"><em>mom6_bathy.grid.Grid</em></a>) – horizontal grid instance for which the bathymetry is to be created.</p></li>
 <li><p><strong>topo_file_path</strong> (<em>str</em>) – Path to an existing MOM6 topog file.</p></li>
 <li><p><strong>min_depth</strong> (<em>float</em><em>, </em><em>optional</em>) – Minimum water column depth (m). Columns with shallower depths are to be masked out.</p></li>
+<li><p><strong>varname</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of the variable representing ocean depth in the dataset. Default is “depth”.</p></li>
 </ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_bathy.topo.Topo.from_version_control">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_version_control</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">folder_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_bathy.topo.Topo.from_version_control" title="Link to this definition"></a></dt>
+<dd><p>Create a bathymetry object from an existing version-controlled bathymetry folder.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>folder_path</strong> (<em>str</em><em> | </em><em>Path</em>) – Path to an existing bathymetry folder created by mom6_bathy with version control enabled.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -191,6 +244,11 @@
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="mom6_bathy.topo.Topo.mpi_set_from_dataset">
+<span class="sig-name descname"><span class="pre">mpi_set_from_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bathymetry_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fill_channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">positive_down</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">PosixPath('.')</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">write_to_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_bathy.topo.Topo.mpi_set_from_dataset" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="mom6_bathy.topo.Topo.point_is_ocean">
 <span class="sig-name descname"><span class="pre">point_is_ocean</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lons</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lats</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_bathy.topo.Topo.point_is_ocean" title="Link to this definition"></a></dt>
 <dd><p>Given a list of coordinates, return a list of booleans indicating if the coordinates are in the ocean (True) or land (False)</p>
@@ -200,6 +258,18 @@
 <dt class="sig sig-object py" id="mom6_bathy.topo.Topo.qmask">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">qmask</span></span><a class="headerlink" href="#mom6_bathy.topo.Topo.qmask" title="Link to this definition"></a></dt>
 <dd><p>Ocean domain mask on Q grid. 1 if ocean, 0 if land.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_bathy.topo.Topo.save">
+<span class="sig-name descname"><span class="pre">save</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mom6_bathy.topo.Topo.save" title="Link to this definition"></a></dt>
+<dd><p>Save the TOPO_FILE (bathymetry file) in netcdf format to version control</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_bathy.topo.Topo.send_entire_depth_change_to_tcm">
+<span class="sig-name descname"><span class="pre">send_entire_depth_change_to_tcm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">depth</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quietly</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_bathy.topo.Topo.send_entire_depth_change_to_tcm" title="Link to this definition"></a></dt>
+<dd><p>This function takes an entire depth change and adds it through the TopoCommandManager (TCM) or directly if quietly is enabled.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -220,11 +290,14 @@
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_bathy.topo.Topo.set_depth_via_topog_file">
-<span class="sig-name descname"><span class="pre">set_depth_via_topog_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">topog_file_path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_bathy.topo.Topo.set_depth_via_topog_file" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">set_depth_via_topog_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">topog_file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">varname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'depth'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quietly</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_bathy.topo.Topo.set_depth_via_topog_file" title="Link to this definition"></a></dt>
 <dd><p>Apply a bathymetry read from an existing topog file</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>topog_file_path</strong> (<em>str</em>) – absolute path to an existing MOM6 topog file</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>topog_file_path</strong> (<em>str</em>) – absolute path to an existing MOM6 topog file</p></li>
+<li><p><strong>varname</strong> (<em>str</em>) – Name of the variable representing ocean depth in the dataset.</p></li>
+</ul>
 </dd>
 </dl>
 </dd></dl>
@@ -236,6 +309,38 @@
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>D</strong> (<em>float</em>) – Bathymetric depth of the flat bottom to be generated.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_bathy.topo.Topo.set_from_dataset">
+<span class="sig-name descname"><span class="pre">set_from_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bathymetry_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fill_channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">positive_down</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">PosixPath('.')</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">write_to_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">regridding_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bilinear'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">run_config_dataset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">run_regrid_dataset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">run_tidy_dataset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_bathy.topo.Topo.set_from_dataset" title="Link to this definition"></a></dt>
+<dd><p>This code was originally written by Ashley Barnes in regional_mom6(<a class="reference external" href="https://github.com/COSIMA/regional-mom6">https://github.com/COSIMA/regional-mom6</a>) and adapted for this package.</p>
+<p>Cut out and interpolate the chosen bathymetry and then fill inland lakes.</p>
+<p>Users can optionally fill narrow channels (see <code class="docutils literal notranslate"><span class="pre">fill_channels</span></code> keyword argument
+below). Note, however, that narrow channels are less of an issue for models that
+are discretized on an Arakawa C grid, like MOM6.</p>
+<p>Output is saved in the output_dir.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>bathymetry_path</strong> (<em>str</em>) – Path to the netCDF file with the bathymetry.</p></li>
+<li><p><strong>longitude_coordinate_name</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The name of the longitude coordinate in the bathymetry
+dataset at <code class="docutils literal notranslate"><span class="pre">bathymetry_path</span></code>. For example, for GEBCO bathymetry: <code class="docutils literal notranslate"><span class="pre">'lon'</span></code> (default).</p></li>
+<li><p><strong>latitude_coordinate_name</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The name of the latitude coordinate in the bathymetry
+dataset at <code class="docutils literal notranslate"><span class="pre">bathymetry_path</span></code>. For example, for GEBCO bathymetry: <code class="docutils literal notranslate"><span class="pre">'lat'</span></code> (default).</p></li>
+<li><p><strong>vertical_coordinate_name</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The name of the vertical coordinate in the bathymetry
+dataset at <code class="docutils literal notranslate"><span class="pre">bathymetry_path</span></code>. For example, for GEBCO bathymetry: <code class="docutils literal notranslate"><span class="pre">'elevation'</span></code> (default).</p></li>
+<li><p><strong>fill_channels</strong> (<em>Optional</em><em>[</em><em>bool</em><em>]</em>) – Whether or not to fill in
+diagonal channels. This removes more narrow inlets,
+but can also connect extra islands to land. Default: <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p></li>
+<li><p><strong>positive_down</strong> (<em>Optional</em><em>[</em><em>bool</em><em>]</em>) – If <code class="docutils literal notranslate"><span class="pre">True</span></code>, it assumes that the
+bathymetry vertical coordinate is positive downwards. Default: <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p></li>
+<li><p><strong>write_to_file</strong> (<em>Optional</em><em>[</em><em>bool</em><em>]</em>) – Whether to write the bathymetry to a file. Default: <code class="docutils literal notranslate"><span class="pre">True</span></code>.</p></li>
+<li><p><strong>regridding_method</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The type of regridding method to use. Defaults to self.regridding_method</p></li>
+<li><p><strong>run_*</strong> (<em>Optional</em><em>[</em><em>bool</em><em>]</em>) – Whether to run the respective step in the bathymetry processing. Default: <code class="docutils literal notranslate"><span class="pre">True</span></code>.</p></li>
+</ul>
 </dd>
 </dl>
 </dd></dl>
@@ -261,6 +366,32 @@ parameter to “spoon”.</p>
 <dt class="sig sig-object py" id="mom6_bathy.topo.Topo.supergridmask">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">supergridmask</span></span><a class="headerlink" href="#mom6_bathy.topo.Topo.supergridmask" title="Link to this definition"></a></dt>
 <dd><p>Ocean domain mask on supergrid. 1 if ocean, 0 if land.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_bathy.topo.Topo.tidy_dataset">
+<span class="sig-name descname"><span class="pre">tidy_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fill_channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">positive_down</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'depth'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bathymetry</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">PosixPath('.')</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">write_to_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lon'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latitude_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lat'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_bathy.topo.Topo.tidy_dataset" title="Link to this definition"></a></dt>
+<dd><p>An auxiliary method for bathymetry used to fix up the metadata and remove inland
+lakes after regridding the bathymetry. Having <a class="reference internal" href="#mom6_bathy.topo.Topo.tidy_dataset" title="mom6_bathy.topo.Topo.tidy_dataset"><code class="xref py py-func docutils literal notranslate"><span class="pre">tidy_dataset()</span></code></a> as a separate
+method from <code class="xref py py-func docutils literal notranslate"><span class="pre">setup_bathymetry()</span></code> allows for the regridding to be done separately,
+since regridding can be really expensive for large domains.</p>
+<p>If the bathymetry is already regridded and what is left to be done is fixing the metadata
+or fill in some channels, then <a class="reference internal" href="#mom6_bathy.topo.Topo.tidy_dataset" title="mom6_bathy.topo.Topo.tidy_dataset"><code class="xref py py-func docutils literal notranslate"><span class="pre">tidy_dataset()</span></code></a> directly can read the existing
+<code class="docutils literal notranslate"><span class="pre">bathymetry_unfinished.nc</span></code> file that should be in the input directory.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>fill_channels</strong> (<em>Optional</em><em>[</em><em>bool</em><em>]</em>) – Whether to fill in diagonal channels.
+This removes more narrow inlets, but can also connect extra islands to land.
+Default: <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p></li>
+<li><p><strong>positive_down</strong> (<em>Optional</em><em>[</em><em>bool</em><em>]</em>) – If <code class="docutils literal notranslate"><span class="pre">False</span></code> (default), assume that
+bathymetry vertical coordinate is positive down, as is the case in GEBCO for example.</p></li>
+<li><p><strong>bathymetry</strong> (<em>Optional</em><em>[</em><em>xr.Dataset</em><em>]</em>) – The bathymetry dataset to tidy up. If not provided,
+it will read the bathymetry from the file <code class="docutils literal notranslate"><span class="pre">bathymetry_unfinished.nc</span></code> in the input directory
+that was created by <code class="xref py py-func docutils literal notranslate"><span class="pre">config/regrid_dataset()</span></code>.</p></li>
+</ul>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py property">

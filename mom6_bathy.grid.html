@@ -48,6 +48,7 @@
 <li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
 <li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="widgets.html">Topo &amp; The Widgets!</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Python API:</span></p>
 <ul class="current">
@@ -94,7 +95,7 @@
 <span id="mom6-bathy-grid-module"></span><h1>mom6_bathy.grid module<a class="headerlink" href="#module-mom6_bathy.grid" title="Link to this heading"></a></h1>
 <dl class="py class">
 <dt class="sig sig-object py" id="mom6_bathy.grid.Grid">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mom6_bathy.grid.</span></span><span class="sig-name descname"><span class="pre">Grid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lenx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">leny</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ny</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resolution</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xstart</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ystart</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cyclic_x</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tripolar_n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">displace_pole</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_bathy.grid.Grid" title="Link to this definition"></a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mom6_bathy.grid.</span></span><span class="sig-name descname"><span class="pre">Grid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lenx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">leny</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ny</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resolution</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xstart</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ystart</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cyclic_x</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'uniform_spherical'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_bathy.grid.Grid" title="Link to this definition"></a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Horizontal MOM6 grid. The first step of constructing a MOM6 grid within
 the CESM simpler models framework is to create a Grid instance.</p>
@@ -299,9 +300,9 @@ nx = int(lenx / resolution) and ny = int(leny / resolution)</p></li>
 <li><p><strong>xstart</strong> (<em>float</em><em>, </em><em>optional</em>) – starting x coordinate. 0.0 by default.</p></li>
 <li><p><strong>ystart</strong> (<em>float</em><em>, </em><em>optional</em>) – starting y coordinate. -0.5*leny by default.</p></li>
 <li><p><strong>cyclic_x</strong> (<em>bool</em><em>, </em><em>optional</em>) – flag to make the grid cyclic in x direction. False by default.</p></li>
-<li><p><strong>tripolar_n</strong> (<em>bool</em><em>, </em><em>optional</em>) – flag to make the grid tripolar. False by default.</p></li>
-<li><p><strong>displace_pole</strong> (<em>bool</em><em>, </em><em>optional</em>) – flag to make the grid displaced polar. False by default.</p></li>
 <li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – name of the grid. None by default.</p></li>
+<li><p><strong>type</strong> (<em>str</em><em>, </em><em>optional</em>) – If not specified, creates an uniform_degree grid.
+Options are uniform_degree or rectilinear_cartesian</p></li>
 </ul>
 </dd>
 </dl>
@@ -359,20 +360,8 @@ If not provided, the name will be derived from the file name.</p></li>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="mom6_bathy.grid.Grid.gen_supergrid_ds">
-<span class="sig-name descname"><span class="pre">gen_supergrid_ds</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">author</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dataset</span></span></span><a class="headerlink" href="#mom6_bathy.grid.Grid.gen_supergrid_ds" title="Link to this definition"></a></dt>
-<dd><p>Generate supergrid to a xarray Dataset file. The supergrid file is to be read in by MOM6
-during runtime.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>author</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of the author. If provided, the name will appear in files as metadata.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
 <dt class="sig sig-object py" id="mom6_bathy.grid.Grid.get_bounding_boxes_of_rectangular_grid">
-<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_bounding_boxes_of_rectangular_grid</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mom6_bathy.grid.Grid.get_bounding_boxes_of_rectangular_grid" title="Link to this definition"></a></dt>
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_bounding_boxes_of_rectangular_grid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hgrid</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_bathy.grid.Grid.get_bounding_boxes_of_rectangular_grid" title="Link to this definition"></a></dt>
 <dd><p>Extract lat/lon bounding boxes for each edge of a rectangular regional MOM6 grid.
 This function is used when subsetting global datasets (e.g. GLORYS)
 down to the lat/lon ranges required for efficient regridding:</p>
@@ -431,7 +420,7 @@ down to the lat/lon ranges required for efficient regridding:</p>
 <dd><p>Check if a given supergrid x coordinate array is cyclic along the x-axis.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>supergrid</strong> (<em>xr.DataArray</em><em> or </em><em>np.array</em><em> or </em><em>MidasSupergrid</em>) – Supergrid to check for cyclic x.</p>
+<dd class="field-odd"><p><strong>supergrid</strong> (<em>xr.DataArray</em><em> or </em><em>np.array</em><em> or </em><em>SupergridBase</em>) – Supergrid to check for cyclic x.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -449,7 +438,7 @@ first and last rows and columns of the tlon and tlat arrays.</p>
 <dd><p>Check if the given supergrid x coordinates form a tripolar grid.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>supergrid</strong> (<em>xr.DataArray</em><em> or </em><em>np.array</em><em> or </em><em>MidasSupergrid</em>) – Supergrid to check if tripolar.</p>
+<dd class="field-odd"><p><strong>supergrid</strong> (<em>xr.DataArray</em><em> or </em><em>np.array</em><em> or </em><em>SupergridBase</em>) – Supergrid to check if tripolar.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -458,6 +447,18 @@ first and last rows and columns of the tlon and tlat arrays.</p>
 <dt class="sig sig-object py" id="mom6_bathy.grid.Grid.kdtree">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">kdtree</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">cKDTree</span></em><a class="headerlink" href="#mom6_bathy.grid.Grid.kdtree" title="Link to this definition"></a></dt>
 <dd><p>KDTree for fast nearest neighbor search.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mom6_bathy.grid.Grid.lenx">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">lenx</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mom6_bathy.grid.Grid.lenx" title="Link to this definition"></a></dt>
+<dd><p>Length of the grid in the x-direction.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mom6_bathy.grid.Grid.leny">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">leny</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#mom6_bathy.grid.Grid.leny" title="Link to this definition"></a></dt>
+<dd><p>Length of the grid in the y-direction.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -529,7 +530,7 @@ Warning: cartopy module must be installed seperately</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="mom6_bathy.grid.Grid.supergrid">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">supergrid</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">supergrid</span></em><a class="headerlink" href="#mom6_bathy.grid.Grid.supergrid" title="Link to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">supergrid</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">SupergridBase</span></em><a class="headerlink" href="#mom6_bathy.grid.Grid.supergrid" title="Link to this definition"></a></dt>
 <dd><p>MOM6 supergrid contains the grid metrics and the areas at twice the
 nominal resolution (by default) of the actual computational grid.</p>
 </dd></dl>

@@ -289,6 +289,19 @@ of the ``Topo`` class writes out the ESMF mesh file in netcdf format.
 
   topo.write_esmf_mesh("my_esmf_mesh.nc")
 
+Step 5: Editing Grids and Bathymetry
+----------------------------------------------
+Beyond creating standard grids and simple topographies, mom6_bathy provides advanced tools
+for interactively editing and creating complex model domains. These features are designed to
+facilitate reproducible workflows for custom model configurations and model tuning. These
+domain configurators can be used for tasks such as:
+
+* Editing Bathymetry: Manually or programmatically modifying ocean depths.
+* Creating New Grids: Defining entirely new horizontal grid structures.
+* Creating Vertical Grids: Specifying the vertical layering of the ocean model.
+
+Check out the notebook for examples of these advanced features: 
+`6_demo_editors.ipynb <https://github.com/NCAR/mom6_bathy/blob/master/notebooks/6_demo_editors.ipynb>`_
 
 Further steps
 ----------------------------------------------
