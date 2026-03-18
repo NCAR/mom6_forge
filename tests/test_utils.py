@@ -1,8 +1,16 @@
 import pytest
-from mom6_bathy.utils import get_avg_resolution, get_avg_resolution_km, longitude_slicer, quadrilateral_area, latlon_to_cartesian,quadrilateral_areas
+from mom6_bathy.utils import (
+    get_avg_resolution,
+    get_avg_resolution_km,
+    longitude_slicer,
+    quadrilateral_area,
+    latlon_to_cartesian,
+    quadrilateral_areas,
+)
 from utils import on_cisl_machine
 import xarray as xr
-import numpy as np  
+import numpy as np
+
 
 def test_avg_resolution():
     """Test the average resolution calculation for a grid."""
@@ -10,11 +18,20 @@ def test_avg_resolution():
     if not on_cisl_machine():
         pytest.skip("This test is only for the derecho and casper machines")
 
-    t232_avg_res = get_avg_resolution("/glade/campaign/cesm/cesmdata/inputdata/share/meshes/tx2_3v2_230415_ESMFmesh.nc")
-    assert 0.49 < t232_avg_res < 0.50, "Average resolution for tx2_3v2 should be around 0.5 degrees"
+    t232_avg_res = get_avg_resolution(
+        "/glade/campaign/cesm/cesmdata/inputdata/share/meshes/tx2_3v2_230415_ESMFmesh.nc"
+    )
+    assert (
+        0.49 < t232_avg_res < 0.50
+    ), "Average resolution for tx2_3v2 should be around 0.5 degrees"
 
-    t232_avg_res_km = get_avg_resolution_km("/glade/campaign/cesm/cesmdata/inputdata/share/meshes/tx2_3v2_230415_ESMFmesh.nc")
-    assert 40.0 < t232_avg_res_km < 41.0, "Average resolution for tx2_3v2 should be around 40 km"
+    t232_avg_res_km = get_avg_resolution_km(
+        "/glade/campaign/cesm/cesmdata/inputdata/share/meshes/tx2_3v2_230415_ESMFmesh.nc"
+    )
+    assert (
+        40.0 < t232_avg_res_km < 41.0
+    ), "Average resolution for tx2_3v2 should be around 40 km"
+
 
 def test_longitude_slicer():
     with pytest.raises(AssertionError):
@@ -45,6 +62,7 @@ def test_longitude_slicer():
         )
 
         longitude_slicer(data, longitude_extent, "random_lon")
+
 
 @pytest.mark.parametrize(
     ("v1", "v2", "v3", "v4", "true_area"),
@@ -84,9 +102,10 @@ area2 = 1 / 4 * (4 * np.pi)
         (lat1, lon1, area1),
         (lat2, lon2, area2),
     ],
-)  
+)
 def test_quadrilateral_areas(lat, lon, true_area):
     assert np.isclose(np.sum(quadrilateral_areas(lat, lon)), true_area)
+
 
 @pytest.mark.parametrize(
     ("lat", "lon", "true_xyz"),

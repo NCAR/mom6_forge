@@ -5,6 +5,7 @@ import xarray as xr
 import numpy as np
 import scipy
 
+
 def normalize_deg(coord):
     """Normalize a coordinate in degrees to the range [0, 360).
 
@@ -20,6 +21,7 @@ def normalize_deg(coord):
     """
     return np.mod(coord + 360.0, 360.0)
 
+
 def get_mesh_dimensions(mesh):
     """Given an ESMF mesh where the grid metrics are stored in 1D (flattened) arrays,
     compute the dimensions of the 2D grid and return them as nx, ny.
@@ -28,7 +30,7 @@ def get_mesh_dimensions(mesh):
     ----------
     mesh : xr.Dataset or str or Path
         The ESMF mesh dataset or the path to the mesh file.
-    
+
     Returns
     -------
     nx : int
@@ -38,11 +40,13 @@ def get_mesh_dimensions(mesh):
     """
 
     if not isinstance(mesh, xr.Dataset):
-        assert isinstance(mesh, (Path, str)) and Path(mesh).exists(), "mesh must be a path to an existing file"
+        assert (
+            isinstance(mesh, (Path, str)) and Path(mesh).exists()
+        ), "mesh must be a path to an existing file"
         mesh = xr.open_dataset(mesh)
 
-    centerCoords = mesh['centerCoords'].values
-    econn = mesh['elementConn'].values
+    centerCoords = mesh["centerCoords"].values
+    econn = mesh["elementConn"].values
     econn0 = econn[0]
 
     nx = None
@@ -50,29 +54,38 @@ def get_mesh_dimensions(mesh):
         # if the number of shared nodes is 2, we are at the start of a new row
         if len(np.intersect1d(econn[i], econn0)) == 2:
             if i < len(econn) - 1 and len(np.intersect1d(econn[i + 1], econn0)) == 2:
-                nx = i+1    # domain is cyclic
+                nx = i + 1  # domain is cyclic
             else:
-                nx = i      # domain is Not cyclic
+                nx = i  # domain is Not cyclic
             break
-    
+
     if nx is None:
-        raise ValueError("Could not determine the number of points in the x-direction (nx).")
+        raise ValueError(
+            "Could not determine the number of points in the x-direction (nx)."
+        )
 
     ny = len(centerCoords) // nx
 
     # Check that nx is indeed nx and not ny, and if not, swap them
-    assert 'units' in mesh['centerCoords'].attrs, "centerCoords must have 'units' attribute"
-    assert 'degrees' in mesh['centerCoords'].attrs['units'], \
-        "get_mesh_dimensions() expects centerCoords in degrees"
-    coords = centerCoords[:, :2]  # Use only the first two columns for x and y coordinates
+    assert (
+        "units" in mesh["centerCoords"].attrs
+    ), "centerCoords must have 'units' attribute"
+    assert (
+        "degrees" in mesh["centerCoords"].attrs["units"]
+    ), "get_mesh_dimensions() expects centerCoords in degrees"
+    coords = centerCoords[
+        :, :2
+    ]  # Use only the first two columns for x and y coordinates
     x0, y0 = centerCoords[0]  # First coordinate
     x0 = normalize_deg(x0)  # Normalize to [0, 360)
-    if np.abs(np.mod(coords[nx//2, 0] - x0, 360)) < np.abs(coords[nx//2, 1] - y0):
+    if np.abs(np.mod(coords[nx // 2, 0] - x0, 360)) < np.abs(coords[nx // 2, 1] - y0):
         nx, ny = ny, nx
 
-    assert nx * ny == len(centerCoords), \
-        f"Mesh dimensions do not match the number of coordinates: {nx} * {ny} != {len(centerCoords)}"
+    assert nx * ny == len(
+        centerCoords
+    ), f"Mesh dimensions do not match the number of coordinates: {nx} * {ny} != {len(centerCoords)}"
     return nx, ny
+
 
 def get_avg_resolution(mesh):
     """Calculate the average resolution of the mesh.
@@ -88,22 +101,28 @@ def get_avg_resolution(mesh):
         Average resolution of the mesh in degrees.
     """
     if not isinstance(mesh, xr.Dataset):
-        assert isinstance(mesh, (Path, str)) and Path(mesh).exists(), "mesh must be a path to an existing file"
+        assert (
+            isinstance(mesh, (Path, str)) and Path(mesh).exists()
+        ), "mesh must be a path to an existing file"
         mesh = xr.open_dataset(mesh)
 
-    assert 'units' in mesh['centerCoords'].attrs, "centerCoords must have 'units' attribute"
-    assert 'degrees' in mesh['centerCoords'].attrs['units'], \
-        "get_mesh_dimensions() expects centerCoords in degrees"
+    assert (
+        "units" in mesh["centerCoords"].attrs
+    ), "centerCoords must have 'units' attribute"
+    assert (
+        "degrees" in mesh["centerCoords"].attrs["units"]
+    ), "get_mesh_dimensions() expects centerCoords in degrees"
 
-    centerCoords = mesh['centerCoords'].values
+    centerCoords = mesh["centerCoords"].values
     nx, ny = get_mesh_dimensions(mesh)
-    
+
     coords = centerCoords.reshape(ny, nx, 2)
     dy = np.diff(coords[:, :, 1], axis=0)  # y-direction
     dx = np.diff(coords[:, :, 0], axis=1)  # x-direction
     avg_resolution = np.mean(np.concatenate([dx.ravel(), dy.ravel()]))
 
     return avg_resolution
+
 
 def get_avg_resolution_km(mesh):
     """Calculate the average resolution of the mesh in kilometers.
@@ -120,14 +139,19 @@ def get_avg_resolution_km(mesh):
     """
 
     if not isinstance(mesh, xr.Dataset):
-        assert isinstance(mesh, (Path, str)) and Path(mesh).exists(), "mesh must be a path to an existing file"
+        assert (
+            isinstance(mesh, (Path, str)) and Path(mesh).exists()
+        ), "mesh must be a path to an existing file"
     mesh = xr.open_dataset(mesh)
 
-    assert 'units' in mesh['centerCoords'].attrs, "centerCoords must have 'units' attribute"
-    assert 'degrees' in mesh['centerCoords'].attrs['units'], \
-        "get_mesh_dimensions() expects centerCoords in degrees"
+    assert (
+        "units" in mesh["centerCoords"].attrs
+    ), "centerCoords must have 'units' attribute"
+    assert (
+        "degrees" in mesh["centerCoords"].attrs["units"]
+    ), "get_mesh_dimensions() expects centerCoords in degrees"
 
-    centerCoords = mesh['centerCoords'].values
+    centerCoords = mesh["centerCoords"].values
     nx, ny = get_mesh_dimensions(mesh)
 
     earth_radius_km = 6371.0
@@ -152,6 +176,7 @@ def get_avg_resolution_km(mesh):
     avg_resolution_km = np.mean(np.concatenate([dx_km.ravel(), dy_km.ravel()]))
     return avg_resolution_km
 
+
 def is_mesh_cyclic_x(mesh):
     """Check if the mesh is cyclic in the x-direction.
 
@@ -166,12 +191,14 @@ def is_mesh_cyclic_x(mesh):
         True if the mesh is cyclic in the x-direction, False otherwise.
     """
     if not isinstance(mesh, xr.Dataset):
-        assert isinstance(mesh, (Path, str)) and Path(mesh).exists(), "mesh must be a path to an existing file"
+        assert (
+            isinstance(mesh, (Path, str)) and Path(mesh).exists()
+        ), "mesh must be a path to an existing file"
         mesh = xr.open_dataset(mesh)
 
     nx, _ = get_mesh_dimensions(mesh)
-    econn = mesh['elementConn'].values
-    if len(np.intersect1d(econn[nx-1], econn[0])) == 2:
+    econn = mesh["elementConn"].values
+    if len(np.intersect1d(econn[nx - 1], econn[0])) == 2:
         return True
     return False
 
@@ -198,6 +225,7 @@ def _spherical_angle(a, b):
     cos_angle = np.sum(a * b, axis=-1)
     return np.arctan2(sin_angle, cos_angle)
 
+
 def _tri_area(u, v, w):
     """Vectorized spherical triangle area using L'Huilier's theorem.
 
@@ -215,11 +243,16 @@ def _tri_area(u, v, w):
     c = _spherical_angle(u, v)
     s = 0.5 * (a + b + c)
 
-    t = np.tan(0.5 * s) * np.tan(0.5 * (s - a)) * \
-        np.tan(0.5 * (s - b)) * np.tan(0.5 * (s - c))
+    t = (
+        np.tan(0.5 * s)
+        * np.tan(0.5 * (s - a))
+        * np.tan(0.5 * (s - b))
+        * np.tan(0.5 * (s - c))
+    )
 
     area = np.abs(4.0 * np.arctan(np.sqrt(np.abs(t))))
     return area
+
 
 def _great_circle_area(polygon_unitvecs):
     """
@@ -237,13 +270,13 @@ def _great_circle_area(polygon_unitvecs):
     if n_verts < 3:
         return np.zeros(n_poly)
 
-    pnt0 = polygon_unitvecs[:, 0:1, :]         # shape (n_poly, 1, 3)
-    pnt1 = polygon_unitvecs[:, 1:-1, :]        # shape (n_poly, n_verts-2, 3)
-    pnt2 = polygon_unitvecs[:, 2:, :]          # shape (n_poly, n_verts-2, 3)
+    pnt0 = polygon_unitvecs[:, 0:1, :]  # shape (n_poly, 1, 3)
+    pnt1 = polygon_unitvecs[:, 1:-1, :]  # shape (n_poly, n_verts-2, 3)
+    pnt2 = polygon_unitvecs[:, 2:, :]  # shape (n_poly, n_verts-2, 3)
 
-    u = np.broadcast_to(pnt0, pnt1.shape)      # broadcast pnt0
-    areas = _tri_area(u, pnt1, pnt2)      # shape (n_poly, n_verts-2)
-    return np.sum(areas, axis=1)               # sum over triangles per polygon
+    u = np.broadcast_to(pnt0, pnt1.shape)  # broadcast pnt0
+    areas = _tri_area(u, pnt1, pnt2)  # shape (n_poly, n_verts-2)
+    return np.sum(areas, axis=1)  # sum over triangles per polygon
 
 
 def cell_area_rad(xv_coords, yv_coords):
@@ -271,7 +304,7 @@ def cell_area_rad(xv_coords, yv_coords):
     y = np.cos(yv_rad) * np.sin(xv_rad)
     z = np.sin(yv_rad)
 
-    area = _great_circle_area(np.stack([x, y, z], axis=-1) )
+    area = _great_circle_area(np.stack([x, y, z], axis=-1))
     return area
 
 
@@ -354,6 +387,7 @@ def fill_missing_data(idata, mask, maxiter=0, stabilizer=1.0e-14, tripole=False)
         x, info = scipy.sparse.linalg.bicg(A, b, maxiter=maxiter)
     new_data[missing_j, missing_i] = x
     return new_data
+
 
 def longitude_slicer(data, longitude_extent, longitude_coords):
     """

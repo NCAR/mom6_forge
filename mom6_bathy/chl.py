@@ -132,7 +132,7 @@ def interpolate_and_fill_seawifs(
                 "_FillValue": fill_value,
             }
         },
-        format='NETCDF3_64BIT',
+        format="NETCDF3_64BIT",
     )
     print(f"Wrote interpolated and filled SeaWiFS data to:\n{output_path}")
 

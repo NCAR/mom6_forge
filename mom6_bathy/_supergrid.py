@@ -1,5 +1,5 @@
 """
-This module defines MOM6-style supergrid classes and associated utilities. It sits underneath the mom6_bathy.grid class and fills the roll of calculating the grid geometry: angle_dx, area, dx, dy, x, and y. 
+This module defines MOM6-style supergrid classes and associated utilities. It sits underneath the mom6_bathy.grid class and fills the roll of calculating the grid geometry: angle_dx, area, dx, dy, x, and y.
 
 Classes defined here:
 - SupergridBase: Base class defining the MOM6-style supergrid interface.
@@ -68,7 +68,7 @@ class SupergridBase:
             f"dy=({self.dy.min()}–{self.dy.max()})"
         )
 
-    def to_ds(self, author: Optional[str] = None) -> xr.Dataset:
+    def to_ds(self, name=None, author: Optional[str] = None) -> xr.Dataset:
         """
         Export the supergrid to an xarray.Dataset compatible with MOM6.
 
@@ -81,6 +81,8 @@ class SupergridBase:
 
         # ---- Metadata ----
         ds.attrs["type"] = "MOM6 supergrid"
+        if name is not None:
+            ds.attrs["name"] = name
         ds.attrs["Created"] = datetime.now().isoformat()
         if author:
             ds.attrs["Author"] = author

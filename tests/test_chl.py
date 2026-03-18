@@ -15,10 +15,10 @@ def test_chl(tmp_path, get_rect_grid):
     grid.name = "pan2"
     # create a corresponding bathymetry object
     topo = Topo(
-            grid = grid,
-            min_depth = 9.5, # in meters
-        )
-    topo.set_spoon(1000,10)
+        grid=grid,
+        min_depth=9.5,  # in meters
+    )
+    topo.set_spoon(1000, 10)
 
     interpolate_and_fill_seawifs(
         grid,

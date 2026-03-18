@@ -1,0 +1,15 @@
+name: Quality Control
+
+on: [pull_request]
+
+jobs:
+  check-black:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Run black code formatter check
+        uses: psf/black@stable
+        with:
+          options: "--check"
+          src: "."

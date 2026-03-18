@@ -3,10 +3,17 @@ import tempfile
 import socket
 import numpy as np
 import xarray as xr
-import pytest 
+import pytest
+import pytest
+import tempfile
+import socket
+import numpy as np
+import xarray as xr
+import pytest
 from mom6_bathy.grid import Grid
 from mom6_bathy.topo import Topo
 from utils import on_cisl_machine
+import os
 
 
 def test_is_tripolar():
@@ -127,14 +134,12 @@ def test_from_file():
     if not on_cisl_machine():
         pytest.skip("This test is only for the derecho and casper machines")
 
-    print ("Running test_from_file")
+    print("Running test_from_file")
     supergrid_path = (
         "/glade/p/cesmdata/cseg/inputdata/ocn/mom/tx2_3v2/ocean_hgrid_221123.nc"
     )
 
-    topo_path = (
-        "/glade/p/cesmdata/inputdata/ocn/mom/tx2_3v2/ocean_topog_230413.nc"
-    )
+    topo_path = "/glade/p/cesmdata/inputdata/ocn/mom/tx2_3v2/ocean_topog_230413.nc"
 
     grid = Grid.from_supergrid(supergrid_path)
     topo = Topo.from_topo_file(grid, topo_path)
@@ -158,7 +163,7 @@ def test_from_file():
         ds_orig = xr.open_dataset(topo_path)
         ds_new = xr.open_dataset(tmpdirname + "/ocean_topog_2.nc")
 
-        assert (ds_orig['geolon'].data == ds_new['x'].data).all()
+        assert (ds_orig["geolon"].data == ds_new["x"].data).all()
 
 
 def test_equatorial_refinement():
@@ -206,7 +211,6 @@ if __name__ == "__main__":
     test_equatorial_refinement()
 
 
-
 def test_get_rectangular_segment_info(get_rect_grid):
     grid = get_rect_grid
     res = Grid.get_bounding_boxes_of_rectangular_grid(grid)
@@ -219,5 +223,68 @@ def test_get_rectangular_segment_info(get_rect_grid):
 
 def test_slice_grid(get_rect_grid):
     grid = get_rect_grid
-    sub = grid [1:,1:]
+    sub = grid[1:, 1:]
     assert sub.tlon[0][0] == grid.tlon[0][1]
+
+
+@pytest.fixture
+def simple_2by2_grid():
+    # Create a simple 2x2 grid for testing
+    grid = Grid(
+        lenx=2.0,
+        leny=2.0,
+        nx=2,
+        ny=2,
+        xstart=0.0,
+        ystart=0.0,
+        name="testgrid",
+    )
+    return grid
+
+
+def test_grid_properties(simple_2by2_grid):
+    grid = simple_2by2_grid
+    assert grid.nx == 2
+    assert grid.ny == 2
+    assert grid._supergrid.lenx == 2.0
+    assert grid._supergrid.leny == 2.0
+    assert grid.name == "testgrid"
+
+
+def test_grid_sanitize_name():
+    with pytest.raises(AssertionError):
+        g = Grid(lenx=2.0, leny=2.0, nx=2, ny=2, name="bad name!@#")
+
+
+def test_grid_get_indices(simple_2by2_grid):
+    grid = simple_2by2_grid
+    # Should return a valid index for the center
+    j, i = grid.get_indices(grid.tlat.values[0, 0], grid.tlon.values[0, 0])
+    assert 0 <= j < grid.ny
+    assert 0 <= i < grid.nx
+
+
+def test_grid_is_rectangular(simple_2by2_grid):
+    assert simple_2by2_grid.is_rectangular()
+
+
+def test_grid_slice(simple_2by2_grid):
+    sub = simple_2by2_grid[0:1, 0:1]
+    assert isinstance(sub, Grid)
+    assert sub.nx == 1
+    assert sub.ny == 1
+
+
+def test_grid_supergrid_setter(simple_2by2_grid):
+    sg = simple_2by2_grid.supergrid
+    simple_2by2_grid.supergrid = sg  # Should not raise
+
+
+def test_grid_to_netcdf_and_from_netcdf(tmp_path, simple_2by2_grid):
+    path = tmp_path / "testgrid.nc"
+    simple_2by2_grid.write_supergrid(str(path))
+    assert os.path.exists(path)
+    loaded = Grid.from_supergrid(path)
+    assert loaded.nx == simple_2by2_grid.nx
+    assert loaded.ny == simple_2by2_grid.ny
+    assert loaded.name == simple_2by2_grid.name

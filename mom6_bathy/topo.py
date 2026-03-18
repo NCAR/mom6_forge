@@ -3,12 +3,14 @@ import numpy as np
 import xarray as xr
 from datetime import datetime
 from scipy import interpolate
-from scipy.ndimage import label
+from scipy.ndimage import label, binary_fill_holes
+from scipy.spatial import cKDTree
 from mom6_bathy.utils import cell_area_rad, longitude_slicer
 from mom6_bathy.grid import Grid
-from scipy.spatial import cKDTree
-from scipy.ndimage import binary_fill_holes
+from mom6_bathy.git_utils import get_domain_dir, get_repo
 from pathlib import Path
+from mom6_bathy.edit_command import *
+from mom6_bathy.command_manager import TopoCommandManager, CommandType
 from mom6_bathy.mapping import regrid_dataset_via_xesmf
 
 
@@ -17,7 +19,7 @@ class Topo:
     Bathymetry Generator for MOM6 grids (mom6_bathy.grid.Grid).
     """
 
-    def __init__(self, grid, min_depth):
+    def __init__(self, grid, min_depth, version_control_dir="TopoLibrary"):
         """
         MOM6 Simpler Models bathymetry constructor.
 
@@ -30,11 +32,81 @@ class Topo:
         """
 
         self._grid = grid
-        self._depth = None
+        self._depth = xr.DataArray(
+            np.full((grid.ny, grid.nx), np.nan, dtype=float),
+            dims=["ny", "nx"],
+            attrs={"units": "m"},
+        )  # Initialize depth with NaNs
         self._min_depth = min_depth
 
+        if version_control_dir is None:
+            raise ValueError(
+                "version_control_dir cannot be None. Version control is required for Topo objects. Old Topo Files can be added through from_topo_file() or from_topo_version_control() classmethods."
+            )
+
+        self.version_control = True
+
+        # Create a folder to store bathymetry objects in
+        self.topos_root = Path(version_control_dir).mkdir(exist_ok=True)
+
+        # Create the subfolder for this specific bathymetry
+        self.domain_dir = Path(get_domain_dir(grid, base_dir=version_control_dir))
+        self.domain_dir.mkdir(exist_ok=True)  # This folder should not already exist.
+
+        # Save the grid info there (there can only be 1 grid per bathymetry)
+        self.grid_file_path = self.domain_dir / "grid.nc"
+        grid.write_supergrid(self.grid_file_path)
+
+        initial_command = MinDepthEditCommand(
+            self, attr="min_depth", new_value=min_depth
+        )
+
+        # Initialize the git repo
+        self.repo = get_repo(self.domain_dir)
+
+        # Set up TCM (requires that self.domain_dir exists)
+        self.tcm = TopoCommandManager(self, command_registry=COMMAND_REGISTRY)
+        self.tcm.execute(initial_command, cmd_type=CommandType.COMMAND)
+
     @classmethod
-    def from_topo_file(cls, grid, topo_file_path, min_depth=0.0):
+    def from_version_control(cls, folder_path: str | Path):
+        """
+        Create a bathymetry object from an existing version-controlled bathymetry folder.
+
+        Parameters
+        ----------
+        folder_path: str | Path
+            Path to an existing bathymetry folder created by mom6_bathy with version control enabled.
+        """
+
+        folder_path = Path(folder_path)
+        assert folder_path.exists(), f"Cannot find bathymetry folder at {folder_path}."
+
+        grid_file_path = folder_path / "grid.nc"
+        assert grid_file_path.exists(), f"Cannot find grid file at {grid_file_path}."
+
+        grid = Grid.from_supergrid(grid_file_path)
+
+        # Create the topo object
+        topo = Topo(
+            grid, 0.0, version_control_dir=folder_path.parent
+        )  # Because we hash the grid, the correct domain will be selected
+
+        # Reapply any changes
+        topo.tcm.reapply_changes()
+        topo.tcm.undo()  # Undo the initialization min_depth set to 0.0. (How it works is the changes are ordered from the previous state to the new state, so undoing the initial set to 0.0 leaves the correct min_depth)
+
+        return topo
+
+    @classmethod
+    def from_topo_file(
+        cls,
+        grid,
+        topo_file_path,
+        min_depth=0.0,
+        varname="depth",
+        version_control_dir="TopoLibrary",
+    ):
         """
         Create a bathymetry object from an existing topog file.
 
@@ -46,11 +118,13 @@ class Topo:
             Path to an existing MOM6 topog file.
         min_depth: float, optional
             Minimum water column depth (m). Columns with shallower depths are to be masked out.
+        varname : str, optional
+            Name of the variable representing ocean depth in the dataset. Default is "depth".
         """
 
-        topo = cls(grid, 0.0)
-        topo.set_depth_via_topog_file(topo_file_path)
-        topo.min_depth = min_depth
+        topo = cls(grid, min_depth, version_control_dir=version_control_dir)
+        topo.tcm.reapply_changes()
+        topo.set_depth_via_topog_file(topo_file_path, varname)
         return topo
 
     @property
@@ -122,7 +196,7 @@ class Topo:
             attrs={"name": "T mask"},
         )
         return tmask_da
-    
+
     @property
     def umask(self):
         """
@@ -133,15 +207,16 @@ class Topo:
         # Create empty mask DataArray for umask
         umask = xr.DataArray(
             np.ones(self._grid.ulat.shape, dtype=int),
-            dims = ['yh','xq'],
-            attrs={"name": "U mask"})
-        
-        # Fill umask with mask values
-        umask[:,:-1] &= tmask.values # h-point translates to the left u-point
-        umask[:,1:] &= tmask.values # h-point translates to the right u-point
+            dims=["yh", "xq"],
+            attrs={"name": "U mask"},
+        )
 
-        return umask   
-     
+        # Fill umask with mask values
+        umask[:, :-1] &= tmask.values  # h-point translates to the left u-point
+        umask[:, 1:] &= tmask.values  # h-point translates to the right u-point
+
+        return umask
+
     @property
     def umask(self):
         """
@@ -152,12 +227,13 @@ class Topo:
         # Create empty mask DataArray for umask
         umask = xr.DataArray(
             np.ones(self._grid.ulat.shape, dtype=int),
-            dims = ['yh','xq'],
-            attrs={"name": "U mask"})
-        
+            dims=["yh", "xq"],
+            attrs={"name": "U mask"},
+        )
+
         # Fill umask with mask values
-        umask[:,:-1] &= tmask.values # h-point translates to the left u-point
-        umask[:,1:] &= tmask.values # h-point translates to the right u-point
+        umask[:, :-1] &= tmask.values  # h-point translates to the left u-point
+        umask[:, 1:] &= tmask.values  # h-point translates to the right u-point
 
         return umask
 
@@ -171,15 +247,16 @@ class Topo:
         # Create empty mask DataArray for umask
         vmask = xr.DataArray(
             np.ones(self._grid.vlat.shape, dtype=int),
-            dims = ['yq','xh'],
-            attrs={"name": "V mask"})
-        
+            dims=["yq", "xh"],
+            attrs={"name": "V mask"},
+        )
+
         # Fill vmask with mask values
-        vmask[:-1,:] &= tmask.values # h-point translates to the bottom v-point
-        vmask[1:,:] &= tmask.values # h-point translates to the top v-point
+        vmask[:-1, :] &= tmask.values  # h-point translates to the bottom v-point
+        vmask[1:, :] &= tmask.values  # h-point translates to the top v-point
 
         return vmask
-    
+
     @property
     def qmask(self):
         """
@@ -190,14 +267,15 @@ class Topo:
         # Create empty mask DataArray for umask
         qmask = xr.DataArray(
             np.ones(self._grid.qlat.shape, dtype=int),
-            dims = ['yq','xq'],
-            attrs={"name": "Q mask"})
-        
+            dims=["yq", "xq"],
+            attrs={"name": "Q mask"},
+        )
+
         # Fill qmask with mask values
-        qmask[:-1, :-1] &= tmask.values    # top-left of h goes to top-left q
-        qmask[:-1, 1:]  &= tmask.values     # top-right
-        qmask[1:, :-1]  &= tmask.values   # bottom-left
-        qmask[1:, 1:]   &= tmask.values     # bottom-right 
+        qmask[:-1, :-1] &= tmask.values  # top-left of h goes to top-left q
+        qmask[:-1, 1:] &= tmask.values  # top-right
+        qmask[1:, :-1] &= tmask.values  # bottom-left
+        qmask[1:, 1:] &= tmask.values  # bottom-right
 
         # Corners of the qmask are always land -> regional cases
         qmask[0, 0] = 0
@@ -206,18 +284,16 @@ class Topo:
         qmask[-1, -1] = 0
 
         return qmask
-          
 
-        
     @property
     def basintmask(self):
         """
         Ocean domain mask at T grid. Seperate number for each connected water cell, 0 if land.
         """
         res, num_features = label(self.tmask)
-        
+
         return xr.DataArray(res)
-    
+
     @property
     def supergridmask(self):
         """
@@ -227,24 +303,55 @@ class Topo:
         supergridmask = xr.DataArray(
             np.zeros(self._grid._supergrid.x.shape, dtype=int),
             dims=["nyp", "nxp"],
-            attrs={"name": "supergrid mask"})
+            attrs={"name": "supergrid mask"},
+        )
         supergridmask[::2, ::2] = self.qmask.values
         supergridmask[::2, 1::2] = self.vmask.values
-        supergridmask[ 1::2,::2] = self.umask.values
-        supergridmask[ 1::2,1::2] = self.tmask.values
+        supergridmask[1::2, ::2] = self.umask.values
+        supergridmask[1::2, 1::2] = self.tmask.values
         return supergridmask
 
-    def point_is_ocean(self, lons,lats):
+    def point_is_ocean(self, lons, lats):
         """
         Given a list of coordinates, return a list of booleans indicating if the coordinates are in the ocean (True) or land (False)
         """
-        assert len(lons) == len(lats), "Lons & Lats must be the same length, they describe a set of points"
+        assert len(lons) == len(
+            lats
+        ), "Lons & Lats must be the same length, they describe a set of points"
 
-        is_ocean=[]
+        is_ocean = []
         for i in range(len(lons)):
-            match = np.where((self._grid._supergrid.x == lons[i]) & (self._grid._supergrid.y == lats[i]))
-            is_ocean.append(self.supergridmask[match[0],match[1]].item())
+            match = np.where(
+                (self._grid._supergrid.x == lons[i])
+                & (self._grid._supergrid.y == lats[i])
+            )
+            is_ocean.append(self.supergridmask[match[0], match[1]].item())
         return is_ocean
+
+    def send_entire_depth_change_to_tcm(self, depth, quietly=False):
+        """
+        This function takes an entire depth change and adds it through the TopoCommandManager (TCM) or directly if quietly is enabled.
+        """
+        # 1. Generate all affected indices (row-major order)
+        all_indices = list(np.ndindex(self.depth.shape))  # list of (j, i) tuples
+
+        # 2. Flatten the new values to match the indices
+        new_values = depth.values.ravel().tolist()
+
+        # 3. Flatten old values if depth exists
+        old_values = (
+            self.depth.values.ravel().tolist() if self.depth is not None else None
+        )
+
+        # 4. Build command
+        depth_edit_command = DepthEditCommand(
+            self, all_indices, new_values, old_values=old_values
+        )
+
+        if not quietly:
+            self.tcm.execute(depth_edit_command, cmd_type=CommandType.COMMAND)
+        else:
+            depth_edit_command()
 
     def set_flat(self, D):
         """
@@ -255,13 +362,17 @@ class Topo:
         D: float
             Bathymetric depth of the flat bottom to be generated.
         """
-        self._depth = xr.DataArray(
+
+        depth = xr.DataArray(
             np.full((self._grid.ny, self._grid.nx), D),
             dims=["ny", "nx"],
             attrs={"units": "m"},
         )
 
-    def set_depth_via_topog_file(self, topog_file_path):
+        # Save to object
+        self.send_entire_depth_change_to_tcm(depth)
+
+    def set_depth_via_topog_file(self, topog_file_path, varname="depth", quietly=False):
         """
         Apply a bathymetry read from an existing topog file
 
@@ -269,6 +380,8 @@ class Topo:
         ----------
         topog_file_path: str
             absolute path to an existing MOM6 topog file
+        varname : str
+            Name of the variable representing ocean depth in the dataset.
         """
 
         assert os.path.exists(
@@ -276,8 +389,10 @@ class Topo:
         ), f"Cannot find topog file at {topog_file_path}."
 
         ds_topo = xr.open_dataset(topog_file_path)
-        assert "depth" in ds_topo, f"Cannot find the 'depth' field in topog file {topog_file_path}"
-        depth = ds_topo["depth"]
+        assert (
+            varname in ds_topo
+        ), f"Cannot find the '{varname}' field in topog file {topog_file_path}"
+        depth = ds_topo[varname]
 
         if depth.shape[0] < self._grid.ny or depth.shape[1] < self._grid.nx:
             raise ValueError(
@@ -286,17 +401,17 @@ class Topo:
             )
         elif depth.shape[0] > self._grid.ny or depth.shape[1] > self._grid.nx:
             assert (
-                'geolat' in ds_topo and 'geolon' in ds_topo
+                "geolat" in ds_topo and "geolon" in ds_topo
             ), f"Topog file {topog_file_path} does not contain geolat and geolon fields, "
             "which are required to determine if the grid is a subgrid of the topog file, "
             "since the topography data is larger than the grid (in index space). "
 
             # Determine if the grid is a subgrid of the topog file
-            geolat = ds_topo['geolat']
-            geolon = ds_topo['geolon']
+            geolat = ds_topo["geolat"]
+            geolon = ds_topo["geolon"]
 
             # find the closest cell in the topog file to the (sub)grid's origin (southwest corner)
-            topog_kdtree =  cKDTree(
+            topog_kdtree = cKDTree(
                 np.column_stack((geolat.data.flatten(), geolon.data.flatten()))
             )
             _, indices = topog_kdtree.query(
@@ -317,20 +432,17 @@ class Topo:
 
             # Compare the coords of grid with the coords of the subregion of the topog
             # data where it may overlap with the grid
-            grid_overlaps_topo = (
-                np.all(
-                    np.isclose(
-                        geolat[cj:cj + self._grid.ny, ci:ci + self._grid.nx],
-                        self._grid.tlat.data,
-                        rtol=1e-5
-                    )
+            grid_overlaps_topo = np.all(
+                np.isclose(
+                    geolat[cj : cj + self._grid.ny, ci : ci + self._grid.nx],
+                    self._grid.tlat.data,
+                    rtol=1e-5,
                 )
-                and np.all(
-                    np.isclose(
-                        geolon[cj:cj + self._grid.ny, ci:ci + self._grid.nx],
-                        self._grid.tlon.data,
-                        rtol=1e-5
-                    )
+            ) and np.all(
+                np.isclose(
+                    geolon[cj : cj + self._grid.ny, ci : ci + self._grid.nx],
+                    self._grid.tlon.data,
+                    rtol=1e-5,
                 )
             )
             if not grid_overlaps_topo:
@@ -342,16 +454,16 @@ class Topo:
                 )
 
             # If the grid is a subgrid of the topog data, extract the subregion
-            depth = depth[cj:cj + self._grid.ny, ci:ci + self._grid.nx]
-        
+            depth = depth[cj : cj + self._grid.ny, ci : ci + self._grid.nx]
+
         else:
-            pass # the depth array is the right size
+            pass  # the depth array is the right size
 
         # Set all NaNs to land
         depth = depth.fillna(0)
 
-        # Save to object
-        self.depth = depth
+        # Save to object (Build TCM Object)
+        self.send_entire_depth_change_to_tcm(depth, quietly=quietly)
 
     def set_spoon(self, max_depth, dedge, rad_earth=6.378e6, expdecay=400000.0):
         """
@@ -375,19 +487,16 @@ class Topo:
         nx = self._grid.nx
         ny = self._grid.ny
         leny = self._grid.supergrid.leny
-        self._depth = xr.DataArray(
-            np.full((ny, nx), max_depth),
-            dims=["ny", "nx"],
-            attrs={"units": "m"},
-        )
 
         D0 = (max_depth - dedge) / (
             (1.0 - np.exp(-0.5 * leny * rad_earth * np.pi / (180.0 * expdecay)))
             * (1.0 - np.exp(-0.5 * leny * rad_earth * np.pi / (180.0 * expdecay)))
         )
 
-        self._depth[:, :] = dedge + D0 * (
-            np.sin(np.pi * (self._grid.tlon[:, :] - west_lon) / self._grid.supergrid.lenx)
+        new_values = dedge + D0 * (
+            np.sin(
+                np.pi * (self._grid.tlon[:, :] - west_lon) / self._grid.supergrid.lenx
+            )
             * (
                 1.0
                 - np.exp(
@@ -398,6 +507,9 @@ class Topo:
                 )
             )
         )
+
+        # Save to object (Build TCM Object)
+        self.send_entire_depth_change_to_tcm(new_values)
 
     def set_bowl(self, max_depth, dedge, rad_earth=6.378e6, expdecay=400000.0):
         """
@@ -419,18 +531,13 @@ class Topo:
         south_lat = self._grid.tlat[0, 0]
         len_lon = self._grid.supergrid.lenx
         len_lat = self._grid.supergrid.leny
-        self._depth = xr.DataArray(
-            np.full((self._grid.ny, self._grid.nx), max_depth),
-            dims=["ny", "nx"],
-            attrs={"units": "m"},
-        )
 
         D0 = (max_depth - dedge) / (
             (1.0 - np.exp(-0.5 * len_lat * rad_earth * np.pi / (180.0 * expdecay)))
             * (1.0 - np.exp(-0.5 * len_lat * rad_earth * np.pi / (180.0 * expdecay)))
         )
 
-        self._depth[:, :] = dedge + D0 * (
+        new_values = dedge + D0 * (
             np.sin(np.pi * (self._grid.tlon[:, :] - west_lon) / len_lon)
             * (
                 (
@@ -453,6 +560,9 @@ class Topo:
                 )
             )
         )
+
+        # Save to object (Build TCM Object)
+        self.send_entire_depth_change_to_tcm(new_values)
 
     def set_from_dataset(
         self,
@@ -498,13 +608,11 @@ class Topo:
             run_* (Optional[bool]): Whether to run the respective step in the bathymetry processing. Default: ``True``.
 
         """
-        print(
-            """**NOTE**
+        print("""**NOTE**
             If bathymetry setup fails (e.g. kernel crashes), restart the kernel and edit this cell.
-            Call ``[topo_object_name].mpi_set_from_dataset()`` instead. Follow the given instructions for using mpi 
+            Call ``[topo_object_name].mpi_set_from_dataset()`` instead. Follow the given instructions for using mpi
             and ESMF_Regrid outside of a python environment. This breaks up the process, so be sure to call
-            ``[topo_object_name].tidy_dataset() after regridding with mpi."""
-        )
+            ``[topo_object_name].tidy_dataset() after regridding with mpi.""")
         if run_config_dataset:
             self.bathymetry_output, self.empty_bathy = self.config_dataset(
                 bathymetry_path=bathymetry_path,
@@ -523,7 +631,7 @@ class Topo:
                 output_dataset=self.empty_bathy,
                 regridding_method=regridding_method,
                 write_to_file=write_to_file,
-                output_path = output_dir/"bathymetry_unfinished.nc"
+                output_path=output_dir / "bathymetry_unfinished.nc",
             )
 
         if run_tidy_dataset:
@@ -552,31 +660,28 @@ class Topo:
         write_to_file=True,
         verbose=True,
     ):
-
         if verbose:
-            print(
-                f"""
+            print(f"""
             *MANUAL REGRIDDING INSTRUCTIONS*
-            
+
             Calling `[object_name].mpi_set_from_dataset` sets up the files necessary for regridding
             the bathymetry using mpirun and ESMF_Regrid. See below for the step-by-step instructions:
-            
+
             1. There should be two files: `bathymetry_original.nc` and `bathymetry_unfinished.nc` located at
-            {output_dir}. 
-            
+            {output_dir}.
+
             2. Open a terminal and change to this directory (e.g. `cd {output_dir}`).
-            
+
             3. Request appropriate computational resources (see example script below), and run the command:
-            
+
             `mpirun -np NUMBER_OF_CPUS ESMF_Regrid -s bathymetry_original.nc -d bathymetry_unfinished.nc -m bilinear --src_var depth --dst_var depth --netcdf4 --src_regional --dst_regional`
-            
-            4. Run Topo_object.tidy_bathymetry(args) to finish processing the bathymetry. 
-            
+
+            4. Run Topo_object.tidy_bathymetry(args) to finish processing the bathymetry.
+
             Example PBS script using NCAR's Casper Machine: https://gist.github.com/AidanJanney/911290acaef62107f8e2d4ccef9d09be
-            
+
             For additional details see: https://xesmf.readthedocs.io/en/latest/large_problems_on_HPC.html
-            """
-            )
+            """)
 
         self.bathymetry_output, self.empty_bathy = self.config_dataset(
             bathymetry_path=bathymetry_path,
@@ -731,7 +836,6 @@ class Topo:
             )
             empty_bathy.close()
         return bathymetry_output, empty_bathy
-        
 
     def tidy_dataset(
         self,
@@ -941,7 +1045,32 @@ class Topo:
             0
         )  # After min_depth filtering, move the land values to zero
         bathymetry.depth.attrs["units"] = "meters"
-        self._depth = bathymetry.depth
+        new_values = bathymetry.depth
+
+        # Save to object (Build TCM Object)
+        self.send_entire_depth_change_to_tcm(new_values)
+
+    def erase_selected_basin(self, i, j):
+        label = self.basintmask.data[j, i]
+        affected = np.where(self.basintmask.data == label)
+        indices = list(zip(affected[0], affected[1]))
+        if not indices:
+            return
+        old_values = [self.depth.data[jj, ii] for jj, ii in indices]
+        new_values = [0] * len(indices)
+        cmd = DepthEditCommand(self, indices, new_values, old_values=old_values)
+        self.tcm.execute(cmd)
+
+    def erase_disconnected_basin(self, i, j):
+        label = self.basintmask.data[j, i]
+        affected = np.where(self.basintmask.data != label)
+        indices = list(zip(affected[0], affected[1]))
+        if not indices:
+            return
+        old_values = [self.depth.data[jj, ii] for jj, ii in indices]
+        new_values = [0] * len(indices)
+        cmd = DepthEditCommand(self, indices, new_values, old_values=old_values)
+        self.tcm.execute(cmd)
 
     def apply_ridge(self, height, width, lon, ilat):
         """
@@ -972,9 +1101,17 @@ class Topo:
         ridge_height_mapped = np.where(
             ridge_height_mapped <= 0.0, ridge_height_mapped, 0.0
         )
-
+        affected_indices = []
+        old_vals = []
+        new_vals = []
         for j in range(ilat[0], ilat[1]):
-            self._depth[j, :] += ridge_height_mapped
+            affected_indices.extend([(j, i) for i in range(self._grid.nx)])
+            old_vals.extend(self._depth[j, :].values)
+            new_vals.extend((self._depth[j, :] + ridge_height_mapped).values)
+        depth_edit_command = DepthEditCommand(
+            self, affected_indices, new_vals, old_values=old_vals
+        )
+        self.tcm.execute(depth_edit_command)
 
     def apply_land_frac(
         self,
@@ -1056,13 +1193,32 @@ class Topo:
             data_vars={}, coords={"lat": self._grid.tlat, "lon": self._grid.tlon}
         )
 
-        regridder = xe.Regridder(
-            ds, ds_mapped, method, periodic=self._grid.is_cyclic_x
-        )
+        regridder = xe.Regridder(ds, ds_mapped, method, periodic=self._grid.is_cyclic_x)
         mask_mapped = regridder(ds.landfrac)
-        self._depth.data = np.where(
-            mask_mapped > cutoff_frac, depth_fillval, self._depth
+
+        # Build TCM Object - This is not the entire depth change, just the cells to be filled
+        mask = mask_mapped > cutoff_frac  # boolean mask
+        ny, nx = self._depth.shape
+
+        affected_indices = []
+        old_vals = []
+        new_vals = []
+
+        for j in range(ny):
+            for i in range(nx):
+
+                if mask[j, i]:
+                    affected_indices.append((j, i))
+                    old_val = self._depth[j, i]
+                    new_val = depth_fillval
+
+                    old_vals.append(old_val)
+                    new_vals.append(new_val)
+
+        depth_edit_command = DepthEditCommand(
+            self, affected_indices, new_vals, old_values=old_vals
         )
+        self.tcm.execute(depth_edit_command)
 
     def gen_topo_ds(self, title=None):
         """
@@ -1117,8 +1273,14 @@ class Topo:
             attrs={"long_name": "t-grid cell depth", "units": "m"},
         )
 
-
         return ds
+
+    def save(self):
+        """
+        Save the TOPO_FILE (bathymetry file) in netcdf format to version control
+        """
+
+        self.tcm.save()
 
     def write_topo(self, file_path, title=None):
         """
@@ -1134,7 +1296,7 @@ class Topo:
         """
 
         ds = self.gen_topo_ds(title=title)
-        ds.to_netcdf(file_path, format='NETCDF3_64BIT')
+        ds.to_netcdf(file_path, format="NETCDF3_64BIT")
 
     def write_cice_grid(self, file_path):
         """
@@ -1221,7 +1383,9 @@ class Topo:
 
         ds["angle"] = xr.DataArray(
             np.deg2rad(
-                self._grid.angle_q.data[1:,1:] # Slice the q-grid from MOM6 (which is u-grid in CICE/POP) to CICE/POP convention, the top right of the t points
+                self._grid.angle_q.data[
+                    1:, 1:
+                ]  # Slice the q-grid from MOM6 (which is u-grid in CICE/POP) to CICE/POP convention, the top right of the t points
             ),
             dims=["nj", "ni"],
             attrs={
@@ -1253,7 +1417,7 @@ class Topo:
 
         ds.to_netcdf(
             file_path,
-            format='NETCDF3_64BIT',
+            format="NETCDF3_64BIT",
         )
 
     def write_scrip_grid(self, file_path, title=None):
@@ -1342,7 +1506,7 @@ class Topo:
 
         ds.to_netcdf(
             file_path,
-            format='NETCDF3_64BIT',
+            format="NETCDF3_64BIT",
         )
 
     def write_esmf_mesh(self, file_path, title=None):
@@ -1396,7 +1560,6 @@ class Topo:
         i0 = 1  # start index for node id's
 
         if self._grid.is_tripolar(self._grid._supergrid):
-
             nx, ny = self._grid.nx, self._grid.ny
             qlon_flat = self._grid.qlon.data[:, :-1].flatten()[: -(nx // 2 - 1)]
             qlat_flat = self._grid.qlat.data[:, :-1].flatten()[: -(nx // 2 - 1)]
@@ -1448,7 +1611,6 @@ class Topo:
             ]
 
         else:  # non-cyclic grid
-
             nx, ny = self._grid.nx, self._grid.ny
             qlon_flat = self._grid.qlon.data.flatten()
             qlat_flat = self._grid.qlat.data.flatten()
@@ -1480,4 +1642,4 @@ class Topo:
         )
 
         self.mesh_path = file_path
-        ds.to_netcdf(self.mesh_path, format='NETCDF3_64BIT')
+        ds.to_netcdf(self.mesh_path, format="NETCDF3_64BIT")
