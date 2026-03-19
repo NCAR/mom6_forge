@@ -7,6 +7,7 @@ from scipy.spatial import cKDTree
 from mom6_bathy._supergrid import (
     UniformSphericalSupergrid,
     RectilinearCartesianSupergrid,
+    ProjectedSupergrid,
     SupergridBase,
 )
 from mom6_bathy.utils import normalize_deg
@@ -445,6 +446,117 @@ class Grid:
         }
 
     @classmethod
+    def from_projection(
+        cls,
+        crs,
+        x_min: float,
+        x_max: float,
+        y_min: float,
+        y_max: float,
+        resolution_m: float,
+        name: Optional[str] = None,
+    ) -> "Grid":
+        """Create a Grid from projected coordinate extents.
+
+        Builds a uniform grid in the given pyproj CRS (e.g., polar stereographic,
+        Lambert conformal) and reprojects to geographic coordinates. Grid metrics
+        are computed using exact great-circle geometry, making this accurate at high
+        latitudes where RectilinearCartesianSupergrid degrades.
+
+        Parameters
+        ----------
+        crs : pyproj.CRS, int, or str
+            Map projection. Examples:
+                "EPSG:3995"  — Arctic Polar Stereographic
+                "EPSG:3031"  — Antarctic Polar Stereographic
+        x_min, x_max : float
+            Projected x extent in metres.
+        y_min, y_max : float
+            Projected y extent in metres.
+        resolution_m : float
+            Grid resolution in metres.
+        name : str, optional
+            Name of the grid.
+
+        Returns
+        -------
+        Grid
+        """
+        sg = ProjectedSupergrid.from_crs(crs, x_min, x_max, y_min, y_max, resolution_m)
+        srefine = 2
+        nx = (sg.x.shape[1] - 1) // srefine
+        ny = (sg.x.shape[0] - 1) // srefine
+        obj = cls(
+            nx=nx,
+            ny=ny,
+            lenx=float(np.max(sg.x) - np.min(sg.x)),
+            leny=float(np.max(sg.y) - np.min(sg.y)),
+            xstart=float(np.min(sg.x)),
+            ystart=float(np.min(sg.y)),
+            name=name,
+        )
+        obj._supergrid = sg
+        obj._compute_MOM6_grid_metrics()
+        obj.grid_type = "projected_crs"
+        return obj
+
+    @classmethod
+    def from_center(
+        cls,
+        center_lat: float,
+        center_lon: float,
+        width_m: float,
+        height_m: float,
+        resolution_m: float,
+        angle_deg: float = 0.0,
+        name: Optional[str] = None,
+    ) -> "Grid":
+        """Create a rotated rectangular grid centred at a geographic point.
+
+        Uses an azimuthal equidistant projection centred at (center_lat, center_lon)
+        and rotates the domain by angle_deg clockwise from north. Useful for aligning
+        a regional domain with a coastline feature — for example, placing one grid
+        boundary perpendicular to an estuary mouth.
+
+        Parameters
+        ----------
+        center_lat, center_lon : float
+            Geographic centre of the domain in degrees.
+        width_m, height_m : float
+            Domain width (x) and height (y) in metres.
+        resolution_m : float
+            Grid resolution in metres.
+        angle_deg : float, optional
+            Clockwise rotation from north in degrees. Default 0 (north-up).
+            Example: angle_deg=45 places the x-axis along a NE–SW estuary mouth.
+        name : str, optional
+            Name of the grid.
+
+        Returns
+        -------
+        Grid
+        """
+        sg = ProjectedSupergrid.from_center(
+            center_lat, center_lon, width_m, height_m, resolution_m, angle_deg
+        )
+        srefine = 2
+        nx = (sg.x.shape[1] - 1) // srefine
+        ny = (sg.x.shape[0] - 1) // srefine
+        obj = cls(
+            nx=nx,
+            ny=ny,
+            lenx=float(np.max(sg.x) - np.min(sg.x)),
+            leny=float(np.max(sg.y) - np.min(sg.y)),
+            xstart=float(np.min(sg.x)),
+            ystart=float(np.min(sg.y)),
+            name=name,
+        )
+        obj._supergrid = sg
+        obj._compute_MOM6_grid_metrics()
+        obj.grid_type = "projected_center"
+        return obj
+
+    @classmethod
     def from_supergrid(cls, path: str, name: Optional[str] = None) -> "Grid":
         """Create a Grid instance from a supergrid file.
 
@@ -506,13 +618,7 @@ class Grid:
             name=name,
         )
 
-        # override obj.supergrid with the data from the original supergrid file
-        obj.supergrid.x = ds.x.data
-        obj.supergrid.y = ds.y.data
-        obj.supergrid.dx = ds.dx.data
-        obj.supergrid.dy = ds.dy.data
-        obj.supergrid.area = ds.area.data
-        obj.supergrid.angle_dx = ds.angle_dx.data
+        obj.supergrid = SupergridBase.from_ds(ds)
 
         # update the MOM6 grid metrics based on the supergrid data
         obj._compute_MOM6_grid_metrics()
