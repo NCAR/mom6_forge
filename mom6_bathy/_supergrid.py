@@ -275,16 +275,14 @@ class RectilinearCartesianSupergrid(SupergridBase):
             np.diff(lons), dlons * np.ones(np.size(lons) - 1)
         ), "provided array of longitudes must be uniformly spaced"
 
-        # Note: division by 2 because we're on the supergrid
+        # Calculate dx & dy in meters, accounting for spherical geometry
         dx = np.broadcast_to(
-            R * np.cos(np.deg2rad(lats)) * np.deg2rad(dlons) / 2,
+            R * np.cos(np.deg2rad(lats)) * np.deg2rad(dlons),
             (lons.shape[0] - 1, lats.shape[0]),
         ).T
 
-        # dy = R * np.deg2rad(dlats) / 2
-        # Note: division by 2 because we're on the supergrid
         dy = np.broadcast_to(
-            R * np.deg2rad(np.diff(lats)) / 2, (lons.shape[0], lats.shape[0] - 1)
+            R * np.deg2rad(np.diff(lats)), (lons.shape[0], lats.shape[0] - 1)
         ).T
 
         lon, lat = np.meshgrid(lons, lats)
