@@ -18,16 +18,11 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-<<<<<<< Updated upstream
     python_requires=">=3.11.10,<3.12",
-=======
-    python_requires='>=3.12',
->>>>>>> Stashed changes
     install_requires=[
         "setuptools>=69.0",
         "numpy",
         "xarray>=2023.12,<2024",
-<<<<<<< Updated upstream
         "matplotlib>=3.9,<3.10",
         "scipy>=1.11,<1.12",
         "netcdf4>=1.6,<1.7",
@@ -42,17 +37,4 @@ setuptools.setup(
         "gitpython>=3.1,<4.0",
         "cartopy>=0.23,<0.24",
     ],
-=======
-        "matplotlib",
-        "scipy>=1.11",
-        "netcdf4>=1.6",
-        "jupyterlab>=4.0",
-        "ipympl>=0.9.4",
-        "ipywidgets>=8.1.1",
-        "sphinx>=8.1",
-        "sphinx_rtd_theme>=3.0",
-        "black>=24.1",
-        "pytest>=8.0"
-    ]
->>>>>>> Stashed changes
 )
