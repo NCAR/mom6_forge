@@ -465,7 +465,7 @@ def longitude_slicer(data, longitude_extent, longitude_coords):
 
                 ## Create a new longitude coordinate.
                 ## We'll modify this to remove any seams (i.e., jumps like -270 -> 90)
-                new_lon = new_data[lon].values
+                new_lon = new_data[lon].values.copy()
 
                 ## Take the 'seam' of the data, and either backfill or forward fill based on
                 ## whether the data was shifted F or west
