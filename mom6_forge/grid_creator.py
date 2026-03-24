@@ -5,7 +5,7 @@ import ipywidgets as widgets
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
-from mom6_bathy.grid import Grid
+from mom6_forge.grid import Grid
 from pathlib import Path
 
 
@@ -383,7 +383,7 @@ class GridCreator(widgets.HBox):
             print(f"Error in sync_sliders_to_grid: {e}")
 
     def _on_slider_change(self, change):
-        from mom6_bathy.grid import Grid
+        from mom6_forge.grid import Grid
 
         self.grid = Grid(
             lenx=self._lenx_slider.value,

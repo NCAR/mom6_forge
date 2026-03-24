@@ -4,8 +4,8 @@ import matplotlib.patches as patches
 import ipywidgets as widgets
 import cartopy.crs as ccrs
 from matplotlib.ticker import MaxNLocator
-from mom6_bathy.edit_command import *
-from mom6_bathy.git_utils import *
+from mom6_forge.edit_command import *
+from mom6_forge.git_utils import *
 
 
 class TopoEditor(widgets.HBox):
@@ -71,16 +71,10 @@ class TopoEditor(widgets.HBox):
 
         plt.ioff()  # Turn off interactive mode for setup
 
-        # Create the figure and axis with Cartopy projection
+        # Create the figure and axis
         self.fig = plt.figure(figsize=(7, 6))
         self.ax = self.fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
-
-        # Set map extent based on grid longitude/latitude
-        lon_min = float(self.topo._grid.qlon.data.min())
-        lon_max = float(self.topo._grid.qlon.data.max())
-        lat_min = float(self.topo._grid.qlat.data.min())
-        lat_max = float(self.topo._grid.qlat.data.max())
-        self.ax.set_extent([lon_min, lon_max, lat_min, lat_max], crs=ccrs.PlateCarree())
+        self.ax.set_aspect("auto")
 
         # Custom coordinate formatter for mouse hover
         def format_coord(x, y):

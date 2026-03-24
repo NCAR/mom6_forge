@@ -5,18 +5,18 @@ from datetime import datetime
 from scipy import interpolate
 from scipy.ndimage import label, binary_fill_holes
 from scipy.spatial import cKDTree
-from mom6_bathy.utils import cell_area_rad, longitude_slicer
-from mom6_bathy.grid import Grid
-from mom6_bathy.git_utils import get_domain_dir, get_repo
+from mom6_forge.utils import cell_area_rad, longitude_slicer
+from mom6_forge.grid import Grid
+from mom6_forge.git_utils import get_domain_dir, get_repo
 from pathlib import Path
-from mom6_bathy.edit_command import *
-from mom6_bathy.command_manager import TopoCommandManager, CommandType
-from mom6_bathy.mapping import regrid_dataset_via_xesmf
+from mom6_forge.edit_command import *
+from mom6_forge.command_manager import TopoCommandManager, CommandType
+from mom6_forge.mapping import regrid_dataset_via_xesmf
 
 
 class Topo:
     """
-    Bathymetry Generator for MOM6 grids (mom6_bathy.grid.Grid).
+    Bathymetry Generator for MOM6 grids (mom6_forge.grid.Grid).
     """
 
     def __init__(self, grid, min_depth, version_control_dir="TopoLibrary"):
@@ -25,7 +25,7 @@ class Topo:
 
         Parameters
         ----------
-        grid: mom6_bathy.grid.Grid
+        grid: mom6_forge.grid.Grid
             horizontal grid instance for which the bathymetry is to be created.
         min_depth: float
             Minimum water column depth. Columns with shallow depths are to be masked out.
@@ -76,7 +76,7 @@ class Topo:
         Parameters
         ----------
         folder_path: str | Path
-            Path to an existing bathymetry folder created by mom6_bathy with version control enabled.
+            Path to an existing bathymetry folder created by mom6_forge with version control enabled.
         """
 
         folder_path = Path(folder_path)
@@ -112,7 +112,7 @@ class Topo:
 
         Parameters
         ----------
-        grid: mom6_bathy.grid.Grid
+        grid: mom6_forge.grid.Grid
             horizontal grid instance for which the bathymetry is to be created.
         topo_file_path: str
             Path to an existing MOM6 topog file.
