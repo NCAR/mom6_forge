@@ -2,9 +2,9 @@ import json
 import os
 from abc import ABC, abstractmethod
 from enum import Enum
-from mom6_bathy.git_utils import get_repo
+from mom6_forge.git_utils import get_repo
 from pathlib import Path
-from mom6_bathy.edit_command import EditCommand
+from mom6_forge.edit_command import EditCommand
 
 
 class CommandType(Enum):
