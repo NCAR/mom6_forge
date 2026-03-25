@@ -10,15 +10,15 @@ Step 1: Import modules
 ----------------------------------------------
 
 The first step is to import the ``Grid`` and ``Topo`` classes of the 
-`mom6_bathy` package. The ``Grid`` class represents
+`mom6_forge` package. The ``Grid`` class represents
 horizontal MOM6 grids, and is to be instantiated with the desired grid
 configuration and resolution. After creating a grid instance, a ``Topo`` class
 instance is to be created to generate an associated bathymetry.
 
 .. code-block:: python
 
-    from mom6_bathy.grid import Grid
-    from mom6_bathy.topo import Topo
+    from mom6_forge.grid import Grid
+    from mom6_forge.topo import Topo
 
 Step 2: Create the horizontal grid 
 -------------------------------------------
@@ -74,7 +74,7 @@ and ``leny``, in addition to the optional argument ``ystart``. The full list of
         flag to make the grid displaced polar. False by default.
 
 Note that tripolar and displaced pole grids cannot yet be created from scratch,
-but existing tripolar and displaced pole grids can be modified via mom6_bathy.
+but existing tripolar and displaced pole grids can be modified via mom6_forge.
 
 *Avoiding singularity points*
 *****************************
@@ -150,14 +150,10 @@ the new x and y coordinates of the supergrid. Running the ``update_supergrid``
 method of a ``Grid`` instance automatically updates all other grid metrics listed
 above.
 
-Note: the supergrid implementation in `mom6_bathy` relies on `MIDAS <https://github.com/mjharriso/MIDAS>`_,
-a python library developed by M. Harrison (GFDL).
-
 Step 3: Create Bathymetry
 ----------------------------------------------
 
 After having generated the horizontal grid, we can now create an associated bathymetry
-using the ``Topo`` class of the `mom6_bathy` tool. We instantiate a bathymetry 
 object as follows:
 
 .. code-block:: python
@@ -200,7 +196,7 @@ The first and the second arguments of ``set_bowl`` and ``set_spoon`` methods are
 and minimum depth, respectively.
 
 Check out the following notebook to see examples of above predefined bathymetry options: `1_spherical_grid.ipynb 
-<https://github.com/NCAR/mom6_bathy/blob/master/notebooks/1_spherical_grid.ipynb>`_
+<https://github.com/NCAR/mom6_forge/blob/master/notebooks/1_spherical_grid.ipynb>`_
 
 *Custom Bathymetry*
 *************************************
@@ -231,13 +227,13 @@ to add ridges to the bathymetry. Example usage:
   topo.apply_ridge(height=200, width=8, lon=240, ilat=(10,80) )
 
 Example notebook: `3_custom_bathy.ipynb 
-<https://github.com/NCAR/mom6_bathy/blob/master/notebooks/3_custom_bathy.ipynb>`_
+<https://github.com/NCAR/mom6_forge/blob/master/notebooks/3_custom_bathy.ipynb>`_
 
 
 Step 4: Write Model Input Files
 ----------------------------------------------
 
-The final step of `mom6_bathy` workflow is to write out the netcdf files containing grid
+The final step of `mom6_forge` workflow is to write out the netcdf files containing grid
 and bathymetry data. These files are to be read in by CESM and MOM6 during runtime.
 
 *Supergrid File*
@@ -291,7 +287,7 @@ of the ``Topo`` class writes out the ESMF mesh file in netcdf format.
 
 Step 5: Editing Grids and Bathymetry
 ----------------------------------------------
-Beyond creating standard grids and simple topographies, mom6_bathy provides advanced tools
+Beyond creating standard grids and simple topographies, mom6_forge provides advanced tools
 for interactively editing and creating complex model domains. These features are designed to
 facilitate reproducible workflows for custom model configurations and model tuning. These
 domain configurators can be used for tasks such as:
@@ -301,14 +297,14 @@ domain configurators can be used for tasks such as:
 * Creating Vertical Grids: Specifying the vertical layering of the ocean model.
 
 Check out the notebook for examples of these advanced features: 
-`6_demo_editors.ipynb <https://github.com/NCAR/mom6_bathy/blob/master/notebooks/6_demo_editors.ipynb>`_
+`6_demo_editors.ipynb <https://github.com/NCAR/mom6_forge/blob/master/notebooks/6_demo_editors.ipynb>`_
 
 Further steps
 ----------------------------------------------
 
 The remaining steps of configuring the model, which include specifying initial conditions,
-forcings, and runtime parameters, are beyond the scope of the `mom6_bathy` tool. Note that a 
-complementary tool called `visualCaseGen`, which includes `mom6_bathy` as a submodule, can be used
+forcings, and runtime parameters, are beyond the scope of the `mom6_forge` tool. Note that a 
+complementary tool called `visualCaseGen`, which includes `mom6_forge` as a submodule, can be used
 to generate a complete model configuration. `visualCaseGen` provides a graphical user interface
 to set up the model grid, bathymetry, initial conditions, forcing, and runtime parameters for MOM6
 and other CESM components. Hence, new users are encouraged to use `visualCaseGen` for a complete

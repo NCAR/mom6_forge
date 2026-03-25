@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Quickstart Guide &mdash; mom6_bathy 0.1 documentation</title>
+  <title>Quickstart Guide &mdash; mom6_forge 0.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
 
@@ -32,7 +32,7 @@
           
           
           <a href="index.html" class="icon icon-home">
-            mom6_bathy
+            mom6_forge
           </a>
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
@@ -76,7 +76,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Python API:</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="modules.html">mom6_bathy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules.html">mom6_forge</a></li>
 </ul>
 
         </div>
@@ -85,7 +85,7 @@
 
     <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="index.html">mom6_bathy</a>
+          <a href="index.html">mom6_forge</a>
       </nav>
 
       <div class="wy-nav-content">
@@ -112,12 +112,12 @@ these instructions apply to Python scripts as well.</p>
 <section id="step-1-import-modules">
 <h2>Step 1: Import modules<a class="headerlink" href="#step-1-import-modules" title="Link to this heading"></a></h2>
 <p>The first step is to import the <code class="docutils literal notranslate"><span class="pre">Grid</span></code> and <code class="docutils literal notranslate"><span class="pre">Topo</span></code> classes of the
-<cite>mom6_bathy</cite> package. The <code class="docutils literal notranslate"><span class="pre">Grid</span></code> class represents
+<cite>mom6_forge</cite> package. The <code class="docutils literal notranslate"><span class="pre">Grid</span></code> class represents
 horizontal MOM6 grids, and is to be instantiated with the desired grid
 configuration and resolution. After creating a grid instance, a <code class="docutils literal notranslate"><span class="pre">Topo</span></code> class
 instance is to be created to generate an associated bathymetry.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mom6_bathy.grid</span><span class="w"> </span><span class="kn">import</span> <span class="n">Grid</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">mom6_bathy.topo</span><span class="w"> </span><span class="kn">import</span> <span class="n">Topo</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mom6_forge.grid</span><span class="w"> </span><span class="kn">import</span> <span class="n">Grid</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mom6_forge.topo</span><span class="w"> </span><span class="kn">import</span> <span class="n">Topo</span>
 </pre></div>
 </div>
 </section>
@@ -169,7 +169,7 @@ displace_pole : bool, optional
 </pre></div>
 </div>
 <p>Note that tripolar and displaced pole grids cannot yet be created from scratch,
-but existing tripolar and displaced pole grids can be modified via mom6_bathy.</p>
+but existing tripolar and displaced pole grids can be modified via mom6_forge.</p>
 <section id="avoiding-singularity-points">
 <h3><em>Avoiding singularity points</em><a class="headerlink" href="#avoiding-singularity-points" title="Link to this heading"></a></h3>
 <dl class="simple">
@@ -238,14 +238,11 @@ as follows:</p>
 the new x and y coordinates of the supergrid. Running the <code class="docutils literal notranslate"><span class="pre">update_supergrid</span></code>
 method of a <code class="docutils literal notranslate"><span class="pre">Grid</span></code> instance automatically updates all other grid metrics listed
 above.</p>
-<p>Note: the supergrid implementation in <cite>mom6_bathy</cite> relies on <a class="reference external" href="https://github.com/mjharriso/MIDAS">MIDAS</a>,
-a python library developed by M. Harrison (GFDL).</p>
 </section>
 </section>
 <section id="step-3-create-bathymetry">
 <h2>Step 3: Create Bathymetry<a class="headerlink" href="#step-3-create-bathymetry" title="Link to this heading"></a></h2>
 <p>After having generated the horizontal grid, we can now create an associated bathymetry
-using the <code class="docutils literal notranslate"><span class="pre">Topo</span></code> class of the <cite>mom6_bathy</cite> tool. We instantiate a bathymetry
 object as follows:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span> <span class="o">=</span> <span class="n">Topo</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">min_depth</span><span class="o">=</span><span class="mf">10.0</span><span class="p">)</span>
 </pre></div>
@@ -282,7 +279,7 @@ available in MOM6 as idealized configurations. (See <cite>TOPO_CONFIG</cite> par
 </div>
 <p>The first and the second arguments of <code class="docutils literal notranslate"><span class="pre">set_bowl</span></code> and <code class="docutils literal notranslate"><span class="pre">set_spoon</span></code> methods are maximum depth
 and minimum depth, respectively.</p>
-<p>Check out the following notebook to see examples of above predefined bathymetry options: <a class="reference external" href="https://github.com/NCAR/mom6_bathy/blob/master/notebooks/1_spherical_grid.ipynb">1_spherical_grid.ipynb</a></p>
+<p>Check out the following notebook to see examples of above predefined bathymetry options: <a class="reference external" href="https://github.com/NCAR/mom6_forge/blob/master/notebooks/1_spherical_grid.ipynb">1_spherical_grid.ipynb</a></p>
 </section>
 <section id="custom-bathymetry">
 <h3><em>Custom Bathymetry</em><a class="headerlink" href="#custom-bathymetry" title="Link to this heading"></a></h3>
@@ -308,12 +305,12 @@ to add ridges to the bathymetry. Example usage:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">apply_ridge</span><span class="p">(</span><span class="n">height</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">lon</span><span class="o">=</span><span class="mi">240</span><span class="p">,</span> <span class="n">ilat</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span><span class="mi">80</span><span class="p">)</span> <span class="p">)</span>
 </pre></div>
 </div>
-<p>Example notebook: <a class="reference external" href="https://github.com/NCAR/mom6_bathy/blob/master/notebooks/3_custom_bathy.ipynb">3_custom_bathy.ipynb</a></p>
+<p>Example notebook: <a class="reference external" href="https://github.com/NCAR/mom6_forge/blob/master/notebooks/3_custom_bathy.ipynb">3_custom_bathy.ipynb</a></p>
 </section>
 </section>
 <section id="step-4-write-model-input-files">
 <h2>Step 4: Write Model Input Files<a class="headerlink" href="#step-4-write-model-input-files" title="Link to this heading"></a></h2>
-<p>The final step of <cite>mom6_bathy</cite> workflow is to write out the netcdf files containing grid
+<p>The final step of <cite>mom6_forge</cite> workflow is to write out the netcdf files containing grid
 and bathymetry data. These files are to be read in by CESM and MOM6 during runtime.</p>
 <section id="supergrid-file">
 <h3><em>Supergrid File</em><a class="headerlink" href="#supergrid-file" title="Link to this heading"></a></h3>
@@ -358,7 +355,7 @@ of the <code class="docutils literal notranslate"><span class="pre">Topo</span><
 </section>
 <section id="step-5-editing-grids-and-bathymetry">
 <h2>Step 5: Editing Grids and Bathymetry<a class="headerlink" href="#step-5-editing-grids-and-bathymetry" title="Link to this heading"></a></h2>
-<p>Beyond creating standard grids and simple topographies, mom6_bathy provides advanced tools
+<p>Beyond creating standard grids and simple topographies, mom6_forge provides advanced tools
 for interactively editing and creating complex model domains. These features are designed to
 facilitate reproducible workflows for custom model configurations and model tuning. These
 domain configurators can be used for tasks such as:</p>
@@ -368,13 +365,13 @@ domain configurators can be used for tasks such as:</p>
 <li><p>Creating Vertical Grids: Specifying the vertical layering of the ocean model.</p></li>
 </ul>
 <p>Check out the notebook for examples of these advanced features:
-<a class="reference external" href="https://github.com/NCAR/mom6_bathy/blob/master/notebooks/6_demo_editors.ipynb">6_demo_editors.ipynb</a></p>
+<a class="reference external" href="https://github.com/NCAR/mom6_forge/blob/master/notebooks/6_demo_editors.ipynb">6_demo_editors.ipynb</a></p>
 </section>
 <section id="further-steps">
 <h2>Further steps<a class="headerlink" href="#further-steps" title="Link to this heading"></a></h2>
 <p>The remaining steps of configuring the model, which include specifying initial conditions,
-forcings, and runtime parameters, are beyond the scope of the <cite>mom6_bathy</cite> tool. Note that a
-complementary tool called <cite>visualCaseGen</cite>, which includes <cite>mom6_bathy</cite> as a submodule, can be used
+forcings, and runtime parameters, are beyond the scope of the <cite>mom6_forge</cite> tool. Note that a
+complementary tool called <cite>visualCaseGen</cite>, which includes <cite>mom6_forge</cite> as a submodule, can be used
 to generate a complete model configuration. <cite>visualCaseGen</cite> provides a graphical user interface
 to set up the model grid, bathymetry, initial conditions, forcing, and runtime parameters for MOM6
 and other CESM components. Hence, new users are encouraged to use <cite>visualCaseGen</cite> for a complete
@@ -393,7 +390,7 @@ model configuration. See: <a class="reference external" href="https://github.com
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2024, NCAR.</p>
+    <p>&#169; Copyright 2026, NCAR.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

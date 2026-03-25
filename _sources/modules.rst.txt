@@ -1,7 +1,7 @@
-mom6_bathy
+mom6_forge
 ==========
 
 .. toctree::
    :maxdepth: 4
 
-   mom6_bathy
+   mom6_forge
