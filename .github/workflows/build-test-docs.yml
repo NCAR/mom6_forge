@@ -12,6 +12,9 @@ jobs:
   # --------------------------------
   build-test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12","3.13", "3.14"]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -22,9 +25,9 @@ jobs:
         uses: mamba-org/setup-micromamba@v2
         with:
           environment-file: environment.yml
-          cache-environment: true
           cache-downloads: true
           micromamba-version: "latest"
+          create-args: python=${{ matrix.python-version }}
       - name: Set git identity for testing
         run: |
           git config --global user.email "runner@example.com"
