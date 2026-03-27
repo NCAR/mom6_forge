@@ -4,7 +4,7 @@ import os
 import numpy as np
 import xarray as xr
 
-from mom6_bathy.vgrid import (
+from mom6_forge.vgrid import (
     VGrid,
     _cell_center_to_layer_thickness,
     _cell_interface_to_layer_thickness,

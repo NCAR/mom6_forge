@@ -1,19 +1,19 @@
 """
-This module defines MOM6-style supergrid classes and associated utilities. It sits underneath the mom6_bathy.grid class and fills the roll of calculating the grid geometry: angle_dx, area, dx, dy, x, and y.
+This module defines MOM6-style supergrid classes and associated utilities. It sits underneath the mom6_forge.grid class and fills the roll of calculating the grid geometry: angle_dx, area, dx, dy, x, and y.
 
 Classes defined here:
 - SupergridBase: Base class defining the MOM6-style supergrid interface.
 - UniformSphericalSupergrid: MOM6-style supergrid with constant-degree spacing (lon/lat grid).
 - RectilinearCartesianSupergrid: MOM6-style supergrid with (as close to) uniform Cartesian spacing (still a lat/lon grid).
 
-The code for these classes does not originally come from mom6_bathy, but was adapted: UniformSphericalSupergrid by Mathew Harrison in MIDAS (https://github.com/mjharriso/MIDAS) and RectilinearCartesianSupergrid by Ashley Barnes in regional_mom6 (https://github.com/COSIMA/regional-mom6).
+The code for these classes does not originally come from mom6_forge, but was adapted: UniformSphericalSupergrid by Mathew Harrison in MIDAS (https://github.com/mjharriso/MIDAS) and RectilinearCartesianSupergrid by Ashley Barnes in regional_mom6 (https://github.com/COSIMA/regional-mom6).
 """
 
 import numpy as np
 import xarray as xr
 from datetime import datetime
 from typing import Optional
-from mom6_bathy.utils import quadrilateral_areas, mdist
+from mom6_forge.utils import quadrilateral_areas, mdist
 
 
 class SupergridBase:
