@@ -1,5 +1,5 @@
-from mom6_bathy.command_manager import *
-from mom6_bathy.edit_command import *
+from mom6_forge.command_manager import *
+from mom6_forge.edit_command import *
 from test_edit_commands import gen_MinDepthCommand
 import pytest
 import xarray as xr
