@@ -10,8 +10,8 @@ import socket
 import numpy as np
 import xarray as xr
 import pytest
-from mom6_bathy.grid import Grid
-from mom6_bathy.topo import Topo
+from mom6_forge.grid import Grid
+from mom6_forge.topo import Topo
 from utils import on_cisl_machine
 import os
 

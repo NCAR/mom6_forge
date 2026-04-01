@@ -1,5 +1,5 @@
 """
-This module defines MOM6-style supergrid classes and associated utilities. It sits underneath the mom6_bathy.grid class and fills the roll of calculating the grid geometry: angle_dx, area, dx, dy, x, and y.
+This module defines MOM6-style supergrid classes and associated utilities. It sits underneath the mom6_forge.grid class and fills the roll of calculating the grid geometry: angle_dx, area, dx, dy, x, and y.
 
 Classes defined here:
 - SupergridBase: Base class defining the MOM6-style supergrid interface.
@@ -8,15 +8,15 @@ Classes defined here:
 - ProjectedSupergrid: MOM6-style supergrid built from a pyproj map projection. Use this
   for polar domains (e.g., EPSG:3995/3031) or rotated regional grids (e.g., estuary-aligned).
 
-The code for these classes does not originally come from mom6_bathy, but was adapted: UniformSphericalSupergrid by Mathew Harrison in MIDAS (https://github.com/mjharriso/MIDAS) and RectilinearCartesianSupergrid by Ashley Barnes in regional_mom6 (https://github.com/COSIMA/regional-mom6).
+The code for these classes does not originally come from mom6_forge, but was adapted: UniformSphericalSupergrid by Mathew Harrison in MIDAS (https://github.com/mjharriso/MIDAS) and RectilinearCartesianSupergrid by Ashley Barnes in regional_mom6 (https://github.com/COSIMA/regional-mom6).
 """
 
 import numpy as np
 import xarray as xr
 from datetime import datetime
 from typing import Optional
-from mom6_bathy.utils import quadrilateral_areas, mdist, normalize_deg
 from pyproj import CRS, Transformer
+from mom6_forge.utils import quadrilateral_areas, mdist, normalize_deg
 
 
 class SupergridBase:
@@ -335,16 +335,14 @@ class RectilinearCartesianSupergrid(SupergridBase):
             np.diff(lons), dlons * np.ones(np.size(lons) - 1)
         ), "provided array of longitudes must be uniformly spaced"
 
-        # Note: division by 2 because we're on the supergrid
+        # Calculate dx & dy in meters, accounting for spherical geometry
         dx = np.broadcast_to(
-            R * np.cos(np.deg2rad(lats)) * np.deg2rad(dlons) / 2,
+            R * np.cos(np.deg2rad(lats)) * np.deg2rad(dlons),
             (lons.shape[0] - 1, lats.shape[0]),
         ).T
 
-        # dy = R * np.deg2rad(dlats) / 2
-        # Note: division by 2 because we're on the supergrid
         dy = np.broadcast_to(
-            R * np.deg2rad(np.diff(lats)) / 2, (lons.shape[0], lats.shape[0] - 1)
+            R * np.deg2rad(np.diff(lats)), (lons.shape[0], lats.shape[0] - 1)
         ).T
 
         lon, lat = np.meshgrid(lons, lats)

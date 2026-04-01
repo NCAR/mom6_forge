@@ -5,18 +5,18 @@ from datetime import datetime
 from scipy import interpolate
 from scipy.ndimage import label, binary_fill_holes
 from scipy.spatial import cKDTree
-from mom6_bathy.utils import cell_area_rad, longitude_slicer
-from mom6_bathy.grid import Grid
-from mom6_bathy.git_utils import get_domain_dir, get_repo
+from mom6_forge.utils import cell_area_rad, longitude_slicer
+from mom6_forge.grid import Grid
+from mom6_forge.git_utils import get_domain_dir, get_repo
 from pathlib import Path
-from mom6_bathy.edit_command import *
-from mom6_bathy.command_manager import TopoCommandManager, CommandType
-from mom6_bathy.mapping import regrid_dataset_via_xesmf
+from mom6_forge.edit_command import *
+from mom6_forge.command_manager import TopoCommandManager, CommandType
+from mom6_forge.mapping import regrid_dataset_via_xesmf
 
 
 class Topo:
     """
-    Bathymetry Generator for MOM6 grids (mom6_bathy.grid.Grid).
+    Bathymetry Generator for MOM6 grids (mom6_forge.grid.Grid).
     """
 
     def __init__(self, grid, min_depth, version_control_dir="TopoLibrary"):
@@ -25,7 +25,7 @@ class Topo:
 
         Parameters
         ----------
-        grid: mom6_bathy.grid.Grid
+        grid: mom6_forge.grid.Grid
             horizontal grid instance for which the bathymetry is to be created.
         min_depth: float
             Minimum water column depth. Columns with shallow depths are to be masked out.
@@ -77,7 +77,7 @@ class Topo:
         Parameters
         ----------
         folder_path: str | Path
-            Path to an existing bathymetry folder created by mom6_bathy with version control enabled.
+            Path to an existing bathymetry folder created by mom6_forge with version control enabled.
         """
 
         folder_path = Path(folder_path)
@@ -101,24 +101,31 @@ class Topo:
 
     @classmethod
     def from_topo_file(
-        cls, grid, topo_file_path, min_depth=0.0, version_control_dir="TopoLibrary"
+        cls,
+        grid,
+        topo_file_path,
+        min_depth=0.0,
+        varname="depth",
+        version_control_dir="TopoLibrary",
     ):
         """
         Create a bathymetry object from an existing topog file.
 
         Parameters
         ----------
-        grid: mom6_bathy.grid.Grid
+        grid: mom6_forge.grid.Grid
             horizontal grid instance for which the bathymetry is to be created.
         topo_file_path: str
             Path to an existing MOM6 topog file.
         min_depth: float, optional
             Minimum water column depth (m). Columns with shallower depths are to be masked out.
+        varname : str, optional
+            Name of the variable representing ocean depth in the dataset. Default is "depth".
         """
 
         topo = cls(grid, min_depth, version_control_dir=version_control_dir)
         topo.tcm.reapply_changes()
-        topo.set_depth_via_topog_file(topo_file_path)
+        topo.set_depth_via_topog_file(topo_file_path, varname)
         return topo
 
     @property
@@ -366,7 +373,7 @@ class Topo:
         # Save to object
         self.send_entire_depth_change_to_tcm(depth)
 
-    def set_depth_via_topog_file(self, topog_file_path, quietly=False):
+    def set_depth_via_topog_file(self, topog_file_path, varname="depth", quietly=False):
         """
         Apply a bathymetry read from an existing topog file
 
@@ -374,6 +381,8 @@ class Topo:
         ----------
         topog_file_path: str
             absolute path to an existing MOM6 topog file
+        varname : str
+            Name of the variable representing ocean depth in the dataset.
         """
 
         assert os.path.exists(
@@ -382,9 +391,9 @@ class Topo:
 
         ds_topo = xr.open_dataset(topog_file_path)
         assert (
-            "depth" in ds_topo
-        ), f"Cannot find the 'depth' field in topog file {topog_file_path}"
-        depth = ds_topo["depth"]
+            varname in ds_topo
+        ), f"Cannot find the '{varname}' field in topog file {topog_file_path}"
+        depth = ds_topo[varname]
 
         if depth.shape[0] < self._grid.ny or depth.shape[1] < self._grid.nx:
             raise ValueError(
@@ -602,7 +611,7 @@ class Topo:
         """
         print("""**NOTE**
             If bathymetry setup fails (e.g. kernel crashes), restart the kernel and edit this cell.
-            Call ``[topo_object_name].mpi_set_from_dataset()`` instead. Follow the given instructions for using mpi 
+            Call ``[topo_object_name].mpi_set_from_dataset()`` instead. Follow the given instructions for using mpi
             and ESMF_Regrid outside of a python environment. This breaks up the process, so be sure to call
             ``[topo_object_name].tidy_dataset() after regridding with mpi.""")
         if run_config_dataset:
@@ -655,23 +664,23 @@ class Topo:
         if verbose:
             print(f"""
             *MANUAL REGRIDDING INSTRUCTIONS*
-            
+
             Calling `[object_name].mpi_set_from_dataset` sets up the files necessary for regridding
             the bathymetry using mpirun and ESMF_Regrid. See below for the step-by-step instructions:
-            
+
             1. There should be two files: `bathymetry_original.nc` and `bathymetry_unfinished.nc` located at
-            {output_dir}. 
-            
+            {output_dir}.
+
             2. Open a terminal and change to this directory (e.g. `cd {output_dir}`).
-            
+
             3. Request appropriate computational resources (see example script below), and run the command:
-            
+
             `mpirun -np NUMBER_OF_CPUS ESMF_Regrid -s bathymetry_original.nc -d bathymetry_unfinished.nc -m bilinear --src_var depth --dst_var depth --netcdf4 --src_regional --dst_regional`
-            
-            4. Run Topo_object.tidy_bathymetry(args) to finish processing the bathymetry. 
-            
+
+            4. Run Topo_object.tidy_bathymetry(args) to finish processing the bathymetry.
+
             Example PBS script using NCAR's Casper Machine: https://gist.github.com/AidanJanney/911290acaef62107f8e2d4ccef9d09be
-            
+
             For additional details see: https://xesmf.readthedocs.io/en/latest/large_problems_on_HPC.html
             """)
 

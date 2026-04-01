@@ -1,4 +1,4 @@
-name: mom6_bathy_env
+name: mom6_forge
 
 channels:
   - conda-forge
