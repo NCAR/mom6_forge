@@ -8,14 +8,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>mom6_bathy.topo module &mdash; mom6_forge 0.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
-      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
       <script src="_static/documentation_options.js?v=2709fde1"></script>
-      <script src="_static/doctools.js?v=9bcbadda"></script>
-      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -94,7 +94,7 @@
 <span id="mom6-bathy-topo-module"></span><h1>mom6_bathy.topo module<a class="headerlink" href="#module-mom6_forge.topo" title="Link to this heading"></a></h1>
 <dl class="py class">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mom6_forge.topo.</span></span><span class="sig-name descname"><span class="pre">Topo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_depth</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version_control_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'TopoLibrary'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mom6_forge.topo.</span></span><span class="sig-name descname"><span class="pre">Topo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_depth</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version_control_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'TopoLibrary'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo" title="Link to this definition"></a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Bathymetry Generator for MOM6 grids (mom6_forge.grid.Grid).</p>
 <p>MOM6 Simpler Models bathymetry constructor.</p>
@@ -143,7 +143,7 @@
 
 <dl class="py property">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.basintmask">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">basintmask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.basintmask" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">basintmask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.basintmask" title="Link to this definition"></a></dt>
 <dd><p>Ocean domain mask at T grid. Seperate number for each connected water cell, 0 if land.</p>
 </dd></dl>
 
@@ -179,7 +179,7 @@ The str or Path the write to file should write to. Defaults to the directory the
 
 <dl class="py property">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.depth">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">depth</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.depth" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">depth</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.depth" title="Link to this definition"></a></dt>
 <dd><p>MOM6 grid depth array (m). Positive below MSL.</p>
 </dd></dl>
 
@@ -195,7 +195,7 @@ The str or Path the write to file should write to. Defaults to the directory the
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.from_topo_file">
-<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_topo_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topo_file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_depth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">varname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'depth'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version_control_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'TopoLibrary'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.from_topo_file" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_topo_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topo_file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_depth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">varname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'depth'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version_control_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'TopoLibrary'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.from_topo_file" title="Link to this definition"></a></dt>
 <dd><p>Create a bathymetry object from an existing topog file.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -211,7 +211,7 @@ The str or Path the write to file should write to. Defaults to the directory the
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.from_version_control">
-<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_version_control</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">folder_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.from_version_control" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_version_control</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">folder_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.from_version_control" title="Link to this definition"></a></dt>
 <dd><p>Create a bathymetry object from an existing version-controlled bathymetry folder.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -233,19 +233,19 @@ The str or Path the write to file should write to. Defaults to the directory the
 
 <dl class="py property">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.max_depth">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">max_depth</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.max_depth" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">max_depth</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.max_depth" title="Link to this definition"></a></dt>
 <dd><p>Maximum water column depth.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.min_depth">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">min_depth</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.min_depth" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">min_depth</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.min_depth" title="Link to this definition"></a></dt>
 <dd><p>Minimum water column depth. Columns with shallow depths are to be masked out.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.mpi_set_from_dataset">
-<span class="sig-name descname"><span class="pre">mpi_set_from_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bathymetry_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fill_channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">positive_down</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">PosixPath('.')</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">write_to_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.mpi_set_from_dataset" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">mpi_set_from_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">bathymetry_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fill_channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">positive_down</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">PosixPath('.')</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">write_to_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.mpi_set_from_dataset" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
@@ -256,7 +256,7 @@ The str or Path the write to file should write to. Defaults to the directory the
 
 <dl class="py property">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.qmask">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">qmask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.qmask" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">qmask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.qmask" title="Link to this definition"></a></dt>
 <dd><p>Ocean domain mask on Q grid. 1 if ocean, 0 if land.</p>
 </dd></dl>
 
@@ -364,7 +364,7 @@ parameter to “spoon”.</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.supergridmask">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">supergridmask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.supergridmask" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">supergridmask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.supergridmask" title="Link to this definition"></a></dt>
 <dd><p>Ocean domain mask on supergrid. 1 if ocean, 0 if land.</p>
 </dd></dl>
 
@@ -396,19 +396,19 @@ that was created by <code class="xref py py-func docutils literal notranslate"><
 
 <dl class="py property">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.tmask">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">tmask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.tmask" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">tmask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.tmask" title="Link to this definition"></a></dt>
 <dd><p>Ocean domain mask at T grid. 1 if ocean, 0 if land.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.umask">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">umask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.umask" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">umask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.umask" title="Link to this definition"></a></dt>
 <dd><p>Ocean domain mask on U grid. 1 if ocean, 0 if land.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.vmask">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">vmask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.vmask" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">vmask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.vmask" title="Link to this definition"></a></dt>
 <dd><p>Ocean domain mask on V grid. 1 if ocean, 0 if land.</p>
 </dd></dl>
 
