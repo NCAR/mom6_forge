@@ -1,0 +1,111 @@
+name: Publish Python 🐍 distribution 📦 to PyPI and TestPyPI
+
+on:
+  push:
+    branches:
+      - main
+  release:
+    types: [created]  # triggers when a new release is published
+
+jobs:
+  build:
+    name: Build distribution 📦
+    runs-on: ubuntu-latest
+    outputs:
+        version_changed: ${{ steps.check_version.outputs.version_changed }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+        submodules: recursive
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11.10"
+    - name: Get current version
+      id: get_version
+      run: |
+          CURR_VERSION=$(grep "version=" setup.py | cut -d'"' -f2)
+          echo "curr_version=$CURR_VERSION" >> $GITHUB_OUTPUT
+    - name: Check if version changed on TestPyPI
+      id: check_version
+      run: |
+          PACKAGE_NAME=$(python3 setup.py --name)
+          CURR_VERSION=${{ steps.get_version.outputs.curr_version }}
+
+          # Fetch latest version from TestPyPI JSON API
+          LATEST=$(curl -s https://test.pypi.org/pypi/mom6_bathy/json | jq -r '.info.version // empty')
+
+          echo "Current version: $CURR_VERSION"
+          echo "Latest on TestPyPI: $LATEST"
+
+          if [ "$CURR_VERSION" = "$LATEST" ]; then
+            echo "version_changed=false" >> $GITHUB_OUTPUT
+            echo "No new version to upload."
+          else
+            echo "version_changed=true" >> $GITHUB_OUTPUT
+            echo "New version detected. Will upload."
+          fi
+
+    - name: Install pypa/build
+      if: steps.check_version.outputs.version_changed == 'true'
+      run: >-
+        python3 -m
+        pip install
+        build
+        --user
+    - name: Build a binary wheel and a source tarball
+      if: steps.check_version.outputs.version_changed == 'true'
+      run: python3 -m build
+    - name: Store the distribution packages
+      if: steps.check_version.outputs.version_changed == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+  publish-to-testpypi:
+    name: Publish Python 🐍 distribution 📦 to TestPyPI
+    needs: build
+    runs-on: ubuntu-latest
+    if: needs.build.outputs.version_changed == 'true'
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/mom6_bathy
+
+    permissions:
+      id-token: write  # IMPORTANT: mandatory for trusted publishing
+
+    steps:
+    - name: Download all the dists
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+    - name: Publish distribution 📦 to TestPyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        verbose: true
+        repository-url: https://test.pypi.org/legacy/
+  publish-to-pypi:
+    name: Publish Python 🐍 distribution 📦 to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    environment:
+      name: pypi
+      url: https://pypi.org/p/mom6_bathy
+
+    permissions:
+      id-token: write  # IMPORTANT: mandatory for trusted publishing
+
+    steps:
+    - name: Download all the dists
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+    - name: Publish distribution 📦 to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        verbose: true
