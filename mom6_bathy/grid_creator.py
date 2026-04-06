@@ -857,33 +857,33 @@ class GridCreator(widgets.HBox):
             if grid_type == "projected_center":
                 self._grid_mode = "center"
                 self._center_latlon = (
-                    grid.supergrid._grid_params["center_lat"],
-                    grid.supergrid._grid_params["center_lon"],
+                    self.grid.supergrid._grid_params["center_lat"],
+                    self.grid.supergrid._grid_params["center_lon"],
                 )
-                self._center_width.value = grid.supergrid._grid_params["width_m"] / 1000
+                self._center_width.value = self.grid.supergrid._grid_params["width_m"] / 1000
                 self._center_height.value = (
-                    grid.supergrid._grid_params["height_m"] / 1000
+                    self.grid.supergrid._grid_params["height_m"] / 1000
                 )
                 self._center_resolution.value = (
-                    grid.supergrid._grid_params["resolution_m"] / 1000
+                    self.grid.supergrid._grid_params["resolution_m"] / 1000
                 )
-                self._center_angle.value = grid.supergrid._grid_params.get(
+                self._center_angle.value = self.grid.supergrid._grid_params.get(
                     "angle_deg", 0.0
                 )
             elif grid_type == "projected_crs":
                 self._grid_mode = "projection"
                 self._proj_extents = (
-                    grid.supergrid._grid_params["x_min"],
-                    grid.supergrid._grid_params["x_max"],
-                    grid.supergrid._grid_params["y_min"],
-                    grid.supergrid._grid_params["y_max"],
+                    self.grid.supergrid._grid_params["x_min"],
+                    self.grid.supergrid._grid_params["x_max"],
+                    self.grid.supergrid._grid_params["y_min"],
+                    self.grid.supergrid._grid_params["y_max"],
                 )
                 self._proj_resolution.value = (
-                    grid.supergrid._grid_params["resolution_m"] / 1000
+                    self.grid.supergrid._grid_params["resolution_m"] / 1000
                 )
-                epsg = CRS.from_wkt(grid.supergrid._grid_params["crs_wkt"]).to_epsg()
+                epsg = CRS.from_wkt(self.grid.supergrid._grid_params["crs_wkt"]).to_epsg()
                 self._proj_crs_text.value = (
-                    f"EPSG:{epsg}" if epsg else grid.supergrid._grid_params["crs_wkt"]
+                    f"EPSG:{epsg}" if epsg else self.grid.supergrid._grid_params["crs_wkt"]
                 )
             else:
                 self._grid_mode = "latlon"
