@@ -9,5 +9,5 @@ dependencies:
   - xesmf>=0.8.10,<1.0.0
   - pip
   - pip:
-    - -e ./ # mom6_baty
+    - -e ./ # mom6_forge itself
 
