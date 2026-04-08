@@ -31,7 +31,7 @@ jobs:
 
           tree = ast.parse(open("setup.py").read())
           call = tree.body[-1].value
-          info = {kw.arg: ast.literal_eval(kw.value) for kw in call.keywords}
+          info = {kw.arg: ast.literal_eval(kw.value) for kw in call.keywords if kw.arg in ('name', 'version')}
 
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"package_name={info['name']}\n")
