@@ -307,6 +307,25 @@ Options are uniform_degree or rectilinear_cartesian</p></li>
 </dd>
 </dl>
 <dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.grid.Grid.calculate_t_point_rotation_angles_from_mom6_method">
+<span class="sig-name descname"><span class="pre">calculate_t_point_rotation_angles_from_mom6_method</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataArray</span></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.calculate_t_point_rotation_angles_from_mom6_method" title="Link to this definition"></a></dt>
+<dd><p>Calculate the <code class="docutils literal notranslate"><span class="pre">angle_dx</span></code> in degrees from the true <code class="docutils literal notranslate"><span class="pre">x</span></code> direction (parallel to latitude) counter-clockwise
+and return as a dataarray. (Mimics MOM6 angle calculation function <code class="xref py py-func docutils literal notranslate"><span class="pre">mom6_angle_calculation_method()</span></code>)</p>
+<p>Use this to compare with the angle_dx provided in the supergrid file to check if the angles are consistent with MOM6 method</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>supergrid</strong> (<em>xr.Dataset</em>) – The supergrid dataset</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The t-point angles</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>xr.DataArray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.grid.Grid.check_supergrid">
 <span class="property"><span class="k"><span class="pre">static</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">check_supergrid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">supergrid</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dataset</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.check_supergrid" title="Link to this definition"></a></dt>
 <dd><p>Check if a given supergrid contains the necessary attributes
