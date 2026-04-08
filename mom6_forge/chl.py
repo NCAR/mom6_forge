@@ -1,12 +1,12 @@
-from mom6_bathy.grid import Grid
-from mom6_bathy.topo import Topo
+from mom6_forge.grid import Grid
+from mom6_forge.topo import Topo
 import xarray as xr
 import numpy as np
 import xesmf as xe
 from datetime import datetime
 from pathlib import Path
 from os.path import isfile
-from mom6_bathy.aux import fill_missing_data
+from mom6_forge.utils import fill_missing_data
 
 
 def interpolate_and_fill_seawifs(
@@ -111,7 +111,7 @@ def interpolate_and_fill_seawifs(
         + grid.name
     )
     chla.attrs["repository"] = (
-        "https://github.com/NCAR/SeaWIFS_MOM6 and https://github.com/NCAR/mom6_bathy"
+        "https://github.com/NCAR/SeaWIFS_MOM6 and https://github.com/NCAR/mom6_forge"
     )
     chla.attrs["authors"] = (
         "Gustavo Marques (gmarques@ucar.edu) and Frank Bryan (bryan@ucar.edu)"
@@ -132,7 +132,7 @@ def interpolate_and_fill_seawifs(
                 "_FillValue": fill_value,
             }
         },
-        format='NETCDF3_64BIT',
+        format="NETCDF3_64BIT",
     )
     print(f"Wrote interpolated and filled SeaWiFS data to:\n{output_path}")
 

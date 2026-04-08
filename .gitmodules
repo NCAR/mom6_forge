@@ -1,3 +1,0 @@
-[submodule "mom6_bathy/midas"]
-	path = mom6_bathy/midas
-	url = https://github.com/NCAR/MIDAS.git

@@ -1,12 +1,15 @@
 import os
 import copy
-from datetime import datetime
 from typing import Optional
 import numpy as np
 import xarray as xr
 from scipy.spatial import cKDTree
-from midas.rectgrid_gen import supergrid as MidasSupergrid
-from mom6_bathy.aux import normalize_deg
+from mom6_forge._supergrid import (
+    UniformSphericalSupergrid,
+    RectilinearCartesianSupergrid,
+    SupergridBase,
+)
+from mom6_forge.utils import normalize_deg
 
 
 class Grid:
@@ -63,9 +66,8 @@ class Grid:
         xstart: float = 0.0,
         ystart: Optional[float] = None,
         cyclic_x: bool = False,
-        tripolar_n: bool = False,
-        displace_pole: bool = False,
         name: Optional[str] = None,
+        type: str = "uniform_spherical",
     ) -> None:
         """
         Grid instance constructor.
@@ -90,25 +92,33 @@ class Grid:
             starting y coordinate. -0.5*leny by default.
         cyclic_x : bool, optional
             flag to make the grid cyclic in x direction. False by default.
-        tripolar_n : bool, optional
-            flag to make the grid tripolar. False by default.
-        displace_pole : bool, optional
-            flag to make the grid displaced polar. False by default.
         name : str, optional
             name of the grid. None by default.
+        type : str, optional
+            If not specified, creates an uniform_degree grid.
+            Options are uniform_degree or rectilinear_cartesian
         """
 
         # default ystart value (centers the domain at the Equator)
         if ystart is None:
             ystart = -0.5 * leny
-        
+
         if nx is not None or ny is not None:
-            assert nx is not None and ny is not None, "nx and ny must be provided together"
+            assert (
+                nx is not None and ny is not None
+            ), "nx and ny must be provided together"
             assert resolution is None, "resolution cannot be provided with nx and ny"
         else:
-            assert resolution is not None, "resolution must be provided if nx and ny are not"
+            assert (
+                resolution is not None
+            ), "resolution must be provided if nx and ny are not"
             nx = int(lenx / resolution)
             ny = int(leny / resolution)
+
+        if type == "rectilinear_cartesian" and resolution is None:
+            raise ValueError(
+                "resolution must be provided for rectilinear_cartesian grid type"
+            )
 
         # consistency checks for constructor arguments
         assert nx > 0, "nx must be a positive integer"
@@ -120,46 +130,47 @@ class Grid:
         assert 0 < leny <= 180.0, "leny must be in the range (0, 180]"
         assert -90.0 <= ystart <= 90.0, "ystart must be in the range [-90, 90]"
         assert leny + ystart <= 90.0, "leny + ystart must be less than 90"
-        assert tripolar_n is False, "tripolar not supported yet"
-        assert displace_pole is False, "displaced pole not supported yet"
         self.name = name
+        self.cyclic_x = cyclic_x
 
-
-        srefine = 2  # supergrid refinement factor
-
-        self.supergrid = MidasSupergrid(
-            nxtot=nx * srefine,
-            nytot=ny * srefine,
-            config="spherical",
-            axis_units="degrees",
-            ystart=ystart,
-            leny=leny,
-            xstart=xstart,
-            lenx=lenx,
-            cyclic_x=cyclic_x,
-            cyclic_y=False,  # todo
-            tripolar_n=tripolar_n,
-            displace_pole=displace_pole,
-        )
-
+        if type == "uniform_spherical":
+            self.supergrid = UniformSphericalSupergrid.from_extents(
+                lon_min=xstart, len_x=lenx, lat_min=ystart, len_y=leny, nx=nx, ny=ny
+            )
+        elif type == "rectilinear_cartesian":
+            self.supergrid = RectilinearCartesianSupergrid(
+                lon_min=xstart,
+                len_x=lenx,
+                lat_min=ystart,
+                len_y=leny,
+                resolution=resolution,
+            )
+        else:
+            raise ValueError(f"Unsupported grid type: {type}")
 
     @property
     def name(self) -> str:
         """Name of the grid."""
         return self._name
-    
+
     @property
     def kdtree(self) -> cKDTree:
         """KDTree for fast nearest neighbor search."""
         if not hasattr(self, "_kdtree") or self._kdtree is None:
-            self._kdtree = cKDTree(np.column_stack((self.tlat.values.flatten(), self.tlon.values.flatten())))
+            self._kdtree = cKDTree(
+                np.column_stack(
+                    (self.tlat.values.flatten(), self.tlon.values.flatten())
+                )
+            )
         return self._kdtree
-    
+
     @name.setter
     def name(self, new_name: str) -> None:
-        assert new_name is None or new_name.replace("_", "").isalnum(), "Grid name must be alphanumeric"
+        assert (
+            new_name is None or new_name.replace("_", "").isalnum()
+        ), "Grid name must be alphanumeric"
         self._name = new_name
-    
+
     def __getitem__(self, slices) -> xr.DataArray:
         """
         Get a subgrid copy based on the provided slices.
@@ -179,10 +190,14 @@ class Grid:
         """
 
         # Check if args are a tuple of two slices
-        assert isinstance(slices, tuple) and len(slices) == 2 and \
-            all(isinstance(s, slice) for s in slices), \
-            "Must provide both j and i slices when indexing the grid. "\
+        assert (
+            isinstance(slices, tuple)
+            and len(slices) == 2
+            and all(isinstance(s, slice) for s in slices)
+        ), (
+            "Must provide both j and i slices when indexing the grid. "
             "Examples: grid[0:10, 0:20] or grid[:, 0:20] or grid[0:10, :]."
+        )
 
         j_slice, i_slice = slices
 
@@ -190,7 +205,7 @@ class Grid:
         if j_slice == slice(None) and i_slice == slice(None):
             return copy.deepcopy(self)
 
-        # Get the slice bounds and steps 
+        # Get the slice bounds and steps
         j_low, j_high, j_step = (
             j_slice.start or 0,
             j_slice.stop or self.ny,
@@ -219,55 +234,59 @@ class Grid:
         assert i_step > 0, "i slice step must be positive"
         assert j_low < self.ny, "Lower j slice bound exceeds the grid's ny dimension"
         assert i_low < self.nx, "Lower i slice bound exceeds the grid's nx dimension"
-        assert j_high > j_low, "Upper j slice bound must be greater than lower j slice bound"
-        assert i_high > i_low, "Upper i slice bound must be greater than lower i slice bound"
+        assert (
+            j_high > j_low
+        ), "Upper j slice bound must be greater than lower j slice bound"
+        assert (
+            i_high > i_low
+        ), "Upper i slice bound must be greater than lower i slice bound"
         assert j_high <= self.ny, "Upper j slice bound exceeds the grid's ny dimension"
         assert i_high <= self.nx, "Upper i slice bound exceeds the grid's nx dimension"
 
         srefine = 2  # supergrid refinement factor
 
         # Periodicity checks:
-        cyclic_y = self.supergrid.dict["cyclic_y"] and (j_low == 0) and (j_high == self.ny)
-        cyclic_x = self.supergrid.dict["cyclic_x"] and (i_low == 0) and (i_high == self.nx)
-        tripolar_n = self.supergrid.dict["tripolar_n"] and (i_low == 0) and (i_high == self.nx) and (j_high == self.ny)
+
+        cyclic_x = self.cyclic_x and (i_low == 0) and (i_high == self.nx)
+
+        # Cyclic Y and tripolar are still TODO (these were not supported previously)
+        # cyclic_y = (
+        #     self.supergrid.dict["cyclic_y"] and (j_low == 0) and (j_high == self.ny)
+        # )
+        # tripolar_n = (
+        #     self.supergrid.dict["tripolar_n"]
+        #     and (i_low == 0)
+        #     and (i_high == self.nx)
+        #     and (j_high == self.ny)
+        # )
 
         # supergrid slicing:
         s_j_low = j_low * srefine
         s_j_high = (j_high) * srefine + 1
         s_i_low = i_low * srefine
         s_i_high = (i_high) * srefine + 1
-            
-        # Create a sub-supergrid with the sliced data
-        sub_supergrid = MidasSupergrid(
-            config=self.supergrid.dict["config"],
-            axis_units=self.supergrid.dict["axis_units"],
-            xdat=self.supergrid.x[s_j_low:s_j_high:j_step, s_i_low:s_i_high:i_step],
-            ydat=self.supergrid.y[s_j_low:s_j_high:j_step, s_i_low:s_i_high:i_step],
-            cyclic_x=cyclic_x,
-            cyclic_y=cyclic_y,
-            tripolar_n=tripolar_n,
-            r0_pole=self.supergrid.dict["r0_pole"],
-            lon0_pole=self.supergrid.dict["lon0_pole"],
-            doughnut=self.supergrid.dict["doughnut"],
-            radius=self.supergrid.dict["radius"],
+
+        sub_supergrid = UniformSphericalSupergrid.from_xy(
+            x=self.supergrid.x[s_j_low:s_j_high:j_step, s_i_low:s_i_high:i_step],
+            y=self.supergrid.y[s_j_low:s_j_high:j_step, s_i_low:s_i_high:i_step],
         )
 
         # Create a name for the subgrid based on the slices
         # This may (and should) be overriden by the user later
         name = self.name or "subgrid"
-        if j_low>0 or j_high < self.ny:
+        if j_low > 0 or j_high < self.ny:
             name += f"_jb{j_low}_je{j_high}"
-        if i_low>0 or i_high < self.nx:
+        if i_low > 0 or i_high < self.nx:
             name += f"_ib{i_low}_ie{i_high}"
 
         # Create a new Grid instance for the subgrid and return it
         sub_grid = Grid(
             nx=int((i_high - i_low) / i_step),
             ny=int((j_high - j_low) / j_step),
-            lenx=(sub_supergrid.x.max() - sub_supergrid.x.min()).item(),
-            leny=(sub_supergrid.y.max() - sub_supergrid.y.min()).item(),
+            lenx=sub_supergrid.lenx,
+            leny=sub_supergrid.leny,
             cyclic_x=cyclic_x,
-            name=name
+            name=name,
         )
         sub_grid.supergrid = sub_supergrid
         sub_grid._compute_MOM6_grid_metrics()
@@ -284,7 +303,7 @@ class Grid:
         supergrid : xarray.Dataset
             MOM6 Supergrid dataset
         """
-        for attr in ["x", "y", "dx", "dy", "area"]: # todo: add angle_dx
+        for attr in ["x", "y", "dx", "dy", "area"]:  # todo: add angle_dx
             assert attr in supergrid, f"Cannot find '{attr}' in supergrid dataset."
         assert (
             "units" in supergrid.x.attrs
@@ -303,7 +322,7 @@ class Grid:
 
         Parameters
         ----------
-        supergrid : xr.DataArray or np.array or MidasSupergrid
+        supergrid : xr.DataArray or np.array or SupergridBase
             Supergrid to check for cyclic x.
         """
         return np.allclose(
@@ -315,10 +334,10 @@ class Grid:
     @staticmethod
     def is_tripolar(supergrid) -> bool:
         """Check if the given supergrid x coordinates form a tripolar grid.
-        
+
         Parameters
         ----------
-        supergrid : xr.DataArray or np.array or MidasSupergrid
+        supergrid : xr.DataArray or np.array or SupergridBase
             Supergrid to check if tripolar.
         """
 
@@ -342,18 +361,88 @@ class Grid:
         # If there are 3 lines (i.e., 2 or more cells with the same x coordinate),
         # the grid is tripolar
         return nlines == 3
-    
+
     def is_rectangular(self, rtol=1e-3) -> bool:
         """Check if the grid is a rectangular lat-lon grid by comparing the
         first and last rows and columns of the tlon and tlat arrays."""
 
-        if (np.allclose(self.tlon[:, 0], self.tlon[0, 0], rtol=rtol) and
-            np.allclose(self.tlon[:, -1], self.tlon[0, -1], rtol=rtol) and
-            np.allclose(self.tlat[0, :], self.tlat[0, 0], rtol=rtol) and
-            np.allclose(self.tlat[-1, :], self.tlat[-1, 0], rtol=rtol)):
+        if (
+            np.allclose(self.tlon[:, 0], self.tlon[0, 0], rtol=rtol)
+            and np.allclose(self.tlon[:, -1], self.tlon[0, -1], rtol=rtol)
+            and np.allclose(self.tlat[0, :], self.tlat[0, 0], rtol=rtol)
+            and np.allclose(self.tlat[-1, :], self.tlat[-1, 0], rtol=rtol)
+        ):
             return True
         return False
 
+    @classmethod
+    def get_bounding_boxes_of_rectangular_grid(cls, hgrid):
+        """
+        Extract lat/lon bounding boxes for each edge of a rectangular regional MOM6 grid.
+        This function is used when subsetting global datasets (e.g. GLORYS)
+        down to the lat/lon ranges required for efficient regridding:
+            • north, south, east, west boundaries
+            • Entire domain initial condition files
+        Parameters
+        ----------
+        hgrid : Grid or xarray.Dataset in the supergrid format
+
+        Returns
+        -------
+        dict
+            A dictionary containing bounding boxes for:
+                • "east"
+                • "west"
+                • "north"
+                • "south"
+                • "ic" (full domain for initial conditions)
+        """
+        if type(hgrid) == Grid:
+            assert hgrid.is_rectangular()
+            hgrid = hgrid._supergrid.to_ds()
+            assert not Grid.is_cyclic_x(hgrid)
+        else:
+            grid_check = Grid.from_supergrid_ds(hgrid)
+            assert grid_check.is_rectangular()
+            assert not Grid.is_cyclic_x(hgrid)
+
+        init_result = {
+            "lon_min": float(hgrid.x.min()),
+            "lon_max": float(hgrid.x.max()),
+            "lat_min": float(hgrid.y.min()),
+            "lat_max": float(hgrid.y.max()),
+        }
+        east_result = {
+            "lon_min": float(hgrid.x.isel(nxp=-1).min()),
+            "lon_max": float(hgrid.x.isel(nxp=-1).max()),
+            "lat_min": float(hgrid.y.isel(nxp=-1).min()),
+            "lat_max": float(hgrid.y.isel(nxp=-1).max()),
+        }
+        west_result = {
+            "lon_min": float(hgrid.x.isel(nxp=0).min()),
+            "lon_max": float(hgrid.x.isel(nxp=0).max()),
+            "lat_min": float(hgrid.y.isel(nxp=0).min()),
+            "lat_max": float(hgrid.y.isel(nxp=0).max()),
+        }
+        south_result = {
+            "lon_min": float(hgrid.x.isel(nyp=0).min()),
+            "lon_max": float(hgrid.x.isel(nyp=0).max()),
+            "lat_min": float(hgrid.y.isel(nyp=0).min()),
+            "lat_max": float(hgrid.y.isel(nyp=0).max()),
+        }
+        north_result = {
+            "lon_min": float(hgrid.x.isel(nyp=-1).min()),
+            "lon_max": float(hgrid.x.isel(nyp=-1).max()),
+            "lat_min": float(hgrid.y.isel(nyp=-1).min()),
+            "lat_max": float(hgrid.y.isel(nyp=-1).max()),
+        }
+        return {
+            "east": east_result,
+            "west": west_result,
+            "north": north_result,
+            "south": south_result,
+            "ic": init_result,
+        }
 
     @classmethod
     def from_supergrid(cls, path: str, name: Optional[str] = None) -> "Grid":
@@ -372,9 +461,32 @@ class Grid:
         Grid
             The Grid instance created from the supergrid file.
         """
+        ds = xr.open_dataset(path)
+        name = (
+            name or os.path.basename(path).replace(".nc", "")
+            if os.path.basename(path).endswith(".nc")
+            else os.path.basename(path)
+        )
+        return Grid.from_supergrid_ds(ds, name)
+
+    @classmethod
+    def from_supergrid_ds(cls, ds: xr.Dataset, name: Optional[str] = None) -> "Grid":
+        """Create a Grid instance from a supergrid file.
+
+        Parameters
+        ----------
+        ds : xr.Dataset
+            xarray Dataset of the supergrid file to be written
+        name : str, optional
+            Name of the new grid. If provided, it will be used as the name of the grid.
+
+        Returns
+        -------
+        Grid
+            The Grid instance created from the supergrid file.
+        """
 
         # read supergrid dataset
-        ds = xr.open_dataset(path)
         assert (
             ds.x.units == ds.y.units and "degree" in ds.x.units
         ), "Only degrees units are supported in supergrid files"
@@ -384,8 +496,6 @@ class Grid:
 
         srefine = 2  # supergrid refinement factor
 
-        name = name or os.path.basename(path).replace(".nc", "") if os.path.basename(path).endswith(".nc") else os.path.basename(path)
-
         # create an initial Grid object:
         obj = cls(
             nx=int(len(ds.nx) / srefine),
@@ -393,7 +503,7 @@ class Grid:
             lenx=(ds.x.max() - ds.x.min()).item(),
             leny=(ds.y.max() - ds.y.min()).item(),
             cyclic_x=Grid.is_cyclic_x(ds),
-            name=name
+            name=name,
         )
 
         # override obj.supergrid with the data from the original supergrid file
@@ -410,7 +520,9 @@ class Grid:
         return obj
 
     @classmethod
-    def subgrid_from_supergrid(cls, path: str, llc: tuple[float, float], urc: tuple[float, float], name: str) -> "Grid":
+    def subgrid_from_supergrid(
+        cls, path: str, llc: tuple[float, float], urc: tuple[float, float], name: str
+    ) -> "Grid":
         """Create a Grid instance from a subset of a supergrid file.
 
         Parameters
@@ -440,7 +552,9 @@ class Grid:
         urc_j, urc_i = full_grid.get_indices(urc[0], urc[1])
 
         assert llc_j < urc_j, "Lower left corner must be below upper right corner"
-        assert llc_i < urc_i, "Lower left corner must be to the left of upper right corner"
+        assert (
+            llc_i < urc_i
+        ), "Lower left corner must be to the left of upper right corner"
 
         # create a subgrid from the full grid
         subgrid = full_grid[llc_j:urc_j, llc_i:urc_i]
@@ -448,16 +562,24 @@ class Grid:
         return subgrid
 
     @property
-    def supergrid(self) -> MidasSupergrid:
+    def supergrid(self) -> SupergridBase:
         """MOM6 supergrid contains the grid metrics and the areas at twice the
         nominal resolution (by default) of the actual computational grid."""
         return self._supergrid
 
+    @property
+    def lenx(self) -> float:
+        """Length of the grid in the x-direction."""
+        return self.supergrid.lenx
+
+    @property
+    def leny(self) -> float:
+        """Length of the grid in the y-direction."""
+        return self.supergrid.leny
+
     @supergrid.setter
-    def supergrid(self, new_supergrid: MidasSupergrid) -> None:
-        assert isinstance(new_supergrid, MidasSupergrid)
+    def supergrid(self, new_supergrid: SupergridBase) -> None:
         self._supergrid = new_supergrid
-        self._supergrid.grid_metrics()
         self._compute_MOM6_grid_metrics()
 
     @property
@@ -471,12 +593,12 @@ class Grid:
         return self.tlon.shape[0]
 
     def _compute_MOM6_grid_metrics(self):
-        """Compute the MOM6 grid metrics from the supergrid metrics. These 
+        """Compute the MOM6 grid metrics from the supergrid metrics. These
         include the tlon, tlat, ulon, ulat, vlon, vlat, qlon, qlat, dxt, dyt,
         dxCv, dyCu, dxCu, dyCv, angle, angle_q, and tarea."""
 
         sg = self._supergrid
-        sg_units = sg.dict["axis_units"]
+        sg_units = sg.axis_units
         if sg_units == "m":
             sg_units = "meters"
 
@@ -620,7 +742,7 @@ class Grid:
 
         # reset _kdtree such that it is recomputed when self.kdtree is accessed again
         self._kdtree = None
-        
+
     def get_indices(self, tlat: float, tlon: float) -> tuple[int, int]:
         """
         Get the i, j indices of a given tlat and tlon pair.
@@ -778,67 +900,7 @@ class Grid:
             2-dimensional array of the new y coordinates.
         """
 
-        new_supergrid = MidasSupergrid(
-            config=self._supergrid.dict["config"],
-            axis_units=self._supergrid.dict["axis_units"],
-            xdat=xdat,
-            ydat=ydat,
-            cyclic_x=self._supergrid.dict["cyclic_x"],
-            cyclic_y=self._supergrid.dict["cyclic_y"],
-            tripolar_n=self._supergrid.dict["tripolar_n"],
-            r0_pole=self._supergrid.dict["r0_pole"],
-            lon0_pole=self._supergrid.dict["lon0_pole"],
-            doughnut=self._supergrid.dict["doughnut"],
-            radius=self._supergrid.dict["radius"],
-        )
-
-        self.supergrid = new_supergrid
-
-    def gen_supergrid_ds(
-        self, author: Optional[str] = None
-    ) -> xr.Dataset:
-        """
-        Generate supergrid to a xarray Dataset file. The supergrid file is to be read in by MOM6
-        during runtime.
-
-        Parameters
-        ----------
-        author: str, optional
-            Name of the author. If provided, the name will appear in files as metadata.
-        """
-        # initialize the dataset:
-        ds = xr.Dataset()
-
-        # global attrs:
-        ds.attrs["type"] = "MOM6 supergrid"
-        ds.attrs["Created"] = datetime.now().isoformat()
-        if author:
-            ds.attrs["Author"] = author
-
-        # data arrays:
-        ds["y"] = xr.DataArray(
-            self._supergrid.y,
-            dims=["nyp", "nxp"],
-            attrs={"units": self._supergrid.dict["axis_units"]},
-        )
-        ds["x"] = xr.DataArray(
-            self._supergrid.x,
-            dims=["nyp", "nxp"],
-            attrs={"units": self._supergrid.dict["axis_units"]},
-        )
-        ds["dy"] = xr.DataArray(
-            self._supergrid.dy, dims=["ny", "nxp"], attrs={"units": "meters"}
-        )
-        ds["dx"] = xr.DataArray(
-            self._supergrid.dx, dims=["nyp", "nx"], attrs={"units": "meters"}
-        )
-        ds["area"] = xr.DataArray(
-            self._supergrid.area, dims=["ny", "nx"], attrs={"units": "m2"}
-        )
-        ds["angle_dx"] = xr.DataArray(
-            self._supergrid.angle_dx, dims=["nyp", "nxp"], attrs={"units": "meters"}
-        )            
-        return ds
+        self.supergrid = UniformSphericalSupergrid.from_xy(xdat, ydat)
 
     def write_supergrid(
         self, path: Optional[str] = None, author: Optional[str] = None
@@ -855,6 +917,7 @@ class Grid:
             Name of the author. If provided, the name will appear in files as metadata.
         """
 
-        ds = self.gen_supergrid_ds(author=author)
+        ds = self.supergrid.to_ds(name=self.name, author=author)
         ds.attrs["filename"] = os.path.basename(path)
-        ds.to_netcdf(path, format='NETCDF3_64BIT')
+        ds.to_netcdf(path, format="NETCDF3_64BIT")
+        return ds
