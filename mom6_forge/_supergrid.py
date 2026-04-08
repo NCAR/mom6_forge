@@ -13,9 +13,9 @@ import numpy as np
 import xarray as xr
 from datetime import datetime
 from typing import Optional
-from mom6_forge.utils import (
+from mom6_forge.utils import normalize_deg
+from mom6_forge.supergrid_metric_helpers import (
     quadrilateral_areas,
-    normalize_deg,
     mom6_angle_calculation_method,
 )
 
