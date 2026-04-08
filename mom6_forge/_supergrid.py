@@ -13,11 +13,17 @@ import numpy as np
 import xarray as xr
 from datetime import datetime
 from typing import Optional
-from mom6_forge.utils import quadrilateral_areas, mdist
+from mom6_forge.utils import (
+    quadrilateral_areas,
+    normalize_deg,
+    mom6_angle_calculation_method,
+)
 
 
 class SupergridBase:
     """Base class defining the MOM6-style supergrid interface."""
+
+    R = 6.371e6  # mean radius of the Earth (IUGG), in metres
 
     @property
     def is_cyclic_x(self):
@@ -59,6 +65,30 @@ class SupergridBase:
         self.area = area
         self.angle_dx = angle_dx
         self.axis_units = axis_units
+
+    @staticmethod
+    def _calc_dx_dy(x, y):
+        """Compute supergrid dx and dy from coordinate arrays.
+
+        Parameters
+        ----------
+        x, y : 2D arrays
+            Supergrid longitude and latitude in degrees, shape (2*ny+1, 2*nx+1).
+
+        Returns
+        -------
+        dx : 2D array, shape (2*ny+1, 2*nx)
+            Arc lengths between horizontally adjacent nodes, in metres.
+        dy : 2D array, shape (2*ny, 2*nx+1)
+            Arc lengths between vertically adjacent nodes, in metres.
+        """
+        dx = (
+            SupergridBase.R
+            * np.cos(np.deg2rad(y[:, :-1]))
+            * np.deg2rad(np.diff(x, axis=1))
+        )
+        dy = SupergridBase.R * np.deg2rad(np.diff(y, axis=0))
+        return dx, dy
 
     def summary(self):
         """Print a short summary of the grid geometry (shape and dx/dy ranges)."""
@@ -102,6 +132,116 @@ class SupergridBase:
         )
 
         return ds
+
+    def calculate_supergrid_rotation_angles_using_expanded_supergrid_method(
+        self,
+    ) -> xr.Dataset:
+        """
+        Calculate the ``angle_dx`` (in degrees) from the true ``x`` direction (parallel to latitude)
+        counter-clockwise and return as a dataarray.
+
+        Parameters
+        ----------
+        supergrid: xr.Dataset
+            The supergrid dataset
+
+        Returns
+        -------
+        xr.DataArray
+            The t-point angles
+        """
+        # Get expanded (pseudo) grid
+        expanded_supergrid = self._create_expanded_supergrid()
+
+        point = xr.Dataset(
+            {
+                "x": (["nyp", "nxp"], self.x),
+                "y": (["nyp", "nxp"], self.y),
+            }
+        )
+        return mom6_angle_calculation_method(
+            expanded_supergrid.x.max() - expanded_supergrid.x.min(),
+            expanded_supergrid.isel(nyp=slice(2, None), nxp=slice(0, -2)),
+            expanded_supergrid.isel(nyp=slice(2, None), nxp=slice(2, None)),
+            expanded_supergrid.isel(nyp=slice(0, -2), nxp=slice(0, -2)),
+            expanded_supergrid.isel(nyp=slice(0, -2), nxp=slice(2, None)),
+            point,
+        ).values
+
+    def _create_expanded_supergrid(self, expansion_width=1) -> xr.Dataset:
+        """
+        Adds an additional boundary to the supergrid to allow for the calculation of the ``angle_dx`` for the boundary points using :func:`~mom6_angle_calculation_method`.
+        """
+        if expansion_width != 1:
+            raise NotImplementedError("Only expansion_width = 1 is supported")
+
+        ny, nx = self.x.shape
+        pseudo_supergrid_x = np.full((ny + 2, nx + 2), np.nan)
+        pseudo_supergrid_y = np.full((ny + 2, nx + 2), np.nan)
+
+        ## Fill Boundaries
+        pseudo_supergrid_x[1:-1, 1:-1] = self.x
+        pseudo_supergrid_x[0, 1:-1] = self.x[0, :] - (
+            self.x[1, :] - self.x[0, :]
+        )  # Bottom Fill
+        pseudo_supergrid_x[-1, 1:-1] = self.x[-1, :] + (
+            self.x[-1, :] - self.x[-2, :]
+        )  # Top Fill
+        pseudo_supergrid_x[1:-1, 0] = self.x[:, 0] - (
+            self.x[:, 1] - self.x[:, 0]
+        )  # Left Fill
+        pseudo_supergrid_x[1:-1, -1] = self.x[:, -1] + (
+            self.x[:, -1] - self.x[:, -2]
+        )  # Right Fill
+
+        pseudo_supergrid_y[1:-1, 1:-1] = self.y
+        pseudo_supergrid_y[0, 1:-1] = self.y[0, :] - (
+            self.y[1, :] - self.y[0, :]
+        )  # Bottom Fill
+        pseudo_supergrid_y[-1, 1:-1] = self.y[-1, :] + (
+            self.y[-1, :] - self.y[-2, :]
+        )  # Top Fill
+        pseudo_supergrid_y[1:-1, 0] = self.y[:, 0] - (
+            self.y[:, 1] - self.y[:, 0]
+        )  # Left Fill
+        pseudo_supergrid_y[1:-1, -1] = self.y[:, -1] + (
+            self.y[:, -1] - self.y[:, -2]
+        )  # Right Fill
+
+        ## Fill Corners
+        pseudo_supergrid_x[0, 0] = self.x[0, 0] - (
+            self.x[1, 1] - self.x[0, 0]
+        )  # Bottom Left
+        pseudo_supergrid_x[-1, 0] = self.x[-1, 0] - (
+            self.x[-2, 1] - self.x[-1, 0]
+        )  # Top Left
+        pseudo_supergrid_x[0, -1] = self.x[0, -1] - (
+            self.x[1, -2] - self.x[0, -1]
+        )  # Bottom Right
+        pseudo_supergrid_x[-1, -1] = self.x[-1, -1] - (
+            self.x[-2, -2] - self.x[-1, -1]
+        )  # Top Right
+
+        pseudo_supergrid_y[0, 0] = self.y[0, 0] - (
+            self.y[1, 1] - self.y[0, 0]
+        )  # Bottom Left
+        pseudo_supergrid_y[-1, 0] = self.y[-1, 0] - (
+            self.y[-2, 1] - self.y[-1, 0]
+        )  # Top Left
+        pseudo_supergrid_y[0, -1] = self.y[0, -1] - (
+            self.y[1, -2] - self.y[0, -1]
+        )  # Bottom Right
+        pseudo_supergrid_y[-1, -1] = self.y[-1, -1] - (
+            self.y[-2, -2] - self.y[-1, -1]
+        )  # Top Right
+
+        pseudo_supergrid = xr.Dataset(
+            {
+                "x": (["nyp", "nxp"], pseudo_supergrid_x),
+                "y": (["nyp", "nxp"], pseudo_supergrid_y),
+            }
+        )
+        return pseudo_supergrid
 
 
 class UniformSphericalSupergrid(SupergridBase):
@@ -158,39 +298,9 @@ class UniformSphericalSupergrid(SupergridBase):
         ny = x.shape[0] - 1
 
         # ---------------------------------------------------------------------
-        # Compute metric distances on a sphere (approximate)
+        # Compute metric distances on a sphere
         # ---------------------------------------------------------------------
-        radius = 6.378e6  # Earth radius in meters
-        metric = np.deg2rad(radius)  # degrees → meters scaling factor
-
-        # Compute midpoints in each direction
-        ymid_j = 0.5 * (y + np.roll(y, shift=-1, axis=0))
-        ymid_i = 0.5 * (y + np.roll(y, shift=-1, axis=1))
-
-        # Differences in latitude (dy) and longitude (dx) between adjacent cells
-        dy_j = np.roll(y, shift=-1, axis=0) - y
-        dy_i = np.roll(y, shift=-1, axis=1) - y
-        dx_i = mdist(np.roll(x, shift=-1, axis=1), x)
-        dx_j = mdist(np.roll(x, shift=-1, axis=0), x)
-
-        # Compute true distances accounting for spherical geometry
-        dx = (
-            metric
-            * metric
-            * (dy_i * dy_i + dx_i * dx_i * np.cos(np.deg2rad(ymid_i)) ** 2)
-        )
-        dx = np.sqrt(dx)
-
-        dy = (
-            metric
-            * metric
-            * (dy_j * dy_j + dx_j * dx_j * np.cos(np.deg2rad(ymid_j)) ** 2)
-        )
-        dy = np.sqrt(dy)
-
-        # Trim grid edges for consistency
-        dx = dx[:, :-1]
-        dy = dy[:-1, :]
+        dx, dy = cls._calc_dx_dy(x, y)
 
         # ---------------------------------------------------------------------
         # Compute cell areas (approximate rectangular areas)
@@ -198,28 +308,9 @@ class UniformSphericalSupergrid(SupergridBase):
         area = dx[:-1, :] * dy[:, :-1]
 
         # ---------------------------------------------------------------------
-        # Compute local grid angle relative to east
+        # Grid Angle is zero for uniform grids!ß
         # ---------------------------------------------------------------------
         angle_dx = np.zeros((ny + 1, nx + 1))
-
-        # Interior points
-        angle_dx[:, 1:-1] = np.arctan2(
-            y[:, 2:] - y[:, :-2],
-            (x[:, 2:] - x[:, :-2]) * np.cos(np.deg2rad(y[:, 1:-1])),
-        )
-        # Western boundary
-        angle_dx[:, 0] = np.arctan2(
-            y[:, 1] - y[:, 0],
-            (x[:, 1] - x[:, 0]) * np.cos(np.deg2rad(y[:, 0])),
-        )
-        # Eastern boundary
-        angle_dx[:, -1] = np.arctan2(
-            y[:, -1] - y[:, -2],
-            (x[:, -1] - x[:, -2]) * np.cos(np.deg2rad(y[:, -1])),
-        )
-
-        # Convert angle from degrees to radians
-        angle_dx = np.deg2rad(angle_dx)
 
         # ---------------------------------------------------------------------
         # Record axis units and return all quantities
@@ -266,26 +357,18 @@ class RectilinearCartesianSupergrid(SupergridBase):
             np.diff(lats) > 0
         ), "latitudes array lats must be monotonically increasing"
 
-        R = 6.371e6  # mean radius of the Earth; https://en.wikipedia.org/wiki/Earth_radius in m
+        R = SupergridBase.R
 
-        # compute longitude spacing and ensure that longitudes are uniformly spaced
+        # ensure that longitudes are uniformly spaced
         dlons = lons[1] - lons[0]
-
         assert np.allclose(
             np.diff(lons), dlons * np.ones(np.size(lons) - 1)
         ), "provided array of longitudes must be uniformly spaced"
 
-        # Calculate dx & dy in meters, accounting for spherical geometry
-        dx = np.broadcast_to(
-            R * np.cos(np.deg2rad(lats)) * np.deg2rad(dlons),
-            (lons.shape[0] - 1, lats.shape[0]),
-        ).T
-
-        dy = np.broadcast_to(
-            R * np.deg2rad(np.diff(lats)), (lons.shape[0], lats.shape[0] - 1)
-        ).T
-
         lon, lat = np.meshgrid(lons, lats)
+
+        # Calculate dx & dy in meters, accounting for spherical geometry
+        dx, dy = SupergridBase._calc_dx_dy(lon, lat)
 
         area = quadrilateral_areas(lat, lon, R)
 

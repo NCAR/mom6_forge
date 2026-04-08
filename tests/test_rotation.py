@@ -1,6 +1,7 @@
 """Initially setup in regional_mom6"""
 
-import mom6_forge.rotation as rot
+from mom6_forge.utils import mom6_angle_calculation_method, modulo_around_point
+from mom6_forge._supergrid import UniformSphericalSupergrid
 import math
 import pytest
 import xarray as xr
@@ -12,7 +13,8 @@ tol_angle_unit_test = 0  # tolerance for angles (in degrees) from unit test gene
 
 def test_expanded_supergrid_generation(get_curvilinear_supergrid):
     supergrid = get_curvilinear_supergrid
-    expanded_supergrid = rot.create_expanded_supergrid(supergrid)
+    sg = UniformSphericalSupergrid.from_xy(supergrid.x.values, supergrid.y.values)
+    expanded_supergrid = sg._create_expanded_supergrid()
 
     # Check Size
     assert len(expanded_supergrid.nxp) == (len(supergrid.nxp) + 2)
@@ -172,7 +174,7 @@ def test_expanded_supergrid_generation(get_curvilinear_supergrid):
 def test_mom6_angle_calculation_method_simple_square_grids(angle):
     """
     Create a square of length 2 (square_size). Rotate it by an `angle` and then compute
-    the angle using rot.mom6_angle_calculation_method to ensure it gets
+    the angle using mom6_angle_calculation_method to ensure it gets
     the angle right.
     """
 
@@ -243,7 +245,7 @@ def test_mom6_angle_calculation_method_simple_square_grids(angle):
     top_left_bottom_right_diag = abs(top_left.x.item() - bottom_right.x.item())
     top_right_bottom_left_diag = abs(top_right.x.item() - bottom_left.x.item())
     len_lon = max(top_left_bottom_right_diag, top_right_bottom_left_diag)
-    computed_angle = rot.mom6_angle_calculation_method(
+    computed_angle = mom6_angle_calculation_method(
         len_lon, top_left, top_right, bottom_left, bottom_right, point
     )
     assert math.isclose(computed_angle[0, 0].values, angle)
@@ -271,7 +273,7 @@ def test_mom6_angle_calculation_method(get_curvilinear_supergrid):
     t_nxp_indices = list(range(1, len(supergrid.nxp), 2))
     assert (
         (
-            rot.mom6_angle_calculation_method(
+            mom6_angle_calculation_method(
                 supergrid.x.max() - supergrid.x.min(),
                 q_points.isel(nyp=slice(1, None), nxp=slice(0, -1)),
                 q_points.isel(nyp=slice(1, None), nxp=slice(1, None)),
@@ -292,7 +294,9 @@ def test_initialize_grid_rotation_angle(get_curvilinear_supergrid):
     Generate a curvilinear grid and test the grid rotation angle at t_points based on what we pass to generate_curvilinear_grid
     """
     supergrid = get_curvilinear_supergrid
-    angle = rot.calculate_t_point_rotation_angles(supergrid)
+    sg = UniformSphericalSupergrid.from_xy(supergrid.x.values, supergrid.y.values)
+    sg.calculate_supergrid_rotation_angles_using_expanded_supergrid_method()
+    angle = xr.DataArray(sg.angle_dx[1::2, 1::2], dims=["nyp", "nxp"])
 
     t_nyp_indices = list(range(1, len(supergrid.nyp), 2))
     t_nxp_indices = list(range(1, len(supergrid.nxp), 2))
@@ -316,9 +320,9 @@ def test_calculate_grid_rotation_angle_using_expanded_supergrid(
     Generate a curvilinear grid and test the grid rotation angle at t_points based on what we pass to generate_curvilinear_grid
     """
     supergrid = get_curvilinear_supergrid
-    angle = rot.calculate_supergrid_rotation_angles_using_expanded_supergrid_method(
-        supergrid
-    )
+    sg = UniformSphericalSupergrid.from_xy(supergrid.x.values, supergrid.y.values)
+    sg.calculate_supergrid_rotation_angles_using_expanded_supergrid_method()
+    angle = xr.DataArray(sg.angle_dx, dims=["nyp", "nxp"])
 
     assert (angle.values - supergrid.angle_dx < tol_angle).all()
     assert angle.values.shape == supergrid.x.shape
@@ -335,26 +339,26 @@ def test_modulo_around_point():
     x0 = xr.DataArray([0])
     L = 1
 
-    assert rot.modulo_around_point(x, x0, L) == x
+    assert modulo_around_point(x, x0, L) == x
     x = xr.DataArray([-0.5])
     x0 = xr.DataArray([0])
     L = 1
-    assert rot.modulo_around_point(x, x0, L) == x
+    assert modulo_around_point(x, x0, L) == x
 
     # Inside Case
     x = xr.DataArray([-0.2])
     x0 = xr.DataArray([0])
     L = 1
-    assert rot.modulo_around_point(x, x0, L) == x
+    assert modulo_around_point(x, x0, L) == x
 
     # Outside Case
     x = xr.DataArray([-0.6])
     x0 = xr.DataArray([0])
     L = 1
-    assert rot.modulo_around_point(x, x0, L) == x + L
+    assert modulo_around_point(x, x0, L) == x + L
 
     # Multiple Values Case
     x = xr.DataArray([[0.5, 0.6], [0.5, 0.6]])
     x0 = xr.DataArray([[0, 0.1], [0, 0.1]])
     L = 1
-    assert np.all(rot.modulo_around_point(x, x0, L) == x)
+    assert np.all(modulo_around_point(x, x0, L) == x)
