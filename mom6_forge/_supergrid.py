@@ -15,8 +15,6 @@ from datetime import datetime
 from typing import Optional
 from mom6_forge.utils import normalize_deg
 
-from regional_mom_workflows.archive.mom6_bathy.mom6_bathy._supergrid import _haversine
-
 _DEFAULT_RADIUS = 6.371e6  # mean radius of the Earth (IUGG), in metres
 
 
