@@ -540,15 +540,15 @@ class Grid:
         # t-points: cell centers at every other supergrid point starting at index 1
         t_points = xr.Dataset(
             {
-                "x": (("nyp", "nxp"), self._supergrid.x.values[1::2, 1::2]),
-                "y": (("nyp", "nxp"), self._supergrid.y.values[1::2, 1::2]),
+                "x": (("nyp", "nxp"), self.tlon.values),
+                "y": (("nyp", "nxp"), self.tlat.values),
             }
         )
         # q-points: cell corners at every other supergrid point starting at index 0
         q_points = xr.Dataset(
             {
-                "x": (("nyp", "nxp"), self._supergrid.x.values[0::2, 0::2]),
-                "y": (("nyp", "nxp"), self._supergrid.y.values[0::2, 0::2]),
+                "x": (("nyp", "nxp"), self.qlon.values),
+                "y": (("nyp", "nxp"), self.qlat.values),
             }
         )
 

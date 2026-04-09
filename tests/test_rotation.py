@@ -5,6 +5,7 @@ from mom6_forge._supergrid import (
     mom6_angle_calculation_method,
     modulo_around_point,
 )
+from mom6_forge.grid import Grid
 import math
 import pytest
 import xarray as xr
@@ -373,3 +374,13 @@ def test_modulo_around_point():
     x0 = xr.DataArray([[0, 0.1], [0, 0.1]])
     L = 1
     assert np.all(modulo_around_point(x, x0, L) == x)
+
+
+def test_calculate_t_point_rotation_angles_from_mom6_method_smoke(get_rect_grid):
+    """Smoke test: axis-aligned grid should return a DataArray of near-zero angles."""
+    grid = get_rect_grid
+    angles = grid.calculate_t_point_rotation_angles_from_mom6_method()
+
+    assert isinstance(angles, xr.DataArray)
+    assert angles.shape == grid.tlon.shape
+    assert np.all(np.abs(angles.values) < tol_angle)
