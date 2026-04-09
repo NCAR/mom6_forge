@@ -17,7 +17,7 @@ tol_angle_unit_test = 0  # tolerance for angles (in degrees) from unit test gene
 def test_expanded_supergrid_generation(get_curvilinear_supergrid):
     supergrid = get_curvilinear_supergrid
     sg = UniformSphericalSupergrid.from_xy(supergrid.x.values, supergrid.y.values)
-    expanded_supergrid = sg._create_expanded_supergrid()
+    expanded_supergrid = sg._create_expanded_supergrid(sg.x, sg.y)
 
     # Check Size
     assert len(expanded_supergrid.nxp) == (len(supergrid.nxp) + 2)
@@ -298,7 +298,11 @@ def test_initialize_grid_rotation_angle(get_curvilinear_supergrid):
     """
     supergrid = get_curvilinear_supergrid
     sg = UniformSphericalSupergrid.from_xy(supergrid.x.values, supergrid.y.values)
-    sg.calculate_supergrid_rotation_angles_using_expanded_supergrid_method()
+    sg.angle_dx = (
+        sg.calculate_supergrid_rotation_angles_using_expanded_supergrid_method(
+            sg.x, sg.y
+        )
+    )
     angle = xr.DataArray(sg.angle_dx[1::2, 1::2], dims=["nyp", "nxp"])
 
     t_nyp_indices = list(range(1, len(supergrid.nyp), 2))
@@ -324,7 +328,11 @@ def test_calculate_grid_rotation_angle_using_expanded_supergrid(
     """
     supergrid = get_curvilinear_supergrid
     sg = UniformSphericalSupergrid.from_xy(supergrid.x.values, supergrid.y.values)
-    sg.calculate_supergrid_rotation_angles_using_expanded_supergrid_method()
+    sg.angle_dx = (
+        sg.calculate_supergrid_rotation_angles_using_expanded_supergrid_method(
+            sg.x, sg.y
+        )
+    )
     angle = xr.DataArray(sg.angle_dx, dims=["nyp", "nxp"])
 
     assert (angle.values - supergrid.angle_dx < tol_angle).all()

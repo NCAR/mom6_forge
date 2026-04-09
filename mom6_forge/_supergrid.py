@@ -133,8 +133,10 @@ class SupergridBase:
 
         return ds
 
+    @staticmethod
     def calculate_supergrid_rotation_angles_using_expanded_supergrid_method(
-        self,
+        x,
+        y,
     ) -> xr.Dataset:
         """
         Calculate the ``angle_dx`` (in degrees) from the true ``x`` direction (parallel to latitude)
@@ -151,12 +153,12 @@ class SupergridBase:
             The t-point angles
         """
         # Get expanded (pseudo) grid
-        expanded_supergrid = self._create_expanded_supergrid()
+        expanded_supergrid = SupergridBase._create_expanded_supergrid(x, y)
 
         point = xr.Dataset(
             {
-                "x": (["nyp", "nxp"], self.x),
-                "y": (["nyp", "nxp"], self.y),
+                "x": (["nyp", "nxp"], x),
+                "y": (["nyp", "nxp"], y),
             }
         )
         return mom6_angle_calculation_method(
@@ -168,72 +170,41 @@ class SupergridBase:
             point,
         ).values
 
-    def _create_expanded_supergrid(self, expansion_width=1) -> xr.Dataset:
+    @staticmethod
+    def _create_expanded_supergrid(x, y, expansion_width=1) -> xr.Dataset:
         """
         Adds an additional boundary to the supergrid to allow for the calculation of the ``angle_dx`` for the boundary points using :func:`~mom6_angle_calculation_method`.
         """
         if expansion_width != 1:
             raise NotImplementedError("Only expansion_width = 1 is supported")
 
-        ny, nx = self.x.shape
+        ny, nx = x.shape
         pseudo_supergrid_x = np.full((ny + 2, nx + 2), np.nan)
         pseudo_supergrid_y = np.full((ny + 2, nx + 2), np.nan)
 
         ## Fill Boundaries
-        pseudo_supergrid_x[1:-1, 1:-1] = self.x
-        pseudo_supergrid_x[0, 1:-1] = self.x[0, :] - (
-            self.x[1, :] - self.x[0, :]
-        )  # Bottom Fill
-        pseudo_supergrid_x[-1, 1:-1] = self.x[-1, :] + (
-            self.x[-1, :] - self.x[-2, :]
-        )  # Top Fill
-        pseudo_supergrid_x[1:-1, 0] = self.x[:, 0] - (
-            self.x[:, 1] - self.x[:, 0]
-        )  # Left Fill
-        pseudo_supergrid_x[1:-1, -1] = self.x[:, -1] + (
-            self.x[:, -1] - self.x[:, -2]
-        )  # Right Fill
+        pseudo_supergrid_x[1:-1, 1:-1] = x
+        pseudo_supergrid_x[0, 1:-1] = x[0, :] - (x[1, :] - x[0, :])  # Bottom Fill
+        pseudo_supergrid_x[-1, 1:-1] = x[-1, :] + (x[-1, :] - x[-2, :])  # Top Fill
+        pseudo_supergrid_x[1:-1, 0] = x[:, 0] - (x[:, 1] - x[:, 0])  # Left Fill
+        pseudo_supergrid_x[1:-1, -1] = x[:, -1] + (x[:, -1] - x[:, -2])  # Right Fill
 
-        pseudo_supergrid_y[1:-1, 1:-1] = self.y
-        pseudo_supergrid_y[0, 1:-1] = self.y[0, :] - (
-            self.y[1, :] - self.y[0, :]
-        )  # Bottom Fill
-        pseudo_supergrid_y[-1, 1:-1] = self.y[-1, :] + (
-            self.y[-1, :] - self.y[-2, :]
-        )  # Top Fill
-        pseudo_supergrid_y[1:-1, 0] = self.y[:, 0] - (
-            self.y[:, 1] - self.y[:, 0]
-        )  # Left Fill
-        pseudo_supergrid_y[1:-1, -1] = self.y[:, -1] + (
-            self.y[:, -1] - self.y[:, -2]
-        )  # Right Fill
+        pseudo_supergrid_y[1:-1, 1:-1] = y
+        pseudo_supergrid_y[0, 1:-1] = y[0, :] - (y[1, :] - y[0, :])  # Bottom Fill
+        pseudo_supergrid_y[-1, 1:-1] = y[-1, :] + (y[-1, :] - y[-2, :])  # Top Fill
+        pseudo_supergrid_y[1:-1, 0] = y[:, 0] - (y[:, 1] - y[:, 0])  # Left Fill
+        pseudo_supergrid_y[1:-1, -1] = y[:, -1] + (y[:, -1] - y[:, -2])  # Right Fill
 
         ## Fill Corners
-        pseudo_supergrid_x[0, 0] = self.x[0, 0] - (
-            self.x[1, 1] - self.x[0, 0]
-        )  # Bottom Left
-        pseudo_supergrid_x[-1, 0] = self.x[-1, 0] - (
-            self.x[-2, 1] - self.x[-1, 0]
-        )  # Top Left
-        pseudo_supergrid_x[0, -1] = self.x[0, -1] - (
-            self.x[1, -2] - self.x[0, -1]
-        )  # Bottom Right
-        pseudo_supergrid_x[-1, -1] = self.x[-1, -1] - (
-            self.x[-2, -2] - self.x[-1, -1]
-        )  # Top Right
+        pseudo_supergrid_x[0, 0] = x[0, 0] - (x[1, 1] - x[0, 0])  # Bottom Left
+        pseudo_supergrid_x[-1, 0] = x[-1, 0] - (x[-2, 1] - x[-1, 0])  # Top Left
+        pseudo_supergrid_x[0, -1] = x[0, -1] - (x[1, -2] - x[0, -1])  # Bottom Right
+        pseudo_supergrid_x[-1, -1] = x[-1, -1] - (x[-2, -2] - x[-1, -1])  # Top Right
 
-        pseudo_supergrid_y[0, 0] = self.y[0, 0] - (
-            self.y[1, 1] - self.y[0, 0]
-        )  # Bottom Left
-        pseudo_supergrid_y[-1, 0] = self.y[-1, 0] - (
-            self.y[-2, 1] - self.y[-1, 0]
-        )  # Top Left
-        pseudo_supergrid_y[0, -1] = self.y[0, -1] - (
-            self.y[1, -2] - self.y[0, -1]
-        )  # Bottom Right
-        pseudo_supergrid_y[-1, -1] = self.y[-1, -1] - (
-            self.y[-2, -2] - self.y[-1, -1]
-        )  # Top Right
+        pseudo_supergrid_y[0, 0] = y[0, 0] - (y[1, 1] - y[0, 0])  # Bottom Left
+        pseudo_supergrid_y[-1, 0] = y[-1, 0] - (y[-2, 1] - y[-1, 0])  # Top Left
+        pseudo_supergrid_y[0, -1] = y[0, -1] - (y[1, -2] - y[0, -1])  # Bottom Right
+        pseudo_supergrid_y[-1, -1] = y[-1, -1] - (y[-2, -2] - y[-1, -1])  # Top Right
 
         pseudo_supergrid = xr.Dataset(
             {
