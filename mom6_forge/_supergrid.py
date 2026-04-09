@@ -15,11 +15,13 @@ from datetime import datetime
 from typing import Optional
 from mom6_forge.utils import normalize_deg
 
+from regional_mom_workflows.archive.mom6_bathy.mom6_bathy._supergrid import _haversine
+
+_DEFAULT_RADIUS = 6.371e6  # mean radius of the Earth (IUGG), in metres
+
 
 class SupergridBase:
     """Base class defining the MOM6-style supergrid interface."""
-
-    R = 6.371e6  # mean radius of the Earth (IUGG), in metres
 
     @property
     def is_cyclic_x(self):
@@ -63,13 +65,15 @@ class SupergridBase:
         self.axis_units = axis_units
 
     @staticmethod
-    def _calc_dx_dy(x, y):
+    def _calc_dx_dy(x, y, R=_DEFAULT_RADIUS, type="smallangle"):
         """Compute supergrid dx and dy from coordinate arrays.
 
         Parameters
         ----------
         x, y : 2D arrays
             Supergrid longitude and latitude in degrees, shape (2*ny+1, 2*nx+1).
+        R : float, optional
+            Sphere radius in metres. Defaults to Earth's IUGG mean radius.
 
         Returns
         -------
@@ -78,29 +82,32 @@ class SupergridBase:
         dy : 2D array, shape (2*ny, 2*nx+1)
             Arc lengths between vertically adjacent nodes, in metres.
         """
-        dx = (
-            SupergridBase.R
-            * np.cos(np.deg2rad(y[:, :-1]))
-            * np.deg2rad(np.diff(x, axis=1))
-        )
-        dy = SupergridBase.R * np.deg2rad(np.diff(y, axis=0))
+        if type == "smallangle":
+            # Use small angle approximation for dx, which is faster to compute and not much different
+            dx = R * np.cos(np.deg2rad(y[:, :-1])) * np.deg2rad(np.diff(x, axis=1))
+            dy = R * np.deg2rad(np.diff(y, axis=0))
+        elif type == "haversine":
+            dx = haversine(y[:, :-1], x[:, :-1], y[:, 1:], x[:, 1:], R)
+            dy = haversine(y[:-1, :], x[:-1, :], y[1:, :], x[1:, :], R)
         return dx, dy
 
     @staticmethod
-    def _calc_area(x, y):
+    def _calc_area(x, y, R=_DEFAULT_RADIUS):
         """Compute supergrid cell areas from coordinate arrays.
 
         Parameters
         ----------
         x, y : 2D arrays
             Supergrid longitude and latitude in degrees, shape (2*ny+1, 2*nx+1).
+        R : float, optional
+            Sphere radius in metres. Defaults to Earth's IUGG mean radius.
 
         Returns
         -------
         area : 2D array, shape (2*ny, 2*nx)
             Cell areas in square metres.
         """
-        return quadrilateral_areas(y, x, SupergridBase.R)
+        return quadrilateral_areas(y, x, R)
 
     def summary(self):
         """Print a short summary of the grid geometry (shape and dx/dy ranges)."""
@@ -231,16 +238,18 @@ class UniformSphericalSupergrid(SupergridBase):
     """MOM6-style supergrid with constant-degree spacing (lon/lat grid)."""
 
     @classmethod
-    def from_extents(cls, lon_min, len_x, lat_min, len_y, nx, ny):
+    def from_extents(
+        cls, lon_min, len_x, lat_min, len_y, nx, ny, radius=_DEFAULT_RADIUS
+    ):
         """Create a grid from domain extents (lon/lat degrees)."""
         x, y = cls._calc_xy_from_extents(lon_min, len_x, lat_min, len_y, nx, ny)
-        return cls.from_xy(x, y)
+        return cls.from_xy(x, y, radius=radius)
 
     @classmethod
-    def from_xy(cls, x, y):
+    def from_xy(cls, x, y, radius=_DEFAULT_RADIUS):
         """Create a grid directly from coordinate arrays."""
-        dx, dy = cls._calc_dx_dy(x, y)
-        area = cls._calc_area(x, y)
+        dx, dy = cls._calc_dx_dy(x, y, R=radius)
+        area = cls._calc_area(x, y, R=radius)
         angle_dx = np.zeros_like(
             x
         )  # Uniform spherical grid has no rotation, so angle_dx is zero everywhere
@@ -276,13 +285,15 @@ class UniformSphericalSupergrid(SupergridBase):
 class RectilinearCartesianSupergrid(SupergridBase):
     """MOM6-style supergrid with uniform Cartesian spacing (x/y in meters). Originally by Ashley Barnes in regional_mom6"""
 
-    def __init__(self, lon_min, len_x, lat_min, len_y, resolution):
+    def __init__(
+        self, lon_min, len_x, lat_min, len_y, resolution, radius=_DEFAULT_RADIUS
+    ):
         x, y, dx, dy, area, angle, axis_units = self._build_grid(
-            lon_min, len_x, lat_min, len_y, resolution
+            lon_min, len_x, lat_min, len_y, resolution, radius
         )
         super().__init__(x, y, dx, dy, area, angle, axis_units)
 
-    def _build_grid(self, lon_min, len_x, lat_min, len_y, resolution):
+    def _build_grid(self, lon_min, len_x, lat_min, len_y, resolution, radius):
         """Compute full grid geometry for even physical spacing."""
         lon_max = lon_min + len_x
         lat_max = lat_min + len_y
@@ -310,8 +321,6 @@ class RectilinearCartesianSupergrid(SupergridBase):
             np.diff(lats) > 0
         ), "latitudes array lats must be monotonically increasing"
 
-        R = SupergridBase.R
-
         # ensure that longitudes are uniformly spaced
         dlons = lons[1] - lons[0]
         assert np.allclose(
@@ -321,13 +330,11 @@ class RectilinearCartesianSupergrid(SupergridBase):
         lon, lat = np.meshgrid(lons, lats)
 
         # Calculate dx & dy in meters, accounting for spherical geometry
-        dx, dy = SupergridBase._calc_dx_dy(lon, lat)
-
-        area = SupergridBase._calc_area(lon, lat)
-
+        dx, dy = SupergridBase._calc_dx_dy(lon, lat, R=radius)
+        area = SupergridBase._calc_area(lon, lat, R=radius)
         angle_dx = np.zeros_like(lon)
-
         axis_units = "degrees"
+
         return lon, lat, dx, dy, area, angle_dx, axis_units
 
 
@@ -621,3 +628,18 @@ def modulo_around_point(x, x0, L):
         calc[edge_indexes] = x[edge_indexes]
 
         return calc
+
+
+def haversine(lat1, lon1, lat2, lon2, R):
+    """Great-circle distance (metres) between arrays of points given in degrees."""
+    dlat = np.deg2rad(lat2 - lat1)
+    dlon = np.deg2rad(lon2 - lon1)
+    a = (
+        np.sin(dlat / 2) ** 2
+        + np.cos(np.deg2rad(lat1)) * np.cos(np.deg2rad(lat2)) * np.sin(dlon / 2) ** 2
+    )
+    return (
+        2
+        * R
+        * np.arctan2(np.sqrt(np.clip(a, 0.0, 1.0)), np.sqrt(np.clip(1.0 - a, 0.0, 1.0)))
+    )
