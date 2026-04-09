@@ -19,7 +19,7 @@ class Topo:
     Bathymetry Generator for MOM6 grids (mom6_forge.grid.Grid).
     """
 
-    def __init__(self, grid, min_depth, version_control_dir="TopoLibrary"):
+    def __init__(self, grid, min_depth, version_control_dir="TopoLibrary", git=True):
         """
         MOM6 Simpler Models bathymetry constructor.
 
@@ -29,6 +29,14 @@ class Topo:
             horizontal grid instance for which the bathymetry is to be created.
         min_depth: float
             Minimum water column depth. Columns with shallow depths are to be masked out.
+        version_control_dir: str, optional
+            Directory in which to store version-controlled bathymetry data. Defaults to
+            "TopoLibrary". Pass None to disable git (equivalent to git=False).
+        git: bool, optional
+            If True (default), initialize a git repository for version control and
+            undo/redo support. If False, skip all git and filesystem side-effects;
+            note that save(), undo(), redo(), branch, and tag operations will be
+            unavailable. TopoEditor also requires git=True.
         """
 
         self._grid = grid
@@ -39,34 +47,41 @@ class Topo:
         )  # Initialize depth with NaNs
         self._min_depth = min_depth
 
+        # version_control_dir=None is a legacy way to express git=False
         if version_control_dir is None:
-            raise ValueError(
-                "version_control_dir cannot be None. Version control is required for Topo objects. Old Topo Files can be added through from_topo_file() or from_topo_version_control() classmethods."
+            git = False
+
+        if git:
+            self.version_control = True
+
+            # Create a folder to store bathymetry objects in
+            self.topos_root = Path(version_control_dir).mkdir(exist_ok=True)
+
+            # Create the subfolder for this specific bathymetry
+            self.domain_dir = Path(get_domain_dir(grid, base_dir=version_control_dir))
+            self.domain_dir.mkdir(exist_ok=True)  # This folder should not already exist.
+
+            # Save the grid info there (there can only be 1 grid per bathymetry)
+            self.grid_file_path = self.domain_dir / "grid.nc"
+            grid.write_supergrid(self.grid_file_path)
+
+            initial_command = MinDepthEditCommand(
+                self, attr="min_depth", new_value=min_depth
             )
 
-        self.version_control = True
+            # Initialize the git repo
+            self.repo = get_repo(self.domain_dir)
 
-        # Create a folder to store bathymetry objects in
-        self.topos_root = Path(version_control_dir).mkdir(exist_ok=True)
+            # Set up TCM (requires that self.domain_dir exists)
+            self.tcm = TopoCommandManager(self, command_registry=COMMAND_REGISTRY)
+            self.tcm.execute(initial_command, cmd_type=CommandType.COMMAND)
 
-        # Create the subfolder for this specific bathymetry
-        self.domain_dir = Path(get_domain_dir(grid, base_dir=version_control_dir))
-        self.domain_dir.mkdir(exist_ok=True)  # This folder should not already exist.
-
-        # Save the grid info there (there can only be 1 grid per bathymetry)
-        self.grid_file_path = self.domain_dir / "grid.nc"
-        grid.write_supergrid(self.grid_file_path)
-
-        initial_command = MinDepthEditCommand(
-            self, attr="min_depth", new_value=min_depth
-        )
-
-        # Initialize the git repo
-        self.repo = get_repo(self.domain_dir)
-
-        # Set up TCM (requires that self.domain_dir exists)
-        self.tcm = TopoCommandManager(self, command_registry=COMMAND_REGISTRY)
-        self.tcm.execute(initial_command, cmd_type=CommandType.COMMAND)
+        else:
+            self.version_control = False
+            self.domain_dir = None
+            self.tcm = None
+            # Apply the initial min_depth command directly without git recording
+            MinDepthEditCommand(self, attr="min_depth", new_value=min_depth)()
 
     @classmethod
     def from_version_control(cls, folder_path: str | Path):
@@ -106,6 +121,7 @@ class Topo:
         min_depth=0.0,
         varname="depth",
         version_control_dir="TopoLibrary",
+        git=True,
     ):
         """
         Create a bathymetry object from an existing topog file.
@@ -120,10 +136,13 @@ class Topo:
             Minimum water column depth (m). Columns with shallower depths are to be masked out.
         varname : str, optional
             Name of the variable representing ocean depth in the dataset. Default is "depth".
+        git: bool, optional
+            Passed through to Topo.__init__. See Topo docstring for details.
         """
 
-        topo = cls(grid, min_depth, version_control_dir=version_control_dir)
-        topo.tcm.reapply_changes()
+        topo = cls(grid, min_depth, version_control_dir=version_control_dir, git=git)
+        if topo.tcm is not None:
+            topo.tcm.reapply_changes()
         topo.set_depth_via_topog_file(topo_file_path, varname)
         return topo
 
@@ -348,7 +367,7 @@ class Topo:
             self, all_indices, new_values, old_values=old_values
         )
 
-        if not quietly:
+        if not quietly and self.tcm is not None:
             self.tcm.execute(depth_edit_command, cmd_type=CommandType.COMMAND)
         else:
             depth_edit_command()
@@ -1059,7 +1078,10 @@ class Topo:
         old_values = [self.depth.data[jj, ii] for jj, ii in indices]
         new_values = [0] * len(indices)
         cmd = DepthEditCommand(self, indices, new_values, old_values=old_values)
-        self.tcm.execute(cmd)
+        if self.tcm is not None:
+            self.tcm.execute(cmd)
+        else:
+            cmd()
 
     def erase_disconnected_basin(self, i, j):
         label = self.basintmask.data[j, i]
@@ -1070,7 +1092,10 @@ class Topo:
         old_values = [self.depth.data[jj, ii] for jj, ii in indices]
         new_values = [0] * len(indices)
         cmd = DepthEditCommand(self, indices, new_values, old_values=old_values)
-        self.tcm.execute(cmd)
+        if self.tcm is not None:
+            self.tcm.execute(cmd)
+        else:
+            cmd()
 
     def apply_ridge(self, height, width, lon, ilat):
         """
@@ -1111,7 +1136,10 @@ class Topo:
         depth_edit_command = DepthEditCommand(
             self, affected_indices, new_vals, old_values=old_vals
         )
-        self.tcm.execute(depth_edit_command)
+        if self.tcm is not None:
+            self.tcm.execute(depth_edit_command)
+        else:
+            depth_edit_command()
 
     def apply_land_frac(
         self,
@@ -1218,7 +1246,10 @@ class Topo:
         depth_edit_command = DepthEditCommand(
             self, affected_indices, new_vals, old_values=old_vals
         )
-        self.tcm.execute(depth_edit_command)
+        if self.tcm is not None:
+            self.tcm.execute(depth_edit_command)
+        else:
+            depth_edit_command()
 
     def gen_topo_ds(self, title=None):
         """
@@ -1280,6 +1311,10 @@ class Topo:
         Save the TOPO_FILE (bathymetry file) in netcdf format to version control
         """
 
+        if self.tcm is None:
+            raise RuntimeError(
+                "save() requires version control. Construct Topo with git=True (the default)."
+            )
         self.tcm.save()
 
     def write_topo(self, file_path, title=None):
