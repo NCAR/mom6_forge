@@ -4,7 +4,7 @@ from mom6_forge.utils import (
     get_avg_resolution_km,
     longitude_slicer,
 )
-from mom6_forge.supergrid_metric_helpers import (
+from mom6_forge._supergrid import (
     quadrilateral_area,
     latlon_to_cartesian,
     quadrilateral_areas,

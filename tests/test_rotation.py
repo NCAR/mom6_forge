@@ -1,10 +1,10 @@
 """Initially setup in regional_mom6"""
 
-from mom6_forge.supergrid_metric_helpers import (
+from mom6_forge._supergrid import (
+    UniformSphericalSupergrid,
     mom6_angle_calculation_method,
     modulo_around_point,
 )
-from mom6_forge._supergrid import UniformSphericalSupergrid
 import math
 import pytest
 import xarray as xr
