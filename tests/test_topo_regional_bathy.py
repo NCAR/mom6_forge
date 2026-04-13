@@ -23,7 +23,6 @@ from pathlib import Path
 from mom6_forge.grid import Grid
 from mom6_forge.topo import Topo
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -65,7 +64,7 @@ def synthetic_gebco(tmp_path):
     # Ocean everywhere, with a land strip at lon 265-266
     elevation = np.where(
         (lon2d >= 265.0) & (lon2d <= 266.0),
-        100.0,    # land
+        100.0,  # land
         -1000.0,  # ocean
     ).astype("float32")
 
@@ -271,9 +270,7 @@ class TestCressmanInterp:
         mask, _ = small_topo.generate_mask_ocean_frac(
             bathymetry_path=synthetic_gebco, nx_sub=3, ny_sub=3
         )
-        small_topo.cressman_interp(
-            bathymetry_path=synthetic_gebco, mask=mask, hmin=5.0
-        )
+        small_topo.cressman_interp(bathymetry_path=synthetic_gebco, mask=mask, hmin=5.0)
         assert small_topo.depth.shape == (small_topo._grid.ny, small_topo._grid.nx)
 
 
@@ -316,7 +313,9 @@ class TestDirectXesmfRegrid:
         self, small_grid, synthetic_gebco, tmp_path
     ):
         """Using an external mask should produce a different result than no mask."""
-        topo_no_mask = Topo(small_grid, min_depth=5.0, version_control_dir=tmp_path / "a")
+        topo_no_mask = Topo(
+            small_grid, min_depth=5.0, version_control_dir=tmp_path / "a"
+        )
         topo_no_mask.set_flat(1000)
         topo_no_mask.direct_xesmf_regrid(
             bathymetry_path=synthetic_gebco,
@@ -454,5 +453,5 @@ class TestWriteTopoDrag:
         out_path = tmp_path / "topo_drag.nc"
         small_topo.write_topo_drag(out_path)
         ds = xr.open_dataset(out_path)
-        expected_h2 = small_topo.d2_mean.values - small_topo.d_mean.values ** 2
+        expected_h2 = small_topo.d2_mean.values - small_topo.d_mean.values**2
         np.testing.assert_allclose(ds.h2.values, expected_h2, rtol=1e-5)
