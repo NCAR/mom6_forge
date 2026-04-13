@@ -20,3 +20,6 @@ Examples
 
 6. Use domain configurators:
 `6_demo_editors.ipynb <https://github.com/NCAR/mom6_forge/blob/master/notebooks/6_demo_editors.ipynb>`_
+
+7. Regional bathymetry workflows — mask generation, Cressman interpolation, topo drag:
+`7_regional_bathy_workflow.ipynb <https://github.com/NCAR/mom6_forge/blob/master/notebooks/7_regional_bathy_workflow.ipynb>`_

@@ -17,6 +17,7 @@ to learn about the `mom6_forge` tool.
    installation
    quickstart
    examples
+   regional_bathy
    glossary
    widgets
 
