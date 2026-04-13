@@ -1,0 +1,324 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Regional Bathymetry Workflows &mdash; mom6_forge 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=2709fde1"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Glossary" href="glossary.html" />
+    <link rel="prev" title="Examples" href="examples.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            mom6_forge
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Regional Bathymetry Workflows</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#background">Background</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#mask-generation">Mask Generation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ocean-fraction-mask-recommended">Ocean Fraction Mask (recommended)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cartopy-coastline-mask">Cartopy Coastline Mask</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#pipelines">Pipelines</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#pipeline-a-direct-xesmf-regrid">Pipeline A — direct_xesmf_regrid</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pipeline-b-high-res-regrid">Pipeline B — high_res_regrid</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#cressman-interpolation">Cressman Interpolation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#topo-drag-statistics">Topo Drag Statistics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="widgets.html">Topo &amp; The Widgets!</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Python API:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="modules.html">mom6_forge</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">mom6_forge</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Regional Bathymetry Workflows</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/regional_bathy.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="regional-bathymetry-workflows">
+<h1>Regional Bathymetry Workflows<a class="headerlink" href="#regional-bathymetry-workflows" title="Link to this heading"></a></h1>
+<p><code class="docutils literal notranslate"><span class="pre">mom6_forge</span></code> provides two bathymetry pipelines for regional MOM6 configurations,
+both accessible through the <a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo" title="mom6_forge.topo.Topo"><code class="xref py py-class docutils literal notranslate"><span class="pre">Topo</span></code></a> class. They differ in how
+depth is assigned and are suited to different grid resolutions.</p>
+<nav class="contents local" id="contents">
+<p class="topic-title">Contents</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#background" id="id1">Background</a></p></li>
+<li><p><a class="reference internal" href="#mask-generation" id="id2">Mask Generation</a></p>
+<ul>
+<li><p><a class="reference internal" href="#ocean-fraction-mask-recommended" id="id3">Ocean Fraction Mask (recommended)</a></p></li>
+<li><p><a class="reference internal" href="#cartopy-coastline-mask" id="id4">Cartopy Coastline Mask</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#pipelines" id="id5">Pipelines</a></p>
+<ul>
+<li><p><a class="reference internal" href="#pipeline-a-direct-xesmf-regrid" id="id6">Pipeline A — direct_xesmf_regrid</a></p></li>
+<li><p><a class="reference internal" href="#pipeline-b-high-res-regrid" id="id7">Pipeline B — high_res_regrid</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#cressman-interpolation" id="id8">Cressman Interpolation</a></p></li>
+<li><p><a class="reference internal" href="#topo-drag-statistics" id="id9">Topo Drag Statistics</a></p></li>
+<li><p><a class="reference internal" href="#see-also" id="id10">See Also</a></p></li>
+</ul>
+</nav>
+<section id="background">
+<h2><a class="toc-backref" href="#id1" role="doc-backlink">Background</a><a class="headerlink" href="#background" title="Link to this heading"></a></h2>
+<p>The default <code class="xref py py-meth docutils literal notranslate"><span class="pre">direct_xesmf_regrid()</span></code> pipeline regrids a
+source bathymetry (e.g. GEBCO) onto the model grid using <code class="docutils literal notranslate"><span class="pre">xesmf</span></code> and derives the
+land/ocean mask from whether the regridded depth is positive. This is fast and
+sufficient for fine regional grids (~1–3 km), but has two limitations at coarser
+resolutions:</p>
+<ol class="arabic simple">
+<li><p><strong>Land contamination near coasts.</strong> Standard bilinear or conservative regridding
+blends land elevations into ocean depth estimates for cells that straddle the
+coastline.</p></li>
+<li><p><strong>Mask accuracy.</strong> Deriving the mask from the sign of the regridded depth is
+sensitive to regridding artefacts. At coarser resolutions (≳ 0.05°), computing
+the ocean fraction directly from the high-resolution source data produces a
+more accurate mask.</p></li>
+</ol>
+<p>The <code class="xref py py-meth docutils literal notranslate"><span class="pre">high_res_regrid()</span></code> pipeline addresses both issues
+using a Monte-Carlo ocean fraction mask and Cressman distance-weighted interpolation.
+It is recommended for grids of ~0.05° (5 km) and coarser.</p>
+</section>
+<section id="mask-generation">
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Mask Generation</a><a class="headerlink" href="#mask-generation" title="Link to this heading"></a></h2>
+<p>Both pipelines support an optional external mask. Two methods are provided.</p>
+<section id="ocean-fraction-mask-recommended">
+<h3><a class="toc-backref" href="#id3" role="doc-backlink">Ocean Fraction Mask (recommended)</a><a class="headerlink" href="#ocean-fraction-mask-recommended" title="Link to this heading"></a></h3>
+<p>For each model grid cell, <code class="docutils literal notranslate"><span class="pre">nx_sub</span> <span class="pre">×</span> <span class="pre">ny_sub</span></code> interior sample points are
+distributed using bilinear interpolation of the 4 supergrid corner coordinates.
+Each point is snapped to the nearest source bathymetry pixel. The ocean fraction
+<code class="docutils literal notranslate"><span class="pre">OCN_FRAC</span></code> is the number of sample points with depth &gt; <code class="docutils literal notranslate"><span class="pre">mask_hmin</span></code> divided by
+the total. Cells with <code class="docutils literal notranslate"><span class="pre">OCN_FRAC</span> <span class="pre">≥</span> <span class="pre">mask_threshold</span></code> are marked as ocean.</p>
+<p>This method also computes and stores per-cell depth statistics
+(<code class="docutils literal notranslate"><span class="pre">D_mean</span></code>, <code class="docutils literal notranslate"><span class="pre">D_min</span></code>, <code class="docutils literal notranslate"><span class="pre">D_max</span></code>, <code class="docutils literal notranslate"><span class="pre">D2_mean</span></code>) which are needed for topo drag
+parameterisations (see <a class="reference internal" href="#topo-drag"><span class="std std-ref">Topo Drag Statistics</span></a>).</p>
+<p><strong>When to use:</strong> When the model grid is coarser than ~0.05° or when topo drag
+statistics are required.</p>
+</section>
+<section id="cartopy-coastline-mask">
+<h3><a class="toc-backref" href="#id4" role="doc-backlink">Cartopy Coastline Mask</a><a class="headerlink" href="#cartopy-coastline-mask" title="Link to this heading"></a></h3>
+<p>Rasterises Natural Earth coastline vectors onto the model grid using Cartopy.
+Fast and independent of the bathymetry dataset. Use as a quick first-pass mask
+or for grids where consistency with the bathymetry source is less critical.</p>
+<p><strong>When to use:</strong> Quick runs, coarse grids, or as a comparison against
+<code class="docutils literal notranslate"><span class="pre">generate_mask_ocean_frac</span></code>.</p>
+</section>
+</section>
+<section id="pipelines">
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">Pipelines</a><a class="headerlink" href="#pipelines" title="Link to this heading"></a></h2>
+<section id="pipeline-a-direct-xesmf-regrid">
+<h3><a class="toc-backref" href="#id6" role="doc-backlink">Pipeline A — direct_xesmf_regrid</a><a class="headerlink" href="#pipeline-a-direct-xesmf-regrid" title="Link to this heading"></a></h3>
+<p>The standard pipeline. Regrids the source bathymetry with <code class="docutils literal notranslate"><span class="pre">xesmf</span></code> then runs
+<a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.tidy_dataset" title="mom6_forge.topo.Topo.tidy_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">tidy_dataset()</span></code></a> for lake removal, channel cleanup,
+and minimum depth enforcement.</p>
+<p>Accepts an optional <code class="docutils literal notranslate"><span class="pre">mask</span></code> argument. When provided, <code class="docutils literal notranslate"><span class="pre">tidy_dataset</span></code> uses it
+directly instead of deriving the mask from the regridded depth. When omitted, the
+behaviour is identical to the previous <code class="docutils literal notranslate"><span class="pre">set_from_dataset</span></code> method.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">direct_xesmf_regrid</span><span class="p">(</span>
+    <span class="n">bathymetry_path</span><span class="o">=</span><span class="s2">&quot;gebco_2023.nc&quot;</span><span class="p">,</span>
+    <span class="n">longitude_coordinate_name</span><span class="o">=</span><span class="s2">&quot;lon&quot;</span><span class="p">,</span>
+    <span class="n">latitude_coordinate_name</span><span class="o">=</span><span class="s2">&quot;lat&quot;</span><span class="p">,</span>
+    <span class="n">vertical_coordinate_name</span><span class="o">=</span><span class="s2">&quot;elevation&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># With an external mask:</span>
+<span class="n">mask</span><span class="p">,</span> <span class="n">ocn_frac</span> <span class="o">=</span> <span class="n">topo</span><span class="o">.</span><span class="n">generate_mask_ocean_frac</span><span class="p">(</span><span class="s2">&quot;gebco_2023.nc&quot;</span><span class="p">,</span> <span class="n">nx_sub</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">ny_sub</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">direct_xesmf_regrid</span><span class="p">(</span>
+    <span class="n">bathymetry_path</span><span class="o">=</span><span class="s2">&quot;gebco_2023.nc&quot;</span><span class="p">,</span>
+    <span class="n">longitude_coordinate_name</span><span class="o">=</span><span class="s2">&quot;lon&quot;</span><span class="p">,</span>
+    <span class="n">latitude_coordinate_name</span><span class="o">=</span><span class="s2">&quot;lat&quot;</span><span class="p">,</span>
+    <span class="n">vertical_coordinate_name</span><span class="o">=</span><span class="s2">&quot;elevation&quot;</span><span class="p">,</span>
+    <span class="n">mask</span><span class="o">=</span><span class="n">mask</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="pipeline-b-high-res-regrid">
+<h3><a class="toc-backref" href="#id7" role="doc-backlink">Pipeline B — high_res_regrid</a><a class="headerlink" href="#pipeline-b-high-res-regrid" title="Link to this heading"></a></h3>
+<p>The high-accuracy pipeline for coarser grids. Internally runs:</p>
+<ol class="arabic simple">
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_ocean_frac()</span></code> to build the mask and
+compute depth statistics.</p></li>
+<li><p><code class="xref py py-meth docutils literal notranslate"><span class="pre">cressman_interp()</span></code> to assign ocean-mask-aware
+smoothed depths.</p></li>
+<li><p><a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.tidy_dataset" title="mom6_forge.topo.Topo.tidy_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">tidy_dataset()</span></code></a> for lake removal, channel cleanup,
+and minimum depth enforcement.</p></li>
+</ol>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">high_res_regrid</span><span class="p">(</span>
+    <span class="n">bathymetry_path</span><span class="o">=</span><span class="s2">&quot;gebco_2023.nc&quot;</span><span class="p">,</span>
+    <span class="n">longitude_coordinate_name</span><span class="o">=</span><span class="s2">&quot;lon&quot;</span><span class="p">,</span>
+    <span class="n">latitude_coordinate_name</span><span class="o">=</span><span class="s2">&quot;lat&quot;</span><span class="p">,</span>
+    <span class="n">vertical_coordinate_name</span><span class="o">=</span><span class="s2">&quot;elevation&quot;</span><span class="p">,</span>
+    <span class="n">nx_sub</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+    <span class="n">ny_sub</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+    <span class="n">smooth_scl</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="cressman-interpolation">
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">Cressman Interpolation</a><a class="headerlink" href="#cressman-interpolation" title="Link to this heading"></a></h2>
+<p>Assigns depth to each ocean cell by distance-weighted averaging of source
+bathymetry points within a smoothing radius <code class="docutils literal notranslate"><span class="pre">L</span></code>:</p>
+<div class="math notranslate nohighlight">
+\[D = \frac{\sum_i w_i \, d_i}{\sum_i w_i}, \quad
+w_i = \left(\frac{L^2 - r_i^2}{L^2 + r_i^2}\right)^{c}\]</div>
+<p>where <span class="math notranslate nohighlight">\(r_i\)</span> is the great-circle distance from the model cell centre to
+source point <span class="math notranslate nohighlight">\(i\)</span>, <span class="math notranslate nohighlight">\(L = \text{smooth\_scl} \times \sqrt{A_\text{cell}}\)</span>
+is the smoothing radius, and <span class="math notranslate nohighlight">\(c\)</span> is <code class="docutils literal notranslate"><span class="pre">cressman_exp</span></code>. Source points with
+depth ≤ 0 (land) are excluded.</p>
+<p><strong>Recommendation by resolution:</strong></p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Grid spacing</p></th>
+<th class="head"><p>Recommendation</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>&lt; 3 km</p></td>
+<td><p>Use <code class="docutils literal notranslate"><span class="pre">direct_xesmf_regrid</span></code> — Cressman adds little benefit</p></td>
+</tr>
+<tr class="row-odd"><td><p>3–10 km (0.05°)</p></td>
+<td><p>Borderline; Cressman improves coastline accuracy</p></td>
+</tr>
+<tr class="row-even"><td><p>&gt; 10 km (0.1°+)</p></td>
+<td><p>Use <code class="docutils literal notranslate"><span class="pre">high_res_regrid</span></code> — Cressman gives meaningfully better depths</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="topo-drag-statistics">
+<span id="topo-drag"></span><h2><a class="toc-backref" href="#id9" role="doc-backlink">Topo Drag Statistics</a><a class="headerlink" href="#topo-drag-statistics" title="Link to this heading"></a></h2>
+<p>MOM6 Lee-wave and bottom-drag parameterisations require a measure of subgrid
+topographic roughness at each cell. This is quantified as the variance of ocean
+depth within each model cell:</p>
+<div class="math notranslate nohighlight">
+\[h_2 = \overline{D^2} - \bar{D}^2\]</div>
+<p>where <span class="math notranslate nohighlight">\(\overline{D^2}\)</span> is <code class="docutils literal notranslate"><span class="pre">D2_mean</span></code> and <span class="math notranslate nohighlight">\(\bar{D}\)</span> is <code class="docutils literal notranslate"><span class="pre">D_mean</span></code>
+from the Monte-Carlo sub-sampling step.</p>
+<p><code class="xref py py-meth docutils literal notranslate"><span class="pre">write_topo_drag()</span></code> writes a netCDF file containing
+<code class="docutils literal notranslate"><span class="pre">h2</span></code> in units of <code class="docutils literal notranslate"><span class="pre">meters^2</span></code>. This file is read by MOM6 at initialisation when
+topo drag is enabled.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">write_topo_drag</span></code> requires
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_ocean_frac()</span></code> (or
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">high_res_regrid()</span></code>) to have been called first.
+It will raise a <code class="docutils literal notranslate"><span class="pre">RuntimeError</span></code> otherwise.</p>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">high_res_regrid</span><span class="p">(</span><span class="n">bathymetry_path</span><span class="o">=</span><span class="s2">&quot;gebco_2023.nc&quot;</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_topo_drag</span><span class="p">(</span><span class="s2">&quot;topo_drag.nc&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="see-also">
+<h2><a class="toc-backref" href="#id10" role="doc-backlink">See Also</a><a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><span class="xref std std-doc">Notebook 7 — Regional Bathymetry Workflow</span></p></li>
+<li><p><a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo" title="mom6_forge.topo.Topo"><code class="xref py py-class docutils literal notranslate"><span class="pre">Topo</span></code></a></p></li>
+<li><p><a class="reference external" href="https://www.gebco.net">GEBCO bathymetry</a></p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="examples.html" class="btn btn-neutral float-left" title="Examples" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="glossary.html" class="btn btn-neutral float-right" title="Glossary" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, NCAR.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
