@@ -16,6 +16,7 @@ from pathlib import Path
 from mom6_forge.edit_command import *
 from mom6_forge.command_manager import TopoCommandManager, CommandType
 from mom6_forge.mapping import regrid_dataset_via_xesmf, cressman_regrid
+from mom6_forge._source_bathy import SourceBathy
 
 
 class Topo:
@@ -42,6 +43,7 @@ class Topo:
             attrs={"units": "m"},
         )  # Initialize depth with NaNs
         self._min_depth = min_depth
+        self._src = None  # cached SourceBathy; set by _get_src()
 
         if version_control_dir is None:
             raise ValueError(
@@ -548,12 +550,32 @@ class Topo:
         # Save to object (Build TCM Object)
         self.send_entire_depth_change_to_tcm(new_values)
 
-    def diagnose_resolution(
+    def _get_src(
         self,
         bathymetry_path,
-        longitude_coordinate_name="lon",
-        latitude_coordinate_name="lat",
+        longitude_coordinate_name,
+        latitude_coordinate_name,
+        vertical_coordinate_name,
     ):
+        """Return a cached :class:`SourceBathy`, creating and slicing a new one
+        only when the path or coordinate names differ from the current cache."""
+        path = Path(bathymetry_path)
+        if (
+            self._src is None
+            or self._src.path != path
+            or self._src.lon_name != longitude_coordinate_name
+            or self._src.lat_name != latitude_coordinate_name
+            or self._src.elevation_name != vertical_coordinate_name
+        ):
+            self._src = SourceBathy(
+                path,
+                longitude_coordinate_name,
+                latitude_coordinate_name,
+                vertical_coordinate_name,
+            ).slice_to_domain(self)
+        return self._src
+
+    def diagnose_resolution(self, src):
         """
         Print resolution diagnostics comparing the model grid to a source bathymetry
         dataset, and recommend whether Cressman interpolation / stats-based masking
@@ -568,12 +590,10 @@ class Topo:
 
         Parameters
         ----------
-        bathymetry_path : str or Path
-            Path to the source bathymetry netCDF file.
-        longitude_coordinate_name : str
-            Name of the longitude coordinate in the bathymetry file. Default ``"lon"``.
-        latitude_coordinate_name : str
-            Name of the latitude coordinate in the bathymetry file. Default ``"lat"``.
+        src : SourceBathy
+            Source bathymetry object.  The DataArray need not be loaded —
+            coordinate arrays are read from the file if ``src`` has not yet
+            been sliced to the domain.
 
         Returns
         -------
@@ -592,10 +612,14 @@ class Topo:
         max_dx_m = float(np.max(cell_dx_m))
 
         # --- Source dataset spacing ---
-        ds = xr.open_dataset(bathymetry_path)
-        lon = ds[longitude_coordinate_name].values
-        lat = ds[latitude_coordinate_name].values
-        ds.close()
+        if src._da is not None:
+            lon = src.lon
+            lat = src.lat
+        else:
+            ds = xr.open_dataset(src.path)
+            lon = ds[src.lon_name].values
+            lat = ds[src.lat_name].values
+            ds.close()
 
         dlon_deg = float(abs(lon[1] - lon[0]))
         dlat_deg = float(abs(lat[1] - lat[0]))
@@ -613,7 +637,7 @@ class Topo:
         print(sep)
         print("  Resolution Diagnostics")
         print(sep)
-        print(f"\n  Source dataset ({Path(bathymetry_path).name}):")
+        print(f"\n  Source dataset ({src.path.name}):")
         print(f"    dlon = {dlon_deg * 3600:.1f} arcsec  ({dlon_deg:.6f}°)")
         print(f"    dlat = {dlat_deg * 3600:.1f} arcsec  ({dlat_deg:.6f}°)")
         print(
@@ -644,132 +668,40 @@ class Topo:
         print(sep)
         return ratio_median >= CRESSMAN_THRESHOLD
 
-    def _load_src_bathy(
-        self,
-        bathymetry_path,
-        longitude_coordinate_name,
-        latitude_coordinate_name,
-        vertical_coordinate_name,
-        buf=0.5,
-    ):
-        """Load and slice source bathymetry to the model domain plus a buffer.
+    def _compute_topo_stats(self, src, nx_sub, ny_sub, mask_hmin):
+        """Compute per-cell depth statistics by Monte-Carlo sub-sampling.
+
+        Results are cached on ``src._topo_stats`` so a second call with the
+        same source file returns immediately without recomputation.
 
         Parameters
         ----------
-        bathymetry_path : str or Path
-        longitude_coordinate_name, latitude_coordinate_name, vertical_coordinate_name : str
-        buf : float
-            Degree buffer added around the Q-grid extent. Default 0.5°.
-
-        Returns
-        -------
-        src_lon : np.ndarray, shape (nx_src,)
-        src_lat : np.ndarray, shape (ny_src,)
-        src_z   : np.ndarray, shape (ny_src, nx_src)
-            Elevation in source convention (positive up, negative = ocean).
-        """
-        lon_extent = (float(self._grid.qlon.min()), float(self._grid.qlon.max()))
-        lat_extent = (float(self._grid.qlat.min()), float(self._grid.qlat.max()))
-
-        ds_src = xr.open_dataset(bathymetry_path, chunks="auto")
-        z_src = ds_src[vertical_coordinate_name]
-        z_src = z_src.sel(
-            {latitude_coordinate_name: slice(lat_extent[0] - buf, lat_extent[1] + buf)}
-        )
-
-        dlon = float(
-            z_src[longitude_coordinate_name][1] - z_src[longitude_coordinate_name][0]
-        )
-        total_lon = float(
-            z_src[longitude_coordinate_name][-1]
-            - z_src[longitude_coordinate_name][0]
-            + dlon
-        )
-        if np.isclose(total_lon, 360):
-            z_src = longitude_slicer(
-                z_src,
-                np.array(lon_extent) + np.array([-buf, buf]),
-                longitude_coordinate_name,
-            )
-        else:
-            z_src = z_src.sel(
-                {
-                    longitude_coordinate_name: slice(
-                        lon_extent[0] - buf, lon_extent[1] + buf
-                    )
-                }
-            )
-
-        z_src = z_src.load()
-        src_lon = z_src[longitude_coordinate_name].values
-        src_lat = z_src[latitude_coordinate_name].values
-        src_z = z_src.values
-        return src_lon, src_lat, src_z
-
-    def _compute_topo_stats(
-        self,
-        bathymetry_path,
-        longitude_coordinate_name,
-        latitude_coordinate_name,
-        vertical_coordinate_name,
-        nx_sub,
-        ny_sub,
-        mask_hmin,
-    ):
-        """
-        Compute per-cell depth statistics by Monte-Carlo sub-sampling of the
-        source bathymetry dataset. Mirrors the algorithm in tx2_3's
-        create_model_topo.f90.
-
-        For each model T-cell, distributes nx_sub x ny_sub interior points via
-        bilinear interpolation of the 4 Q-point corners, snaps each sub-point
-        to the nearest source pixel (nearest-neighbour), and accumulates ocean
-        depth statistics from sub-points where depth > mask_hmin.
-
-        Parameters
-        ----------
-        bathymetry_path : str or Path
-        longitude_coordinate_name, latitude_coordinate_name, vertical_coordinate_name : str
+        src : SourceBathy
         nx_sub, ny_sub : int
-            Number of sub-sample points per cell in x and y.
         mask_hmin : float
-            Minimum depth (m) for a sub-point to count as ocean.
 
         Returns
         -------
-        xr.Dataset
-            Dataset on the T-grid with variables:
-            ``OCN_FRAC``, ``D_mean``, ``D_min``, ``D_max``, ``D2_mean``.
+        xr.Dataset  —  ``OCN_FRAC``, ``D_mean``, ``D_min``, ``D_max``, ``D2_mean``.
         """
-        if getattr(self, "_topo_stats", None) is not None:
-            return self._topo_stats
+        if src._topo_stats is not None:
+            return src._topo_stats
 
-        src_lon, src_lat, src_z = self._load_src_bathy(
-            bathymetry_path,
-            longitude_coordinate_name,
-            latitude_coordinate_name,
-            vertical_coordinate_name,
-        )
-        dlon = float(src_lon[1] - src_lon[0])
-        dlat = float(src_lat[1] - src_lat[0])
+        dlon = float(src.lon[1] - src.lon[0])
+        dlat = float(src.lat[1] - src.lat[0])
 
-        # --- Build bilinear sub-point coordinates ---
-        # Q-grid corners of each T-cell: shape (ny, nx)
         SW_lon = self._grid.qlon.values[:-1, :-1]
         SE_lon = self._grid.qlon.values[:-1, 1:]
         NE_lon = self._grid.qlon.values[1:, 1:]
         NW_lon = self._grid.qlon.values[1:, :-1]
-
         SW_lat = self._grid.qlat.values[:-1, :-1]
         SE_lat = self._grid.qlat.values[:-1, 1:]
         NE_lat = self._grid.qlat.values[1:, 1:]
         NW_lat = self._grid.qlat.values[1:, :-1]
 
-        # Sub-point interior fractions, matching Fortran: isub/(nx_sub+1)
         ifrac = (np.arange(1, nx_sub + 1) / (nx_sub + 1)).astype(float)
         jfrac = (np.arange(1, ny_sub + 1) / (ny_sub + 1)).astype(float)
 
-        # Broadcast to (ny, nx, ny_sub, nx_sub)
         i_ = ifrac[np.newaxis, np.newaxis, np.newaxis, :]
         j_ = jfrac[np.newaxis, np.newaxis, :, np.newaxis]
         SW_lon = SW_lon[:, :, np.newaxis, np.newaxis]
@@ -786,7 +718,7 @@ class Topo:
             + i_ * (1 - j_) * SE_lon
             + i_ * j_ * NE_lon
             + (1 - i_) * j_ * NW_lon
-        )  # (ny, nx, ny_sub, nx_sub)
+        )
         sub_lat = (
             (1 - i_) * (1 - j_) * SW_lat
             + i_ * (1 - j_) * SE_lat
@@ -794,33 +726,25 @@ class Topo:
             + (1 - i_) * j_ * NW_lat
         )
 
-        # --- Snap sub-points to nearest source pixel ---
-        ii = np.round((sub_lon - src_lon[0]) / dlon).astype(int)
-        jj = np.round((sub_lat - src_lat[0]) / dlat).astype(int)
-        ii = np.clip(ii, 0, len(src_lon) - 1)
-        jj = np.clip(jj, 0, len(src_lat) - 1)
+        ii = np.round((sub_lon - src.lon[0]) / dlon).astype(int)
+        jj = np.round((sub_lat - src.lat[0]) / dlat).astype(int)
+        ii = np.clip(ii, 0, len(src.lon) - 1)
+        jj = np.clip(jj, 0, len(src.lat) - 1)
 
-        # Depth positive-down: negate elevation
-        depth_sub = -src_z[jj, ii]  # (ny, nx, ny_sub, nx_sub)
+        depth_sub = src.depth[jj, ii]  # positive-down
 
-        # --- Accumulate statistics over ocean sub-points ---
-        is_ocean = depth_sub > mask_hmin  # (ny, nx, ny_sub, nx_sub)
-
-        nsum = nx_sub * ny_sub
-        nsumo = is_ocean.sum(axis=(-2, -1))  # (ny, nx)
-        ocn_frac = nsumo / nsum
+        is_ocean = depth_sub > mask_hmin
+        ocn_frac = is_ocean.sum(axis=(-2, -1)) / (nx_sub * ny_sub)
 
         depth_ocean = np.where(is_ocean, depth_sub, np.nan)
-        with np.errstate(
-            all="ignore"
-        ):  # suppress nanmean-of-empty warnings for land cells
+        with np.errstate(all="ignore"):
             D_mean = np.nanmean(depth_ocean, axis=(-2, -1))
             D_min = np.nanmin(depth_ocean, axis=(-2, -1))
             D_max = np.nanmax(depth_ocean, axis=(-2, -1))
             D2_mean = np.nanmean(depth_ocean**2, axis=(-2, -1))
 
         dims = ["ny", "nx"]
-        self._topo_stats = xr.Dataset(
+        src._topo_stats = xr.Dataset(
             {
                 "OCN_FRAC": xr.DataArray(
                     ocn_frac,
@@ -855,14 +779,11 @@ class Topo:
                 ),
             }
         )
-        return self._topo_stats
+        return src._topo_stats
 
     def generate_mask_ocean_frac(
         self,
-        bathymetry_path,
-        longitude_coordinate_name="lon",
-        latitude_coordinate_name="lat",
-        vertical_coordinate_name="elevation",
+        src,
         nx_sub=5,
         ny_sub=5,
         mask_threshold=0.5,
@@ -877,19 +798,13 @@ class Topo:
         nearest source pixel. A cell is ocean if its ocean sub-point fraction
         (OCN_FRAC) meets or exceeds mask_threshold.
 
-        Per-cell depth statistics (D_mean, D_min, D_max, D2_mean) are stored
-        in ``self._topo_stats`` for downstream use by ``write_topo_drag()``.
+        Per-cell depth statistics (D_mean, D_min, D_max, D2_mean) are cached
+        on the source bathymetry object for downstream use by ``write_topo()``.
 
         Parameters
         ----------
-        bathymetry_path : str or Path
-            Path to the source bathymetry netCDF (e.g. GEBCO).
-        longitude_coordinate_name : str
-            Longitude coordinate name. Default ``"lon"``.
-        latitude_coordinate_name : str
-            Latitude coordinate name. Default ``"lat"``.
-        vertical_coordinate_name : str
-            Elevation variable name (positive up). Default ``"elevation"``.
+        src : SourceBathy
+            Loaded (sliced) source bathymetry object.
         nx_sub, ny_sub : int
             Sub-sampling resolution per cell. Default 5x5.
         mask_threshold : float
@@ -903,15 +818,8 @@ class Topo:
             Binary ocean mask on the T-grid (1 = ocean, 0 = land),
             dims ``["ny", "nx"]``.
         """
-        stats = self._compute_topo_stats(
-            bathymetry_path,
-            longitude_coordinate_name,
-            latitude_coordinate_name,
-            vertical_coordinate_name,
-            nx_sub,
-            ny_sub,
-            mask_hmin,
-        )
+        self._src = src
+        stats = self._compute_topo_stats(src, nx_sub, ny_sub, mask_hmin)
 
         ocean_mask = (stats["OCN_FRAC"].values >= mask_threshold).astype(int)
 
@@ -983,11 +891,8 @@ class Topo:
 
     def cressman_interp(
         self,
-        bathymetry_path,
+        src,
         mask,
-        longitude_coordinate_name="lon",
-        latitude_coordinate_name="lat",
-        vertical_coordinate_name="elevation",
         smooth_scl=2.0,
         cressman_exp=2.0,
         hmin=None,
@@ -1017,17 +922,11 @@ class Topo:
 
         Parameters
         ----------
-        bathymetry_path : str or Path
-            Source bathymetry (e.g. GEBCO) in netCDF format.
+        src : SourceBathy
+            Loaded (sliced) source bathymetry object.
         mask : xr.DataArray
             Binary ocean mask on the T-grid (1 = ocean, 0 = land). Obtain from
             :meth:`generate_mask_ocean_frac` or :meth:`generate_mask_cartopy`.
-        longitude_coordinate_name : str
-            Longitude coordinate name in the source file. Default ``"lon"``.
-        latitude_coordinate_name : str
-            Latitude coordinate name in the source file. Default ``"lat"``.
-        vertical_coordinate_name : str
-            Elevation variable name (positive up). Default ``"elevation"``.
         smooth_scl : float
             Smoothing scale multiplier for the Cressman radius. Default ``2.0``.
         cressman_exp : float
@@ -1039,22 +938,13 @@ class Topo:
             ``cressman_weights.nc`` is written next to the bathymetry file.
         """
         if weights_path is None:
-            weights_path = Path(bathymetry_path).parent / "cressman_weights.nc"
-
-        # --- Load source bathymetry ---
-        src_lon, src_lat, src_z = self._load_src_bathy(
-            bathymetry_path,
-            longitude_coordinate_name,
-            latitude_coordinate_name,
-            vertical_coordinate_name,
-        )
-        src_depth = (-src_z).astype(float)  # positive-down; ocean > 0
+            weights_path = src.path.parent / "cressman_weights.nc"
 
         # --- Regrid via mapping module (weights → file → xe.Regridder) ---
         depth_dst, unfilled = cressman_regrid(
-            src_lon,
-            src_lat,
-            src_depth,
+            src.lon,
+            src.lat,
+            src.depth,
             self._grid.tlon.values,
             self._grid.tlat.values,
             self._grid.tarea.values,
@@ -1107,10 +997,7 @@ class Topo:
 
     def direct_xesmf_regrid(
         self,
-        bathymetry_path,
-        longitude_coordinate_name="lon",
-        latitude_coordinate_name="lat",
-        vertical_coordinate_name="elevation",
+        src,
         regridding_method="bilinear",
         fill_channels=False,
         positive_down=False,
@@ -1132,8 +1019,8 @@ class Topo:
 
         Parameters
         ----------
-        bathymetry_path : str or Path
-        longitude_coordinate_name, latitude_coordinate_name, vertical_coordinate_name : str
+        src : SourceBathy
+            Loaded (sliced) source bathymetry object.
         regridding_method : str
             xesmf regridding method. Default ``"bilinear"``.
         fill_channels : bool
@@ -1159,10 +1046,7 @@ class Topo:
         if mask is None and mask_method is not None:
             if mask_method == "ocean_frac":
                 mask = self.generate_mask_ocean_frac(
-                    bathymetry_path=bathymetry_path,
-                    longitude_coordinate_name=longitude_coordinate_name,
-                    latitude_coordinate_name=latitude_coordinate_name,
-                    vertical_coordinate_name=vertical_coordinate_name,
+                    src,
                     nx_sub=nx_sub,
                     ny_sub=ny_sub,
                     mask_threshold=mask_threshold,
@@ -1176,10 +1060,7 @@ class Topo:
 
         # --- xesmf regrid ---
         bathymetry_output, empty_bathy = self.config_dataset(
-            bathymetry_path=bathymetry_path,
-            longitude_coordinate_name=longitude_coordinate_name,
-            latitude_coordinate_name=latitude_coordinate_name,
-            vertical_coordinate_name=vertical_coordinate_name,
+            src,
             fill_channels=fill_channels,
             positive_down=positive_down,
             write_to_file=False,
@@ -1204,10 +1085,7 @@ class Topo:
 
     def high_res_regrid(
         self,
-        bathymetry_path,
-        longitude_coordinate_name="lon",
-        latitude_coordinate_name="lat",
-        vertical_coordinate_name="elevation",
+        src,
         mask=None,
         mask_method="ocean_frac",
         nx_sub=5,
@@ -1231,8 +1109,8 @@ class Topo:
 
         Parameters
         ----------
-        bathymetry_path : str or Path
-        longitude_coordinate_name, latitude_coordinate_name, vertical_coordinate_name : str
+        src : SourceBathy
+            Loaded (sliced) source bathymetry object.
         mask : xr.DataArray or None
             Pre-computed binary ocean mask (1=ocean, 0=land). When provided,
             ``mask_method`` is ignored.
@@ -1261,10 +1139,7 @@ class Topo:
         if mask is None:
             if mask_method == "ocean_frac":
                 mask = self.generate_mask_ocean_frac(
-                    bathymetry_path=bathymetry_path,
-                    longitude_coordinate_name=longitude_coordinate_name,
-                    latitude_coordinate_name=latitude_coordinate_name,
-                    vertical_coordinate_name=vertical_coordinate_name,
+                    src,
                     nx_sub=nx_sub,
                     ny_sub=ny_sub,
                     mask_threshold=mask_threshold,
@@ -1278,11 +1153,8 @@ class Topo:
 
         # --- Cressman interpolation ---
         self.cressman_interp(
-            bathymetry_path=bathymetry_path,
+            src,
             mask=mask,
-            longitude_coordinate_name=longitude_coordinate_name,
-            latitude_coordinate_name=latitude_coordinate_name,
-            vertical_coordinate_name=vertical_coordinate_name,
             smooth_scl=smooth_scl,
             cressman_exp=cressman_exp,
             hmin=hmin,
@@ -1378,18 +1250,17 @@ class Topo:
         regridding_method : str
             xesmf regridding method (direct pipeline only). Default ``"bilinear"``.
         """
-        use_cressman = self.diagnose_resolution(
+        src = self._get_src(
             bathymetry_path,
-            longitude_coordinate_name=longitude_coordinate_name,
-            latitude_coordinate_name=latitude_coordinate_name,
+            longitude_coordinate_name,
+            latitude_coordinate_name,
+            vertical_coordinate_name,
         )
+        use_cressman = self.diagnose_resolution(src)
 
         if use_cressman:
             self.high_res_regrid(
-                bathymetry_path=bathymetry_path,
-                longitude_coordinate_name=longitude_coordinate_name,
-                latitude_coordinate_name=latitude_coordinate_name,
-                vertical_coordinate_name=vertical_coordinate_name,
+                src,
                 mask=mask,
                 mask_method=mask_method or "ocean_frac",
                 nx_sub=nx_sub,
@@ -1404,10 +1275,7 @@ class Topo:
             )
         else:
             self.direct_xesmf_regrid(
-                bathymetry_path=bathymetry_path,
-                longitude_coordinate_name=longitude_coordinate_name,
-                latitude_coordinate_name=latitude_coordinate_name,
-                vertical_coordinate_name=vertical_coordinate_name,
+                src,
                 regridding_method=regridding_method,
                 fill_channels=fill_channels,
                 positive_down=positive_down,
@@ -1421,11 +1289,8 @@ class Topo:
 
     def mpi_direct_xesmf_regrid(
         self,
+        src,
         *,
-        bathymetry_path,
-        longitude_coordinate_name,
-        latitude_coordinate_name,
-        vertical_coordinate_name,
         fill_channels=False,
         positive_down=False,
         output_dir=Path(""),
@@ -1456,10 +1321,7 @@ class Topo:
             """)
 
         self.bathymetry_output, self.empty_bathy = self.config_dataset(
-            bathymetry_path=bathymetry_path,
-            longitude_coordinate_name=longitude_coordinate_name,
-            latitude_coordinate_name=latitude_coordinate_name,
-            vertical_coordinate_name=vertical_coordinate_name,
+            src,
             fill_channels=fill_channels,
             positive_down=positive_down,
             output_dir=output_dir,
@@ -1472,10 +1334,7 @@ class Topo:
 
     def config_dataset(
         self,
-        bathymetry_path,
-        longitude_coordinate_name,
-        latitude_coordinate_name,
-        vertical_coordinate_name,
+        src,
         fill_channels=False,
         positive_down=False,
         output_dir=Path(""),
@@ -1488,13 +1347,7 @@ class Topo:
         If manual regridding is necessary, write_to_file must be set to True.
 
         Arguments:
-            bathymetry_path (str): Path to netCDF file with bathymetry data.
-            longitude_coordinate_name (Optional[str]): The name of the longitude coordinate in the bathymetry
-                dataset at ``bathymetry_path``. For example, for GEBCO bathymetry: ``'lon'`` (default).
-            latitude_coordinate_name (Optional[str]): The name of the latitude coordinate in the bathymetry
-                dataset at ``bathymetry_path``. For example, for GEBCO bathymetry: ``'lat'`` (default).
-            vertical_coordinate_name (Optional[str]): The name of the vertical coordinate in the bathymetry
-                dataset at ``bathymetry_path``. For example, for GEBCO bathymetry: ``'elevation'`` (default).
+            src (SourceBathy): Loaded (sliced) source bathymetry object.
             output_dir: str | Path
                 The str or Path the write to file should write to. Defaults to the directory the script is running in.
             write_to_file (Optional[bool]): Files saved to ``output_dir``. Defaults to ``True``. Must be set to true if using manual regridding methods with ESMF_regrid.
@@ -1502,73 +1355,13 @@ class Topo:
         Returns:
             (``bathymetry_output``,``empty_bathy``) (tuple of Datasets): where ``bathymetry_output`` is the original bathymetry data with proper metadata and attributes and ``empty_bathy`` is a template for the regridder.
         """
-        coordinate_names = {
-            "xh": longitude_coordinate_name,
-            "yh": latitude_coordinate_name,
-            "depth": vertical_coordinate_name,
-        }
-        longitude_extent = (
-            float(self._grid.qlon.min()),
-            float(self._grid.qlon.max()),
-        )
-        latitude_extent = (
-            float(self._grid.qlat.min()),
-            float(self._grid.qlat.max()),
-        )
-
-        bathymetry = xr.open_dataset(bathymetry_path, chunks="auto")[
-            coordinate_names["depth"]
-        ]
-
-        bathymetry = bathymetry.sel(
-            {
-                coordinate_names["yh"]: slice(
-                    latitude_extent[0] - 0.5, latitude_extent[1] + 0.5
-                )
-            }  # 0.5 degree latitude buffer (hardcoded) for regridding
-        ).astype("float")
-
-        ## Check if the original bathymetry provided has a longitude extent that goes around the globe
-        ## to take care of the longitude seam when we slice out the regional domain.
-
-        horizontal_resolution = (
-            bathymetry[coordinate_names["xh"]][1]
-            - bathymetry[coordinate_names["xh"]][0]
-        )
-
-        horizontal_extent = (
-            bathymetry[coordinate_names["xh"]][-1]
-            - bathymetry[coordinate_names["xh"]][0]
-            + horizontal_resolution
-        )
-
-        longitude_buffer = 0.5  # 0.5 degree longitude buffer (hardcoded) for regridding
-
-        if np.isclose(horizontal_extent, 360):
-            ## longitude extent that goes around the globe -- use longitude_slicer
-            bathymetry = longitude_slicer(
-                bathymetry,
-                np.array(longitude_extent)
-                + np.array([-longitude_buffer, longitude_buffer]),
-                coordinate_names["xh"],
-            )
-        else:
-            ## otherwise, slice normally
-            bathymetry = bathymetry.sel(
-                {
-                    coordinate_names["xh"]: slice(
-                        longitude_extent[0] - longitude_buffer,
-                        longitude_extent[1] + longitude_buffer,
-                    )
-                }
-            )
-
+        # Use the cached, already-sliced DataArray — output format is unchanged.
+        bathymetry = src.da.astype("float")
         bathymetry.attrs["missing_value"] = -1e20  # missing value expected by FRE tools
         bathymetry_output = xr.Dataset({"depth": bathymetry})
-        bathymetry.close()
 
         bathymetry_output = bathymetry_output.rename(
-            {coordinate_names["xh"]: "lon", coordinate_names["yh"]: "lat"}
+            {src.lon_name: "lon", src.lat_name: "lat"}
         )
 
         bathymetry_output.depth.attrs["_FillValue"] = -1e20
@@ -2049,8 +1842,9 @@ class Topo:
             attrs={"long_name": "t-grid cell depth", "units": "m"},
         )
 
-        if getattr(self, "_topo_stats", None) is not None:
-            h2 = self._topo_stats["D2_mean"] - self._topo_stats["D_mean"] ** 2
+        topo_stats = self._src._topo_stats if self._src is not None else None
+        if topo_stats is not None:
+            h2 = topo_stats["D2_mean"] - topo_stats["D_mean"] ** 2
             ds["h2"] = xr.DataArray(
                 h2.values,
                 dims=["ny", "nx"],
@@ -2083,13 +1877,14 @@ class Topo:
             File title.
         enforce_topo_drag: bool, optional
             If ``True``, raise an error if topo drag stats (``h2``) have not been
-            computed. Run ``_compute_topo_stats()`` first to compute them.
+            computed. Call ``generate_mask_ocean_frac()`` first to compute them.
             Default ``False``.
         """
-        if enforce_topo_drag and getattr(self, "_topo_stats", None) is None:
+        has_topo_stats = self._src is not None and self._src._topo_stats is not None
+        if enforce_topo_drag and not has_topo_stats:
             raise RuntimeError(
                 "enforce_topo_drag=True but topo stats have not been computed. "
-                "Call _compute_topo_stats() before write_topo()."
+                "Call generate_mask_ocean_frac() first to compute them."
             )
 
         ds = self.gen_topo_ds(title=title)

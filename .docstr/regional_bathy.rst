@@ -34,6 +34,64 @@ calls :meth:`~mom6_forge.topo.Topo.diagnose_resolution` automatically and routes
 to the appropriate pipeline.
 
 
+SourceBathy — Source Bathymetry Object
+---------------------------------------
+
+All bathymetry pipeline methods (other than :meth:`~mom6_forge.topo.Topo.set_from_dataset`)
+accept a :class:`~mom6_forge._source_bathy.SourceBathy` object instead of raw file paths.
+``SourceBathy`` is an internal data container that holds the path, coordinate-name
+metadata, and the loaded/domain-clipped elevation ``DataArray`` in one place.
+
+This design keeps the file-I/O and coordinate bookkeeping out of the pipeline
+methods themselves — they receive a ready-to-use ``SourceBathy`` and simply
+access ``src.lon``, ``src.lat``, and ``src.depth``.
+
+Creating a SourceBathy
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+    from mom6_forge._source_bathy import SourceBathy
+
+    src = SourceBathy(
+        "gebco_2023.nc",
+        lon_name="lon",         # default
+        lat_name="lat",         # default
+        elevation_name="elevation",  # default
+    )
+
+    # Load and clip the elevation DataArray to the model domain
+    src.slice_to_domain(topo)   # mutates src in-place, returns src for chaining
+
+After ``slice_to_domain``, the following accessors are available:
+
+- ``src.lon``   — 1-D longitude array (degrees)
+- ``src.lat``   — 1-D latitude array (degrees)
+- ``src.depth`` — 2-D depth array, positive-down (ocean > 0)
+- ``src.da``    — raw elevation ``DataArray`` (positive-up, source coord names)
+
+Caching and reuse
+~~~~~~~~~~~~~~~~~
+
+:meth:`~mom6_forge.topo.Topo._get_src` (called internally by
+:meth:`~mom6_forge.topo.Topo.set_from_dataset`) creates and caches a
+``SourceBathy`` on ``topo._src``.  It only reloads when the path or coordinate
+names change.  Per-cell depth statistics are cached on ``src._topo_stats`` by
+:meth:`~mom6_forge.topo.Topo._compute_topo_stats` and are never recomputed for
+the same source object.
+
+The user only needs to create a ``SourceBathy`` manually when calling pipeline
+methods directly (i.e. not via ``set_from_dataset``):
+
+.. code-block:: python
+
+    src = SourceBathy("gebco_2023.nc").slice_to_domain(topo)
+
+    # Now pass src to any pipeline method
+    mask = topo.generate_mask_ocean_frac(src, nx_sub=5, ny_sub=5)
+    topo.high_res_regrid(src, mask=mask)
+
+
 Pipeline Dispatch
 -----------------
 
@@ -44,17 +102,18 @@ inspects the model grid spacing relative to the source bathymetry pixel size and
 dispatches to the appropriate pipeline::
 
     set_from_dataset()
-        ├── diagnose_resolution() → True  (ratio ≥ 12×)
-        │       └── high_res_regrid(mask_method="ocean_frac" default)
+        ├── _get_src()  →  SourceBathy (created once, cached on topo._src)
+        ├── diagnose_resolution(src) → True  (ratio ≥ 12×)
+        │       └── high_res_regrid(src, mask_method="ocean_frac" default)
         │               ├── mask options: ocean_frac | cartopy | pre-computed DataArray
-        │               ├── cressman_interp()
+        │               ├── cressman_interp(src, mask)
         │               └── tidy_dataset(mask=mask)
         │
-        └── diagnose_resolution() → False (ratio < 12×)
-                └── direct_xesmf_regrid(mask_method=None default)
+        └── diagnose_resolution(src) → False (ratio < 12×)
+                └── direct_xesmf_regrid(src, mask_method=None default)
                         ├── mask options: ocean_frac | cartopy | pre-computed DataArray
                         │                | None (derive from depth sign)
-                        ├── config_dataset() + regrid_dataset_via_xesmf()
+                        ├── config_dataset(src) + regrid_dataset_via_xesmf()
                         └── tidy_dataset(mask=mask)
 
 The ``mask_method`` and ``mask`` keyword arguments are forwarded transparently to
@@ -90,17 +149,17 @@ the model grid spacing with the source bathymetry resolution:
 
 .. code-block:: python
 
-    topo.diagnose_resolution(
-        "gebco_2023.nc",
-        longitude_coordinate_name="lon",
-        latitude_coordinate_name="lat",
-    )
+    from mom6_forge._source_bathy import SourceBathy
+
+    src = SourceBathy("gebco_2023.nc")   # _da need not be loaded
+    topo.diagnose_resolution(src)
 
 This prints the median, minimum, and maximum model cell spacing alongside the
 dataset pixel size, computes the resolution ratio, and returns ``True`` if the
 ratio is ≥ 12× (the point at which the stats-based mask and Cressman
 interpolation provide meaningfully better results than plain ``xesmf``
-regridding).
+regridding).  ``diagnose_resolution`` works even before ``slice_to_domain`` has
+been called — it reads only the coordinate arrays from the file in that case.
 
 
 Mask Generation
@@ -132,11 +191,18 @@ Each point is snapped to the nearest source bathymetry pixel. The ocean fraction
 by the total. Cells with ``OCN_FRAC ≥ mask_threshold`` are marked as ocean.
 
 This method also computes and stores per-cell depth statistics
-(``D_mean``, ``D_min``, ``D_max``, ``D2_mean``) which are needed for topo drag
-parameterisations (see :ref:`topo-drag`).
+(``D_mean``, ``D_min``, ``D_max``, ``D2_mean``) on the ``SourceBathy`` object,
+which are needed for topo drag parameterisations (see :ref:`topo-drag`).
+It also sets ``topo._src = src`` so that :meth:`~mom6_forge.topo.Topo.write_topo`
+can locate the statistics automatically.
 
 **When to use:** When the model grid is coarser than ~0.05° or when topo drag
 statistics are required.
+
+.. code-block:: python
+
+    src = SourceBathy("gebco_2023.nc").slice_to_domain(topo)
+    mask = topo.generate_mask_ocean_frac(src, nx_sub=5, ny_sub=5)
 
 Cartopy Coastline Mask
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -172,24 +238,13 @@ Mask options:
 
 .. code-block:: python
 
+    src = SourceBathy("gebco_2023.nc").slice_to_domain(topo)
+
     # Default: derive mask from depth sign
-    topo.direct_xesmf_regrid(
-        bathymetry_path="gebco_2023.nc",
-        longitude_coordinate_name="lon",
-        latitude_coordinate_name="lat",
-        vertical_coordinate_name="elevation",
-    )
+    topo.direct_xesmf_regrid(src)
 
     # With ocean-fraction mask
-    topo.direct_xesmf_regrid(
-        bathymetry_path="gebco_2023.nc",
-        longitude_coordinate_name="lon",
-        latitude_coordinate_name="lat",
-        vertical_coordinate_name="elevation",
-        mask_method="ocean_frac",
-        nx_sub=5,
-        ny_sub=5,
-    )
+    topo.direct_xesmf_regrid(src, mask_method="ocean_frac", nx_sub=5, ny_sub=5)
 
 
 Pipeline B — high_res_regrid
@@ -216,31 +271,16 @@ requires an explicit ocean mask to exclude land source points.
 
 .. code-block:: python
 
+    src = SourceBathy("gebco_2023.nc").slice_to_domain(topo)
+
     # Default: ocean-fraction mask + Cressman
-    topo.high_res_regrid(
-        bathymetry_path="gebco_2023.nc",
-        longitude_coordinate_name="lon",
-        latitude_coordinate_name="lat",
-        vertical_coordinate_name="elevation",
-    )
+    topo.high_res_regrid(src)
 
     # Cartopy mask variant
-    topo.high_res_regrid(
-        bathymetry_path="gebco_2023.nc",
-        longitude_coordinate_name="lon",
-        latitude_coordinate_name="lat",
-        vertical_coordinate_name="elevation",
-        mask_method="cartopy",
-    )
+    topo.high_res_regrid(src, mask_method="cartopy")
 
     # Pre-computed mask
-    topo.high_res_regrid(
-        bathymetry_path="gebco_2023.nc",
-        longitude_coordinate_name="lon",
-        latitude_coordinate_name="lat",
-        vertical_coordinate_name="elevation",
-        mask=my_ocean_mask,
-    )
+    topo.high_res_regrid(src, mask=my_ocean_mask)
 
 
 Cressman Interpolation
@@ -319,7 +359,8 @@ stats have not been computed yet.
 
 .. code-block:: python
 
-    topo.generate_mask_ocean_frac(bathymetry_path="gebco_2023.nc", nx_sub=5, ny_sub=5)
+    src = SourceBathy("gebco_2023.nc").slice_to_domain(topo)
+    topo.generate_mask_ocean_frac(src, nx_sub=5, ny_sub=5)
     topo.write_topo("topog.nc")                     # h2 included automatically
 
     # Alternatively, raise if stats are missing:
@@ -335,10 +376,16 @@ A parallelised variant of ``direct_xesmf_regrid`` for very large source
 datasets. Equivalent to ``direct_xesmf_regrid`` but distributes the ``xesmf``
 regridding across MPI ranks.
 
+.. code-block:: python
+
+    src = SourceBathy("gebco_2023.nc").slice_to_domain(topo)
+    topo.mpi_direct_xesmf_regrid(src, output_dir=Path("mpi_output/"))
+
 
 See Also
 --------
 
 - :doc:`Notebook 7 — Regional Bathymetry Workflow <../notebooks/7_regional_bathy_workflow>`
 - :class:`~mom6_forge.topo.Topo`
+- :class:`~mom6_forge._source_bathy.SourceBathy`
 - `GEBCO bathymetry <https://www.gebco.net>`_

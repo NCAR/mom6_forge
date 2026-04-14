@@ -2,6 +2,7 @@
 Tests for regional bathymetry pipeline methods on Topo.
 
 Implemented and tested here:
+    SourceBathy                         (construction, slicing, accessors)
     Topo.diagnose_resolution()
     Topo.generate_mask_ocean_frac()
     Topo.generate_mask_cartopy()
@@ -20,6 +21,7 @@ from pathlib import Path
 
 from mom6_forge.grid import Grid
 from mom6_forge.topo import Topo
+from mom6_forge._source_bathy import SourceBathy
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -76,6 +78,63 @@ def synthetic_gebco(tmp_path):
     return path
 
 
+@pytest.fixture
+def src_bathy(small_topo, synthetic_gebco):
+    """SourceBathy sliced to the small_topo domain."""
+    return SourceBathy(synthetic_gebco).slice_to_domain(small_topo)
+
+
+# ---------------------------------------------------------------------------
+# SourceBathy
+# ---------------------------------------------------------------------------
+
+
+class TestSourceBathy:
+
+    def test_construction(self, synthetic_gebco):
+        """SourceBathy can be constructed from a path with default coord names."""
+        src = SourceBathy(synthetic_gebco)
+        assert src.path == Path(synthetic_gebco)
+        assert src.lon_name == "lon"
+        assert src.lat_name == "lat"
+        assert src.elevation_name == "elevation"
+        assert src._da is None
+
+    def test_construction_custom_names(self, synthetic_gebco):
+        src = SourceBathy(
+            synthetic_gebco, lon_name="x", lat_name="y", elevation_name="z"
+        )
+        assert src.lon_name == "x"
+        assert src.lat_name == "y"
+        assert src.elevation_name == "z"
+
+    def test_slice_to_domain_loads_da(self, small_topo, synthetic_gebco):
+        src = SourceBathy(synthetic_gebco).slice_to_domain(small_topo)
+        assert src._da is not None
+
+    def test_lon_lat_arrays(self, src_bathy):
+        assert src_bathy.lon.ndim == 1
+        assert src_bathy.lat.ndim == 1
+
+    def test_depth_positive_down(self, src_bathy):
+        """depth property must be positive-down (ocean depth > 0)."""
+        ocean_vals = src_bathy.depth[src_bathy.depth > 0]
+        assert ocean_vals.size > 0
+
+    def test_da_is_elevation(self, src_bathy):
+        """da property returns the raw elevation DataArray (positive-up sign)."""
+        assert src_bathy.da is not None
+        # elevation of ocean cells should be negative
+        assert float(src_bathy.da.min()) < 0
+
+    def test_repr(self, src_bathy):
+        r = repr(src_bathy)
+        assert "SourceBathy" in r
+
+    def test_topo_stats_none_before_compute(self, src_bathy):
+        assert src_bathy._topo_stats is None
+
+
 # ---------------------------------------------------------------------------
 # generate_mask_ocean_frac
 # ---------------------------------------------------------------------------
@@ -83,70 +142,55 @@ def synthetic_gebco(tmp_path):
 
 class TestGenerateMaskOceanFrac:
 
-    def test_returns_binary_mask(self, small_topo, synthetic_gebco):
+    def test_returns_binary_mask(self, small_topo, src_bathy):
         """Mask values must be 0 (land) or 1 (ocean) only."""
-        mask = small_topo.generate_mask_ocean_frac(
-            bathymetry_path=synthetic_gebco,
-            nx_sub=3,
-            ny_sub=3,
-        )
+        mask = small_topo.generate_mask_ocean_frac(src_bathy, nx_sub=3, ny_sub=3)
         assert set(np.unique(mask.values)).issubset({0, 1})
 
-    def test_mask_shape_matches_grid(self, small_topo, synthetic_gebco):
+    def test_mask_shape_matches_grid(self, small_topo, src_bathy):
         """Mask must have the same spatial shape as the model grid."""
-        mask = small_topo.generate_mask_ocean_frac(
-            bathymetry_path=synthetic_gebco,
-            nx_sub=3,
-            ny_sub=3,
-        )
+        mask = small_topo.generate_mask_ocean_frac(src_bathy, nx_sub=3, ny_sub=3)
         assert mask.shape == (small_topo._grid.ny, small_topo._grid.nx)
 
-    def test_land_strip_is_masked(self, small_topo, synthetic_gebco):
+    def test_land_strip_is_masked(self, small_topo, src_bathy):
         """Cells over the synthetic land strip should have mask=0."""
-        mask = small_topo.generate_mask_ocean_frac(
-            bathymetry_path=synthetic_gebco,
-            nx_sub=5,
-            ny_sub=5,
-        )
+        mask = small_topo.generate_mask_ocean_frac(src_bathy, nx_sub=5, ny_sub=5)
         land_cols = np.where(
             (small_topo._grid.tlon.values >= 265.0)
             & (small_topo._grid.tlon.values <= 266.0)
         )
         assert (mask.values[land_cols] == 0).all()
 
-    def test_stats_stored_after_call(self, small_topo, synthetic_gebco):
+    def test_stats_stored_on_src_after_call(self, small_topo, src_bathy):
         """_topo_stats Dataset with OCN_FRAC, D_mean, D_min, D_max, D2_mean
-        must be available on the instance after the call."""
-        small_topo.generate_mask_ocean_frac(
-            bathymetry_path=synthetic_gebco, nx_sub=3, ny_sub=3
-        )
-        assert small_topo._topo_stats is not None
+        must be set on the SourceBathy after the call."""
+        small_topo.generate_mask_ocean_frac(src_bathy, nx_sub=3, ny_sub=3)
+        assert src_bathy._topo_stats is not None
         for var in ("OCN_FRAC", "D_mean", "D_min", "D_max", "D2_mean"):
-            assert var in small_topo._topo_stats
+            assert var in src_bathy._topo_stats
 
-    def test_stats_cached(self, small_topo, synthetic_gebco, monkeypatch):
-        """Calling generate_mask_ocean_frac twice must not re-run the computation."""
-        small_topo.generate_mask_ocean_frac(
-            bathymetry_path=synthetic_gebco, nx_sub=3, ny_sub=3
-        )
-        # Poison xr.open_dataset so a second file-read would raise
+    def test_src_stored_on_topo_after_call(self, small_topo, src_bathy):
+        """Calling generate_mask_ocean_frac must set topo._src so write_topo can
+        find the stats."""
+        small_topo.generate_mask_ocean_frac(src_bathy, nx_sub=3, ny_sub=3)
+        assert small_topo._src is src_bathy
+
+    def test_stats_cached(self, small_topo, src_bathy, monkeypatch):
+        """Calling generate_mask_ocean_frac twice must not re-run _compute_topo_stats."""
+        small_topo.generate_mask_ocean_frac(src_bathy, nx_sub=3, ny_sub=3)
         monkeypatch.setattr(
-            xr,
-            "open_dataset",
+            small_topo,
+            "_compute_topo_stats",
             lambda *a, **kw: (_ for _ in ()).throw(
                 AssertionError("_compute_topo_stats ran again")
             ),
         )
-        small_topo.generate_mask_ocean_frac(
-            bathymetry_path=synthetic_gebco, nx_sub=3, ny_sub=3
-        )
+        small_topo.generate_mask_ocean_frac(src_bathy, nx_sub=3, ny_sub=3)
 
-    def test_ocn_frac_in_bounds(self, small_topo, synthetic_gebco):
+    def test_ocn_frac_in_bounds(self, small_topo, src_bathy):
         """OCN_FRAC must be in [0, 1] for every cell."""
-        small_topo.generate_mask_ocean_frac(
-            bathymetry_path=synthetic_gebco, nx_sub=3, ny_sub=3
-        )
-        ocn_frac = small_topo._topo_stats["OCN_FRAC"].values
+        small_topo.generate_mask_ocean_frac(src_bathy, nx_sub=3, ny_sub=3)
+        ocn_frac = src_bathy._topo_stats["OCN_FRAC"].values
         assert float(ocn_frac.min()) >= 0.0
         assert float(ocn_frac.max()) <= 1.0
 
@@ -177,28 +221,41 @@ class TestGenerateMaskCartopy:
 
 
 # ---------------------------------------------------------------------------
+# diagnose_resolution
+# ---------------------------------------------------------------------------
+
+
+class TestDiagnoseResolution:
+
+    def test_returns_bool(self, small_topo, src_bathy):
+        result = small_topo.diagnose_resolution(src_bathy)
+        assert isinstance(result, bool)
+
+    def test_works_with_unloaded_src(self, small_topo, synthetic_gebco):
+        """diagnose_resolution must work even when src has not been sliced."""
+        src = SourceBathy(synthetic_gebco)
+        assert src._da is None  # not yet sliced
+        result = small_topo.diagnose_resolution(src)
+        assert isinstance(result, bool)
+
+
+# ---------------------------------------------------------------------------
 # h2 written via write_topo (enforce_topo_drag)
 # ---------------------------------------------------------------------------
 
 
 class TestTopoDragInWriteTopo:
 
-    def test_h2_in_output_when_stats_computed(
-        self, small_topo, synthetic_gebco, tmp_path
-    ):
+    def test_h2_in_output_when_stats_computed(self, small_topo, src_bathy, tmp_path):
         """write_topo should include h2 when _topo_stats are available."""
-        small_topo.generate_mask_ocean_frac(
-            bathymetry_path=synthetic_gebco, nx_sub=3, ny_sub=3
-        )
+        small_topo.generate_mask_ocean_frac(src_bathy, nx_sub=3, ny_sub=3)
         out = tmp_path / "topog.nc"
         small_topo.write_topo(out)
         assert "h2" in xr.open_dataset(out)
 
-    def test_h2_non_negative(self, small_topo, synthetic_gebco, tmp_path):
+    def test_h2_non_negative(self, small_topo, src_bathy, tmp_path):
         """h2 = D2_mean - D_mean^2 is a variance and must be >= 0."""
-        small_topo.generate_mask_ocean_frac(
-            bathymetry_path=synthetic_gebco, nx_sub=3, ny_sub=3
-        )
+        small_topo.generate_mask_ocean_frac(src_bathy, nx_sub=3, ny_sub=3)
         out = tmp_path / "topog.nc"
         small_topo.write_topo(out)
         assert float(xr.open_dataset(out).h2.min()) >= 0.0
@@ -279,7 +336,7 @@ class TestSetFromDatasetDispatch:
         monkeypatch.setattr(small_topo, "diagnose_resolution", lambda *a, **kw: True)
         called = []
         monkeypatch.setattr(
-            small_topo, "high_res_regrid", lambda **kw: called.append(kw)
+            small_topo, "high_res_regrid", lambda *a, **kw: called.append(kw)
         )
         small_topo.set_from_dataset(bathymetry_path=synthetic_gebco)
         assert called, "high_res_regrid was not called"
@@ -291,7 +348,7 @@ class TestSetFromDatasetDispatch:
         monkeypatch.setattr(small_topo, "diagnose_resolution", lambda *a, **kw: False)
         called = []
         monkeypatch.setattr(
-            small_topo, "direct_xesmf_regrid", lambda **kw: called.append(kw)
+            small_topo, "direct_xesmf_regrid", lambda *a, **kw: called.append(kw)
         )
         small_topo.set_from_dataset(bathymetry_path=synthetic_gebco)
         assert called, "direct_xesmf_regrid was not called"
@@ -303,7 +360,7 @@ class TestSetFromDatasetDispatch:
         monkeypatch.setattr(small_topo, "diagnose_resolution", lambda *a, **kw: True)
         captured = {}
         monkeypatch.setattr(
-            small_topo, "high_res_regrid", lambda **kw: captured.update(kw)
+            small_topo, "high_res_regrid", lambda *a, **kw: captured.update(kw)
         )
         small_topo.set_from_dataset(bathymetry_path=synthetic_gebco)
         assert captured.get("mask_method") == "ocean_frac"
@@ -316,7 +373,7 @@ class TestSetFromDatasetDispatch:
         monkeypatch.setattr(small_topo, "diagnose_resolution", lambda *a, **kw: False)
         captured = {}
         monkeypatch.setattr(
-            small_topo, "direct_xesmf_regrid", lambda **kw: captured.update(kw)
+            small_topo, "direct_xesmf_regrid", lambda *a, **kw: captured.update(kw)
         )
         small_topo.set_from_dataset(bathymetry_path=synthetic_gebco)
         assert captured.get("mask_method") is None
@@ -328,12 +385,26 @@ class TestSetFromDatasetDispatch:
         monkeypatch.setattr(small_topo, "diagnose_resolution", lambda *a, **kw: False)
         captured = {}
         monkeypatch.setattr(
-            small_topo, "direct_xesmf_regrid", lambda **kw: captured.update(kw)
+            small_topo, "direct_xesmf_regrid", lambda *a, **kw: captured.update(kw)
         )
         small_topo.set_from_dataset(
             bathymetry_path=synthetic_gebco, mask_method="cartopy"
         )
         assert captured.get("mask_method") == "cartopy"
+
+    def test_src_passed_to_pipeline(self, small_topo, synthetic_gebco, monkeypatch):
+        """set_from_dataset must create a SourceBathy and pass it as the first
+        positional arg to the selected pipeline."""
+        monkeypatch.setattr(small_topo, "diagnose_resolution", lambda *a, **kw: False)
+        received_src = []
+        monkeypatch.setattr(
+            small_topo,
+            "direct_xesmf_regrid",
+            lambda src, **kw: received_src.append(src),
+        )
+        small_topo.set_from_dataset(bathymetry_path=synthetic_gebco)
+        assert len(received_src) == 1
+        assert isinstance(received_src[0], SourceBathy)
 
 
 # ---------------------------------------------------------------------------
@@ -343,35 +414,32 @@ class TestSetFromDatasetDispatch:
 
 class TestDirectXesmfRegrid:
 
-    def test_bad_mask_method_raises(self, small_topo, synthetic_gebco):
+    def test_bad_mask_method_raises(self, small_topo, src_bathy):
         """Unknown mask_method must raise ValueError."""
         with pytest.raises(ValueError, match="mask_method"):
-            small_topo.direct_xesmf_regrid(
-                bathymetry_path=synthetic_gebco,
-                mask_method="invalid",
-            )
+            small_topo.direct_xesmf_regrid(src_bathy, mask_method="invalid")
 
     def test_precomputed_mask_bypasses_generation(
-        self, small_topo, synthetic_gebco, monkeypatch
+        self, small_topo, src_bathy, monkeypatch
     ):
         """When mask= is provided, generate_mask_ocean_frac must not be called."""
         mask = small_topo.generate_mask_cartopy(resolution="50m")
         called = []
         monkeypatch.setattr(
-            small_topo, "generate_mask_ocean_frac", lambda **kw: called.append(kw)
+            small_topo, "generate_mask_ocean_frac", lambda *a, **kw: called.append(kw)
         )
         monkeypatch.setattr(
             small_topo, "generate_mask_cartopy", lambda **kw: called.append(kw)
         )
-        # We don't need direct_xesmf_regrid to complete — just check mask generation is skipped
+        # Stop execution after mask check — we only care that generation was skipped
         monkeypatch.setattr(
             small_topo,
             "config_dataset",
-            lambda **kw: (_ for _ in ()).throw(StopIteration),
+            lambda *a, **kw: (_ for _ in ()).throw(StopIteration),
         )
         with pytest.raises(StopIteration):
             small_topo.direct_xesmf_regrid(
-                bathymetry_path=synthetic_gebco,
+                src_bathy,
                 mask=mask,
                 mask_method="ocean_frac",  # should be ignored because mask= is set
             )
@@ -385,20 +453,17 @@ class TestDirectXesmfRegrid:
 
 class TestHighResRegrid:
 
-    def test_bad_mask_method_raises(self, small_topo, synthetic_gebco):
+    def test_bad_mask_method_raises(self, small_topo, src_bathy):
         """Unknown mask_method must raise ValueError."""
         with pytest.raises(ValueError, match="mask_method"):
-            small_topo.high_res_regrid(
-                bathymetry_path=synthetic_gebco,
-                mask_method="invalid",
-            )
+            small_topo.high_res_regrid(src_bathy, mask_method="invalid")
 
     def test_ocean_frac_mask_produces_valid_depth(
-        self, small_topo, synthetic_gebco, tmp_path
+        self, small_topo, src_bathy, tmp_path
     ):
         """End-to-end with ocean_frac mask: ocean cells must have depth >= min_depth."""
         small_topo.high_res_regrid(
-            bathymetry_path=synthetic_gebco,
+            src_bathy,
             mask_method="ocean_frac",
             nx_sub=3,
             ny_sub=3,
@@ -408,12 +473,10 @@ class TestHighResRegrid:
         assert ocean.any(), "No ocean cells after high_res_regrid"
         assert (small_topo.depth.values[ocean] >= small_topo.min_depth).all()
 
-    def test_cartopy_mask_produces_valid_depth(
-        self, small_topo, synthetic_gebco, tmp_path
-    ):
+    def test_cartopy_mask_produces_valid_depth(self, small_topo, src_bathy, tmp_path):
         """End-to-end with cartopy mask: ocean cells must have depth >= min_depth."""
         small_topo.high_res_regrid(
-            bathymetry_path=synthetic_gebco,
+            src_bathy,
             mask_method="cartopy",
             cartopy_resolution="50m",
             weights_path=tmp_path / "cressman_weights.nc",
@@ -422,22 +485,22 @@ class TestHighResRegrid:
         assert ocean.any(), "No ocean cells after high_res_regrid with cartopy mask"
         assert (small_topo.depth.values[ocean] >= small_topo.min_depth).all()
 
-    def test_precomputed_mask_accepted(self, small_topo, synthetic_gebco, tmp_path):
+    def test_precomputed_mask_accepted(self, small_topo, src_bathy, tmp_path):
         """Passing a pre-computed mask directly should skip mask generation."""
         mask = small_topo.generate_mask_cartopy(resolution="50m")
         small_topo.high_res_regrid(
-            bathymetry_path=synthetic_gebco,
+            src_bathy,
             mask=mask,
             weights_path=tmp_path / "cressman_weights.nc",
         )
         ocean = small_topo.depth.values > 0
         assert ocean.any(), "No ocean cells with pre-computed mask"
 
-    def test_weights_file_written(self, small_topo, synthetic_gebco, tmp_path):
+    def test_weights_file_written(self, small_topo, src_bathy, tmp_path):
         """Cressman weights netCDF must be written to weights_path."""
         wp = tmp_path / "cressman_weights.nc"
         small_topo.high_res_regrid(
-            bathymetry_path=synthetic_gebco,
+            src_bathy,
             mask_method="ocean_frac",
             nx_sub=3,
             ny_sub=3,

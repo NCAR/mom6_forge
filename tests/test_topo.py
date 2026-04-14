@@ -1,6 +1,7 @@
 import xarray as xr
 import numpy as np
 from mom6_forge.topo import *
+from mom6_forge._source_bathy import SourceBathy
 
 
 def test_topo_from_version_control(get_rect_topo):
@@ -97,9 +98,6 @@ def test_diagnose_resolution_recommends_cressman(get_rect_topo, tmp_path):
         coords={"lon": lon, "lat": lat},
     ).to_netcdf(bathy_path)
 
-    result = get_rect_topo.diagnose_resolution(
-        bathy_path,
-        longitude_coordinate_name="lon",
-        latitude_coordinate_name="lat",
-    )
+    src = SourceBathy(bathy_path, lon_name="lon", lat_name="lat")
+    result = get_rect_topo.diagnose_resolution(src)
     assert result is True
