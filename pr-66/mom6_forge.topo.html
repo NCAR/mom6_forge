@@ -16,6 +16,7 @@
       <script src="_static/documentation_options.js?v=2709fde1"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -178,10 +179,111 @@ The str or Path the write to file should write to. Defaults to the directory the
 </dl>
 </dd></dl>
 
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.cressman_interp">
+<span class="sig-name descname"><span class="pre">cressman_interp</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bathymetry_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lon'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latitude_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lat'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'elevation'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">smooth_scl</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cressman_exp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hmin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights_path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.cressman_interp" title="Link to this definition"></a></dt>
+<dd><p>Assign ocean depths using Cressman distance-weighted interpolation.
+Mirrors <code class="docutils literal notranslate"><span class="pre">interp_smooth.f90</span></code> from the tx2_3 topography workflow.</p>
+<p>For each ocean T-cell a smoothing radius <code class="docutils literal notranslate"><span class="pre">L</span> <span class="pre">=</span> <span class="pre">smooth_scl</span> <span class="pre">*</span> <span class="pre">sqrt(cell_area)</span></code>
+is computed. Source ocean points within <code class="docutils literal notranslate"><span class="pre">L</span></code> are averaged with weights</p>
+<div class="math notranslate nohighlight">
+\[w = \left(\frac{L^2 - r^2}{L^2 + r^2}\right)^{c}\]</div>
+<p>where <code class="docutils literal notranslate"><span class="pre">r</span></code> is the great-circle arc distance and <code class="docutils literal notranslate"><span class="pre">c</span> <span class="pre">=</span> <span class="pre">cressman_exp</span></code>.
+Only source points with positive depth (ocean) contribute, so depth
+estimates are never contaminated by land elevations.</p>
+<p>Weights are computed in <code class="xref py py-func docutils literal notranslate"><span class="pre">compute_cressman_weights()</span></code>,
+saved to an ESMF-compatible netCDF via
+<code class="xref py py-func docutils literal notranslate"><span class="pre">write_cressman_weights()</span></code>, and applied through
+<code class="docutils literal notranslate"><span class="pre">xe.Regridder</span></code> — all orchestrated by
+<code class="xref py py-func docutils literal notranslate"><span class="pre">cressman_regrid()</span></code>. Cells that receive no source
+coverage are filled by iterative neighbour averaging (up to 100 passes).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>bathymetry_path</strong> (<em>str</em><em> or </em><em>Path</em>) – Source bathymetry (e.g. GEBCO) in netCDF format.</p></li>
+<li><p><strong>mask</strong> (<em>xr.DataArray</em>) – Binary ocean mask on the T-grid (1 = ocean, 0 = land). Obtain from
+<a class="reference internal" href="regional_bathy.html#mom6_forge.topo.Topo.generate_mask_ocean_frac" title="mom6_forge.topo.Topo.generate_mask_ocean_frac"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_ocean_frac()</span></code></a> or <a class="reference internal" href="regional_bathy.html#mom6_forge.topo.Topo.generate_mask_cartopy" title="mom6_forge.topo.Topo.generate_mask_cartopy"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_cartopy()</span></code></a>.</p></li>
+<li><p><strong>longitude_coordinate_name</strong> (<em>str</em>) – Longitude coordinate name in the source file. Default <code class="docutils literal notranslate"><span class="pre">&quot;lon&quot;</span></code>.</p></li>
+<li><p><strong>latitude_coordinate_name</strong> (<em>str</em>) – Latitude coordinate name in the source file. Default <code class="docutils literal notranslate"><span class="pre">&quot;lat&quot;</span></code>.</p></li>
+<li><p><strong>vertical_coordinate_name</strong> (<em>str</em>) – Elevation variable name (positive up). Default <code class="docutils literal notranslate"><span class="pre">&quot;elevation&quot;</span></code>.</p></li>
+<li><p><strong>smooth_scl</strong> (<em>float</em>) – Smoothing scale multiplier for the Cressman radius. Default <code class="docutils literal notranslate"><span class="pre">2.0</span></code>.</p></li>
+<li><p><strong>cressman_exp</strong> (<em>float</em>) – Exponent for the Cressman weight function. Default <code class="docutils literal notranslate"><span class="pre">2.0</span></code>.</p></li>
+<li><p><strong>hmin</strong> (<em>float</em><em> or </em><em>None</em>) – Minimum ocean depth (m). Defaults to <code class="docutils literal notranslate"><span class="pre">self.min_depth</span></code>.</p></li>
+<li><p><strong>weights_path</strong> (<em>str</em><em> or </em><em>Path</em><em> or </em><em>None</em>) – Where to save the ESMF weights netCDF. If <code class="docutils literal notranslate"><span class="pre">None</span></code>, a file named
+<code class="docutils literal notranslate"><span class="pre">cressman_weights.nc</span></code> is written next to the bathymetry file.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py property">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.depth">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">depth</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.depth" title="Link to this definition"></a></dt>
 <dd><p>MOM6 grid depth array (m). Positive below MSL.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.diagnose_resolution">
+<span class="sig-name descname"><span class="pre">diagnose_resolution</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bathymetry_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lon'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latitude_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lat'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.diagnose_resolution" title="Link to this definition"></a></dt>
+<dd><p>Print resolution diagnostics comparing the model grid to a source bathymetry
+dataset, and recommend whether Cressman interpolation / stats-based masking
+is worthwhile.</p>
+<p>The recommendation threshold is a resolution ratio of 12x (model dx /
+dataset dx), equivalent to ~0.05° (~5 km) for GEBCO 15-arcsecond source
+data. This matches the criterion used by the tx2_3 global workflow
+(interp_smooth.f90) and is the scale at which ocean-aware Cressman
+interpolation meaningfully improves coastal depth estimates over standard
+xesmf conservative regridding.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>bathymetry_path</strong> (<em>str</em><em> or </em><em>Path</em>) – Path to the source bathymetry netCDF file.</p></li>
+<li><p><strong>longitude_coordinate_name</strong> (<em>str</em>) – Name of the longitude coordinate in the bathymetry file. Default <code class="docutils literal notranslate"><span class="pre">&quot;lon&quot;</span></code>.</p></li>
+<li><p><strong>latitude_coordinate_name</strong> (<em>str</em>) – Name of the latitude coordinate in the bathymetry file. Default <code class="docutils literal notranslate"><span class="pre">&quot;lat&quot;</span></code>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True if Cressman / stats-based masking is recommended (ratio &gt;= 12x),
+False otherwise.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.direct_xesmf_regrid">
+<span class="sig-name descname"><span class="pre">direct_xesmf_regrid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bathymetry_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lon'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latitude_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lat'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'elevation'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">regridding_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bilinear'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fill_channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">positive_down</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nx_sub</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ny_sub</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cartopy_resolution</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'50m'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.direct_xesmf_regrid" title="Link to this definition"></a></dt>
+<dd><p>Regrid source bathymetry onto the model grid using <code class="docutils literal notranslate"><span class="pre">xesmf</span></code> and run
+lake-removal and channel cleanup via <a class="reference internal" href="#mom6_forge.topo.Topo.tidy_dataset" title="mom6_forge.topo.Topo.tidy_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">tidy_dataset()</span></code></a>.</p>
+<p>This is equivalent to <a class="reference internal" href="regional_bathy.html#mom6_forge.topo.Topo.set_from_dataset" title="mom6_forge.topo.Topo.set_from_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_from_dataset()</span></code></a> but exposes mask options
+so that an externally computed ocean mask can be passed to
+<a class="reference internal" href="#mom6_forge.topo.Topo.tidy_dataset" title="mom6_forge.topo.Topo.tidy_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">tidy_dataset()</span></code></a> instead of having it derived from the sign of the
+regridded depth field.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>bathymetry_path</strong> (<em>str</em><em> or </em><em>Path</em>)</p></li>
+<li><p><strong>longitude_coordinate_name</strong> (<em>str</em>)</p></li>
+<li><p><strong>latitude_coordinate_name</strong> (<em>str</em>)</p></li>
+<li><p><strong>vertical_coordinate_name</strong> (<em>str</em>)</p></li>
+<li><p><strong>regridding_method</strong> (<em>str</em>) – xesmf regridding method. Default <code class="docutils literal notranslate"><span class="pre">&quot;bilinear&quot;</span></code>.</p></li>
+<li><p><strong>fill_channels</strong> (<em>bool</em>) – Fill diagonal one-cell channels. Default <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p></li>
+<li><p><strong>positive_down</strong> (<em>bool</em>) – Set <code class="docutils literal notranslate"><span class="pre">True</span></code> if the source elevation is already positive-downward.
+Default <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p></li>
+<li><p><strong>mask</strong> (<em>xr.DataArray</em><em> or </em><em>None</em>) – Pre-computed binary ocean mask (1=ocean, 0=land) to pass directly to
+<a class="reference internal" href="#mom6_forge.topo.Topo.tidy_dataset" title="mom6_forge.topo.Topo.tidy_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">tidy_dataset()</span></code></a>. Overrides <code class="docutils literal notranslate"><span class="pre">mask_method</span></code>.</p></li>
+<li><p><strong>mask_method</strong> ({<code class="docutils literal notranslate"><span class="pre">&quot;ocean_frac&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;cartopy&quot;</span></code>} or None) – Auto-generate a mask before regridding.  <code class="docutils literal notranslate"><span class="pre">None</span></code> (default) falls
+back to the original <a class="reference internal" href="#mom6_forge.topo.Topo.tidy_dataset" title="mom6_forge.topo.Topo.tidy_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">tidy_dataset()</span></code></a> behaviour of deriving the
+mask from the sign of the regridded depth.</p></li>
+<li><p><strong>nx_sub</strong> (<em>int</em>) – Sub-sampling resolution for <code class="docutils literal notranslate"><span class="pre">mask_method=&quot;ocean_frac&quot;</span></code>.</p></li>
+<li><p><strong>ny_sub</strong> (<em>int</em>) – Sub-sampling resolution for <code class="docutils literal notranslate"><span class="pre">mask_method=&quot;ocean_frac&quot;</span></code>.</p></li>
+<li><p><strong>mask_threshold</strong> (<em>float</em>) – OCN_FRAC threshold for <code class="docutils literal notranslate"><span class="pre">mask_method=&quot;ocean_frac&quot;</span></code>. Default 0.5.</p></li>
+<li><p><strong>cartopy_resolution</strong> (<em>str</em>) – Natural Earth resolution for <code class="docutils literal notranslate"><span class="pre">mask_method=&quot;cartopy&quot;</span></code>. Default <code class="docutils literal notranslate"><span class="pre">&quot;50m&quot;</span></code>.</p></li>
+</ul>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
@@ -232,6 +334,97 @@ The str or Path the write to file should write to. Defaults to the directory the
 </dl>
 </dd></dl>
 
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.generate_mask_cartopy">
+<span class="sig-name descname"><span class="pre">generate_mask_cartopy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">resolution</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'10m'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.generate_mask_cartopy" title="Link to this definition"></a></dt>
+<dd><p>Generate an ocean mask by rasterising Natural Earth land polygons
+onto the model T-grid using Cartopy.</p>
+<p>Faster than generate_mask_ocean_frac but coarser — does not account
+for sub-cell ocean fraction, only whether the T-cell centre falls on
+land or ocean. Useful as a quick first-pass mask or for comparison.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>resolution</strong> (<em>str</em>) – Natural Earth resolution: <code class="docutils literal notranslate"><span class="pre">'10m'</span></code>, <code class="docutils literal notranslate"><span class="pre">'50m'</span></code>, or <code class="docutils literal notranslate"><span class="pre">'110m'</span></code>.
+Default <code class="docutils literal notranslate"><span class="pre">'10m'</span></code> (finest, ~1:10M scale).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Binary ocean mask on the T-grid (1 = ocean, 0 = land),
+dims <code class="docutils literal notranslate"><span class="pre">[&quot;ny&quot;,</span> <span class="pre">&quot;nx&quot;]</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>xr.DataArray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.generate_mask_ocean_frac">
+<span class="sig-name descname"><span class="pre">generate_mask_ocean_frac</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bathymetry_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lon'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latitude_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lat'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'elevation'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nx_sub</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ny_sub</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_hmin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.generate_mask_ocean_frac" title="Link to this definition"></a></dt>
+<dd><p>Generate an ocean mask by Monte-Carlo sub-sampling of the source
+bathymetry. Mirrors the algorithm in tx2_3’s create_model_topo.f90.</p>
+<p>For each T-cell, distributes nx_sub x ny_sub interior points via
+bilinear interpolation of the Q-point corners and snaps each to the
+nearest source pixel. A cell is ocean if its ocean sub-point fraction
+(OCN_FRAC) meets or exceeds mask_threshold.</p>
+<p>Per-cell depth statistics (D_mean, D_min, D_max, D2_mean) are stored
+in <code class="docutils literal notranslate"><span class="pre">self._topo_stats</span></code> for downstream use by <code class="docutils literal notranslate"><span class="pre">write_topo_drag()</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>bathymetry_path</strong> (<em>str</em><em> or </em><em>Path</em>) – Path to the source bathymetry netCDF (e.g. GEBCO).</p></li>
+<li><p><strong>longitude_coordinate_name</strong> (<em>str</em>) – Longitude coordinate name. Default <code class="docutils literal notranslate"><span class="pre">&quot;lon&quot;</span></code>.</p></li>
+<li><p><strong>latitude_coordinate_name</strong> (<em>str</em>) – Latitude coordinate name. Default <code class="docutils literal notranslate"><span class="pre">&quot;lat&quot;</span></code>.</p></li>
+<li><p><strong>vertical_coordinate_name</strong> (<em>str</em>) – Elevation variable name (positive up). Default <code class="docutils literal notranslate"><span class="pre">&quot;elevation&quot;</span></code>.</p></li>
+<li><p><strong>nx_sub</strong> (<em>int</em>) – Sub-sampling resolution per cell. Default 5x5.</p></li>
+<li><p><strong>ny_sub</strong> (<em>int</em>) – Sub-sampling resolution per cell. Default 5x5.</p></li>
+<li><p><strong>mask_threshold</strong> (<em>float</em>) – Minimum OCN_FRAC for a cell to be classified as ocean. Default 0.5.</p></li>
+<li><p><strong>mask_hmin</strong> (<em>float</em>) – Minimum depth (m) for a sub-point to count as ocean. Default 0.0.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Binary ocean mask on the T-grid (1 = ocean, 0 = land),
+dims <code class="docutils literal notranslate"><span class="pre">[&quot;ny&quot;,</span> <span class="pre">&quot;nx&quot;]</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>xr.DataArray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.high_res_regrid">
+<span class="sig-name descname"><span class="pre">high_res_regrid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bathymetry_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lon'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latitude_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lat'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'elevation'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'ocean_frac'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nx_sub</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ny_sub</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cartopy_resolution</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'50m'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">smooth_scl</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cressman_exp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hmin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights_path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fill_channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.high_res_regrid" title="Link to this definition"></a></dt>
+<dd><p>High-accuracy bathymetry pipeline for coarser grids (≳ 0.05°).</p>
+<p>Runs: <strong>mask generation</strong> → <a class="reference internal" href="regional_bathy.html#mom6_forge.topo.Topo.cressman_interp" title="mom6_forge.topo.Topo.cressman_interp"><code class="xref py py-meth docutils literal notranslate"><span class="pre">cressman_interp()</span></code></a> →
+<a class="reference internal" href="#mom6_forge.topo.Topo.tidy_dataset" title="mom6_forge.topo.Topo.tidy_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">tidy_dataset()</span></code></a> (lake fill, channel cleanup, minimum depth).</p>
+<p>Both the Cressman interpolation and tidy cleanup use the same mask, so
+land contamination of coastal depth estimates is minimised at every step.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>bathymetry_path</strong> (<em>str</em><em> or </em><em>Path</em>)</p></li>
+<li><p><strong>longitude_coordinate_name</strong> (<em>str</em>)</p></li>
+<li><p><strong>latitude_coordinate_name</strong> (<em>str</em>)</p></li>
+<li><p><strong>vertical_coordinate_name</strong> (<em>str</em>)</p></li>
+<li><p><strong>mask</strong> (<em>xr.DataArray</em><em> or </em><em>None</em>) – Pre-computed binary ocean mask (1=ocean, 0=land). When provided,
+<code class="docutils literal notranslate"><span class="pre">mask_method</span></code> is ignored.</p></li>
+<li><p><strong>mask_method</strong> ({<code class="docutils literal notranslate"><span class="pre">&quot;ocean_frac&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;cartopy&quot;</span></code>}) – Mask generation method when <code class="docutils literal notranslate"><span class="pre">mask</span></code> is not provided.
+Default <code class="docutils literal notranslate"><span class="pre">&quot;ocean_frac&quot;</span></code> (Monte-Carlo sub-sampling).</p></li>
+<li><p><strong>nx_sub</strong> (<em>int</em>) – Sub-sampling resolution for <code class="docutils literal notranslate"><span class="pre">mask_method=&quot;ocean_frac&quot;</span></code>. Default 5.</p></li>
+<li><p><strong>ny_sub</strong> (<em>int</em>) – Sub-sampling resolution for <code class="docutils literal notranslate"><span class="pre">mask_method=&quot;ocean_frac&quot;</span></code>. Default 5.</p></li>
+<li><p><strong>mask_threshold</strong> (<em>float</em>) – OCN_FRAC threshold for <code class="docutils literal notranslate"><span class="pre">mask_method=&quot;ocean_frac&quot;</span></code>. Default 0.5.</p></li>
+<li><p><strong>cartopy_resolution</strong> (<em>str</em>) – Natural Earth resolution for <code class="docutils literal notranslate"><span class="pre">mask_method=&quot;cartopy&quot;</span></code>. Default <code class="docutils literal notranslate"><span class="pre">&quot;50m&quot;</span></code>.</p></li>
+<li><p><strong>smooth_scl</strong> (<em>float</em>) – Cressman smoothing scale multiplier. Default <code class="docutils literal notranslate"><span class="pre">2.0</span></code>.</p></li>
+<li><p><strong>cressman_exp</strong> (<em>float</em>) – Cressman weight exponent. Default <code class="docutils literal notranslate"><span class="pre">2.0</span></code>.</p></li>
+<li><p><strong>hmin</strong> (<em>float</em><em> or </em><em>None</em>) – Minimum ocean depth (m). Defaults to <code class="docutils literal notranslate"><span class="pre">self.min_depth</span></code>.</p></li>
+<li><p><strong>weights_path</strong> (<em>str</em><em> or </em><em>Path</em><em> or </em><em>None</em>) – Where to save the Cressman ESMF weights netCDF. Passed through to
+<a class="reference internal" href="regional_bathy.html#mom6_forge.topo.Topo.cressman_interp" title="mom6_forge.topo.Topo.cressman_interp"><code class="xref py py-meth docutils literal notranslate"><span class="pre">cressman_interp()</span></code></a>.</p></li>
+<li><p><strong>fill_channels</strong> (<em>bool</em>) – Fill diagonal one-cell channels in <a class="reference internal" href="#mom6_forge.topo.Topo.tidy_dataset" title="mom6_forge.topo.Topo.tidy_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">tidy_dataset()</span></code></a>. Default <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py property">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.max_depth">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">max_depth</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.max_depth" title="Link to this definition"></a></dt>
@@ -245,8 +438,8 @@ The str or Path the write to file should write to. Defaults to the directory the
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="mom6_forge.topo.Topo.mpi_set_from_dataset">
-<span class="sig-name descname"><span class="pre">mpi_set_from_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">bathymetry_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fill_channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">positive_down</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">PosixPath('.')</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">write_to_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.mpi_set_from_dataset" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.mpi_direct_xesmf_regrid">
+<span class="sig-name descname"><span class="pre">mpi_direct_xesmf_regrid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">bathymetry_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fill_channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">positive_down</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">PosixPath('.')</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">write_to_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.mpi_direct_xesmf_regrid" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
@@ -316,31 +509,45 @@ The str or Path the write to file should write to. Defaults to the directory the
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.set_from_dataset">
-<span class="sig-name descname"><span class="pre">set_from_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bathymetry_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fill_channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">positive_down</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">PosixPath('.')</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">write_to_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">regridding_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bilinear'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">run_config_dataset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">run_regrid_dataset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">run_tidy_dataset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.set_from_dataset" title="Link to this definition"></a></dt>
-<dd><p>This code was originally written by Ashley Barnes in regional_mom6(<a class="reference external" href="https://github.com/COSIMA/regional-mom6">https://github.com/COSIMA/regional-mom6</a>) and adapted for this package.</p>
-<p>Cut out and interpolate the chosen bathymetry and then fill inland lakes.</p>
-<p>Users can optionally fill narrow channels (see <code class="docutils literal notranslate"><span class="pre">fill_channels</span></code> keyword argument
-below). Note, however, that narrow channels are less of an issue for models that
-are discretized on an Arakawa C grid, like MOM6.</p>
-<p>Output is saved in the output_dir.</p>
+<span class="sig-name descname"><span class="pre">set_from_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bathymetry_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lon'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latitude_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lat'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'elevation'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nx_sub</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ny_sub</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cartopy_resolution</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'50m'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">smooth_scl</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cressman_exp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hmin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights_path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fill_channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">positive_down</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">regridding_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bilinear'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.set_from_dataset" title="Link to this definition"></a></dt>
+<dd><p>Auto-selecting bathymetry pipeline.</p>
+<p>Calls <a class="reference internal" href="regional_bathy.html#mom6_forge.topo.Topo.diagnose_resolution" title="mom6_forge.topo.Topo.diagnose_resolution"><code class="xref py py-meth docutils literal notranslate"><span class="pre">diagnose_resolution()</span></code></a> to compare the model grid spacing
+with the source bathymetry resolution.  Based on the result it dispatches
+to one of two pipelines:</p>
+<ul class="simple">
+<li><p><strong>ratio ≥ 12×</strong> → <a class="reference internal" href="regional_bathy.html#mom6_forge.topo.Topo.high_res_regrid" title="mom6_forge.topo.Topo.high_res_regrid"><code class="xref py py-meth docutils literal notranslate"><span class="pre">high_res_regrid()</span></code></a>
+(Monte-Carlo mask + Cressman interpolation + tidy cleanup).
+Recommended for grids of ~0.05° and coarser.</p></li>
+<li><p><strong>ratio &lt; 12×</strong> → <a class="reference internal" href="regional_bathy.html#mom6_forge.topo.Topo.direct_xesmf_regrid" title="mom6_forge.topo.Topo.direct_xesmf_regrid"><code class="xref py py-meth docutils literal notranslate"><span class="pre">direct_xesmf_regrid()</span></code></a>
+(xesmf bilinear/conservative regrid + tidy cleanup).
+Sufficient for fine grids (~1–3 km).</p></li>
+</ul>
+<p>All parameters are forwarded to the selected pipeline.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>bathymetry_path</strong> (<em>str</em>) – Path to the netCDF file with the bathymetry.</p></li>
-<li><p><strong>longitude_coordinate_name</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The name of the longitude coordinate in the bathymetry
-dataset at <code class="docutils literal notranslate"><span class="pre">bathymetry_path</span></code>. For example, for GEBCO bathymetry: <code class="docutils literal notranslate"><span class="pre">'lon'</span></code> (default).</p></li>
-<li><p><strong>latitude_coordinate_name</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The name of the latitude coordinate in the bathymetry
-dataset at <code class="docutils literal notranslate"><span class="pre">bathymetry_path</span></code>. For example, for GEBCO bathymetry: <code class="docutils literal notranslate"><span class="pre">'lat'</span></code> (default).</p></li>
-<li><p><strong>vertical_coordinate_name</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The name of the vertical coordinate in the bathymetry
-dataset at <code class="docutils literal notranslate"><span class="pre">bathymetry_path</span></code>. For example, for GEBCO bathymetry: <code class="docutils literal notranslate"><span class="pre">'elevation'</span></code> (default).</p></li>
-<li><p><strong>fill_channels</strong> (<em>Optional</em><em>[</em><em>bool</em><em>]</em>) – Whether or not to fill in
-diagonal channels. This removes more narrow inlets,
-but can also connect extra islands to land. Default: <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p></li>
-<li><p><strong>positive_down</strong> (<em>Optional</em><em>[</em><em>bool</em><em>]</em>) – If <code class="docutils literal notranslate"><span class="pre">True</span></code>, it assumes that the
-bathymetry vertical coordinate is positive downwards. Default: <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p></li>
-<li><p><strong>write_to_file</strong> (<em>Optional</em><em>[</em><em>bool</em><em>]</em>) – Whether to write the bathymetry to a file. Default: <code class="docutils literal notranslate"><span class="pre">True</span></code>.</p></li>
-<li><p><strong>regridding_method</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The type of regridding method to use. Defaults to self.regridding_method</p></li>
-<li><p><strong>run_*</strong> (<em>Optional</em><em>[</em><em>bool</em><em>]</em>) – Whether to run the respective step in the bathymetry processing. Default: <code class="docutils literal notranslate"><span class="pre">True</span></code>.</p></li>
+<li><p><strong>bathymetry_path</strong> (<em>str</em><em> or </em><em>Path</em>)</p></li>
+<li><p><strong>longitude_coordinate_name</strong> (<em>str</em>)</p></li>
+<li><p><strong>latitude_coordinate_name</strong> (<em>str</em>)</p></li>
+<li><p><strong>vertical_coordinate_name</strong> (<em>str</em>)</p></li>
+<li><p><strong>mask</strong> (<em>xr.DataArray</em><em> or </em><em>None</em>) – Pre-computed binary ocean mask to pass directly to the chosen
+pipeline, skipping mask generation. Overrides <code class="docutils literal notranslate"><span class="pre">mask_method</span></code>.</p></li>
+<li><p><strong>mask_method</strong> ({<code class="docutils literal notranslate"><span class="pre">&quot;ocean_frac&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;cartopy&quot;</span></code>} or None) – Mask generation method.  When <code class="docutils literal notranslate"><span class="pre">None</span></code> and the high-res pipeline
+is selected, defaults to <code class="docutils literal notranslate"><span class="pre">&quot;ocean_frac&quot;</span></code>.  When <code class="docutils literal notranslate"><span class="pre">None</span></code> and the
+direct pipeline is selected, <a class="reference internal" href="#mom6_forge.topo.Topo.tidy_dataset" title="mom6_forge.topo.Topo.tidy_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">tidy_dataset()</span></code></a> derives the mask
+from the sign of the regridded depth (original behaviour).</p></li>
+<li><p><strong>nx_sub</strong> (<em>int</em>) – Sub-sampling resolution for <code class="docutils literal notranslate"><span class="pre">mask_method=&quot;ocean_frac&quot;</span></code>.</p></li>
+<li><p><strong>ny_sub</strong> (<em>int</em>) – Sub-sampling resolution for <code class="docutils literal notranslate"><span class="pre">mask_method=&quot;ocean_frac&quot;</span></code>.</p></li>
+<li><p><strong>mask_threshold</strong> (<em>float</em>) – OCN_FRAC threshold for <code class="docutils literal notranslate"><span class="pre">mask_method=&quot;ocean_frac&quot;</span></code>. Default 0.5.</p></li>
+<li><p><strong>cartopy_resolution</strong> (<em>str</em>) – Natural Earth resolution for <code class="docutils literal notranslate"><span class="pre">mask_method=&quot;cartopy&quot;</span></code>. Default <code class="docutils literal notranslate"><span class="pre">&quot;50m&quot;</span></code>.</p></li>
+<li><p><strong>smooth_scl</strong> (<em>float</em>) – Cressman smoothing scale (high-res pipeline only). Default <code class="docutils literal notranslate"><span class="pre">2.0</span></code>.</p></li>
+<li><p><strong>cressman_exp</strong> (<em>float</em>) – Cressman weight exponent (high-res pipeline only). Default <code class="docutils literal notranslate"><span class="pre">2.0</span></code>.</p></li>
+<li><p><strong>hmin</strong> (<em>float</em><em> or </em><em>None</em>) – Minimum ocean depth (m). Defaults to <code class="docutils literal notranslate"><span class="pre">self.min_depth</span></code>.</p></li>
+<li><p><strong>weights_path</strong> (<em>str</em><em> or </em><em>Path</em><em> or </em><em>None</em>) – Where to save Cressman weights (high-res pipeline only).</p></li>
+<li><p><strong>fill_channels</strong> (<em>bool</em>) – Fill diagonal one-cell channels. Default <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p></li>
+<li><p><strong>positive_down</strong> (<em>bool</em>) – Set <code class="docutils literal notranslate"><span class="pre">True</span></code> if the source elevation is already positive-downward
+(direct pipeline only). Default <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p></li>
+<li><p><strong>regridding_method</strong> (<em>str</em>) – xesmf regridding method (direct pipeline only). Default <code class="docutils literal notranslate"><span class="pre">&quot;bilinear&quot;</span></code>.</p></li>
 </ul>
 </dd>
 </dl>
@@ -371,7 +578,7 @@ parameter to “spoon”.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.tidy_dataset">
-<span class="sig-name descname"><span class="pre">tidy_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fill_channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">positive_down</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'depth'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bathymetry</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">PosixPath('.')</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">write_to_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lon'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latitude_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lat'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.tidy_dataset" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">tidy_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fill_channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">positive_down</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'depth'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bathymetry</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">PosixPath('.')</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">write_to_file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lon'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latitude_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lat'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.tidy_dataset" title="Link to this definition"></a></dt>
 <dd><p>An auxiliary method for bathymetry used to fix up the metadata and remove inland
 lakes after regridding the bathymetry. Having <a class="reference internal" href="#mom6_forge.topo.Topo.tidy_dataset" title="mom6_forge.topo.Topo.tidy_dataset"><code class="xref py py-func docutils literal notranslate"><span class="pre">tidy_dataset()</span></code></a> as a separate
 method from <code class="xref py py-func docutils literal notranslate"><span class="pre">setup_bathymetry()</span></code> allows for the regridding to be done separately,
@@ -457,7 +664,7 @@ files are still needed to generate custom ocean-runoff mapping files.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.write_topo">
-<span class="sig-name descname"><span class="pre">write_topo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.write_topo" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">write_topo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enforce_topo_drag</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.write_topo" title="Link to this definition"></a></dt>
 <dd><p>Write the TOPO_FILE (bathymetry file) in netcdf format. The written file is
 to be read in by MOM6 during runtime.</p>
 <dl class="field-list simple">
@@ -465,6 +672,9 @@ to be read in by MOM6 during runtime.</p>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>file_path</strong> (<em>str</em>) – Path to TOPO_FILE to be written.</p></li>
 <li><p><strong>title</strong> (<em>str</em><em>, </em><em>optional</em>) – File title.</p></li>
+<li><p><strong>enforce_topo_drag</strong> (<em>bool</em><em>, </em><em>optional</em>) – If <code class="docutils literal notranslate"><span class="pre">True</span></code>, raise an error if topo drag stats (<code class="docutils literal notranslate"><span class="pre">h2</span></code>) have not been
+computed. Run <code class="docutils literal notranslate"><span class="pre">_compute_topo_stats()</span></code> first to compute them.
+Default <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p></li>
 </ul>
 </dd>
 </dl>
