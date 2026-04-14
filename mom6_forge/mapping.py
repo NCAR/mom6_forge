@@ -8,7 +8,7 @@ import datetime
 from time import time
 from pathlib import Path
 from scipy.spatial import cKDTree
-from scipy.sparse import csc_matrix, coo_matrix
+from scipy.sparse import csc_matrix, coo_matrix, csr_matrix
 import xesmf as xe
 
 MPI = None
@@ -774,6 +774,265 @@ def compute_smoothing_weights(mesh_ds, rmax, fold=1.0, xv_data=None, yv_data=Non
         (data, (row_indices, col_indices)), shape=(len(coords), len(coords))
     )
     return weights
+
+
+def compute_cressman_weights(
+    dst_lon,
+    dst_lat,
+    dst_area,
+    dst_mask,
+    src_lon,
+    src_lat,
+    src_ocean_mask,
+    smooth_scl=2.0,
+    cressman_exp=2.0,
+):
+    """Compute Cressman distance-weighted interpolation weights from a regular
+    source grid to a model destination grid. Mirrors ``interp_smooth.f90`` from
+    the tx2_3 topography workflow.
+
+    For each ocean destination cell ``i``:
+
+    * The smoothing radius is ``L = smooth_scl * sqrt(dst_area[i])`` (metres).
+    * All source ocean points within ``L`` are gathered.
+    * Weights are ``w = ((L²-r²)/(L²+r²))^cressman_exp`` where ``r`` is the
+      great-circle arc distance from the model cell centre to the source point.
+    * Row ``i`` of the returned matrix holds the normalised weights
+      (sum = 1) for destination cell ``i``.
+
+    Parameters
+    ----------
+    dst_lon, dst_lat : np.ndarray, shape (n_dst,)
+        Flattened destination T-cell centre longitudes/latitudes in degrees.
+    dst_area : np.ndarray, shape (n_dst,)
+        Flattened destination T-cell areas in m².
+    dst_mask : np.ndarray, shape (n_dst,), dtype bool
+        True for ocean destination cells that should receive depth values.
+    src_lon, src_lat : np.ndarray, shape (nx_src,) and (ny_src,)
+        1-D coordinate arrays of the **regular** source grid in degrees.
+    src_ocean_mask : np.ndarray, shape (ny_src, nx_src), dtype bool
+        True where the source grid is ocean (depth > 0).
+    smooth_scl : float
+        Smoothing scale multiplier: ``L = smooth_scl * sqrt(cell_area)``.
+        Default ``2.0`` (matches tx2_3 default).
+    cressman_exp : float
+        Exponent for the Cressman weight function. Default ``2.0``.
+
+    Returns
+    -------
+    S : scipy.sparse.csr_matrix, shape (n_dst, ny_src * nx_src)
+        Normalised Cressman weight matrix. Land destination rows are all-zero.
+        Apply as ``depth_model_flat = S @ depth_source_flat``.
+    unfilled : np.ndarray of bool, shape (n_dst,)
+        True for ocean destination cells that had no source ocean point within
+        ``L``. These cells need a fallback (e.g. iterative neighbour fill).
+    """
+    R = 6_371_000.0  # Earth radius, metres
+
+    # --- Source grid: 2-D coordinates and Cartesian points ---
+    src_lon_2d, src_lat_2d = np.meshgrid(src_lon, src_lat)  # (ny_src, nx_src)
+    n_src = src_lon_2d.size
+    lon_src_rad = np.deg2rad(src_lon_2d.ravel())
+    lat_src_rad = np.deg2rad(src_lat_2d.ravel())
+    xyz_src = np.stack(
+        [
+            R * np.cos(lat_src_rad) * np.cos(lon_src_rad),
+            R * np.cos(lat_src_rad) * np.sin(lon_src_rad),
+            R * np.sin(lat_src_rad),
+        ],
+        axis=1,
+    )
+
+    # KDTree only over ocean source points
+    ocean_src_idx = np.where(src_ocean_mask.ravel())[0]
+    tree = cKDTree(xyz_src[ocean_src_idx])
+
+    # --- Destination grid: Cartesian points ---
+    lon_dst_rad = np.deg2rad(dst_lon)
+    lat_dst_rad = np.deg2rad(dst_lat)
+    xyz_dst = np.stack(
+        [
+            R * np.cos(lat_dst_rad) * np.cos(lon_dst_rad),
+            R * np.cos(lat_dst_rad) * np.sin(lon_dst_rad),
+            R * np.sin(lat_dst_rad),
+        ],
+        axis=1,
+    )
+
+    rows, cols, data = [], [], []
+    unfilled = np.zeros(len(dst_lon), dtype=bool)
+
+    for i in np.where(dst_mask)[0]:
+        L = smooth_scl * np.sqrt(dst_area[i])  # metres
+        L2 = L**2
+
+        neighbors = tree.query_ball_point(xyz_dst[i], L)
+        if not neighbors:
+            unfilled[i] = True
+            continue
+
+        nbr = np.asarray(neighbors)
+        d_xyz = xyz_src[ocean_src_idx[nbr]] - xyz_dst[i]
+        chord = np.linalg.norm(d_xyz, axis=1)
+        arc = 2.0 * R * np.arcsin(np.clip(chord / (2.0 * R), 0.0, 1.0))
+        d2 = arc**2
+
+        in_radius = d2 <= L2
+        if not in_radius.any():
+            unfilled[i] = True
+            continue
+
+        w = ((L2 - d2[in_radius]) / (L2 + d2[in_radius])) ** cressman_exp
+        w_sum = w.sum()
+        if w_sum == 0.0:
+            unfilled[i] = True
+            continue
+
+        src_cols = ocean_src_idx[nbr[in_radius]]
+        rows.extend([i] * int(in_radius.sum()))
+        cols.extend(src_cols.tolist())
+        data.extend((w / w_sum).tolist())
+
+    S = csr_matrix((data, (rows, cols)), shape=(len(dst_lon), n_src))
+    return S, unfilled
+
+
+def write_cressman_weights(S_csr, path):
+    """Write a Cressman sparse weight matrix to an xESMF-compatible netCDF file.
+
+    The file contains ``S``, ``row``, and ``col`` in 1-based indexing, which
+    is the format read by ``xe.Regridder`` when a pre-computed weights file is
+    supplied.
+
+    Parameters
+    ----------
+    S_csr : scipy.sparse.csr_matrix
+        Normalised Cressman weight matrix (n_dst × n_src) as returned by
+        :func:`compute_cressman_weights`.
+    path : str or Path
+        Destination netCDF file path.
+    """
+    S_coo = S_csr.tocoo()
+    ds = xr.Dataset(
+        {
+            "S": xr.DataArray(
+                S_coo.data.astype(np.float64),
+                dims=["n_s"],
+                attrs={"long_name": "Cressman interpolation weight"},
+            ),
+            "row": xr.DataArray(
+                (S_coo.row + 1).astype(np.int32),
+                dims=["n_s"],
+                attrs={"long_name": "destination cell index (1-based)"},
+            ),
+            "col": xr.DataArray(
+                (S_coo.col + 1).astype(np.int32),
+                dims=["n_s"],
+                attrs={"long_name": "source cell index (1-based)"},
+            ),
+        }
+    )
+    ds.attrs["title"] = "Cressman interpolation weights generated by mom6_forge"
+    ds.to_netcdf(path, format="NETCDF3_64BIT")
+
+
+def cressman_regrid(
+    src_lon,
+    src_lat,
+    src_depth,
+    dst_lon,
+    dst_lat,
+    dst_area,
+    dst_mask,
+    weights_path,
+    smooth_scl=2.0,
+    cressman_exp=2.0,
+):
+    """Compute Cressman weights, save to an ESMF weights file, and regrid
+    source depths to the destination model grid using ``xe.Regridder``.
+
+    Parameters
+    ----------
+    src_lon, src_lat : np.ndarray, 1-D
+        Coordinate arrays of the regular source grid (e.g. GEBCO) in degrees.
+    src_depth : np.ndarray, shape (ny_src, nx_src)
+        Source depth field, positive-down. Land cells should be ≤ 0.
+    dst_lon, dst_lat : np.ndarray, shape (ny_dst, nx_dst)
+        2-D T-cell centre coordinates of the destination model grid in degrees.
+    dst_area : np.ndarray, shape (ny_dst, nx_dst)
+        T-cell areas in m².
+    dst_mask : np.ndarray, shape (ny_dst, nx_dst), dtype bool
+        True for ocean destination cells.
+    weights_path : str or Path
+        Path where the ESMF-compatible weights netCDF will be written.
+        If the file already exists it is **overwritten**.
+    smooth_scl : float
+        Cressman smoothing scale multiplier. Default ``2.0``.
+    cressman_exp : float
+        Cressman weight function exponent. Default ``2.0``.
+
+    Returns
+    -------
+    depth_dst : np.ndarray, shape (ny_dst, nx_dst)
+        Cressman-interpolated depth field. Unfilled ocean cells are 0.
+    unfilled : np.ndarray of bool, shape (ny_dst, nx_dst)
+        True for ocean cells that had no source ocean point within radius L
+        and therefore need a fallback (e.g. iterative neighbour fill).
+    """
+    src_ocean_mask = src_depth > 0.0  # True = ocean source pixel
+
+    # --- Compute per-cell Cressman weights ---
+    print("Computing Cressman weights…")
+    S, unfilled_flat = compute_cressman_weights(
+        dst_lon.ravel(),
+        dst_lat.ravel(),
+        dst_area.ravel(),
+        dst_mask.ravel(),
+        src_lon,
+        src_lat,
+        src_ocean_mask,
+        smooth_scl=smooth_scl,
+        cressman_exp=cressman_exp,
+    )
+
+    # --- Save weights to ESMF-compatible netCDF ---
+    write_cressman_weights(S, weights_path)
+    print(f"Cressman weights written to {weights_path}")
+
+    # --- Build xe.Regridder from the pre-computed weights ---
+    ds_src_xe = xr.Dataset(
+        coords={
+            "lon": xr.DataArray(src_lon, dims=["lon"], attrs={"units": "degrees_east"}),
+            "lat": xr.DataArray(
+                src_lat, dims=["lat"], attrs={"units": "degrees_north"}
+            ),
+        }
+    )
+    ds_dst_xe = xr.Dataset(
+        coords={
+            "lon": xr.DataArray(
+                dst_lon, dims=["ny", "nx"], attrs={"units": "degrees_east"}
+            ),
+            "lat": xr.DataArray(
+                dst_lat, dims=["ny", "nx"], attrs={"units": "degrees_north"}
+            ),
+        }
+    )
+    regridder = xe.Regridder(
+        ds_src_xe,
+        ds_dst_xe,
+        method="bilinear",
+        weights=str(weights_path),
+        reuse_weights=True,
+    )
+
+    src_depth_da = xr.DataArray(
+        src_depth, dims=["lat", "lon"], coords={"lat": src_lat, "lon": src_lon}
+    )
+    depth_dst = regridder(src_depth_da).values
+
+    unfilled = unfilled_flat.reshape(dst_lon.shape)
+    return depth_dst, unfilled
 
 
 def get_nn_map_filepath(mapping_file_prefix, output_dir):

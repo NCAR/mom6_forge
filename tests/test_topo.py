@@ -1,3 +1,5 @@
+import xarray as xr
+import numpy as np
 from mom6_forge.topo import *
 
 
@@ -81,3 +83,23 @@ def test_erase_disconnected_basin(get_rect_topo):
     assert (topo.depth[:2, 3:] == 0).all()
     assert (topo.depth[3:, :2] == 0).all()
     assert (topo.depth[3:, 3:] == 0).all()
+
+
+def test_diagnose_resolution_recommends_cressman(get_rect_topo, tmp_path):
+    # Synthetic GEBCO-like dataset at 15 arcsec (0.004167°).
+    # get_rect_topo uses a 0.1° grid (~11 km), giving ratio ~24x → True.
+    dlon = 15 / 3600
+    lon = np.arange(270.0, 290.0, dlon)
+    lat = np.arange(0.0, 20.0, dlon)
+    bathy_path = tmp_path / "fake_gebco.nc"
+    xr.Dataset(
+        {"elevation": (["lat", "lon"], np.zeros((len(lat), len(lon))))},
+        coords={"lon": lon, "lat": lat},
+    ).to_netcdf(bathy_path)
+
+    result = get_rect_topo.diagnose_resolution(
+        bathy_path,
+        longitude_coordinate_name="lon",
+        latitude_coordinate_name="lat",
+    )
+    assert result is True
