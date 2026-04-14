@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Regional Bathymetry Workflows &mdash; mom6_forge 0.1 documentation</title>
+  <title>Bathymetry Workflows &mdash; mom6_forge 0.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
@@ -19,9 +19,7 @@
       <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
-    <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Glossary" href="glossary.html" />
-    <link rel="prev" title="Examples" href="examples.html" /> 
+    <link rel="search" title="Search" href="search.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -44,62 +42,10 @@
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
-<ul class="current">
+<ul>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Regional Bathymetry Workflows</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#background">Background</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#sourcebathy-source-bathymetry-object">SourceBathy — Source Bathymetry Object</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#creating-a-sourcebathy">Creating a SourceBathy</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#caching-and-reuse">Caching and reuse</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#pipeline-dispatch">Pipeline Dispatch</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#mom6_forge.topo.Topo.set_from_dataset"><code class="docutils literal notranslate"><span class="pre">Topo.set_from_dataset()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#resolution-diagnosis">Resolution Diagnosis</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#mom6_forge.topo.Topo.diagnose_resolution"><code class="docutils literal notranslate"><span class="pre">Topo.diagnose_resolution()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#mask-generation">Mask Generation</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#ocean-fraction-mask-recommended-for-coarse-grids">Ocean Fraction Mask (recommended for coarse grids)</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.topo.Topo.generate_mask_ocean_frac"><code class="docutils literal notranslate"><span class="pre">Topo.generate_mask_ocean_frac()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="#cartopy-coastline-mask">Cartopy Coastline Mask</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.topo.Topo.generate_mask_cartopy"><code class="docutils literal notranslate"><span class="pre">Topo.generate_mask_cartopy()</span></code></a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#pipelines">Pipelines</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#pipeline-a-direct-xesmf-regrid">Pipeline A — direct_xesmf_regrid</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.topo.Topo.direct_xesmf_regrid"><code class="docutils literal notranslate"><span class="pre">Topo.direct_xesmf_regrid()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="#pipeline-b-high-res-regrid">Pipeline B — high_res_regrid</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.topo.Topo.high_res_regrid"><code class="docutils literal notranslate"><span class="pre">Topo.high_res_regrid()</span></code></a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#cressman-interpolation">Cressman Interpolation</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#mom6_forge.topo.Topo.cressman_interp"><code class="docutils literal notranslate"><span class="pre">Topo.cressman_interp()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#topo-drag-statistics">Topo Drag Statistics</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#mom6_forge.topo.Topo.write_topo"><code class="docutils literal notranslate"><span class="pre">Topo.write_topo()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#mpi-regridding">MPI Regridding</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#mom6_forge.topo.Topo.mpi_direct_xesmf_regrid"><code class="docutils literal notranslate"><span class="pre">Topo.mpi_direct_xesmf_regrid()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
-</ul>
-</li>
 <li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
 <li class="toctree-l1"><a class="reference internal" href="widgets.html">Topo &amp; The Widgets!</a></li>
 </ul>
@@ -122,9 +68,9 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Regional Bathymetry Workflows</li>
+      <li class="breadcrumb-item active">Bathymetry Workflows</li>
       <li class="wy-breadcrumbs-aside">
-            <a href="_sources/regional_bathy.rst.txt" rel="nofollow"> View page source</a>
+            <a href="_sources/bathy_workflows.rst.txt" rel="nofollow"> View page source</a>
       </li>
   </ul>
   <hr/>
@@ -132,8 +78,8 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="regional-bathymetry-workflows">
-<h1>Regional Bathymetry Workflows<a class="headerlink" href="#regional-bathymetry-workflows" title="Link to this heading"></a></h1>
+  <section id="bathymetry-workflows">
+<h1>Bathymetry Workflows<a class="headerlink" href="#bathymetry-workflows" title="Link to this heading"></a></h1>
 <p><code class="docutils literal notranslate"><span class="pre">mom6_forge</span></code> provides bathymetry pipelines for regional MOM6 configurations,
 accessible through the <a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo" title="mom6_forge.topo.Topo"><code class="xref py py-class docutils literal notranslate"><span class="pre">Topo</span></code></a> class. Two pipelines are
 available, chosen automatically based on grid resolution.</p>
@@ -184,13 +130,13 @@ more accurate mask.</p></li>
 </ol>
 <p>A higher-accuracy pipeline using a Monte-Carlo ocean fraction mask and Cressman
 distance-weighted interpolation is recommended for grids of ~0.05° (5 km) and
-coarser. The top-level entry point <a class="reference internal" href="#mom6_forge.topo.Topo.set_from_dataset" title="mom6_forge.topo.Topo.set_from_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_from_dataset()</span></code></a>
-calls <a class="reference internal" href="#mom6_forge.topo.Topo.diagnose_resolution" title="mom6_forge.topo.Topo.diagnose_resolution"><code class="xref py py-meth docutils literal notranslate"><span class="pre">diagnose_resolution()</span></code></a> automatically and routes
+coarser. The top-level entry point <a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.set_from_dataset" title="mom6_forge.topo.Topo.set_from_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_from_dataset()</span></code></a>
+calls <a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.diagnose_resolution" title="mom6_forge.topo.Topo.diagnose_resolution"><code class="xref py py-meth docutils literal notranslate"><span class="pre">diagnose_resolution()</span></code></a> automatically and routes
 to the appropriate pipeline.</p>
 </section>
 <section id="sourcebathy-source-bathymetry-object">
 <h2><a class="toc-backref" href="#id2" role="doc-backlink">SourceBathy — Source Bathymetry Object</a><a class="headerlink" href="#sourcebathy-source-bathymetry-object" title="Link to this heading"></a></h2>
-<p>All bathymetry pipeline methods (other than <a class="reference internal" href="#mom6_forge.topo.Topo.set_from_dataset" title="mom6_forge.topo.Topo.set_from_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_from_dataset()</span></code></a>)
+<p>All bathymetry pipeline methods (other than <a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.set_from_dataset" title="mom6_forge.topo.Topo.set_from_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_from_dataset()</span></code></a>)
 accept a <code class="xref py py-class docutils literal notranslate"><span class="pre">SourceBathy</span></code> object instead of raw file paths.
 <code class="docutils literal notranslate"><span class="pre">SourceBathy</span></code> is an internal data container that holds the path, coordinate-name
 metadata, and the loaded/domain-clipped elevation <code class="docutils literal notranslate"><span class="pre">DataArray</span></code> in one place.</p>
@@ -223,7 +169,7 @@ access <code class="docutils literal notranslate"><span class="pre">src.lon</spa
 <section id="caching-and-reuse">
 <h3><a class="toc-backref" href="#id4" role="doc-backlink">Caching and reuse</a><a class="headerlink" href="#caching-and-reuse" title="Link to this heading"></a></h3>
 <p><code class="xref py py-meth docutils literal notranslate"><span class="pre">_get_src()</span></code> (called internally by
-<a class="reference internal" href="#mom6_forge.topo.Topo.set_from_dataset" title="mom6_forge.topo.Topo.set_from_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_from_dataset()</span></code></a>) creates and caches a
+<a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.set_from_dataset" title="mom6_forge.topo.Topo.set_from_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_from_dataset()</span></code></a>) creates and caches a
 <code class="docutils literal notranslate"><span class="pre">SourceBathy</span></code> on <code class="docutils literal notranslate"><span class="pre">topo._src</span></code>.  It only reloads when the path or coordinate
 names change.  Per-cell depth statistics are cached on <code class="docutils literal notranslate"><span class="pre">src._topo_stats</span></code> by
 <code class="xref py py-meth docutils literal notranslate"><span class="pre">_compute_topo_stats()</span></code> and are never recomputed for
@@ -245,14 +191,14 @@ methods directly (i.e. not via <code class="docutils literal notranslate"><span 
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.set_from_dataset">
 <span class="sig-prename descclassname"><span class="pre">Topo.</span></span><span class="sig-name descname"><span class="pre">set_from_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bathymetry_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lon'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latitude_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'lat'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_coordinate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'elevation'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nx_sub</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ny_sub</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cartopy_resolution</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'50m'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">smooth_scl</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cressman_exp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hmin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights_path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fill_channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">positive_down</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">regridding_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bilinear'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.set_from_dataset" title="Link to this definition"></a></dt>
 <dd><p>Auto-selecting bathymetry pipeline.</p>
-<p>Calls <a class="reference internal" href="#mom6_forge.topo.Topo.diagnose_resolution" title="mom6_forge.topo.Topo.diagnose_resolution"><code class="xref py py-meth docutils literal notranslate"><span class="pre">diagnose_resolution()</span></code></a> to compare the model grid spacing
+<p>Calls <a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.diagnose_resolution" title="mom6_forge.topo.Topo.diagnose_resolution"><code class="xref py py-meth docutils literal notranslate"><span class="pre">diagnose_resolution()</span></code></a> to compare the model grid spacing
 with the source bathymetry resolution.  Based on the result it dispatches
 to one of two pipelines:</p>
 <ul class="simple">
-<li><p><strong>ratio ≥ 12×</strong> → <a class="reference internal" href="#mom6_forge.topo.Topo.high_res_regrid" title="mom6_forge.topo.Topo.high_res_regrid"><code class="xref py py-meth docutils literal notranslate"><span class="pre">high_res_regrid()</span></code></a>
+<li><p><strong>ratio ≥ 12×</strong> → <a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.high_res_regrid" title="mom6_forge.topo.Topo.high_res_regrid"><code class="xref py py-meth docutils literal notranslate"><span class="pre">high_res_regrid()</span></code></a>
 (Monte-Carlo mask + Cressman interpolation + tidy cleanup).
 Recommended for grids of ~0.05° and coarser.</p></li>
-<li><p><strong>ratio &lt; 12×</strong> → <a class="reference internal" href="#mom6_forge.topo.Topo.direct_xesmf_regrid" title="mom6_forge.topo.Topo.direct_xesmf_regrid"><code class="xref py py-meth docutils literal notranslate"><span class="pre">direct_xesmf_regrid()</span></code></a>
+<li><p><strong>ratio &lt; 12×</strong> → <a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.direct_xesmf_regrid" title="mom6_forge.topo.Topo.direct_xesmf_regrid"><code class="xref py py-meth docutils literal notranslate"><span class="pre">direct_xesmf_regrid()</span></code></a>
 (xesmf bilinear/conservative regrid + tidy cleanup).
 Sufficient for fine grids (~1–3 km).</p></li>
 </ul>
@@ -379,9 +325,9 @@ been called — it reads only the coordinate arrays from the file in that case.<
 <li><p><strong>``mask=&lt;DataArray&gt;``</strong> — pass a pre-computed boolean/integer ocean mask
 directly; no mask generation step is run.</p></li>
 <li><p><strong>``mask_method=”ocean_frac”``</strong> — call
-<a class="reference internal" href="#mom6_forge.topo.Topo.generate_mask_ocean_frac" title="mom6_forge.topo.Topo.generate_mask_ocean_frac"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_ocean_frac()</span></code></a> internally.</p></li>
+<a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.generate_mask_ocean_frac" title="mom6_forge.topo.Topo.generate_mask_ocean_frac"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_ocean_frac()</span></code></a> internally.</p></li>
 <li><p><strong>``mask_method=”cartopy”``</strong> — call
-<a class="reference internal" href="#mom6_forge.topo.Topo.generate_mask_cartopy" title="mom6_forge.topo.Topo.generate_mask_cartopy"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_cartopy()</span></code></a> internally.</p></li>
+<a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.generate_mask_cartopy" title="mom6_forge.topo.Topo.generate_mask_cartopy"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_cartopy()</span></code></a> internally.</p></li>
 </ol>
 <p><code class="docutils literal notranslate"><span class="pre">direct_xesmf_regrid</span></code> additionally supports <strong>``mask=None``</strong> (the default),
 which skips all explicit mask generation and lets
@@ -428,7 +374,7 @@ by the total. Cells with <code class="docutils literal notranslate"><span class=
 <p>This method also computes and stores per-cell depth statistics
 (<code class="docutils literal notranslate"><span class="pre">D_mean</span></code>, <code class="docutils literal notranslate"><span class="pre">D_min</span></code>, <code class="docutils literal notranslate"><span class="pre">D_max</span></code>, <code class="docutils literal notranslate"><span class="pre">D2_mean</span></code>) on the <code class="docutils literal notranslate"><span class="pre">SourceBathy</span></code> object,
 which are needed for topo drag parameterisations (see <a class="reference internal" href="#topo-drag"><span class="std std-ref">Topo Drag Statistics</span></a>).
-It also sets <code class="docutils literal notranslate"><span class="pre">topo._src</span> <span class="pre">=</span> <span class="pre">src</span></code> so that <a class="reference internal" href="#mom6_forge.topo.Topo.write_topo" title="mom6_forge.topo.Topo.write_topo"><code class="xref py py-meth docutils literal notranslate"><span class="pre">write_topo()</span></code></a>
+It also sets <code class="docutils literal notranslate"><span class="pre">topo._src</span> <span class="pre">=</span> <span class="pre">src</span></code> so that <a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.write_topo" title="mom6_forge.topo.Topo.write_topo"><code class="xref py py-meth docutils literal notranslate"><span class="pre">write_topo()</span></code></a>
 can locate the statistics automatically.</p>
 <p><strong>When to use:</strong> When the model grid is coarser than ~0.05° or when topo drag
 statistics are required.</p>
@@ -478,7 +424,7 @@ or for grids where consistency with the bathymetry source is less critical.</p>
 <span class="sig-prename descclassname"><span class="pre">Topo.</span></span><span class="sig-name descname"><span class="pre">direct_xesmf_regrid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">src</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">regridding_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bilinear'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fill_channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">positive_down</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nx_sub</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ny_sub</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cartopy_resolution</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'50m'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.direct_xesmf_regrid" title="Link to this definition"></a></dt>
 <dd><p>Regrid source bathymetry onto the model grid using <code class="docutils literal notranslate"><span class="pre">xesmf</span></code> and run
 lake-removal and channel cleanup via <a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.tidy_dataset" title="mom6_forge.topo.Topo.tidy_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">tidy_dataset()</span></code></a>.</p>
-<p>This is equivalent to <a class="reference internal" href="#mom6_forge.topo.Topo.set_from_dataset" title="mom6_forge.topo.Topo.set_from_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_from_dataset()</span></code></a> but exposes mask options
+<p>This is equivalent to <a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.set_from_dataset" title="mom6_forge.topo.Topo.set_from_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">set_from_dataset()</span></code></a> but exposes mask options
 so that an externally computed ocean mask can be passed to
 <a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.tidy_dataset" title="mom6_forge.topo.Topo.tidy_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">tidy_dataset()</span></code></a> instead of having it derived from the sign of the
 regridded depth field.</p>
@@ -510,8 +456,8 @@ and minimum depth enforcement. Suitable for fine regional grids (~1–3 km).</p>
 <p>Mask options:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">mask=None</span></code> <em>(default)</em> — derive ocean mask from sign of regridded depth</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">mask_method=&quot;ocean_frac&quot;</span></code> — use <a class="reference internal" href="#mom6_forge.topo.Topo.generate_mask_ocean_frac" title="mom6_forge.topo.Topo.generate_mask_ocean_frac"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_ocean_frac()</span></code></a></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">mask_method=&quot;cartopy&quot;</span></code> — use <a class="reference internal" href="#mom6_forge.topo.Topo.generate_mask_cartopy" title="mom6_forge.topo.Topo.generate_mask_cartopy"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_cartopy()</span></code></a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">mask_method=&quot;ocean_frac&quot;</span></code> — use <a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.generate_mask_ocean_frac" title="mom6_forge.topo.Topo.generate_mask_ocean_frac"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_ocean_frac()</span></code></a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">mask_method=&quot;cartopy&quot;</span></code> — use <a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.generate_mask_cartopy" title="mom6_forge.topo.Topo.generate_mask_cartopy"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_cartopy()</span></code></a></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">mask=&lt;DataArray&gt;</span></code> — supply a pre-computed ocean mask</p></li>
 </ul>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">src</span> <span class="o">=</span> <span class="n">SourceBathy</span><span class="p">(</span><span class="s2">&quot;gebco_2023.nc&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">slice_to_domain</span><span class="p">(</span><span class="n">topo</span><span class="p">)</span>
@@ -530,7 +476,7 @@ and minimum depth enforcement. Suitable for fine regional grids (~1–3 km).</p>
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.high_res_regrid">
 <span class="sig-prename descclassname"><span class="pre">Topo.</span></span><span class="sig-name descname"><span class="pre">high_res_regrid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">src</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'ocean_frac'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nx_sub</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ny_sub</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cartopy_resolution</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'50m'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">smooth_scl</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cressman_exp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hmin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights_path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fill_channels</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.high_res_regrid" title="Link to this definition"></a></dt>
 <dd><p>High-accuracy bathymetry pipeline for coarser grids (≳ 0.05°).</p>
-<p>Runs: <strong>mask generation</strong> → <a class="reference internal" href="#mom6_forge.topo.Topo.cressman_interp" title="mom6_forge.topo.Topo.cressman_interp"><code class="xref py py-meth docutils literal notranslate"><span class="pre">cressman_interp()</span></code></a> →
+<p>Runs: <strong>mask generation</strong> → <a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.cressman_interp" title="mom6_forge.topo.Topo.cressman_interp"><code class="xref py py-meth docutils literal notranslate"><span class="pre">cressman_interp()</span></code></a> →
 <a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.tidy_dataset" title="mom6_forge.topo.Topo.tidy_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">tidy_dataset()</span></code></a> (lake fill, channel cleanup, minimum depth).</p>
 <p>Both the Cressman interpolation and tidy cleanup use the same mask, so
 land contamination of coastal depth estimates is minimised at every step.</p>
@@ -550,7 +496,7 @@ Default <code class="docutils literal notranslate"><span class="pre">&quot;ocean
 <li><p><strong>cressman_exp</strong> (<em>float</em>) – Cressman weight exponent. Default <code class="docutils literal notranslate"><span class="pre">2.0</span></code>.</p></li>
 <li><p><strong>hmin</strong> (<em>float</em><em> or </em><em>None</em>) – Minimum ocean depth (m). Defaults to <code class="docutils literal notranslate"><span class="pre">self.min_depth</span></code>.</p></li>
 <li><p><strong>weights_path</strong> (<em>str</em><em> or </em><em>Path</em><em> or </em><em>None</em>) – Where to save the Cressman ESMF weights netCDF. Passed through to
-<a class="reference internal" href="#mom6_forge.topo.Topo.cressman_interp" title="mom6_forge.topo.Topo.cressman_interp"><code class="xref py py-meth docutils literal notranslate"><span class="pre">cressman_interp()</span></code></a>.</p></li>
+<a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.cressman_interp" title="mom6_forge.topo.Topo.cressman_interp"><code class="xref py py-meth docutils literal notranslate"><span class="pre">cressman_interp()</span></code></a>.</p></li>
 <li><p><strong>fill_channels</strong> (<em>bool</em>) – Fill diagonal one-cell channels in <a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.tidy_dataset" title="mom6_forge.topo.Topo.tidy_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">tidy_dataset()</span></code></a>. Default <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p></li>
 </ul>
 </dd>
@@ -561,14 +507,14 @@ Default <code class="docutils literal notranslate"><span class="pre">&quot;ocean
 <ol class="arabic simple">
 <li><p>Mask generation (<code class="docutils literal notranslate"><span class="pre">generate_mask_ocean_frac</span></code> by default, or <code class="docutils literal notranslate"><span class="pre">generate_mask_cartopy</span></code>,
 or a pre-computed <code class="docutils literal notranslate"><span class="pre">mask</span></code> DataArray)</p></li>
-<li><p><a class="reference internal" href="#mom6_forge.topo.Topo.cressman_interp" title="mom6_forge.topo.Topo.cressman_interp"><code class="xref py py-meth docutils literal notranslate"><span class="pre">cressman_interp()</span></code></a> — ocean-aware distance-weighted
+<li><p><a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.cressman_interp" title="mom6_forge.topo.Topo.cressman_interp"><code class="xref py py-meth docutils literal notranslate"><span class="pre">cressman_interp()</span></code></a> — ocean-aware distance-weighted
 depth interpolation</p></li>
 <li><p><a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.tidy_dataset" title="mom6_forge.topo.Topo.tidy_dataset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">tidy_dataset()</span></code></a> — lake removal, minimum depth</p></li>
 </ol>
 <p>Mask options:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">mask_method=&quot;ocean_frac&quot;</span></code> <em>(default)</em> — use <a class="reference internal" href="#mom6_forge.topo.Topo.generate_mask_ocean_frac" title="mom6_forge.topo.Topo.generate_mask_ocean_frac"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_ocean_frac()</span></code></a></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">mask_method=&quot;cartopy&quot;</span></code> — use <a class="reference internal" href="#mom6_forge.topo.Topo.generate_mask_cartopy" title="mom6_forge.topo.Topo.generate_mask_cartopy"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_cartopy()</span></code></a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">mask_method=&quot;ocean_frac&quot;</span></code> <em>(default)</em> — use <a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.generate_mask_ocean_frac" title="mom6_forge.topo.Topo.generate_mask_ocean_frac"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_ocean_frac()</span></code></a></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">mask_method=&quot;cartopy&quot;</span></code> — use <a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.generate_mask_cartopy" title="mom6_forge.topo.Topo.generate_mask_cartopy"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_cartopy()</span></code></a></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">mask=&lt;DataArray&gt;</span></code> — supply a pre-computed ocean mask</p></li>
 </ul>
 <p>Note that <code class="docutils literal notranslate"><span class="pre">mask=None</span></code> is not a valid option here because Cressman interpolation
@@ -612,7 +558,7 @@ coverage are filled by iterative neighbour averaging (up to 100 passes).</p>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>src</strong> (<em>SourceBathy</em>) – Loaded (sliced) source bathymetry object.</p></li>
 <li><p><strong>mask</strong> (<em>xr.DataArray</em>) – Binary ocean mask on the T-grid (1 = ocean, 0 = land). Obtain from
-<a class="reference internal" href="#mom6_forge.topo.Topo.generate_mask_ocean_frac" title="mom6_forge.topo.Topo.generate_mask_ocean_frac"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_ocean_frac()</span></code></a> or <a class="reference internal" href="#mom6_forge.topo.Topo.generate_mask_cartopy" title="mom6_forge.topo.Topo.generate_mask_cartopy"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_cartopy()</span></code></a>.</p></li>
+<a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.generate_mask_ocean_frac" title="mom6_forge.topo.Topo.generate_mask_ocean_frac"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_ocean_frac()</span></code></a> or <a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.generate_mask_cartopy" title="mom6_forge.topo.Topo.generate_mask_cartopy"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_cartopy()</span></code></a>.</p></li>
 <li><p><strong>smooth_scl</strong> (<em>float</em>) – Smoothing scale multiplier for the Cressman radius. Default <code class="docutils literal notranslate"><span class="pre">2.0</span></code>.</p></li>
 <li><p><strong>cressman_exp</strong> (<em>float</em>) – Exponent for the Cressman weight function. Default <code class="docutils literal notranslate"><span class="pre">2.0</span></code>.</p></li>
 <li><p><strong>hmin</strong> (<em>float</em><em> or </em><em>None</em>) – Minimum ocean depth (m). Defaults to <code class="docutils literal notranslate"><span class="pre">self.min_depth</span></code>.</p></li>
@@ -672,9 +618,9 @@ depth within each model cell:</p>
 \[h_2 = \overline{D^2} - \bar{D}^2\]</div>
 <p>where <span class="math notranslate nohighlight">\(\overline{D^2}\)</span> is <code class="docutils literal notranslate"><span class="pre">D2_mean</span></code> and <span class="math notranslate nohighlight">\(\bar{D}\)</span> is <code class="docutils literal notranslate"><span class="pre">D_mean</span></code>
 from the Monte-Carlo sub-sampling step in
-<a class="reference internal" href="#mom6_forge.topo.Topo.generate_mask_ocean_frac" title="mom6_forge.topo.Topo.generate_mask_ocean_frac"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_ocean_frac()</span></code></a>.</p>
-<p>When <a class="reference internal" href="#mom6_forge.topo.Topo.generate_mask_ocean_frac" title="mom6_forge.topo.Topo.generate_mask_ocean_frac"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_ocean_frac()</span></code></a> has been called,
-<a class="reference internal" href="#mom6_forge.topo.Topo.write_topo" title="mom6_forge.topo.Topo.write_topo"><code class="xref py py-meth docutils literal notranslate"><span class="pre">write_topo()</span></code></a> automatically includes the <code class="docutils literal notranslate"><span class="pre">h2</span></code>
+<a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.generate_mask_ocean_frac" title="mom6_forge.topo.Topo.generate_mask_ocean_frac"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_ocean_frac()</span></code></a>.</p>
+<p>When <a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.generate_mask_ocean_frac" title="mom6_forge.topo.Topo.generate_mask_ocean_frac"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_ocean_frac()</span></code></a> has been called,
+<a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.write_topo" title="mom6_forge.topo.Topo.write_topo"><code class="xref py py-meth docutils literal notranslate"><span class="pre">write_topo()</span></code></a> automatically includes the <code class="docutils literal notranslate"><span class="pre">h2</span></code>
 variable (units: <code class="docutils literal notranslate"><span class="pre">m²</span></code>) in the output file. To make the presence of <code class="docutils literal notranslate"><span class="pre">h2</span></code>
 mandatory, pass <code class="docutils literal notranslate"><span class="pre">enforce_topo_drag=True</span></code>; this raises a <code class="docutils literal notranslate"><span class="pre">RuntimeError</span></code> if the
 stats have not been computed yet.</p>
@@ -699,7 +645,7 @@ Default <code class="docutils literal notranslate"><span class="pre">False</span
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p><code class="docutils literal notranslate"><span class="pre">h2</span></code> requires
-<a class="reference internal" href="#mom6_forge.topo.Topo.generate_mask_ocean_frac" title="mom6_forge.topo.Topo.generate_mask_ocean_frac"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_ocean_frac()</span></code></a> to have been called
+<a class="reference internal" href="mom6_forge.topo.html#mom6_forge.topo.Topo.generate_mask_ocean_frac" title="mom6_forge.topo.Topo.generate_mask_ocean_frac"><code class="xref py py-meth docutils literal notranslate"><span class="pre">generate_mask_ocean_frac()</span></code></a> to have been called
 first. Without it, <code class="docutils literal notranslate"><span class="pre">write_topo</span></code> writes the depth field only.</p>
 </div>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">src</span> <span class="o">=</span> <span class="n">SourceBathy</span><span class="p">(</span><span class="s2">&quot;gebco_2023.nc&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">slice_to_domain</span><span class="p">(</span><span class="n">topo</span><span class="p">)</span>
@@ -740,10 +686,7 @@ regridding across MPI ranks.</p>
 
            </div>
           </div>
-          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="examples.html" class="btn btn-neutral float-left" title="Examples" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="glossary.html" class="btn btn-neutral float-right" title="Glossary" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
-    </div>
+          <footer>
 
   <hr/>
 

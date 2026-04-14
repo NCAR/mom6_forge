@@ -1,4 +1,4 @@
-Regional Bathymetry Workflows
+Bathymetry Workflows
 =============================
 
 ``mom6_forge`` provides bathymetry pipelines for regional MOM6 configurations,
