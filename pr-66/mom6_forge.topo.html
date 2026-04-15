@@ -343,6 +343,28 @@ dims <code class="docutils literal notranslate"><span class="pre">[&quot;ny&quot
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.generate_mask_from_processed_depth">
+<span class="sig-name descname"><span class="pre">generate_mask_from_processed_depth</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bathymetry</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.generate_mask_from_processed_depth" title="Link to this definition"></a></dt>
+<dd><p>Generate an ocean mask from the sign of bathymetric depth values.</p>
+<p>Assumes <code class="docutils literal notranslate"><span class="pre">bathymetry.depth</span></code> is already positive-down (i.e. the
+<code class="docutils literal notranslate"><span class="pre">positive_down</span></code> sign correction in <a class="reference internal" href="#mom6_forge.topo.Topo.tidy_dataset" title="mom6_forge.topo.Topo.tidy_dataset"><code class="xref py py-func docutils literal notranslate"><span class="pre">tidy_dataset()</span></code></a> has been
+applied). Cells with depth &lt;= 0 are classified as land.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>bathymetry</strong> (<em>xr.Dataset</em>) – Regridded bathymetry dataset with a <code class="docutils literal notranslate"><span class="pre">depth</span></code> variable
+(positive-down, metres).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Binary ocean mask on the T-grid (1 = ocean, 0 = land),
+dims <code class="docutils literal notranslate"><span class="pre">[&quot;ny&quot;,</span> <span class="pre">&quot;nx&quot;]</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>xr.DataArray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.generate_mask_ocean_frac">
 <span class="sig-name descname"><span class="pre">generate_mask_ocean_frac</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">src</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nx_sub</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ny_sub</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_hmin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.generate_mask_ocean_frac" title="Link to this definition"></a></dt>
 <dd><p>Generate an ocean mask by Monte-Carlo sub-sampling of the source
