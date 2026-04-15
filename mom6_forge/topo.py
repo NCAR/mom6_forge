@@ -699,6 +699,20 @@ class Topo:
         NE_lat = self._grid.qlat.values[1:, 1:]
         NW_lat = self._grid.qlat.values[1:, :-1]
 
+        # Fix 2: ensure all corners are in the same 360° period as NE,
+        # matching Fortran create_model_topo.f90 lines 322-333.
+        # Cells straddling the antimeridian would otherwise produce garbage
+        # bilinear-interpolated sub_lon values.
+        def _fix_lon_period(lon, ref):
+            diff = lon - ref
+            lon = np.where(diff > 270, lon - 360, lon)
+            lon = np.where(diff < -270, lon + 360, lon)
+            return lon
+
+        SW_lon = _fix_lon_period(SW_lon, NE_lon)
+        SE_lon = _fix_lon_period(SE_lon, NE_lon)
+        NW_lon = _fix_lon_period(NW_lon, NE_lon)
+
         ifrac = (np.arange(1, nx_sub + 1) / (nx_sub + 1)).astype(float)
         jfrac = (np.arange(1, ny_sub + 1) / (ny_sub + 1)).astype(float)
 
@@ -728,8 +742,21 @@ class Topo:
 
         ii = np.round((sub_lon - src.lon[0]) / dlon).astype(int)
         jj = np.round((sub_lat - src.lat[0]) / dlat).astype(int)
-        ii = np.clip(ii, 0, len(src.lon) - 1)
-        jj = np.clip(jj, 0, len(src.lat) - 1)
+        # wrap longitude index periodically rather than clipping —
+        # sub-points near the antimeridian must find the correct source pixel
+        # on the other side, not snap to the edge.
+        if np.any((ii < 0) | (ii >= len(src.lon))):
+            src_span = float(src.lon[-1] - src.lon[0])
+            if src_span < 355:
+                raise ValueError(
+                    f"Sub-points fall outside the source longitude range "
+                    f"[{float(src.lon[0]):.2f}, {float(src.lon[-1]):.2f}] "
+                    f"(span {src_span:.1f}°). Longitude wraparound requires a "
+                    f"global source (~360° span); got {src_span:.1f}°. "
+                    f"Pass a global SourceBathy rather than a regional slice."
+                )
+        ii = ii % len(src.lon)
+        jj = np.clip(jj, 0, len(src.lat) - 1)  # latitude: clamp, no wraparound
 
         depth_sub = src.depth[jj, ii]  # positive-down
 
@@ -888,6 +915,34 @@ class Topo:
                 "resolution": resolution,
             },
         )
+
+    def generate_mask_from_processed_depth(self, bathymetry):
+        """
+        Generate an ocean mask from the sign of bathymetric depth values.
+
+        Assumes ``bathymetry.depth`` is already positive-down (i.e. the
+        ``positive_down`` sign correction in :func:`~tidy_dataset` has been
+        applied). Cells with depth <= 0 are classified as land.
+
+        Parameters
+        ----------
+        bathymetry : xr.Dataset
+            Regridded bathymetry dataset with a ``depth`` variable
+            (positive-down, metres).
+
+        Returns
+        -------
+        xr.DataArray
+            Binary ocean mask on the T-grid (1 = ocean, 0 = land),
+            dims ``["ny", "nx"]``.
+        """
+        bathy_shape = bathymetry.depth.shape
+        grid_shape = (self._grid.ny, self._grid.nx)
+        if bathy_shape != grid_shape:
+            raise ValueError(
+                f"Bathymetry shape {bathy_shape} does not match T-grid shape {grid_shape}."
+            )
+        return xr.where(bathymetry.depth <= 0, 0, 1)
 
     def cressman_interp(
         self,
@@ -1466,7 +1521,7 @@ class Topo:
         if mask is not None:
             ocean_mask = mask.astype(int)
         else:
-            ocean_mask = xr.where(bathymetry.depth <= 0, 0, 1)
+            ocean_mask = self.generate_mask_from_processed_depth(bathymetry)
         land_mask = np.abs(ocean_mask - 1)
 
         ## REMOVE INLAND LAKES
