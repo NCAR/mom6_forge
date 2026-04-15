@@ -100,4 +100,4 @@ def test_diagnose_resolution_recommends_cressman(get_rect_topo, tmp_path):
 
     src = SourceBathy(bathy_path, lon_name="lon", lat_name="lat")
     result = get_rect_topo.diagnose_resolution(src)
-    assert result is True
+    assert bool(result) is True

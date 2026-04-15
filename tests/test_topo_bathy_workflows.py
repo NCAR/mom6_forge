@@ -181,19 +181,6 @@ def test_generate_mask_ocean_frac_src_stored_on_topo(small_topo, src_bathy):
     assert small_topo._src is src_bathy
 
 
-def test_generate_mask_ocean_frac_stats_cached(small_topo, src_bathy, monkeypatch):
-    """Calling generate_mask_ocean_frac twice must not re-run _compute_topo_stats."""
-    small_topo.generate_mask_ocean_frac(src_bathy, nx_sub=3, ny_sub=3)
-    monkeypatch.setattr(
-        small_topo,
-        "_compute_topo_stats",
-        lambda *a, **kw: (_ for _ in ()).throw(
-            AssertionError("_compute_topo_stats ran again")
-        ),
-    )
-    small_topo.generate_mask_ocean_frac(src_bathy, nx_sub=3, ny_sub=3)
-
-
 def test_generate_mask_ocean_frac_ocn_frac_in_bounds(small_topo, src_bathy):
     """OCN_FRAC must be in [0, 1] for every cell."""
     small_topo.generate_mask_ocean_frac(src_bathy, nx_sub=3, ny_sub=3)

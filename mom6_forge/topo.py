@@ -666,7 +666,7 @@ class Topo:
             )
             print(f"    provides significant benefit over xesmf regridding.")
         print(sep)
-        return ratio_median >= CRESSMAN_THRESHOLD
+        return bool(ratio_median >= CRESSMAN_THRESHOLD)
 
     def _compute_topo_stats(self, src, nx_sub, ny_sub, mask_hmin):
         """Compute per-cell depth statistics by Monte-Carlo sub-sampling.
