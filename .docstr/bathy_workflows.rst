@@ -27,7 +27,7 @@ but has two limitations at coarser resolutions:
    the ocean fraction directly from the high-resolution source data produces a
    more accurate mask.
 
-A higher-accuracy pipeline using a Monte-Carlo ocean fraction mask and Cressman
+A higher-accuracy pipeline using a sub-sampled ocean fraction mask and Cressman
 distance-weighted interpolation is recommended for grids of ~0.05° (5 km) and
 coarser. The top-level entry point :meth:`~mom6_forge.topo.Topo.set_from_dataset`
 calls :meth:`~mom6_forge.topo.Topo.diagnose_resolution` automatically and routes
@@ -340,7 +340,7 @@ depth within each model cell:
     h_2 = \overline{D^2} - \bar{D}^2
 
 where :math:`\overline{D^2}` is ``D2_mean`` and :math:`\bar{D}` is ``D_mean``
-from the Monte-Carlo sub-sampling step in
+from the uniform sub-sampling step in
 :meth:`~mom6_forge.topo.Topo.generate_mask_ocean_frac`.
 
 When :meth:`~mom6_forge.topo.Topo.generate_mask_ocean_frac` has been called,

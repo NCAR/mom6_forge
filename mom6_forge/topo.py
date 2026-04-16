@@ -669,7 +669,7 @@ class Topo:
         return bool(ratio_median >= CRESSMAN_THRESHOLD)
 
     def _compute_topo_stats(self, src, nx_sub, ny_sub, mask_hmin):
-        """Compute per-cell depth statistics by Monte-Carlo sub-sampling.
+        """Compute per-cell depth statistics by uniform sub-sampling.
 
         Results are cached on ``src._topo_stats`` so a second call with the
         same source file returns immediately without recomputation.
@@ -817,7 +817,7 @@ class Topo:
         mask_hmin=0.0,
     ):
         """
-        Generate an ocean mask by Monte-Carlo sub-sampling of the source
+        Generate an ocean mask by uniform sub-sampling of the source
         bathymetry. Mirrors the algorithm in tx2_3's create_model_topo.f90.
 
         For each T-cell, distributes nx_sub x ny_sub interior points via
@@ -1171,7 +1171,7 @@ class Topo:
             ``mask_method`` is ignored.
         mask_method : {``"ocean_frac"``, ``"cartopy"``}
             Mask generation method when ``mask`` is not provided.
-            Default ``"ocean_frac"`` (Monte-Carlo sub-sampling).
+            Default ``"ocean_frac"`` (uniform sub-sampling).
         nx_sub, ny_sub : int
             Sub-sampling resolution for ``mask_method="ocean_frac"``. Default 5.
         mask_threshold : float
@@ -1263,7 +1263,7 @@ class Topo:
         to one of two pipelines:
 
         * **ratio ≥ 12×** → :meth:`high_res_regrid`
-          (Monte-Carlo mask + Cressman interpolation + tidy cleanup).
+          (ocean-fraction mask + Cressman interpolation + tidy cleanup).
           Recommended for grids of ~0.05° and coarser.
         * **ratio < 12×** → :meth:`direct_xesmf_regrid`
           (xesmf bilinear/conservative regrid + tidy cleanup).
