@@ -1,0 +1,114 @@
+name: Publish mom6_forge to PyPI (on release) and TestPyPI (on version changes)
+
+on:
+  push:
+
+  release:
+    types: [created]
+
+jobs:
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+    outputs:
+      version_changed: ${{ steps.check_version.outputs.version_changed }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+        submodules: recursive
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11.10"
+
+    - name: Get package metadata from setup.py
+      id: get_metadata
+      run: |
+          python3 - <<'EOF'
+          import ast, os
+
+          tree = ast.parse(open("setup.py").read())
+          call = tree.body[-1].value
+          info = {kw.arg: ast.literal_eval(kw.value) for kw in call.keywords if kw.arg in ('name', 'version')}
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"package_name={info['name']}\n")
+              f.write(f"curr_version={info['version']}\n")
+          EOF
+
+    - name: Check if version changed on TestPyPI
+      id: check_version
+      run: |
+          PACKAGE_NAME=${{ steps.get_metadata.outputs.package_name }}
+          CURR_VERSION=${{ steps.get_metadata.outputs.curr_version }}
+          LATEST=$(curl -s https://test.pypi.org/pypi/${PACKAGE_NAME}/json | jq -r '.info.version // empty')
+
+          echo "Current version: $CURR_VERSION"
+          echo "Latest on TestPyPI: $LATEST"
+
+          if [ "$CURR_VERSION" = "$LATEST" ]; then
+            echo "version_changed=false" >> $GITHUB_OUTPUT
+            echo "No new version to upload."
+          else
+            echo "version_changed=true" >> $GITHUB_OUTPUT
+            echo "New version detected. Will upload."
+          fi
+
+    - name: Install pypa/build
+      run: python3 -m pip install build --user
+
+    - name: Build a binary wheel and a source tarball
+      run: python3 -m build
+
+    - name: Store the distribution packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+
+  publish-to-testpypi:
+    name: Publish to TestPyPI
+    needs: build
+    if: github.event_name == 'push' && needs.build.outputs.version_changed == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/mom6_forge
+    permissions:
+      id-token: write
+
+    steps:
+    - name: Download the dists
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+    - name: Publish to TestPyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        verbose: true
+        repository-url: https://test.pypi.org/legacy/
+
+  publish-to-pypi:
+    name: Publish to PyPI
+    needs: build
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/mom6_forge
+    permissions:
+      id-token: write
+
+    steps:
+    - name: Download the dists
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        verbose: true

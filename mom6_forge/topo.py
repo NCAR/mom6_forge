@@ -1209,11 +1209,8 @@ class Topo:
 
                 if mask[j, i]:
                     affected_indices.append((j, i))
-                    old_val = self._depth[j, i]
-                    new_val = depth_fillval
-
-                    old_vals.append(old_val)
-                    new_vals.append(new_val)
+                    old_vals.append(float(self._depth[j, i]))  # extract scalar here
+                    new_vals.append(float(depth_fillval))  # and here
 
         depth_edit_command = DepthEditCommand(
             self, affected_indices, new_vals, old_values=old_vals

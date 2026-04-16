@@ -6,9 +6,28 @@
 
 ## Installation
 
+### Git Clone
+
 ```bash
+git clone https://github.com/NCAR/mom6_forge.git
+cd mom6_forge
 conda env create -f environment.yml
 conda activate mom6_forge
+```
+
+### Conda Forge
+
+```bash
+conda install -c conda-forge mom6_forge
+```
+
+### PyPI (pip)
+
+`mom6_forge` depends on [ESMPy](https://earthsystemmodeling.org/esmpy/), which must be installed before `mom6_forge` because it is not available on PyPI. Install it via conda first, then install `mom6_forge` with pip:
+
+```bash
+conda install esmpy
+pip install mom6_forge
 ```
 
 ## Quick Start
@@ -24,5 +43,5 @@ See the tutorial notebooks in [`notebooks/`](notebooks/) for guided examples:
 
 ## Requirements
 
-- Python >=3.11.10, <3.12
+- Python >=3.11.10, <3.15
 - See [`environment.yml`](environment.yml) for the full dependency list
