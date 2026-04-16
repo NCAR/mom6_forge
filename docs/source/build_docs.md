@@ -11,7 +11,7 @@ sphinx-apidoc -o docs/source/api mom6_forge --force
 ## Build HTML
 
 ```bash
-sphinx-build -b html -c docs/source docs _build
+sphinx-build -b html docs/source docs/_build
 ```
 
-Output is written to `_build/`. Open `_build/source/index.html` to preview locally.
+Output is written to `docs/_build/`. Open `docs/_build/index.html` to preview locally.

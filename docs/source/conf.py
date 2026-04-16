@@ -40,9 +40,6 @@ extensions = [
 # Never re-execute notebooks during docs build — use existing cell outputs.
 nbsphinx_execute = "never"
 
-# Tell Sphinx the root document is in source/, not the docs/ root.
-root_doc = "source/index"
-
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
 
