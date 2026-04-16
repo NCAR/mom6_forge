@@ -58,9 +58,7 @@
 <li class="toctree-l2"><a class="reference internal" href="5_modify_existing.html">Modify existing MOM6 grid</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Demo: Object Configurators in mom6_forge</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#Set-up-a-custom-regional-CESM-MOM6-domain-using-object-configurators">Set up a custom regional CESM-MOM6 domain using object configurators</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#SECTION-1:-Using-the-Grid-Creator">SECTION 1: Using the Grid Creator</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#SECTION-1:-Using-the-Grid-Creator">SECTION 1: Using the Grid Creator</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#1.-Launching-the-Grid-Creator">1. Launching the Grid Creator</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#2.-Grid-Parameter-Controls">2. Grid Parameter Controls</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#3.-Resetting-the-Grid">3. Resetting the Grid</a></li>
@@ -72,9 +70,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#5.-Grid-Library">5. Grid Library</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#6.-Map-Features">6. Map Features</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#Tips">Tips</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#SECTION-2:-Using-the-Topo-Editor">SECTION 2: Using the Topo Editor</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#SECTION-2:-Using-the-Topo-Editor">SECTION 2: Using the Topo Editor</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#1.-Launching-the-Topo-Editor">1. Launching the Topo Editor</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#2.-Interface-Overview">2. Interface Overview</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#3.-Display-Controls">3. Display Controls</a></li>
@@ -91,9 +87,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#8.-Tips-and-Best-Practices">8. Tips and Best Practices</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#9.-Example-Workflow">9. Example Workflow</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#10.-Troubleshooting">10. Troubleshooting</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#SECTION-3:-Using-the-VGrid-Creator">SECTION 3: Using the VGrid Creator</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#SECTION-3:-Using-the-VGrid-Creator">SECTION 3: Using the VGrid Creator</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#1.-Launching-the-VGrid-Creator">1. Launching the VGrid Creator</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#id1">2. Interface Overview</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#3.-Editing-Vertical-Grid-Parameters">3. Editing Vertical Grid Parameters</a></li>
@@ -155,9 +149,8 @@
 </ol>
 <p>This notebook demonstrates how to use these object configurators to streamline regional CESM-MOM6 domain generation.</p>
 </section>
-</section>
 <section id="SECTION-1:-Using-the-Grid-Creator">
-<h1>SECTION 1: Using the Grid Creator<a class="headerlink" href="#SECTION-1:-Using-the-Grid-Creator" title="Link to this heading"></a></h1>
+<h2>SECTION 1: Using the Grid Creator<a class="headerlink" href="#SECTION-1:-Using-the-Grid-Creator" title="Link to this heading"></a></h2>
 <p>We begin by defining a regional MOM6 domain. To do so, we first generate a horizontal grid.</p>
 <div class="nbinput docutils container">
 <div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[2]:
@@ -196,6 +189,7 @@ The autoreload extension is already loaded. To reload it, use:
 </div>
 </div>
 <p>Once we have instantiated a <code class="docutils literal notranslate"><span class="pre">Grid</span></code> object, we are now ready to use the Grid Creator.</p>
+</section>
 <section id="1.-Launching-the-Grid-Creator">
 <h2>1. Launching the Grid Creator<a class="headerlink" href="#1.-Launching-the-Grid-Creator" title="Link to this heading"></a></h2>
 <p>First, import and launch the Grid Creator in a notebook cell:</p>
@@ -280,9 +274,8 @@ The autoreload extension is already loaded. To reload it, use:
 <li><p>When you are happy with the <code class="docutils literal notranslate"><span class="pre">Grid</span></code> you have created, make sure to save it! What is shown in the Grid Creator can be used to instantiate a <code class="docutils literal notranslate"><span class="pre">Topo</span></code> object by doing: <code class="docutils literal notranslate"><span class="pre">grid</span> <span class="pre">=</span> <span class="pre">Grid_Creator.grid</span></code>.</p></li>
 </ul>
 </section>
-</section>
 <section id="SECTION-2:-Using-the-Topo-Editor">
-<h1>SECTION 2: Using the Topo Editor<a class="headerlink" href="#SECTION-2:-Using-the-Topo-Editor" title="Link to this heading"></a></h1>
+<h2>SECTION 2: Using the Topo Editor<a class="headerlink" href="#SECTION-2:-Using-the-Topo-Editor" title="Link to this heading"></a></h2>
 <p>Now that we have created a <code class="docutils literal notranslate"><span class="pre">Grid</span></code>, we can now instantiate a <code class="docutils literal notranslate"><span class="pre">Topo</span></code> object.</p>
 <div class="nbinput nblast docutils container">
 <div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[5]:
@@ -307,6 +300,7 @@ The autoreload extension is already loaded. To reload it, use:
 </div>
 <p>Once we have instantiated the <code class="docutils literal notranslate"><span class="pre">Topo</span></code> object and run the set step, we can use the Topo Editor.</p>
 <p>The <strong>Topo Editor</strong> is a powerful interactive tool for editing, managing, and version-controlling ocean model topography files. This guide will walk you through all major features and workflows.</p>
+</section>
 <section id="1.-Launching-the-Topo-Editor">
 <h2>1. Launching the Topo Editor<a class="headerlink" href="#1.-Launching-the-Topo-Editor" title="Link to this heading"></a></h2>
 <p>First, import and launch the Topo Editor in a notebook cell:</p>
@@ -481,9 +475,8 @@ Adjust the minimum allowed depth for the domain.</p></li>
 <li><p>If git operations fail, ensure your repository is properly initialized and you have the necessary permissions.</p></li>
 </ul>
 </section>
-</section>
 <section id="SECTION-3:-Using-the-VGrid-Creator">
-<h1>SECTION 3: Using the VGrid Creator<a class="headerlink" href="#SECTION-3:-Using-the-VGrid-Creator" title="Link to this heading"></a></h1>
+<h2>SECTION 3: Using the VGrid Creator<a class="headerlink" href="#SECTION-3:-Using-the-VGrid-Creator" title="Link to this heading"></a></h2>
 <p>Now that we have created a <code class="docutils literal notranslate"><span class="pre">Topo</span></code>, we can now instantiate a <code class="docutils literal notranslate"><span class="pre">VGrid</span></code> object. Note that we use the maximum depth from the Topo Editor to set the depth of the <code class="docutils literal notranslate"><span class="pre">VGrid</span></code> – this is not strictly necessary.</p>
 <div class="nbinput nblast docutils container">
 <div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[8]:
@@ -500,6 +493,7 @@ Adjust the minimum allowed depth for the domain.</p></li>
 </pre></div>
 </div>
 </div>
+</section>
 <section id="1.-Launching-the-VGrid-Creator">
 <h2>1. Launching the VGrid Creator<a class="headerlink" href="#1.-Launching-the-VGrid-Creator" title="Link to this heading"></a></h2>
 <p>First, import and launch the VGrid Creator in a notebook cell:</p>
