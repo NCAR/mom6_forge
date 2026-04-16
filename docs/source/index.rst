@@ -16,7 +16,7 @@ to learn about the `mom6_forge` tool.
 
    installation
    quickstart
-   examples
+   notebooks
    glossary
    widgets
 

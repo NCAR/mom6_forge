@@ -2,7 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
-docs/
+_build/
 # C extensions
 *.so
 
@@ -40,4 +40,4 @@ pip-delete-this-directory.txt
 .ipynb_checkpoints
 
 # netcdf files
-notebooks/*.nc
+docs/notebooks/*.nc

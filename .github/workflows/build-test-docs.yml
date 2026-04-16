@@ -62,10 +62,13 @@ jobs:
           cache-downloads: true
           micromamba-version: "latest"
 
+      - name: Install Pandoc
+        run: sudo apt-get install -y pandoc
+
       - name: Build Sphinx docs
         shell: bash -l {0}
         run: |
-          sphinx-build -b html .docstr docs
+          sphinx-build -b html -c docs/source docs _build
 
       - name: Deploy PR preview to GitHub Pages
         if: github.event_name == 'pull_request'
@@ -73,9 +76,9 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
-          publish_dir: docs
+          publish_dir: _build
           destination_dir: pr-${{ github.event.number }}
-          keep_files: false 
+          keep_files: false
 
       - name: Comment PR with preview link
         if: github.event_name == 'pull_request'
@@ -91,4 +94,4 @@ jobs:
         with:
           publish_branch: gh-pages
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: docs
+          publish_dir: _build
