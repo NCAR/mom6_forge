@@ -12,7 +12,7 @@ from pathlib import Path
 from mom6_forge.edit_command import *
 from mom6_forge.command_manager import TopoCommandManager, CommandType
 from mom6_forge.mapping import regrid_dataset_via_xesmf
-
+from mom6_forge._source_bathy import SourceBathy
 
 class Topo:
     """
@@ -38,6 +38,7 @@ class Topo:
             attrs={"units": "m"},
         )  # Initialize depth with NaNs
         self._min_depth = min_depth
+        self._src = None  # cached SourceBathy; set by _get_src()
 
         if version_control_dir is None:
             raise ValueError(
@@ -218,26 +219,6 @@ class Topo:
         return umask
 
     @property
-    def umask(self):
-        """
-        Ocean domain mask on U grid. 1 if ocean, 0 if land.
-        """
-        tmask = self.tmask
-
-        # Create empty mask DataArray for umask
-        umask = xr.DataArray(
-            np.ones(self._grid.ulat.shape, dtype=int),
-            dims=["yh", "xq"],
-            attrs={"name": "U mask"},
-        )
-
-        # Fill umask with mask values
-        umask[:, :-1] &= tmask.values  # h-point translates to the left u-point
-        umask[:, 1:] &= tmask.values  # h-point translates to the right u-point
-
-        return umask
-
-    @property
     def vmask(self):
         """
         Ocean domain mask on V grid. 1 if ocean, 0 if land.
@@ -310,6 +291,31 @@ class Topo:
         supergridmask[1::2, ::2] = self.umask.values
         supergridmask[1::2, 1::2] = self.tmask.values
         return supergridmask
+    
+    def _get_src(
+        self,
+        bathymetry_path,
+        longitude_coordinate_name,
+        latitude_coordinate_name,
+        vertical_coordinate_name,
+    ):
+        """Return a cached :class:`SourceBathy`, creating and slicing a new one
+        only when the path or coordinate names differ from the current cache."""
+        path = Path(bathymetry_path)
+        if (
+            self._src is None
+            or self._src.path != path
+            or self._src.lon_name != longitude_coordinate_name
+            or self._src.lat_name != latitude_coordinate_name
+            or self._src.elevation_name != vertical_coordinate_name
+        ):
+            self._src = SourceBathy(
+                path,
+                longitude_coordinate_name,
+                latitude_coordinate_name,
+                vertical_coordinate_name,
+            ).slice_to_domain(self)
+        return self._src
 
     def point_is_ocean(self, lons, lats):
         """
