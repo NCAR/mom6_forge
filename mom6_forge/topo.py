@@ -158,7 +158,7 @@ class Topo:
         )
         return masked_depth
 
-    @property.setter
+    @depth.setter
     def depth(self, depth):
         """
         Set the depth by directly assigning to the depth property. This is a wrapper around setting depth_raw.
