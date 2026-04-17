@@ -203,7 +203,7 @@ API Reference
 
 **Methods:**
 
-- ``topo.apply_land_frac(...)`` — Generate and apply ocean mask from land fraction data
+- ``topo.generate_mask_from_landfrac_file(...)`` — Generate and apply ocean mask from land fraction data
 - ``topo.send_entire_depth_change_to_tcm(depth)`` — Apply a full depth array update with version control
 
 **Internal:**

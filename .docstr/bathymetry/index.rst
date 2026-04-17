@@ -60,7 +60,7 @@ Common Workflows
     topo = Topo.from_topo_file(grid, "input_topo.nc")
     
     # Apply an ocean/land mask
-    topo.apply_land_frac("land_fraction.nc", landfrac_name="LANDFRAC", ...)
+    topo.generate_mask_from_landfrac_file("land_fraction.nc", landfrac_name="LANDFRAC", ...)
     
     # Write output
     topo.write_topo("output_topo.nc")
