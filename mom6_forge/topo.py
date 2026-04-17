@@ -14,6 +14,7 @@ from mom6_forge.command_manager import TopoCommandManager, CommandType
 from mom6_forge.mapping import regrid_dataset_via_xesmf
 from mom6_forge._source_bathy import SourceBathy
 
+
 class Topo:
     """
     Bathymetry Generator for MOM6 grids (mom6_forge.grid.Grid).
@@ -291,7 +292,7 @@ class Topo:
         supergridmask[1::2, ::2] = self.umask.values
         supergridmask[1::2, 1::2] = self.tmask.values
         return supergridmask
-    
+
     def _get_src(
         self,
         bathymetry_path,
