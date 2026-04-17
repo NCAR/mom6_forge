@@ -1387,9 +1387,8 @@ class Topo:
             },
         )
 
-        # tmask is calculated from the depth, which is calculated from the unmasked_depth + mask, so we're preserving the mask here! Don't worry!
         ds["mask"] = xr.DataArray(
-            self.tmask.astype(np.int32),
+            self.mask.astype(np.int32),
             dims=["ny", "nx"],
             attrs={
                 "long_name": "landsea mask at t points: 1 ocean, 0 land",
