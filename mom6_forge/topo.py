@@ -715,6 +715,58 @@ class Topo:
             }
         )
         return src._topo_stats
+    
+    def generate_mask_from_stats_oceanfrac(
+        self,
+        nx_sub=5,
+        ny_sub=5,
+        mask_threshold=0.5,
+        mask_hmin=0.0,
+    ):
+        """
+        Generate an ocean mask by uniform sub-sampling of the source
+        bathymetry. Mirrors the algorithm in tx2_3's create_model_topo.f90.
+
+        For each T-cell, distributes nx_sub x ny_sub interior points via
+        bilinear interpolation of the Q-point corners and snaps each to the
+        nearest source pixel. A cell is ocean if its ocean sub-point fraction
+        (OCN_FRAC) meets or exceeds mask_threshold.
+
+        Per-cell depth statistics (D_mean, D_min, D_max, D2_mean) are cached
+        on the source bathymetry object for downstream use by ``write_topo()``.
+
+        Parameters
+        ----------
+        src : SourceBathy
+            Loaded (sliced) source bathymetry object.
+        nx_sub, ny_sub : int
+            Sub-sampling resolution per cell. Default 5x5.
+        mask_threshold : float
+            Minimum OCN_FRAC for a cell to be classified as ocean. Default 0.5.
+        mask_hmin : float
+            Minimum depth (m) for a sub-point to count as ocean. Default 0.0.
+
+        Returns
+        -------
+        xr.DataArray
+            Binary ocean mask on the T-grid (1 = ocean, 0 = land),
+            dims ``["ny", "nx"]``.
+        """
+        stats = self._compute_topo_stats(nx_sub, ny_sub, mask_hmin)
+
+        ocean_mask = (stats["OCN_FRAC"].values >= mask_threshold).astype(int)
+
+        return xr.DataArray(
+            ocean_mask,
+            dims=["ny", "nx"],
+            attrs={
+                "long_name": "ocean mask from sub-sampling",
+                "mask_threshold": mask_threshold,
+                "mask_hmin": mask_hmin,
+                "nx_sub": nx_sub,
+                "ny_sub": ny_sub,
+            },
+        )
 
     def set_from_dataset(
         self,
