@@ -16,6 +16,7 @@ to learn about the `mom6_forge` tool.
 
    installation
    quickstart
+   bathymetry/index
    examples
    glossary
    widgets

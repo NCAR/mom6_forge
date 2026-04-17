@@ -1316,12 +1316,19 @@ class Topo:
         )
 
         ds["mask"] = xr.DataArray(
-            self.tmask.astype(np.int32),
+            self.mask.astype(np.int32),
             dims=["ny", "nx"],
             attrs={
                 "long_name": "landsea mask at t points: 1 ocean, 0 land",
                 "units": "nondim",
             },
+        )
+
+        # Write unmasked depth to file
+        ds["unmasked_depth"] = xr.DataArray(
+            self._unmasked_depth.data,
+            dims=["ny", "nx"],
+            attrs={"long_name": "t-grid cell depth", "units": "m"},
         )
 
         # Write masked depth (from property) to file
