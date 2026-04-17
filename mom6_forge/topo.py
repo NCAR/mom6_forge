@@ -715,7 +715,7 @@ class Topo:
             }
         )
         return src._topo_stats
-    
+
     def generate_mask_from_stats_oceanfrac(
         self,
         nx_sub=5,
