@@ -71,7 +71,7 @@ def test_source_bathy_slice_to_domain(get_rect_topo, synthetic_bathy_file):
     topo = get_rect_topo
 
     src = SourceBathy(synthetic_bathy_file)
-    src.slice_to_domain(topo, buf=0.5)
+    src.slice_to_domain(topo, buf=0.4)
 
     # Verify data was loaded
     assert src._da is not None
