@@ -182,7 +182,13 @@ The str or Path the write to file should write to. Defaults to the directory the
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">depth</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.depth" title="Link to this definition"></a></dt>
 <dd><p>MOM6 grid depth array (m). Positive below MSL.</p>
 <p>When mask is set, returns masked depth: ocean cells ≥ min_depth+0.1, land cells set to land_fillval.
-When mask is None, returns raw unmasked depth.</p>
+When mask is None, returns raw depth.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.depth_raw">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">depth_raw</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.depth_raw" title="Link to this definition"></a></dt>
+<dd><p>Raw depth array before masking is applied.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -285,7 +291,7 @@ When set, the depth property applies masking: ocean cells enforced ≥ min_depth
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.send_entire_depth_change_to_tcm">
 <span class="sig-name descname"><span class="pre">send_entire_depth_change_to_tcm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">depth</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quietly</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.send_entire_depth_change_to_tcm" title="Link to this definition"></a></dt>
 <dd><p>This function takes an entire depth change and adds it through the TopoCommandManager (TCM) or directly if quietly is enabled.
-Modifies _unmasked_depth, preserves mask.</p>
+Modifies _depth_raw, preserves mask.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -414,6 +420,17 @@ that was created by <code class="xref py py-func docutils literal notranslate"><
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.tmask">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">tmask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.tmask" title="Link to this definition"></a></dt>
 <dd><p>Ocean domain mask at T grid. 1 if ocean, 0 if land.</p>
+<p>This is a derived mask computed from the depth property. The computation depends on whether
+a manual mask has been set:</p>
+<ul class="simple">
+<li><p>If _manual_mask is None: Returns a mask derived from raw depth (_depth_raw).
+Cells with depth &gt; min_depth are marked as ocean (1), otherwise land (0).</p></li>
+<li><p>If _manual_mask is set: Returns a mask derived from the masked depth (which applies
+the manual_mask to _depth_raw). Ocean cells are those with depth &gt; min_depth and
+manual_mask == 1.</p></li>
+</ul>
+<p>This design means tmask is always consistent with the current depth state, whether
+driven by raw bathymetry or by a manually applied mask.</p>
 </dd></dl>
 
 <dl class="py property">

@@ -51,7 +51,9 @@
 <li class="toctree-l3"><a class="reference internal" href="#overview">Overview</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#core-components">Core Components</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#how-masking-works">How Masking Works</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#usage-examples">Usage Examples</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#version-control-and-edits">Version Control and Edits</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#internal-architecture">Internal Architecture</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#practical-example">Practical Example</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#api-reference">API Reference</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#benefits-of-this-design">Benefits of This Design</a></li>
@@ -106,39 +108,48 @@
 </section>
 <section id="core-components">
 <h2>Core Components<a class="headerlink" href="#core-components" title="Link to this heading"></a></h2>
-<p><strong>Raw Depth Storage: ``_unmasked_depth``</strong></p>
-<p>This is the internal storage for the actual bathymetry data as provided by the user or loaded from files. It represents the true water column depths without any masking applied.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Internal storage - rarely accessed directly by users</span>
-<span class="n">topo</span><span class="o">.</span><span class="n">_unmasked_depth</span>  <span class="c1"># xr.DataArray with shape (ny, nx)</span>
+<p><strong>Raw Depth Storage: ``_depth_raw``</strong></p>
+<p>This is the internal storage for the actual bathymetry data as provided by the user or loaded from files. It represents the true water column depths without any masking applied. Access via the <code class="docutils literal notranslate"><span class="pre">depth_raw</span></code> property.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Read raw depth</span>
+<span class="n">raw_depth</span> <span class="o">=</span> <span class="n">topo</span><span class="o">.</span><span class="n">depth_raw</span>  <span class="c1"># xr.DataArray with shape (ny, nx)</span>
+
+<span class="c1"># Set raw depth (preserves any existing manual mask)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">depth_raw</span> <span class="o">=</span> <span class="n">new_bathymetry</span>
 </pre></div>
 </div>
-<p><strong>Land/Ocean Mask: ``_mask``</strong></p>
-<p>An optional binary mask indicating which cells are ocean (1) and which are land (0). When <code class="docutils literal notranslate"><span class="pre">None</span></code>, no masking is applied.</p>
+<p><strong>Manual Ocean/Land Mask: ``_manual_mask``</strong></p>
+<p>An optional binary mask indicating which cells are ocean (1) and which are land (0). When <code class="docutils literal notranslate"><span class="pre">None</span></code>, no manual masking is applied. The mask is automatically enforced: ocean cells have min_depth enforcement, land cells receive the <code class="docutils literal notranslate"><span class="pre">land_fillval</span></code>.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Set a binary ocean/land mask</span>
 <span class="n">topo</span><span class="o">.</span><span class="n">mask</span> <span class="o">=</span> <span class="n">ocean_mask</span>  <span class="c1"># xr.DataArray or np.ndarray with values 0 or 1</span>
 
-<span class="c1"># Disable masking</span>
+<span class="c1"># Disable manual masking</span>
 <span class="n">topo</span><span class="o">.</span><span class="n">mask</span> <span class="o">=</span> <span class="kc">None</span>
 </pre></div>
 </div>
 <p><strong>Depth Property: ``depth``</strong></p>
-<p>The public interface that applies masking on-the-fly. When no mask is set, it returns <code class="docutils literal notranslate"><span class="pre">_unmasked_depth</span></code>. When a mask is set, it calculates and returns masked depth values.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Read masked or unmasked depth depending on mask state</span>
+<p>The public interface that applies masking on-the-fly. When no manual mask is set, it returns <code class="docutils literal notranslate"><span class="pre">_depth_raw</span></code>. When a manual mask is set, it calculates and returns masked depth values.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Read masked or raw depth depending on manual mask state</span>
 <span class="n">depth_array</span> <span class="o">=</span> <span class="n">topo</span><span class="o">.</span><span class="n">depth</span>  <span class="c1"># xr.DataArray with masking applied if mask is set</span>
+</pre></div>
+</div>
+<p><strong>Land Cell Fill Value: ``land_fillval``</strong></p>
+<p>Configurable depth value assigned to land cells when a manual mask is applied. Default is <code class="docutils literal notranslate"><span class="pre">0.0</span></code> (dry). Must be <code class="docutils literal notranslate"><span class="pre">&lt;=</span> <span class="pre">min_depth</span></code> to prevent land cells from being treated as ocean.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">land_fillval</span> <span class="o">=</span> <span class="mf">0.0</span>  <span class="c1"># Set all land cells to 0.0 m (default)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">land_fillval</span> <span class="o">=</span> <span class="o">-</span><span class="mf">100.0</span>  <span class="c1"># Or use negative values for special meaning</span>
 </pre></div>
 </div>
 </section>
 <section id="how-masking-works">
 <h2>How Masking Works<a class="headerlink" href="#how-masking-works" title="Link to this heading"></a></h2>
-<p>When a mask is set, the <cite>depth</cite> property applies these rules:</p>
+<p>When a manual mask is set, the <cite>depth</cite> property applies these rules:</p>
 <ol class="arabic simple">
-<li><p><strong>Ocean cells</strong> (mask == 1):</p>
+<li><p><strong>Ocean cells</strong> (manual_mask == 1):</p>
 <ul class="simple">
 <li><p>Values are preserved if they exceed <code class="docutils literal notranslate"><span class="pre">min_depth</span></code></p></li>
 <li><p>Values below <code class="docutils literal notranslate"><span class="pre">min_depth</span></code> are bumped to <code class="docutils literal notranslate"><span class="pre">min_depth</span> <span class="pre">+</span> <span class="pre">0.1</span></code> to ensure navigability</p></li>
 </ul>
 </li>
-<li><p><strong>Land cells</strong> (mask == 0):</p>
+<li><p><strong>Land cells</strong> (manual_mask == 0):</p>
 <ul class="simple">
 <li><p>Values are set to <code class="docutils literal notranslate"><span class="pre">land_fillval</span></code> (default: 0.0)</p></li>
 <li><p>This is fully configurable via the <code class="docutils literal notranslate"><span class="pre">land_fillval</span></code> property</p></li>
@@ -153,20 +164,78 @@
 </pre></div>
 </div>
 </section>
+<section id="usage-examples">
+<h2>Usage Examples<a class="headerlink" href="#usage-examples" title="Link to this heading"></a></h2>
+<p><strong>Setup with Manual Masking</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mom6_forge.topo</span><span class="w"> </span><span class="kn">import</span> <span class="n">Topo</span>
+
+<span class="c1"># Create Topo object with initial bathymetry</span>
+<span class="n">topo</span> <span class="o">=</span> <span class="n">Topo</span><span class="p">(</span><span class="n">depth</span><span class="o">=</span><span class="n">my_depth_array</span><span class="p">)</span>
+
+<span class="c1"># Apply ocean/land mask</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">mask</span> <span class="o">=</span> <span class="n">ocean_mask</span>  <span class="c1"># Binary mask, shape (ny, nx)</span>
+
+<span class="c1"># Configure land cell behavior</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">land_fillval</span> <span class="o">=</span> <span class="mf">0.0</span>  <span class="c1"># Land cells set to 0.0 m</span>
+
+<span class="c1"># Access masked depth values</span>
+<span class="n">masked_depth</span> <span class="o">=</span> <span class="n">topo</span><span class="o">.</span><span class="n">depth</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Ocean cells averaged: </span><span class="si">{</span><span class="n">topo</span><span class="o">.</span><span class="n">depth</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">ocean_mask</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Land cells: </span><span class="si">{</span><span class="n">topo</span><span class="o">.</span><span class="n">depth</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="o">~</span><span class="n">ocean_mask</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">bool</span><span class="p">))</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Disable Masking</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Revert to unmasked raw depths</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">mask</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="n">raw_depth</span> <span class="o">=</span> <span class="n">topo</span><span class="o">.</span><span class="n">depth</span>  <span class="c1"># Now returns _depth_raw unchanged</span>
+</pre></div>
+</div>
+<p><strong>Check Raw vs Masked</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Compare raw and masked versions</span>
+<span class="n">raw</span> <span class="o">=</span> <span class="n">topo</span><span class="o">.</span><span class="n">depth_raw</span>
+<span class="n">masked</span> <span class="o">=</span> <span class="n">topo</span><span class="o">.</span><span class="n">depth</span>
+
+<span class="k">if</span> <span class="n">topo</span><span class="o">.</span><span class="n">mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">diff</span> <span class="o">=</span> <span class="p">(</span><span class="n">masked</span> <span class="o">-</span> <span class="n">raw</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Masking applied - differences in </span><span class="si">{</span><span class="p">(</span><span class="n">masked</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">raw</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2"> cells&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
 <section id="version-control-and-edits">
 <h2>Version Control and Edits<a class="headerlink" href="#version-control-and-edits" title="Link to this heading"></a></h2>
 <p>All depth modifications go through the <code class="docutils literal notranslate"><span class="pre">send_entire_depth_change_to_tcm()</span></code> method, which:</p>
 <ul class="simple">
-<li><p>Modifies only <code class="docutils literal notranslate"><span class="pre">_unmasked_depth</span></code> (the raw storage)</p></li>
-<li><p>Preserves the existing mask</p></li>
+<li><p>Modifies only <code class="docutils literal notranslate"><span class="pre">_depth_raw</span></code> (the raw storage)</p></li>
+<li><p>Preserves the existing manual mask</p></li>
 <li><p>Records changes in the TopoCommandManager (TCM) for undo/redo support</p></li>
 <li><p>Allows full version control of bathymetry edits</p></li>
 </ul>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># When you modify depth, the mask is preserved</span>
-<span class="n">topo</span><span class="o">.</span><span class="n">depth</span> <span class="o">=</span> <span class="n">new_depth_array</span>  <span class="c1"># Only _unmasked_depth is updated</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># When you modify depth, the manual mask is preserved</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">depth</span> <span class="o">=</span> <span class="n">new_depth_array</span>  <span class="c1"># Only _depth_raw is updated</span>
 
-<span class="c1"># The mask remains intact</span>
+<span class="c1"># The manual mask remains intact</span>
 <span class="k">assert</span> <span class="n">topo</span><span class="o">.</span><span class="n">mask</span> <span class="o">==</span> <span class="n">original_mask</span>
+</pre></div>
+</div>
+</section>
+<section id="internal-architecture">
+<h2>Internal Architecture<a class="headerlink" href="#internal-architecture" title="Link to this heading"></a></h2>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>User sets: topo.mask = ocean_mask
+            ↓
+Stored in: self._manual_mask
+            ↓
+        When user calls: topo.depth
+            ↓
+        Property checks: if self._manual_mask is not None
+            ↓
+        If mask exists:
+            Calculate: masked_depth = where(mask==1, enforce_min_depth(_depth_raw),
+                                                       land_fillval)
+            ↓
+        If no mask:
+            Return: self._depth_raw directly
+            ↓
+        Return: masked/raw depth array
 </pre></div>
 </div>
 </section>
@@ -218,9 +287,9 @@
 </ul>
 <p><strong>Internal:</strong></p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">topo._unmasked_depth</span></code> — Raw depth storage (use <code class="docutils literal notranslate"><span class="pre">topo.depth</span></code> instead)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">topo._mask</span></code> — Internal mask storage (use <code class="docutils literal notranslate"><span class="pre">topo.mask</span></code> instead)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">topo._land_fillval</span></code> — Internal land fill value storage (use <code class="docutils literal notranslate"><span class="pre">topo.land_fillval</span></code> instead)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">topo._depth_raw</span></code> — Raw depth storage (use <code class="docutils literal notranslate"><span class="pre">topo.depth_raw</span></code> property or <code class="docutils literal notranslate"><span class="pre">topo.depth</span></code> instead)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">topo._manual_mask</span></code> — Internal manual mask storage (use <code class="docutils literal notranslate"><span class="pre">topo.mask</span></code> property instead)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">topo._land_fillval</span></code> — Internal land fill value storage (use <code class="docutils literal notranslate"><span class="pre">topo.land_fillval</span></code> property instead)</p></li>
 </ul>
 </section>
 <section id="benefits-of-this-design">
