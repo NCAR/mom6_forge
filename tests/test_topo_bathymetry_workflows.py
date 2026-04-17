@@ -67,7 +67,7 @@ def test_generate_mask_ocean_frac_returns_binary_mask(small_topo, src_bathy):
     assert set(np.unique(mask.values)).issubset({0, 1})
 
 
-def test_compute_topo_stats(get_rect_topo, synthetic_bathy_file):
+def test_compute_topo_stats(small_topo, src_bathy):
     """Test _compute_topo_stats: per-cell depth statistics via xesmf nearest neighbor regridding.
 
     This test validates the refactored _compute_topo_stats method which:
@@ -75,10 +75,10 @@ def test_compute_topo_stats(get_rect_topo, synthetic_bathy_file):
     - Uses xesmf nearest_s2d regridding to snap sub-points to nearest source data
     - Computes per-cell statistics (OCN_FRAC, D_mean, D_min, D_max, D2_mean)
     """
-    topo = get_rect_topo
+    topo = small_topo
 
     # Load source bathymetry and slice to topo domain
-    src = SourceBathy(synthetic_bathy_file)
+    src = SourceBathy(src_bathy)
     src.slice_to_domain(topo, buf=0.5)
     topo._src = src
 
