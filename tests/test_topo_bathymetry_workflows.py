@@ -78,7 +78,7 @@ def test_compute_topo_stats(small_topo, src_bathy):
     topo = small_topo
 
     # Load source bathymetry and slice to topo domain
-    src = SourceBathy(src_bathy)
+    src = src_bathy
     src.slice_to_domain(topo, buf=0.5)
     topo._src = src
 
