@@ -37,6 +37,6 @@ setuptools.setup(
         "gitpython>=3.1,<3.2.0",
         "cartopy>=0.23,<0.30",
         "xesmf>=0.8.10,<1.0.0",
-        "regionmask",
+        "regionmask>=0.13.0,<0.14.0",
     ],
 )
