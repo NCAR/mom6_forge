@@ -571,7 +571,7 @@ class Topo:
         # Save to object (Build TCM Object)
         self.send_entire_depth_change_to_tcm(new_values)
 
-    def _compute_topo_stats(self, src, nx_sub, ny_sub, mask_hmin):
+    def _compute_topo_stats(self, nx_sub, ny_sub, mask_hmin):
         """Compute per-cell depth statistics by uniform sub-sampling.
 
         Results are cached on ``src._topo_stats`` so a second call with the
@@ -579,7 +579,7 @@ class Topo:
 
         Parameters
         ----------
-        src : SourceBathy
+        src : SourceBathy (part of class)
         nx_sub, ny_sub : int
         mask_hmin : float
 
@@ -587,6 +587,10 @@ class Topo:
         -------
         xr.Dataset  —  ``OCN_FRAC``, ``D_mean``, ``D_min``, ``D_max``, ``D2_mean``.
         """
+        assert (
+            self._src is not None
+        ), "Source bathymetry must be loaded to compute topo stats"
+        src = self._src
         if src._topo_stats is not None:
             return src._topo_stats
 
@@ -602,7 +606,7 @@ class Topo:
         NE_lat = self._grid.qlat.values[1:, 1:]
         NW_lat = self._grid.qlat.values[1:, :-1]
 
-        # Fix 2: ensure all corners are in the same 360° period as NE,
+        # ensure all corners are in the same 360° period as NE,
         # matching Fortran create_model_topo.f90 lines 322-333.
         # Cells straddling the antimeridian would otherwise produce garbage
         # bilinear-interpolated sub_lon values.
@@ -657,15 +661,14 @@ class Topo:
                 "lat": (["y"], src.lat),
                 "lon": (["x"], src.lon),
             },
-            data_vars={"depth": (["y", "x"], src.depth)}
+            data_vars={"depth": (["y", "x"], src.depth)},
         )
 
-
         depth_sub = regrid_dataset_via_xesmf(
-                input_dataset = ds_src,
-                output_dataset = ds_sub,
-                regridding_method="nearest_s2d", # Gets the closest source point
-                write_to_file=False,
+            input_dataset=ds_src,
+            output_dataset=ds_sub,
+            regridding_method="nearest_s2d",  # Gets the closest source point
+            write_to_file=False,
         ).depth.data
 
         is_ocean = depth_sub > mask_hmin
