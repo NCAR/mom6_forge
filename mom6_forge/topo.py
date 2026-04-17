@@ -606,7 +606,7 @@ class Topo:
         NE_lat = self._grid.qlat.values[1:, 1:]
         NW_lat = self._grid.qlat.values[1:, :-1]
 
-        # ensure all corners are in the same 360° period as NE,
+        # Fix 2: ensure all corners are in the same 360° period as NE,
         # matching Fortran create_model_topo.f90 lines 322-333.
         # Cells straddling the antimeridian would otherwise produce garbage
         # bilinear-interpolated sub_lon values.
@@ -648,28 +648,25 @@ class Topo:
         )
 
         # Create destination subpoints
-        ds_sub = xr.Dataset(
-            coords={
-                "lat": (["y", "x"], sub_lat),
-                "lon": (["y", "x"], sub_lon),
-            }
-        )
-        ds_sub["depth"] = xr.zeros_like(ds_sub["lon"])
-        # Create source dataset
-        ds_src = xr.Dataset(
-            coords={
-                "lat": (["y"], src.lat),
-                "lon": (["x"], src.lon),
-            },
-            data_vars={"depth": (["y", "x"], src.depth)},
-        )
+        ii = np.round((sub_lon - src.lon[0]) / dlon).astype(int)
+        jj = np.round((sub_lat - src.lat[0]) / dlat).astype(int)
+        # wrap longitude index periodically rather than clipping —
+        # sub-points near the antimeridian must find the correct source pixel
+        # on the other side, not snap to the edge.
+        if np.any((ii < 0) | (ii >= len(src.lon))):
+            src_span = float(src.lon[-1] - src.lon[0])
+            if src_span < 355:
+                raise ValueError(
+                    f"Sub-points fall outside the source longitude range "
+                    f"[{float(src.lon[0]):.2f}, {float(src.lon[-1]):.2f}] "
+                    f"(span {src_span:.1f}°). Longitude wraparound requires a "
+                    f"global source (~360° span); got {src_span:.1f}°. "
+                    f"Pass a global SourceBathy rather than a regional slice."
+                )
+        ii = ii % len(src.lon)
+        jj = np.clip(jj, 0, len(src.lat) - 1)  # latitude: clamp, no wraparound
 
-        depth_sub = regrid_dataset_via_xesmf(
-            input_dataset=ds_src,
-            output_dataset=ds_sub,
-            regridding_method="nearest_s2d",  # Gets the closest source point
-            write_to_file=False,
-        ).depth.data
+        depth_sub = src.depth[jj, ii]  # positive-down
 
         is_ocean = depth_sub > mask_hmin
         ocn_frac = is_ocean.sum(axis=(-2, -1)) / (nx_sub * ny_sub)
