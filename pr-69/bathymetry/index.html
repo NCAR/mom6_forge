@@ -1,0 +1,232 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bathymetry Workflow &mdash; mom6_forge 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=2709fde1"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Mask and Depth Calculation" href="mask_depth_calculation.html" />
+    <link rel="prev" title="Quickstart Guide" href="../quickstart.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            mom6_forge
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Bathymetry Workflow</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="mask_depth_calculation.html">Mask and Depth Calculation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#overview-of-the-bathymetry-pipeline">Overview of the Bathymetry Pipeline</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#key-concepts">Key Concepts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#common-workflows">Common Workflows</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#documentation-index">Documentation Index</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#related-documentation">Related Documentation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../widgets.html">Topo &amp; The Widgets!</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Python API:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../modules.html">mom6_forge</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">mom6_forge</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Bathymetry Workflow</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/bathymetry/index.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="bathymetry-workflow">
+<h1>Bathymetry Workflow<a class="headerlink" href="#bathymetry-workflow" title="Link to this heading"></a></h1>
+<p>The bathymetry workflow pipeline combines multiple components for creating and modifying MOM6 bathymetry files. This section documents the key concepts, operations, and best practices for working with bathymetry in mom6_forge.</p>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Bathymetry Topics:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="mask_depth_calculation.html">Mask and Depth Calculation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="mask_depth_calculation.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mask_depth_calculation.html#core-components">Core Components</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mask_depth_calculation.html#how-masking-works">How Masking Works</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mask_depth_calculation.html#version-control-and-edits">Version Control and Edits</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mask_depth_calculation.html#practical-example">Practical Example</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mask_depth_calculation.html#api-reference">API Reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mask_depth_calculation.html#benefits-of-this-design">Benefits of This Design</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<section id="overview-of-the-bathymetry-pipeline">
+<h2>Overview of the Bathymetry Pipeline<a class="headerlink" href="#overview-of-the-bathymetry-pipeline" title="Link to this heading"></a></h2>
+<p>The mom6_forge bathymetry workflow consists of these key stages:</p>
+<ol class="arabic simple">
+<li><p><strong>Grid Creation</strong> — Define the horizontal MOM6 grid</p></li>
+<li><p><strong>Depth Initialization</strong> — Load or generate initial bathymetry</p></li>
+<li><p><strong>Masking</strong> — Apply ocean/land masks (e.g., from land fraction data)</p></li>
+<li><p><strong>Refinement</strong> — Apply ridges, smooth features, or manual edits</p></li>
+<li><p><strong>Validation</strong> — Check consistency and apply min/max depth constraints</p></li>
+<li><p><strong>Output</strong> — Write final bathymetry to TOPO_FILE</p></li>
+</ol>
+</section>
+<section id="key-concepts">
+<h2>Key Concepts<a class="headerlink" href="#key-concepts" title="Link to this heading"></a></h2>
+<p><strong>Separation of Concerns</strong></p>
+<p>Raw depth data (<code class="docutils literal notranslate"><span class="pre">_unmasked_depth</span></code>) is kept separate from masking logic (<code class="docutils literal notranslate"><span class="pre">_mask</span></code>). This enables:</p>
+<ul class="simple">
+<li><p>Efficient storage (only one copy of depth data)</p></li>
+<li><p>Flexible masking (masks can be applied/removed without re-computing)</p></li>
+<li><p>Clean version control (edits to depth vs mask are independent)</p></li>
+</ul>
+<p><strong>Version Control Integration</strong></p>
+<p>All bathymetry modifications are tracked through the TopoCommandManager (TCM):</p>
+<ul class="simple">
+<li><p>Every edit creates a record (index, old_value, new_value)</p></li>
+<li><p>Full undo/redo capability</p></li>
+<li><p>Version history saved to git</p></li>
+<li><p>Can restore any previous bathymetry state</p></li>
+</ul>
+<p><strong>Minimal Depth Enforcement</strong></p>
+<p>The <code class="docutils literal notranslate"><span class="pre">min_depth</span></code> parameter ensures all ocean cells meet a minimum depth for model stability:</p>
+<ul class="simple">
+<li><p>Ocean cells shallower than <code class="docutils literal notranslate"><span class="pre">min_depth</span></code> are boosted to <code class="docutils literal notranslate"><span class="pre">min_depth</span> <span class="pre">+</span> <span class="pre">0.1</span></code></p></li>
+<li><p>Ensures model doesn’t attempt to integrate in cells that are too shallow</p></li>
+<li><p>Configurable per-Topo instance</p></li>
+</ul>
+</section>
+<section id="common-workflows">
+<h2>Common Workflows<a class="headerlink" href="#common-workflows" title="Link to this heading"></a></h2>
+<p><strong>Workflow 1: Load existing bathymetry with mask</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Load bathymetry from file</span>
+<span class="n">topo</span> <span class="o">=</span> <span class="n">Topo</span><span class="o">.</span><span class="n">from_topo_file</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="s2">&quot;input_topo.nc&quot;</span><span class="p">)</span>
+
+<span class="c1"># Apply an ocean/land mask</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">apply_land_frac</span><span class="p">(</span><span class="s2">&quot;land_fraction.nc&quot;</span><span class="p">,</span> <span class="n">landfrac_name</span><span class="o">=</span><span class="s2">&quot;LANDFRAC&quot;</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+
+<span class="c1"># Write output</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_topo</span><span class="p">(</span><span class="s2">&quot;output_topo.nc&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Workflow 2: Create idealized bathymetry</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create flat or idealized bathymetry</span>
+<span class="n">topo</span> <span class="o">=</span> <span class="n">Topo</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">min_depth</span><span class="o">=</span><span class="mf">100.0</span><span class="p">)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">set_spoon</span><span class="p">(</span><span class="n">max_depth</span><span class="o">=</span><span class="mf">5000.0</span><span class="p">,</span> <span class="n">dedge</span><span class="o">=</span><span class="mf">100.0</span><span class="p">)</span>
+
+<span class="c1"># Apply custom modifications</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">apply_ridge</span><span class="p">(</span><span class="n">height</span><span class="o">=</span><span class="mf">1000.0</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mf">10.0</span><span class="p">,</span> <span class="n">lon</span><span class="o">=-</span><span class="mf">120.0</span><span class="p">,</span> <span class="n">ilat</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">50</span><span class="p">))</span>
+
+<span class="c1"># Output</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_topo</span><span class="p">(</span><span class="s2">&quot;idealized_topo.nc&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Workflow 3: Load and edit interactively</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Load existing bathymetry with version control</span>
+<span class="n">topo</span> <span class="o">=</span> <span class="n">Topo</span><span class="o">.</span><span class="n">from_version_control</span><span class="p">(</span><span class="s2">&quot;TopoLibrary/my_domain&quot;</span><span class="p">)</span>
+
+<span class="c1"># Make edits</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">apply_ridge</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+
+<span class="c1"># Undo if needed</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">tcm</span><span class="o">.</span><span class="n">undo</span><span class="p">()</span>
+
+<span class="c1"># Save changes</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="documentation-index">
+<h2>Documentation Index<a class="headerlink" href="#documentation-index" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>Mask and Depth Calculation</strong> — Details on the separation-of-concerns design for depth and masking</p></li>
+</ul>
+</section>
+<section id="related-documentation">
+<h2>Related Documentation<a class="headerlink" href="#related-documentation" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>See the main <a class="reference internal" href="../quickstart.html"><span class="doc">Quickstart Guide</span></a> for basic grid and bathymetry setup</p></li>
+<li><p>Check <a class="reference internal" href="../examples.html"><span class="doc">Examples</span></a> for Jupyter notebook examples</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../quickstart.html" class="btn btn-neutral float-left" title="Quickstart Guide" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="mask_depth_calculation.html" class="btn btn-neutral float-right" title="Mask and Depth Calculation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, NCAR.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
