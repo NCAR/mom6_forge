@@ -79,8 +79,8 @@ def test_source_bathy_slice_to_domain(get_rect_topo, synthetic_bathy_file):
     assert src.lat is not None
 
     # Verify shape makes sense
-    assert len(src.lon) > 0
-    assert len(src.lat) > 0
+    assert len(src.lon) > 0, f"Expected lon data, got empty array"
+    assert len(src.lat) > 0, f"Expected lat data, got empty array"
     assert src._da.shape == (len(src.lat), len(src.lon))
 
 
@@ -94,5 +94,12 @@ def test_source_bathy_depth_conversion(get_rect_topo, synthetic_bathy_file):
     # Get depth and verify sign conversion
     depth = src.depth
 
-    assert not bool(np.isnan(depth).all())
+    # Verify no NaNs in the result
+    assert not bool(np.isnan(depth).all()), "All depth values are NaN"
+
+    # Verify positive depth values for ocean (elevation is negative)
+    non_nan_values = depth[~np.isnan(depth)]
+    assert len(non_nan_values) > 0, "No valid depth values"
+    assert np.any(non_nan_values > 0), "Expected positive depth values for ocean"
+
     assert depth.shape == src.da.shape
