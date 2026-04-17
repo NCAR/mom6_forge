@@ -158,6 +158,18 @@ class Topo:
         )
         return masked_depth
 
+    @property.setter
+    def depth(self, depth):
+        """
+        Set the depth by directly assigning to the depth property. This is a wrapper around setting depth_raw.
+
+        Parameters
+        ----------
+        depth: np.array or xr.DataArray
+            2-D Array of ocean depth (m).
+        """
+        self.depth_raw = depth  # Use the depth_raw setter
+
     @property
     def depth_raw(self):
         """
