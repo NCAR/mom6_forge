@@ -571,6 +571,151 @@ class Topo:
         # Save to object (Build TCM Object)
         self.send_entire_depth_change_to_tcm(new_values)
 
+    def _compute_topo_stats(self, src, nx_sub, ny_sub, mask_hmin):
+        """Compute per-cell depth statistics by uniform sub-sampling.
+
+        Results are cached on ``src._topo_stats`` so a second call with the
+        same source file returns immediately without recomputation.
+
+        Parameters
+        ----------
+        src : SourceBathy
+        nx_sub, ny_sub : int
+        mask_hmin : float
+
+        Returns
+        -------
+        xr.Dataset  —  ``OCN_FRAC``, ``D_mean``, ``D_min``, ``D_max``, ``D2_mean``.
+        """
+        if src._topo_stats is not None:
+            return src._topo_stats
+
+        dlon = float(src.lon[1] - src.lon[0])
+        dlat = float(src.lat[1] - src.lat[0])
+
+        SW_lon = self._grid.qlon.values[:-1, :-1]
+        SE_lon = self._grid.qlon.values[:-1, 1:]
+        NE_lon = self._grid.qlon.values[1:, 1:]
+        NW_lon = self._grid.qlon.values[1:, :-1]
+        SW_lat = self._grid.qlat.values[:-1, :-1]
+        SE_lat = self._grid.qlat.values[:-1, 1:]
+        NE_lat = self._grid.qlat.values[1:, 1:]
+        NW_lat = self._grid.qlat.values[1:, :-1]
+
+        # Fix 2: ensure all corners are in the same 360° period as NE,
+        # matching Fortran create_model_topo.f90 lines 322-333.
+        # Cells straddling the antimeridian would otherwise produce garbage
+        # bilinear-interpolated sub_lon values.
+        def _fix_lon_period(lon, ref):
+            diff = lon - ref
+            lon = np.where(diff > 270, lon - 360, lon)
+            lon = np.where(diff < -270, lon + 360, lon)
+            return lon
+
+        SW_lon = _fix_lon_period(SW_lon, NE_lon)
+        SE_lon = _fix_lon_period(SE_lon, NE_lon)
+        NW_lon = _fix_lon_period(NW_lon, NE_lon)
+
+        ifrac = (np.arange(1, nx_sub + 1) / (nx_sub + 1)).astype(float)
+        jfrac = (np.arange(1, ny_sub + 1) / (ny_sub + 1)).astype(float)
+
+        i_ = ifrac[np.newaxis, np.newaxis, np.newaxis, :]
+        j_ = jfrac[np.newaxis, np.newaxis, :, np.newaxis]
+        SW_lon = SW_lon[:, :, np.newaxis, np.newaxis]
+        SE_lon = SE_lon[:, :, np.newaxis, np.newaxis]
+        NE_lon = NE_lon[:, :, np.newaxis, np.newaxis]
+        NW_lon = NW_lon[:, :, np.newaxis, np.newaxis]
+        SW_lat = SW_lat[:, :, np.newaxis, np.newaxis]
+        SE_lat = SE_lat[:, :, np.newaxis, np.newaxis]
+        NE_lat = NE_lat[:, :, np.newaxis, np.newaxis]
+        NW_lat = NW_lat[:, :, np.newaxis, np.newaxis]
+
+        sub_lon = (
+            (1 - i_) * (1 - j_) * SW_lon
+            + i_ * (1 - j_) * SE_lon
+            + i_ * j_ * NE_lon
+            + (1 - i_) * j_ * NW_lon
+        )
+        sub_lat = (
+            (1 - i_) * (1 - j_) * SW_lat
+            + i_ * (1 - j_) * SE_lat
+            + i_ * j_ * NE_lat
+            + (1 - i_) * j_ * NW_lat
+        )
+
+        # Create destination subpoints
+        ds_sub = xr.Dataset(
+            coords={
+                "lat": (["y", "x"], sub_lat),
+                "lon": (["y", "x"], sub_lon),
+            }
+        )
+        ds_sub["depth"] = xr.zeros_like(ds_sub["lon"])
+        # Create source dataset
+        ds_src = xr.Dataset(
+            coords={
+                "lat": (["y"], src.lat),
+                "lon": (["x"], src.lon),
+            },
+            data_vars={"depth": (["y", "x"], src.depth)}
+        )
+
+
+        depth_sub = regrid_dataset_via_xesmf(
+                input_dataset = ds_src,
+                output_dataset = ds_sub,
+                regridding_method="nearest_s2d", # Gets the closest source point
+                write_to_file=False,
+        ).depth.data
+
+        is_ocean = depth_sub > mask_hmin
+        ocn_frac = is_ocean.sum(axis=(-2, -1)) / (nx_sub * ny_sub)
+
+        depth_ocean = np.where(is_ocean, depth_sub, np.nan)
+        with np.errstate(all="ignore"):
+            D_mean = np.nanmean(depth_ocean, axis=(-2, -1))
+            D_min = np.nanmin(depth_ocean, axis=(-2, -1))
+            D_max = np.nanmax(depth_ocean, axis=(-2, -1))
+            D2_mean = np.nanmean(depth_ocean**2, axis=(-2, -1))
+
+        dims = ["ny", "nx"]
+        src._topo_stats = xr.Dataset(
+            {
+                "OCN_FRAC": xr.DataArray(
+                    ocn_frac,
+                    dims=dims,
+                    attrs={
+                        "long_name": "ocean fraction from sub-sampling",
+                        "units": "1",
+                    },
+                ),
+                "D_mean": xr.DataArray(
+                    D_mean,
+                    dims=dims,
+                    attrs={"long_name": "mean ocean depth in cell", "units": "m"},
+                ),
+                "D_min": xr.DataArray(
+                    D_min,
+                    dims=dims,
+                    attrs={"long_name": "minimum ocean depth in cell", "units": "m"},
+                ),
+                "D_max": xr.DataArray(
+                    D_max,
+                    dims=dims,
+                    attrs={"long_name": "maximum ocean depth in cell", "units": "m"},
+                ),
+                "D2_mean": xr.DataArray(
+                    D2_mean,
+                    dims=dims,
+                    attrs={
+                        "long_name": "mean squared ocean depth in cell",
+                        "units": "m2",
+                    },
+                ),
+            }
+        )
+        return src._topo_stats
+
     def set_from_dataset(
         self,
         bathymetry_path,
