@@ -298,3 +298,56 @@ def synthetic_bathy_file():
 
     # Cleanup
     Path(bathy_file).unlink()
+
+
+@pytest.fixture
+def get_simple_grid():
+    grid = Grid(
+        resolution=1,  # in degrees
+        xstart=1,  # min longitude in [0, 360]
+        lenx=2,  # longitude extent in degrees
+        ystart=1,  # min latitude in [-90, 90]
+        leny=2,  # latitude extent in degrees
+        name="panama1",
+    )
+    return grid
+
+
+@pytest.fixture
+def get_simple_global_grid():
+    grid = Grid(
+        resolution=1,  # in degrees
+        xstart=0,  # min longitude in [0, 360]
+        lenx=360,  # longitude extent in degrees
+        ystart=-90,  # min latitude in [-90, 90]
+        leny=180,  # latitude extent in degrees
+        name="panama1",
+        cyclic_x=True,
+    )
+    return grid
+
+
+@pytest.fixture
+def get_PM_seam_grid():
+    grid = Grid(
+        resolution=1,  # in degrees
+        xstart=359,  # min longitude in [0, 360]
+        lenx=2,  # longitude extent in degrees
+        ystart=-1,  # min latitude in [-90, 90]
+        leny=2,  # latitude extent in degrees
+        name="panama1",
+    )
+    return grid
+
+
+@pytest.fixture
+def get_dateline_seam_grid():
+    grid = Grid(
+        resolution=1,  # in degrees
+        xstart=-1,  # min longitude in [0, 360]
+        lenx=2,  # longitude extent in degrees
+        ystart=-1,  # min latitude in [-90, 90]
+        leny=2,  # latitude extent in degrees
+        name="panama1",
+    )
+    return grid

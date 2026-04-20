@@ -11,7 +11,7 @@ from mom6_forge.git_utils import get_domain_dir, get_repo
 from pathlib import Path
 from mom6_forge.edit_command import *
 from mom6_forge.command_manager import TopoCommandManager, CommandType
-from mom6_forge.mapping import regrid_dataset_via_xesmf
+from mom6_forge.mapping import regrid_dataset_via_xesmf, regrid_with_subsampling
 from mom6_forge._source_bathy import SourceBathy
 
 
@@ -594,79 +594,17 @@ class Topo:
         if src._topo_stats is not None:
             return src._topo_stats
 
-        dlon = float(src.lon[1] - src.lon[0])
-        dlat = float(src.lat[1] - src.lat[0])
-
-        SW_lon = self._grid.qlon.values[:-1, :-1]
-        SE_lon = self._grid.qlon.values[:-1, 1:]
-        NE_lon = self._grid.qlon.values[1:, 1:]
-        NW_lon = self._grid.qlon.values[1:, :-1]
-        SW_lat = self._grid.qlat.values[:-1, :-1]
-        SE_lat = self._grid.qlat.values[:-1, 1:]
-        NE_lat = self._grid.qlat.values[1:, 1:]
-        NW_lat = self._grid.qlat.values[1:, :-1]
-
-        # Fix 2: ensure all corners are in the same 360° period as NE,
-        # matching Fortran create_model_topo.f90 lines 322-333.
-        # Cells straddling the antimeridian would otherwise produce garbage
-        # bilinear-interpolated sub_lon values.
-        def _fix_lon_period(lon, ref):
-            diff = lon - ref
-            lon = np.where(diff > 270, lon - 360, lon)
-            lon = np.where(diff < -270, lon + 360, lon)
-            return lon
-
-        SW_lon = _fix_lon_period(SW_lon, NE_lon)
-        SE_lon = _fix_lon_period(SE_lon, NE_lon)
-        NW_lon = _fix_lon_period(NW_lon, NE_lon)
-
-        ifrac = (np.arange(1, nx_sub + 1) / (nx_sub + 1)).astype(float)
-        jfrac = (np.arange(1, ny_sub + 1) / (ny_sub + 1)).astype(float)
-
-        i_ = ifrac[np.newaxis, np.newaxis, np.newaxis, :]
-        j_ = jfrac[np.newaxis, np.newaxis, :, np.newaxis]
-        SW_lon = SW_lon[:, :, np.newaxis, np.newaxis]
-        SE_lon = SE_lon[:, :, np.newaxis, np.newaxis]
-        NE_lon = NE_lon[:, :, np.newaxis, np.newaxis]
-        NW_lon = NW_lon[:, :, np.newaxis, np.newaxis]
-        SW_lat = SW_lat[:, :, np.newaxis, np.newaxis]
-        SE_lat = SE_lat[:, :, np.newaxis, np.newaxis]
-        NE_lat = NE_lat[:, :, np.newaxis, np.newaxis]
-        NW_lat = NW_lat[:, :, np.newaxis, np.newaxis]
-
-        sub_lon = (
-            (1 - i_) * (1 - j_) * SW_lon
-            + i_ * (1 - j_) * SE_lon
-            + i_ * j_ * NE_lon
-            + (1 - i_) * j_ * NW_lon
-        )
-        sub_lat = (
-            (1 - i_) * (1 - j_) * SW_lat
-            + i_ * (1 - j_) * SE_lat
-            + i_ * j_ * NE_lat
-            + (1 - i_) * j_ * NW_lat
+        # Compute subsampling factor and generate sub-point grid
+        ds = regrid_with_subsampling(
+            input_dataset=src.dataset,
+            qlon=self._grid.qlon.values,
+            qlat=self._grid.qlat.values,
+            nx_sub=nx_sub,
+            ny_sub=ny_sub,
+            regridding_method="nearest_s2d",
         )
 
-        # Create destination subpoints
-        ii = np.round((sub_lon - src.lon[0]) / dlon).astype(int)
-        jj = np.round((sub_lat - src.lat[0]) / dlat).astype(int)
-        # wrap longitude index periodically rather than clipping —
-        # sub-points near the antimeridian must find the correct source pixel
-        # on the other side, not snap to the edge.
-        if np.any((ii < 0) | (ii >= len(src.lon))):
-            src_span = float(src.lon[-1] - src.lon[0])
-            if src_span < 355:
-                raise ValueError(
-                    f"Sub-points fall outside the source longitude range "
-                    f"[{float(src.lon[0]):.2f}, {float(src.lon[-1]):.2f}] "
-                    f"(span {src_span:.1f}°). Longitude wraparound requires a "
-                    f"global source (~360° span); got {src_span:.1f}°. "
-                    f"Pass a global SourceBathy rather than a regional slice."
-                )
-        ii = ii % len(src.lon)
-        jj = np.clip(jj, 0, len(src.lat) - 1)  # latitude: clamp, no wraparound
-
-        depth_sub = src.depth[jj, ii]  # positive-down
+        depth_sub = ds[src.elevation_name].values  # (ny, nx, ny_sub, nx_sub)
 
         is_ocean = depth_sub > mask_hmin
         ocn_frac = is_ocean.sum(axis=(-2, -1)) / (nx_sub * ny_sub)
