@@ -1010,6 +1010,8 @@ def _make_subgrid_points(qlon, qlat, nx_sub, ny_sub):
     -------
     sub_lon, sub_lat : np.ndarray  shape (ny, nx, ny_sub, nx_sub)
     """
+    assert type(qlon) == type(qlat) == np.ndarray, "qlon and qlat must be numpy arrays"
+
     SW_lon = qlon[:-1, :-1]
     SW_lat = qlat[:-1, :-1]
     SE_lon = qlon[:-1, 1:]
@@ -1035,7 +1037,7 @@ def _make_subgrid_points(qlon, qlat, nx_sub, ny_sub):
     i_ = ifrac[np.newaxis, np.newaxis, np.newaxis, :]  # (1,1,1,nx_sub)
     j_ = jfrac[np.newaxis, np.newaxis, :, np.newaxis]  # (1,1,ny_sub,1)
 
-    # Broadcast all corners to (ny, nx, 1, 1)
+    # Broadcast all corners to (ny, nx, 1, 1),
     SW_lon = SW_lon[:, :, np.newaxis, np.newaxis]
     SE_lon = SE_lon[:, :, np.newaxis, np.newaxis]
     NE_lon = NE_lon[:, :, np.newaxis, np.newaxis]
