@@ -164,6 +164,19 @@ class TopoEditor(widgets.HBox):
             style={"description_width": "auto"},
         )
 
+        self._mask_specifier = widgets.ToggleButtons(
+            value=None,
+            options=["Land", "Ocean"],
+            description="Mask:",
+            disabled=True,
+            style={"description_width": "auto"},
+        )
+        self._clear_manual_mask_button = widgets.Button(
+            description="Clear Manual Mask",
+            button_style="warning",
+            layout={"width": "80%"},
+        )
+
         # --- Basin editing widgets ---
         self._basin_specifier_toggle = widgets.Button(
             description="Erase Disconnected Basins",
@@ -240,6 +253,8 @@ class TopoEditor(widgets.HBox):
                 widgets.HTML("<h3>Cell Editing</h3>"),
                 self._selected_cell_label,
                 self._depth_specifier,
+                self._mask_specifier,
+                self._clear_manual_mask_button,
             ]
         )
         basin_section = widgets.VBox(
@@ -316,7 +331,7 @@ class TopoEditor(widgets.HBox):
             )  # For some reason, this needs to be set twice to get the correct minimum bound
             self.cbar.set_label(f"Depth ({self.topo.depth.units})")
         elif mode == "mask":
-            self.im.set_array(self.topo.tmask.data)
+            self.im.set_array(self.topo.mask.data)
             self.im.set_clim((0, 1))
             self.cbar.set_label("Land Mask")
         elif mode == "basinmask":
@@ -383,6 +398,14 @@ class TopoEditor(widgets.HBox):
         if hasattr(self, "_depth_specifier"):
             self._depth_specifier.disabled = False
             self._depth_specifier.value = self.topo.depth.data[j, i]
+        if hasattr(self, "_mask_specifier"):
+            self._mask_specifier.disabled = False
+            self._mask_specifier.value = "Ocean" if self.topo.mask.data[j, i] == 1 else "Land"
+        if hasattr(self, "_clear_manual_mask_button"):
+            if self.topo._manual_mask is not None:
+                self._clear_manual_mask_button.disabled = False
+            else:
+                self._clear_manual_mask_button.disabled = True
         if hasattr(self, "_basin_specifier"):
             label = self.topo.basintmask.data[j, i]
             self._basin_specifier.value = f"Basin Label Number: {str(label)}"
@@ -419,6 +442,12 @@ class TopoEditor(widgets.HBox):
         self._depth_specifier.observe(
             self.on_depth_change, names="value", type="change"
         )
+
+        # Mask change observer for selected cell
+        self._mask_specifier.observe(
+            self.on_mask_change, names="value", type="change"
+        )
+        self._clear_manual_mask_button.on_click(self.clear_manual_mask)
 
         # Undo/Redo/Reset buttons
         self._undo_button.on_click(self.undo_last_edit)
@@ -475,6 +504,12 @@ class TopoEditor(widgets.HBox):
         self.topo.erase_disconnected_basin(i, j)
         self.update_undo_redo_buttons()
 
+    def clear_manual_mask(self, b):
+        """Clear the manual mask if it exists."""
+        if self.topo._manual_mask is not None:
+            self.topo.clear_manual_mask()
+            self.update_undo_redo_buttons()
+
     def erase_selected_basin(self, b):
         """Erase the basin associated with the currently selected cell."""
         if self._selected_cell is None:
@@ -493,6 +528,20 @@ class TopoEditor(widgets.HBox):
         if old_val == new_val:
             return
         cmd = DepthEditCommand(self.topo, [(j, i)], [new_val], old_values=[old_val])
+        self.apply_edit(cmd)
+        self.update_undo_redo_buttons()
+
+    def on_mask_change(self, change):
+        """Handle changes to the mask specifier for the selected cell."""
+        if self._selected_cell is None:
+            return
+        i, j, _ = self._selected_cell
+        old_val = self.topo.mask.data[j, i]
+        mask_map = {"Land": 0, "Ocean": 1}
+        new_val = mask_map[change["new"]]
+        if old_val == new_val:
+            return
+        cmd = MaskEditCommand(self.topo, [(j, i)], [new_val], old_values=[old_val])
         self.apply_edit(cmd)
         self.update_undo_redo_buttons()
 
