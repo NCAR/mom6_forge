@@ -1,3 +1,5 @@
+# All cell indices in this file are in (j, i) order to match (y, x) ordering
+
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.patches as patches
@@ -6,6 +8,7 @@ import cartopy.crs as ccrs
 from matplotlib.ticker import MaxNLocator
 from mom6_forge.edit_command import *
 from mom6_forge.git_utils import *
+from matplotlib.widgets import RectangleSelector
 
 
 class TopoEditor(widgets.HBox):
@@ -19,15 +22,26 @@ class TopoEditor(widgets.HBox):
         self._selected_cell = None
         self._original_depth = np.array(self.topo.depth.data)
         self._original_min_depth = self.topo.min_depth
+        self._selected_cells = []
 
         # --- Build UI controls, plot, and observers ---
         self.construct_control_panel()
         self.construct_interactive_plot()
         self.construct_observances()
         self.update_undo_redo_buttons()
+        self.trigger_refresh()
 
         # --- Initialize the widget layout ---
         super().__init__([self._control_panel, self._interactive_plot])
+
+    @property
+    def active_cells(self):
+        if hasattr(self, "_selected_cells") and self._selected_cells:
+            return list(self._selected_cells)
+        elif self._selected_cell is not None:
+            i, j, *_ = self._selected_cell
+            return [(j, i)]
+        return []
 
     def apply_edit(self, cmd):
         """Apply an edit command, update the UI, and autosave the working state."""
@@ -121,6 +135,15 @@ class TopoEditor(widgets.HBox):
         self._interactive_plot = widgets.HBox(
             children=(self.fig.canvas,), layout={"border_left": "1px solid grey"}
         )
+        self._rect_selector = RectangleSelector(
+            self.ax,
+            self._on_rect_select,
+            useblit=True,
+            button=[1],
+            interactive=True,
+            props=dict(edgecolor="red", facecolor="red", alpha=0.2, fill=True),
+        )
+        self._rect_selector.set_active(False)  # off by default
 
     def construct_control_panel(self):
         """
@@ -154,6 +177,12 @@ class TopoEditor(widgets.HBox):
         self._selected_cell_label = widgets.Label(
             "Selected cell: None (double click to select a cell)."
         )
+        self._rect_select_button = widgets.ToggleButton(
+            value=False,
+            description="Rectangle Select",
+            button_style="info",
+            layout={"width": "80%"},
+        )
         self._depth_specifier = widgets.FloatText(
             value=None,
             step=10.0,
@@ -169,12 +198,15 @@ class TopoEditor(widgets.HBox):
             options=["Land", "Ocean"],
             description="Mask:",
             disabled=True,
+            layout={"width": "80%"},
             style={"description_width": "auto"},
         )
         self._clear_manual_mask_button = widgets.Button(
             description="Clear Manual Mask",
+            disabled=True,
             button_style="warning",
             layout={"width": "80%"},
+            style={"description_width": "auto"},
         )
 
         # --- Basin editing widgets ---
@@ -236,36 +268,36 @@ class TopoEditor(widgets.HBox):
             description="Checkout", layout={"width": "44%"}
         )
         # --- Group controls into logical sections ---
-        display_section = widgets.VBox(
+        self.display_section = widgets.VBox(
             [
                 widgets.HTML("<h3>Display</h3>"),
                 self._display_mode_toggle,
             ]
         )
-        global_settings_section = widgets.VBox(
+        self.global_settings_section = widgets.VBox(
             [
                 widgets.HTML("<h3>Global Settings</h3>"),
                 self._min_depth_specifier,
             ]
         )
-        cell_editing_section = widgets.VBox(
+        self.cell_editing_section = widgets.VBox(
             [
                 widgets.HTML("<h3>Cell Editing</h3>"),
+                self._rect_select_button,
                 self._selected_cell_label,
                 self._depth_specifier,
                 self._mask_specifier,
                 self._clear_manual_mask_button,
             ]
         )
-        basin_section = widgets.VBox(
+        self.basin_section = widgets.VBox(
             [
-                widgets.HTML("<h3>Basin Selector</h3>"),
                 self._basin_specifier,
                 self._basin_specifier_toggle,
                 self._basin_specifier_delete_selected,
             ]
         )
-        history_section = widgets.VBox(
+        self.history_section = widgets.VBox(
             [
                 widgets.HTML("<h3>Edit History</h3>"),
                 widgets.HBox(
@@ -273,7 +305,7 @@ class TopoEditor(widgets.HBox):
                 ),
             ]
         )
-        git_section = widgets.VBox(
+        self.git_section = widgets.VBox(
             [
                 # Domain controls
                 widgets.HTML("<hr>"),
@@ -290,25 +322,25 @@ class TopoEditor(widgets.HBox):
         )
 
         # --- Layout: always-visible controls and advanced accordions ---
-        main_controls = widgets.VBox(
+        self.main_controls = widgets.VBox(
             [
-                display_section,
-                global_settings_section,
-                cell_editing_section,
-                basin_section,
-                history_section,
+                self.display_section,
+                self.global_settings_section,
+                self.cell_editing_section,
+                self.basin_section,
+                self.history_section,
             ]
         )
-        git_accordion = widgets.Accordion(children=[git_section])
-        git_accordion.set_title(0, "Git Version Control")
-        git_accordion.selected_index = None  # collapsed by default
+        self.git_accordion = widgets.Accordion(children=[self.git_section])
+        self.git_accordion.set_title(0, "Git Version Control")
+        self.git_accordion.selected_index = None  # collapsed by default
 
         # --- Combine everything into the control panel ---
         self._control_panel = widgets.VBox(
             [
                 widgets.HTML("<h2>Topo Editor</h2>"),
-                main_controls,
-                git_accordion,
+                self.main_controls,
+                self.git_accordion,
             ],
             layout={"width": "30%", "height": "100%", "overflow_y": "auto"},
         )
@@ -321,6 +353,12 @@ class TopoEditor(widgets.HBox):
     def refresh_display_mode(self, change):
         """Refresh the display mode of the topography plot based on the selected mode."""
         mode = change["new"]
+        self._depth_specifier.layout.display = "flex" if mode == "depth" else "none"
+        self._mask_specifier.layout.display = "flex" if mode == "mask" else "none"
+        self._clear_manual_mask_button.layout.display = (
+            "flex" if mode == "mask" else "none"
+        )
+        self.basin_section.layout.display = "flex" if mode == "basinmask" else "none"
         if mode == "depth":
             self.im.set_clim(
                 vmin=self.topo.min_depth, vmax=float(np.nanmax(self.topo.depth.data))
@@ -400,7 +438,9 @@ class TopoEditor(widgets.HBox):
             self._depth_specifier.value = self.topo.depth.data[j, i]
         if hasattr(self, "_mask_specifier"):
             self._mask_specifier.disabled = False
-            self._mask_specifier.value = "Ocean" if self.topo.mask.data[j, i] == 1 else "Land"
+            self._mask_specifier.value = (
+                "Ocean" if self.topo.mask.data[j, i] == 1 else "Land"
+            )
         if hasattr(self, "_clear_manual_mask_button"):
             if self.topo._manual_mask is not None:
                 self._clear_manual_mask_button.disabled = False
@@ -428,6 +468,7 @@ class TopoEditor(widgets.HBox):
 
         # Double click event for cell selection on the plot
         self.fig.canvas.mpl_connect("button_press_event", self.on_double_click)
+        self._rect_select_button.observe(self._on_rect_select_toggle, names="value")
 
         # Min depth change observer
         self._min_depth_specifier.observe(
@@ -444,9 +485,7 @@ class TopoEditor(widgets.HBox):
         )
 
         # Mask change observer for selected cell
-        self._mask_specifier.observe(
-            self.on_mask_change, names="value", type="change"
-        )
+        self._mask_specifier.observe(self.on_mask_change, names="value", type="change")
         self._clear_manual_mask_button.on_click(self.clear_manual_mask)
 
         # Undo/Redo/Reset buttons
@@ -460,11 +499,56 @@ class TopoEditor(widgets.HBox):
         # Git/domain controls
         self._git_create_branch_button.on_click(self.on_git_create_branch)
         self._git_checkout_button.on_click(self.on_git_checkout)
-        self._display_mode_toggle.observe(
-            self.refresh_display_mode, names="value", type="change"
-        )
 
     # --- UI Callback Methods ---
+    def _on_rect_select_toggle(self, change):
+        if change["new"]:  # rectangle mode ON
+            # Clear the single-cell polygon patch if it exists
+            if self._selected_cell is not None and self._selected_cell[2] is not None:
+                try:
+                    self._selected_cell[2].remove()
+                except Exception:
+                    pass
+            self._rect_selector.set_active(True)
+            self._rect_select_button.button_style = "info"
+            self._rect_select_button.description = "Rectangle Select ✓"
+        else:  # rectangle mode OFF
+            self._rect_selector.set_active(False)
+            self._rect_selector.clear()  # removes the drawn box
+            self.fig.canvas.draw_idle()  # force redraw
+            self._rect_select_button.button_style = ""
+            self._rect_select_button.description = "Rectangle Select"
+            self._selected_cells = []
+            self._selected_cell_label.value = (
+                "Selected cell: None (double click to select a cell)."
+            )
+            self._depth_specifier.disabled = True
+            self._mask_specifier.disabled = True
+
+    def _on_rect_select(self, eclick, erelease):
+        lon_min, lon_max = sorted([eclick.xdata, erelease.xdata])
+        lat_min, lat_max = sorted([eclick.ydata, erelease.ydata])
+        lon_min = (lon_min + 360) % 360
+        lon_max = (lon_max + 360) % 360
+        tlon = self.topo._grid.tlon.data
+        tlat = self.topo._grid.tlat.data
+
+        mask = (
+            (tlon >= lon_min)
+            & (tlon <= lon_max)
+            & (tlat >= lat_min)
+            & (tlat <= lat_max)
+        )
+        self._selected_cells = list(zip(*np.where(mask)))
+
+        n = len(self._selected_cells)
+        self._selected_cell_label.value = (
+            f"Selected cells: n = {n}"
+            if n > 0
+            else f"Selected cell: None (draw box to select cells)."
+        )
+        self._depth_specifier.disabled = False
+        self._mask_specifier.disabled = False
 
     def on_tag(self, _btn=None):
         """Save the current state as a snapshot and commit it to the repository."""
@@ -479,6 +563,10 @@ class TopoEditor(widgets.HBox):
 
     def on_double_click(self, event):
         """Handle double-click events on the plot to select a cell."""
+        if (
+            self._rect_select_button.value
+        ):  # rectangle mode active, ignore double clicks
+            return
         if event.dblclick and event.xdata is not None and event.ydata is not None:
             # Convert lon/lat to grid indices
             j, i = self.topo._grid.get_indices(event.ydata, event.xdata)
@@ -509,6 +597,7 @@ class TopoEditor(widgets.HBox):
         if self.topo._manual_mask is not None:
             self.topo.clear_manual_mask()
             self.update_undo_redo_buttons()
+            self.trigger_refresh()
 
     def erase_selected_basin(self, b):
         """Erase the basin associated with the currently selected cell."""
@@ -520,28 +609,36 @@ class TopoEditor(widgets.HBox):
 
     def on_depth_change(self, change):
         """Handle changes to the depth specifier for the selected cell."""
-        if self._selected_cell is None:
+        if not self.active_cells:
             return
-        i, j, _ = self._selected_cell
-        old_val = self.topo.depth.data[j, i]
+        cells = self.active_cells
+        old_values = [self.topo.depth.data[j, i] for j, i in cells]
         new_val = change["new"]
-        if old_val == new_val:
+        if all(v == new_val for v in old_values):
             return
-        cmd = DepthEditCommand(self.topo, [(j, i)], [new_val], old_values=[old_val])
+        cmd = DepthEditCommand(
+            self.topo, cells, [new_val] * len(cells), old_values=old_values
+        )
         self.apply_edit(cmd)
         self.update_undo_redo_buttons()
 
     def on_mask_change(self, change):
-        """Handle changes to the mask specifier for the selected cell."""
-        if self._selected_cell is None:
+        if not self.active_cells:
             return
-        i, j, _ = self._selected_cell
-        old_val = self.topo.mask.data[j, i]
+        cells = self.active_cells
         mask_map = {"Land": 0, "Ocean": 1}
         new_val = mask_map[change["new"]]
-        if old_val == new_val:
+        old_values = [self.topo.mask.data[j, i] for j, i in cells]
+
+        if all(v == new_val for v in old_values):
             return
-        cmd = MaskEditCommand(self.topo, [(j, i)], [new_val], old_values=[old_val])
+
+        cmd = MaskEditCommand(
+            self.topo,
+            [(j, i) for j, i in cells],
+            [new_val] * len(cells),
+            old_values=old_values,
+        )
         self.apply_edit(cmd)
         self.update_undo_redo_buttons()
 
