@@ -247,6 +247,11 @@ class Topo:
         When set, the depth property applies masking: ocean cells enforced ≥ min_depth+0.1, land cells set to land_fillval.
         """
         if self._manual_mask is None:
+            if self._depth_raw is None:
+                # If depth_raw is not set, return None for mask
+                raise ValueError(
+                    "Raw Depth (_depth_raw) is not set and Manual Mask is not set (_manual_mask), so mask is undefined. Please set depth_raw or set a manual mask."
+                )
             return self._depth_raw_mask
         else:
             return self._manual_mask
