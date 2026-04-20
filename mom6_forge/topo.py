@@ -1356,7 +1356,7 @@ class Topo:
         version="v5_1_2",
     ):
         """
-        Generate and apply a land mask using regionmask's Natural Earth dataset.
+        Generate and apply a land mask using regionmask's Natural Earth dataset. (Recommended by Fred Castruccio)
 
         Parameters
         ----------
