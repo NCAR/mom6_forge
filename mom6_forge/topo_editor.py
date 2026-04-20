@@ -9,6 +9,7 @@ from matplotlib.ticker import MaxNLocator
 from mom6_forge.edit_command import *
 from mom6_forge.git_utils import *
 from matplotlib.widgets import RectangleSelector
+from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 
 class TopoEditor(widgets.HBox):
@@ -39,7 +40,7 @@ class TopoEditor(widgets.HBox):
         if hasattr(self, "_selected_cells") and self._selected_cells:
             return list(self._selected_cells)
         elif self._selected_cell is not None:
-            i, j, *_ = self._selected_cell
+            j, i, *_ = self._selected_cell
             return [(j, i)]
         return []
 
@@ -132,9 +133,13 @@ class TopoEditor(widgets.HBox):
         plt.ion()  # Restore interactive mode
 
         # Wrap the figure in a widget for display
-        self._interactive_plot = widgets.HBox(
-            children=(self.fig.canvas,), layout={"border_left": "1px solid grey"}
-        )
+
+        if isinstance(self.fig.canvas, FigureCanvasAgg):  # For testing
+            self._interactive_plot = widgets.VBox([])  # empty placeholder
+        else:
+            self._interactive_plot = widgets.HBox(
+                children=(self.fig.canvas,), layout={"border_left": "1px solid grey"}
+            )
         self._rect_selector = RectangleSelector(
             self.ax,
             self._on_rect_select,
@@ -428,7 +433,7 @@ class TopoEditor(widgets.HBox):
             except Exception as e:
                 print(f"Failed to draw polygon patch: {e}")
 
-        self._selected_cell = (i, j, polygon)
+        self._selected_cell = (j, i, polygon)
 
         # UI updates
         if hasattr(self, "_selected_cell_label"):
@@ -588,7 +593,7 @@ class TopoEditor(widgets.HBox):
         """Erase all disconnected basins in the topography."""
         if self._selected_cell is None:
             return
-        i, j, _ = self._selected_cell
+        j, i, _ = self._selected_cell
         self.topo.erase_disconnected_basin(i, j)
         self.update_undo_redo_buttons()
 
@@ -603,7 +608,7 @@ class TopoEditor(widgets.HBox):
         """Erase the basin associated with the currently selected cell."""
         if self._selected_cell is None:
             return
-        i, j, _ = self._selected_cell
+        j, i, _ = self._selected_cell
         self.topo.erase_selected_basin(i, j)
         self.update_undo_redo_buttons()
 
