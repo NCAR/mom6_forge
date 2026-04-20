@@ -267,10 +267,7 @@ class Topo:
             Binary mask (1=ocean, 0=land) with shape (ny, nx), or None to disable masking.
         """
         if new_mask is None:
-            cmd = ClearMaskCommand(
-                self, message="Clear manual mask"
-            )  # Resets back to reading from depth
-            self.tcm.execute(cmd, cmd_type=CommandType.COMMAND)
+            self.clear_manual_mask()  # Clear the manual mask if None is passed
             return
 
         if isinstance(new_mask, xr.DataArray):
@@ -448,6 +445,12 @@ class Topo:
         supergridmask[1::2, ::2] = self.umask.values
         supergridmask[1::2, 1::2] = self.tmask.values
         return supergridmask
+
+    def clear_manual_mask(self):
+        cmd = ClearMaskCommand(
+            self, message="Clear manual mask"
+        )  # Resets back to reading from depth
+        self.tcm.execute(cmd, cmd_type=CommandType.COMMAND)
 
     def point_is_ocean(self, lons, lats):
         """
