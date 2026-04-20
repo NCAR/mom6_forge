@@ -576,6 +576,7 @@ class Topo:
 
         Results are cached on ``src._topo_stats`` so a second call with the
         same source file returns immediately without recomputation.
+        (Originally created by Frank Bryan in Fortran for NCAR/tx2_3, reimplemented in Python)
 
         Parameters
         ----------

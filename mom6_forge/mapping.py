@@ -997,7 +997,7 @@ def regrid_dataset_via_xesmf(
 def _make_subgrid_points(qlon, qlat, nx_sub, ny_sub):
     """
     Given corner coordinates of a low-res grid (qlon/qlat on the q-point staggering),
-    return sub-sampled lon/lat arrays of shape (ny, nx, ny_sub, nx_sub).
+    return sub-sampled lon/lat arrays of shape (ny, nx, ny_sub, nx_sub). (Originally created by Frank Bryan in Fortran for NCAR/tx2_3, reimplemented in Python)
 
     Parameters
     ----------
@@ -1073,7 +1073,7 @@ def regrid_with_subsampling(
 ):
     """
     Regrids input_dataset to sub_sampled_grid to
-    properly analyze high-res source data into each coarse cell.
+    properly analyze high-res source data into each coarse cell.  (Originally created by Frank Bryan in Fortran for NCAR/tx2_3, reimplemented in Python)
 
     Parameters
     ----------
