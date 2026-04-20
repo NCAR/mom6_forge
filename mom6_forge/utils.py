@@ -697,3 +697,30 @@ def quadrilateral_area(v1, v2, v3, v4):
     a4 = angle_between(v4, v1, v3)
 
     return (a1 + a2 + a3 + a4 - 2 * np.pi) * R**2
+
+
+def compute_subsampling_factor(src_nj, src_ni, dst_nj, dst_ni):
+    """
+    Compute the sub-sampling factors needed so that the super-sampled
+    destination grid has at least as many points as the source grid.
+
+    Parameters
+    ----------
+    src_nj, src_ni : int
+        Source grid dimensions.
+    dst_nj, dst_ni : int
+        Destination grid dimensions.
+
+    Returns
+    -------
+    ny_sub, nx_sub : int
+    """
+    nx_sub = 1
+    while nx_sub * dst_ni < src_ni:
+        nx_sub += 1
+
+    ny_sub = 1
+    while ny_sub * dst_nj < src_nj:
+        ny_sub += 1
+
+    return ny_sub, nx_sub

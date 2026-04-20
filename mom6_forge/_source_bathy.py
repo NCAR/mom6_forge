@@ -65,24 +65,25 @@ class SourceBathy:
         lat_extent = (float(topo._grid.qlat.min()), float(topo._grid.qlat.max()))
 
         ds_src = xr.open_dataset(self.path, chunks="auto")
-        da = ds_src[self.elevation_name]
 
-        da = da.sel({self.lat_name: slice(lat_extent[0] - buf, lat_extent[1] + buf)})
+        ds = ds_src.sel(
+            {self.lat_name: slice(lat_extent[0] - buf, lat_extent[1] + buf)}
+        )
 
-        dlon = float(da[self.lon_name][1] - da[self.lon_name][0])
-        total_lon = float(da[self.lon_name][-1] - da[self.lon_name][0] + dlon)
+        dlon = float(ds[self.lon_name][1] - ds[self.lon_name][0])
+        total_lon = float(ds[self.lon_name][-1] - ds[self.lon_name][0] + dlon)
         if np.isclose(total_lon, 360):
-            da = longitude_slicer(
-                da,
+            ds = longitude_slicer(
+                ds,
                 np.array(lon_extent) + np.array([-buf, buf]),
                 self.lon_name,
             )
         else:
-            da = da.sel(
+            ds = ds.sel(
                 {self.lon_name: slice(lon_extent[0] - buf, lon_extent[1] + buf)}
             )
-
-        self._da = da.load()
+        self._ds = ds
+        self._da = ds[self.elevation_name].load()
         return self
 
     # ------------------------------------------------------------------
@@ -108,6 +109,11 @@ class SourceBathy:
     def da(self):
         """Raw elevation DataArray with source coordinate names (positive-up)."""
         return self._da
+
+    @property
+    def ds(self):
+        """Raw dataset with source coordinate names (positive-up)."""
+        return self._ds
 
     def __repr__(self):
         shape = self._da.shape if self._da is not None else "not loaded"
