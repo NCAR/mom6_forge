@@ -6,6 +6,7 @@ import cartopy.crs as ccrs
 from matplotlib.ticker import MaxNLocator
 from mom6_forge.edit_command import *
 from mom6_forge.git_utils import *
+from mom6_forge.utils import normalize_deg
 
 
 class TopoEditor(widgets.HBox):
@@ -121,6 +122,24 @@ class TopoEditor(widgets.HBox):
         self._interactive_plot = widgets.HBox(
             children=(self.fig.canvas,), layout={"border_left": "1px solid grey"}
         )
+        # Stats overlay text box (hidden by default)
+        self._stats_text = self.ax.text(
+            0.02,
+            0.98,
+            "",
+            transform=self.ax.transAxes,
+            fontsize=9,
+            verticalalignment="top",
+            bbox=dict(
+                boxstyle="round,pad=0.4",
+                facecolor="white",
+                alpha=0.82,
+                edgecolor="#888888",
+                linewidth=0.8,
+            ),
+            visible=False,
+            zorder=10,
+        )
 
     def construct_control_panel(self):
         """
@@ -162,6 +181,15 @@ class TopoEditor(widgets.HBox):
             placeholder="Select a cell first.",
             layout={"width": "80%"},
             style={"description_width": "auto"},
+        )
+        self._set_to_mean_button = widgets.Button(
+            description="Mean", disabled=True, layout={"width": "30%"}
+        )
+        self._set_to_max_button = widgets.Button(
+            description="Max", disabled=True, layout={"width": "30%"}
+        )
+        self._set_to_min_button = widgets.Button(
+            description="Min", disabled=True, layout={"width": "30%"}
         )
 
         # --- Basin editing widgets ---
@@ -240,6 +268,17 @@ class TopoEditor(widgets.HBox):
                 widgets.HTML("<h3>Cell Editing</h3>"),
                 self._selected_cell_label,
                 self._depth_specifier,
+                widgets.HTML(
+                    "<p style='margin: 5px 0; font-size: 12px;'>Set to statistic:</p>"
+                ),
+                widgets.HBox(
+                    [
+                        self._set_to_mean_button,
+                        self._set_to_max_button,
+                        self._set_to_min_button,
+                    ],
+                    layout={"justify_content": "space-between"},
+                ),
             ]
         )
         basin_section = widgets.VBox(
@@ -333,6 +372,108 @@ class TopoEditor(widgets.HBox):
         self._min_depth_specifier.value = self.topo.min_depth
         self.update_undo_redo_buttons()
 
+    def _draw_cell_stats(self, visible):
+        """Draw per-cell stat annotations directly on each visible cell."""
+        # Clear previous annotations
+        if hasattr(self, "_cell_stat_texts"):
+            for t in self._cell_stat_texts:
+                t.remove()
+        self._cell_stat_texts = []
+
+        if (
+            not hasattr(self.topo._src, "_topo_stats")
+            or self.topo._src._topo_stats is None
+        ):
+            return
+
+        ds = self.topo._src._topo_stats
+        js, is_ = np.where(visible)
+
+        qlon = self.topo._grid.qlon.data
+        qlat = self.topo._grid.qlat.data
+
+        for idx in range(len(js)):
+            j, i = js[idx], is_[idx]
+
+            # Cell centre
+            cx = 0.25 * (
+                qlon[j, i] + qlon[j, i + 1] + qlon[j + 1, i] + qlon[j + 1, i + 1]
+            )
+            cy = 0.25 * (
+                qlat[j, i] + qlat[j, i + 1] + qlat[j + 1, i] + qlat[j + 1, i + 1]
+            )
+
+            lines = []
+            for var in ds.data_vars:
+                if var == "D2_mean":
+                    continue  # Skip this variable for now since it's not super informative
+                label = var
+                if var.startswith("D_"):
+                    label = var[2:]  # Get rid of the "D_" prefix for display purposes
+                val = ds[var].data[j, i]
+                units = ds[var].attrs.get("units", "")
+                if units == "1":  # Unitless
+                    units = ""
+                lines.append(f"{label}: {val:.2f} {units}")
+
+            t = self.ax.text(
+                cx,
+                cy,
+                "\n".join(lines),
+                fontsize=7,
+                ha="center",
+                va="center",
+                transform=ccrs.PlateCarree(),
+                bbox=dict(
+                    boxstyle="round,pad=0.2",
+                    facecolor="none",
+                    alpha=0.7,
+                    edgecolor="none",
+                ),
+                zorder=11,
+            )
+            self._cell_stat_texts.append(t)
+
+        self.fig.canvas.draw_idle()
+
+    def _on_zoom_change(self, ax):
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
+
+        qlon = self.topo._grid.qlon.data
+        qlat = self.topo._grid.qlat.data
+
+        # Check if all four corners of each cell are within the view limits
+        visible = (
+            (qlon[:-1, :-1] >= normalize_deg(xlim[0]))
+            & (qlon[:-1, :-1] <= normalize_deg(xlim[1]))
+            & (qlon[:-1, 1:] >= normalize_deg(xlim[0]))
+            & (qlon[:-1, 1:] <= normalize_deg(xlim[1]))
+            & (qlon[1:, :-1] >= normalize_deg(xlim[0]))
+            & (qlon[1:, :-1] <= normalize_deg(xlim[1]))
+            & (qlon[1:, 1:] >= normalize_deg(xlim[0]))
+            & (qlon[1:, 1:] <= normalize_deg(xlim[1]))
+            & (qlat[:-1, :-1] >= ylim[0])
+            & (qlat[:-1, :-1] <= ylim[1])
+            & (qlat[:-1, 1:] >= ylim[0])
+            & (qlat[:-1, 1:] <= ylim[1])
+            & (qlat[1:, :-1] >= ylim[0])
+            & (qlat[1:, :-1] <= ylim[1])
+            & (qlat[1:, 1:] >= ylim[0])
+            & (qlat[1:, 1:] <= ylim[1])
+        )
+
+        # Always clear old annotations first
+        if hasattr(self, "_cell_stat_texts"):
+            for t in self._cell_stat_texts:
+                t.remove()
+        self._cell_stat_texts = []
+
+        if visible.sum() <= 40:
+            self._draw_cell_stats(visible)
+        else:
+            self.fig.canvas.draw_idle()
+
     def _select_cell(self, i, j):
         """Select a cell in the topography grid and update the UI accordingly."""
         # Remove old patch if it exists
@@ -383,6 +524,19 @@ class TopoEditor(widgets.HBox):
         if hasattr(self, "_depth_specifier"):
             self._depth_specifier.disabled = False
             self._depth_specifier.value = self.topo.depth.data[j, i]
+
+        # Enable statistic buttons if statistics are available
+        has_stats = (
+            hasattr(self.topo._src, "_topo_stats")
+            and self.topo._src._topo_stats is not None
+        )
+        for btn in [
+            self._set_to_mean_button,
+            self._set_to_max_button,
+            self._set_to_min_button,
+        ]:
+            btn.disabled = not has_stats
+
         if hasattr(self, "_basin_specifier"):
             label = self.topo.basintmask.data[j, i]
             self._basin_specifier.value = f"Basin Label Number: {str(label)}"
@@ -405,7 +559,9 @@ class TopoEditor(widgets.HBox):
 
         # Double click event for cell selection on the plot
         self.fig.canvas.mpl_connect("button_press_event", self.on_double_click)
-
+        # Zoom-dependent stats overlay
+        self.ax.callbacks.connect("xlim_changed", self._on_zoom_change)
+        self.ax.callbacks.connect("ylim_changed", self._on_zoom_change)
         # Min depth change observer
         self._min_depth_specifier.observe(
             self.on_min_depth_change, names="value", type="change"
@@ -419,6 +575,11 @@ class TopoEditor(widgets.HBox):
         self._depth_specifier.observe(
             self.on_depth_change, names="value", type="change"
         )
+
+        # Statistic buttons
+        self._set_to_mean_button.on_click(self.set_depth_to_mean)
+        self._set_to_max_button.on_click(self.set_depth_to_max)
+        self._set_to_min_button.on_click(self.set_depth_to_min)
 
         # Undo/Redo/Reset buttons
         self._undo_button.on_click(self.undo_last_edit)
@@ -495,6 +656,37 @@ class TopoEditor(widgets.HBox):
         cmd = DepthEditCommand(self.topo, [(j, i)], [new_val], old_values=[old_val])
         self.apply_edit(cmd)
         self.update_undo_redo_buttons()
+
+    def _get_statistic_value(self, stat_name):
+        """Get a statistic value for the selected cell."""
+        if self._selected_cell is None or not hasattr(self.topo._src, "_topo_stats"):
+            return None
+
+        i, j, _ = self._selected_cell
+        ds = self.topo._src._topo_stats
+
+        if ds is None or stat_name not in ds.data_vars:
+            return None
+
+        return float(ds[stat_name].data[j, i])
+
+    def set_depth_to_mean(self, b):
+        """Set the selected cell's depth to the mean value."""
+        val = self._get_statistic_value("D_mean")
+        if val is not None:
+            self._depth_specifier.value = val
+
+    def set_depth_to_max(self, b):
+        """Set the selected cell's depth to the max value."""
+        val = self._get_statistic_value("D_max")
+        if val is not None:
+            self._depth_specifier.value = val
+
+    def set_depth_to_min(self, b):
+        """Set the selected cell's depth to the min value."""
+        val = self._get_statistic_value("D_min")
+        if val is not None:
+            self._depth_specifier.value = val
 
     def on_git_create_branch(self, b):
         """Create a new git branch"""
