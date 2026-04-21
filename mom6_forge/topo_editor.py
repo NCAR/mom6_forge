@@ -263,24 +263,35 @@ class TopoEditor(widgets.HBox):
                 self._min_depth_specifier,
             ]
         )
-        cell_editing_section = widgets.VBox(
-            [
-                widgets.HTML("<h3>Cell Editing</h3>"),
-                self._selected_cell_label,
-                self._depth_specifier,
-                widgets.HTML(
-                    "<p style='margin: 5px 0; font-size: 12px;'>Set to statistic:</p>"
-                ),
-                widgets.HBox(
-                    [
-                        self._set_to_mean_button,
-                        self._set_to_max_button,
-                        self._set_to_min_button,
-                    ],
-                    layout={"justify_content": "space-between"},
-                ),
-            ]
+        cell_editing_section_children = [
+            widgets.HTML("<h3>Cell Editing</h3>"),
+            self._selected_cell_label,
+            self._depth_specifier,
+        ]
+
+        # Only add stats section if statistics are available
+        has_stats = (
+            hasattr(self.topo._src, "_topo_stats")
+            and self.topo._src._topo_stats is not None
         )
+        if has_stats:
+            cell_editing_section_children.extend(
+                [
+                    widgets.HTML(
+                        "<p style='margin: 5px 0; font-size: 12px;'>Set to statistic:</p>"
+                    ),
+                    widgets.HBox(
+                        [
+                            self._set_to_mean_button,
+                            self._set_to_max_button,
+                            self._set_to_min_button,
+                        ],
+                        layout={"justify_content": "space-between"},
+                    ),
+                ]
+            )
+
+        cell_editing_section = widgets.VBox(cell_editing_section_children)
         basin_section = widgets.VBox(
             [
                 widgets.HTML("<h3>Basin Selector</h3>"),
