@@ -148,8 +148,8 @@
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="mom6_forge.topo.Topo.clear_manual_mask">
-<span class="sig-name descname"><span class="pre">clear_manual_mask</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.clear_manual_mask" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.clear_user_mask">
+<span class="sig-name descname"><span class="pre">clear_user_mask</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.clear_user_mask" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
@@ -186,14 +186,24 @@ The str or Path the write to file should write to. Defaults to the directory the
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.depth">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">depth</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.depth" title="Link to this definition"></a></dt>
 <dd><p>MOM6 grid depth array (m). Positive below MSL.</p>
-<p>When mask is set, returns masked depth: ocean cells ≥ min_depth+0.1, land cells set to land_fillval.
+<p>When mask is set, returns masked depth: ocean cells greater than min_depth+0.1, land cells set to 0.
 When mask is None, returns raw depth.</p>
+<p>Note: Index-based assignment like <cite>topo.depth[j, i] = value</cite> will not persist because depth
+is a computed property. Use <cite>topo.edit_depth()</cite> instead for version-controlled edits.</p>
 </dd></dl>
 
-<dl class="py property">
-<dt class="sig sig-object py" id="mom6_forge.topo.Topo.depth_raw">
-<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">depth_raw</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.depth_raw" title="Link to this definition"></a></dt>
-<dd><p>Raw depth array before masking is applied.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.edit_depth">
+<span class="sig-name descname"><span class="pre">edit_depth</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">values</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.edit_depth" title="Link to this definition"></a></dt>
+<dd><p>Edit depth at specific indices using version control.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>indices</strong> (<em>list</em><em> of </em><em>tuples</em>) – List of (j, i) indices to modify.</p></li>
+<li><p><strong>values</strong> (<em>list</em><em> or </em><em>array-like</em>) – New depth values for each index.</p></li>
+</ul>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
@@ -242,19 +252,6 @@ When mask is None, returns raw depth.</p>
 <dd class="field-odd"><p><strong>title</strong> (<em>str</em><em>, </em><em>optional</em>) – File title.</p>
 </dd>
 </dl>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="mom6_forge.topo.Topo.land_fillval">
-<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">land_fillval</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.land_fillval" title="Link to this definition"></a></dt>
-<dd><p>Depth value assigned to land cells when mask is applied. Default is 0.0 (dry).</p>
-</dd></dl>
-
-<dl class="py property">
-<dt class="sig sig-object py" id="mom6_forge.topo.Topo.mask">
-<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">mask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.mask" title="Link to this definition"></a></dt>
-<dd><p>Optional binary ocean/land mask. 1 if ocean, 0 if land.
-When set, the depth property applies masking: ocean cells enforced ≥ min_depth+0.1, land cells set to land_fillval.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -426,13 +423,11 @@ that was created by <code class="xref py py-func docutils literal notranslate"><
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">tmask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.tmask" title="Link to this definition"></a></dt>
 <dd><p>Ocean domain mask at T grid. 1 if ocean, 0 if land.</p>
 <p>This is a derived mask computed from the depth property. The computation depends on whether
-a manual mask has been set:</p>
+a user mask has been set:</p>
 <ul class="simple">
-<li><p>If _manual_mask is None: Returns a mask derived from raw depth (_depth_raw).
+<li><p>If _user_mask is None: Returns a mask derived from raw depth (_depth_raw).
 Cells with depth &gt; min_depth are marked as ocean (1), otherwise land (0).</p></li>
-<li><p>If _manual_mask is set: Returns a mask derived from the masked depth (which applies
-the manual_mask to _depth_raw). Ocean cells are those with depth &gt; min_depth and
-manual_mask == 1.</p></li>
+<li><p>If _user_mask is set: Returns a mask set by the user. The depth property will apply this mask to the raw depth, ensuring that ocean cells are at least min_depth+0.1 and land cells are set to 0.</p></li>
 </ul>
 <p>This design means tmask is always consistent with the current depth state, whether
 driven by raw bathymetry or by a manually applied mask.</p>
@@ -442,6 +437,13 @@ driven by raw bathymetry or by a manually applied mask.</p>
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.umask">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">umask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.umask" title="Link to this definition"></a></dt>
 <dd><p>Ocean domain mask on U grid. 1 if ocean, 0 if land.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.user_mask">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">user_mask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.user_mask" title="Link to this definition"></a></dt>
+<dd><p>Optional binary ocean/land mask. 1 if ocean, 0 if land.
+When set, the depth property applies masking: ocean cells enforced greater than min_depth+0.1, land cells set to 0.</p>
 </dd></dl>
 
 <dl class="py property">
