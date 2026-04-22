@@ -71,12 +71,12 @@ def gen_MaskEditCommand(get_rect_topo):
 def test_MaskEditCommand_init_and_execute(gen_MaskEditCommand):
     command = gen_MaskEditCommand
     command()
-    # Verify manual mask was initialized
-    assert command._topo._manual_mask is not None
+    # Verify user mask was initialized
+    assert command._topo._user_mask is not None
     # Verify values were set
-    assert command._topo.mask[0, 0] == 1
-    assert command._topo.mask[0, 1] == 1
-    assert command._topo.mask[1, 0] == 0
+    assert command._topo.user_mask[0, 0] == 1
+    assert command._topo.user_mask[0, 1] == 1
+    assert command._topo.user_mask[1, 0] == 0
 
 
 def test_serialize_deserialize_MaskEditCommand(gen_MaskEditCommand):
@@ -99,10 +99,10 @@ def test_ClearMaskCommand_init_and_execute(get_rect_topo):
     import numpy as np
 
     mask = np.ones((ny, nx), dtype=int)
-    topo.mask = mask
-    assert topo._manual_mask is not None
+    topo.user_mask = mask
+    assert topo._user_mask is not None
 
     # Clear it
     command = ClearMaskCommand(topo)
     command()
-    assert topo._manual_mask is None
+    assert topo._user_mask is None

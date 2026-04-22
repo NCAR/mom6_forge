@@ -51,8 +51,8 @@ def test_send_entire_depth_change_to_tcm(get_rect_topo):
 def test_erase_selected_basin(get_rect_topo):
     topo = get_rect_topo
     # Make a land barrier in the middle
-    topo.depth[2, :] = 0  # horizontal land strip
-    topo.depth[:, 2] = 0  # vertical land strip
+    topo._depth_raw[2, :] = 0  # horizontal land strip
+    topo._depth_raw[:, 2] = 0  # vertical land strip
     j, i = 1, 1
     old_depth = topo.depth.copy()
 
@@ -68,8 +68,8 @@ def test_erase_selected_basin(get_rect_topo):
 def test_erase_disconnected_basin(get_rect_topo):
     topo = get_rect_topo
     # Make a land barrier in the middle
-    topo.depth[2, :] = 0  # horizontal land strip
-    topo.depth[:, 2] = 0  # vertical land strip
+    topo._depth_raw[2, :] = 0  # horizontal land strip
+    topo._depth_raw[:, 2] = 0  # vertical land strip
     j, i = 1, 1
     old_depth = topo.depth.copy()
 
