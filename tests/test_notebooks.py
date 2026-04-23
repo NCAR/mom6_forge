@@ -12,7 +12,7 @@ from utils import on_cisl_machine
 
 
 def test_notebooks():
-    """Run all notebooks in the ../notebooks directory."""
+    """Run all notebooks in the ../docs/source/notebooks directory."""
 
     notebook_files = [
         "1_spherical_grid.ipynb",
@@ -28,7 +28,7 @@ def test_notebooks():
             ]
         )
 
-    notebooks_path = Path(__file__).parent / "../notebooks"
+    notebooks_path = Path(__file__).parent / "../docs/source/notebooks"
 
     for notebook_file in notebook_files:
         if not notebook_file.endswith(".ipynb"):

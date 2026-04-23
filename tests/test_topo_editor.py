@@ -4,10 +4,10 @@ import pytest
 import git
 import json
 
-from mom6_bathy.grid import Grid
-from mom6_bathy.topo import Topo
-from mom6_bathy.edit_command import DepthEditCommand
-from mom6_bathy.topo_editor import TopoEditor
+from mom6_forge.grid import Grid
+from mom6_forge.topo import Topo
+from mom6_forge.edit_command import DepthEditCommand
+from mom6_forge.topo_editor import TopoEditor
 
 
 @pytest.fixture

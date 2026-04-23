@@ -1,4 +1,4 @@
-from mom6_bathy.edit_command import *
+from mom6_forge.edit_command import *
 import pytest
 
 
