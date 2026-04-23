@@ -95,3 +95,9 @@ def test_projected_supergrid_from_latlon():
     assert sg.area.shape == (2 * ny, 2 * nx)
     assert np.all(sg.area > 0)
     assert sg.axis_units == "degrees"
+def test_uniform_spherical_supergrid():
+    nx, ny = 10, 10
+    sg = UniformSphericalSupergrid.from_extents(
+        lon_min=0.0, len_x=10.0, lat_min=40.0, len_y=10.0, nx=nx, ny=ny
+    )
+    assert isinstance(sg, UniformSphericalSupergrid)

@@ -9,6 +9,7 @@ from mom6_forge._supergrid import (
     RectilinearCartesianSupergrid,
     ProjectedSupergrid,
     SupergridBase,
+    mom6_angle_calculation_method,
 )
 from mom6_forge.utils import normalize_deg
 
@@ -291,6 +292,24 @@ class Grid:
         )
         sub_grid.supergrid = sub_supergrid
         sub_grid._compute_MOM6_grid_metrics()
+
+        # check if the grid property shapes are consistent with the new grid dimensions
+        nx, ny = sub_grid.nx, sub_grid.ny
+        nxp, nyp = nx + 1, ny + 1
+        assert (
+            sub_grid.tlon.shape == (ny, nx)
+            and sub_grid.tlat.shape == (ny, nx)
+            and sub_grid.ulon.shape == (ny, nxp)
+            and sub_grid.ulat.shape == (ny, nxp)
+            and sub_grid.vlon.shape == (nyp, nx)
+            and sub_grid.vlat.shape == (nyp, nx)
+            and sub_grid.qlon.shape == (nyp, nxp)
+            and sub_grid.qlat.shape == (nyp, nxp)
+        ), (
+            "Grid property shapes are inconsistent with the new grid dimensions after slicing. "
+            "Try a different slicing specification."
+        )
+
         return sub_grid
 
     @staticmethod
