@@ -107,34 +107,34 @@
 </section>
 <section id="core-components">
 <h2>Core Components<a class="headerlink" href="#core-components" title="Link to this heading"></a></h2>
-<p><strong>Raw Depth Storage: ``_depth_raw``</strong></p>
-<p>This is the internal storage for the actual bathymetry data as provided by the user or loaded from files. It represents the true water column depths without any masking applied. Access via the <code class="docutils literal notranslate"><span class="pre">depth_raw</span></code> property.</p>
+<p><strong>Raw Depth Storage: ``_depth``</strong></p>
+<p>This is the internal storage for the actual bathymetry data as provided by the user or loaded from files. It represents the true water column depths without any masking applied. Access via the <code class="docutils literal notranslate"><span class="pre">depth</span></code> property.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Read raw depth</span>
-<span class="n">raw_depth</span> <span class="o">=</span> <span class="n">topo</span><span class="o">.</span><span class="n">_depth_raw</span>  <span class="c1"># xr.DataArray with shape (ny, nx)</span>
+<span class="n">raw_depth</span> <span class="o">=</span> <span class="n">topo</span><span class="o">.</span><span class="n">_depth</span>  <span class="c1"># xr.DataArray with shape (ny, nx)</span>
 
 <span class="c1"># Set raw depth (preserves any existing manual mask)</span>
-<span class="n">topo</span><span class="o">.</span><span class="n">_depth_raw</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_vals</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">_depth</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_vals</span>
 </pre></div>
 </div>
 <p><strong>Manual Ocean/Land Mask: ``user_mask``</strong></p>
-<p>An optional binary mask indicating which cells are ocean (1) and which are land (0). When <code class="docutils literal notranslate"><span class="pre">None</span></code>, no manual masking is applied. The mask is automatically enforced: ocean cells have min_depth enforcement, land cells receive depth of 0.</p>
+<p>An optional binary mask indicating which cells are ocean (1) and which are land (0). When <code class="docutils literal notranslate"><span class="pre">None</span></code>, no manual masking is applied. The mask is automatically enforced: ocean cells have min_depth enforcement, land cells receive depth of _land_fillval (typically 0).</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Set a binary ocean/land mask</span>
-<span class="n">topo</span><span class="o">.</span><span class="n">user_</span>  <span class="n">mask</span> <span class="o">=</span> <span class="n">ocean_mask</span>  <span class="c1"># xr.DataArray or np.ndarray with values 0 or 1</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">user_mask</span> <span class="o">=</span> <span class="n">ocean_mask</span>  <span class="c1"># xr.DataArray or np.ndarray with values 0 or 1</span>
 
 <span class="c1"># Disable manual masking</span>
 <span class="n">topo</span><span class="o">.</span><span class="n">user_mask</span> <span class="o">=</span> <span class="kc">None</span>
 </pre></div>
 </div>
-<p><strong>Depth Property: ``depth``</strong></p>
-<p>The public interface that applies masking on-the-fly. When no manual mask is set, it returns <code class="docutils literal notranslate"><span class="pre">_depth_raw</span></code> with minimum depth correction. When a manual mask is set, it calculates and returns masked depth values with mask and minimum depth correction</p>
+<p><strong>Depth Property: ``masked_depth``</strong></p>
+<p>The public interface that applies masking on-the-fly. When no manual mask is set, it returns <code class="docutils literal notranslate"><span class="pre">depth</span></code> with minimum depth correction. When a manual mask is set, it calculates and returns masked depth values with mask and minimum depth correction</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Read masked or raw depth depending on manual mask state</span>
-<span class="n">depth_array</span> <span class="o">=</span> <span class="n">topo</span><span class="o">.</span><span class="n">depth</span>  <span class="c1"># xr.DataArray with masking applied if mask is set</span>
+<span class="n">depth_array</span> <span class="o">=</span> <span class="n">topo</span><span class="o">.</span><span class="n">masked_depth</span>  <span class="c1"># xr.DataArray with masking applied if mask is set</span>
 </pre></div>
 </div>
 </section>
 <section id="how-masking-works">
 <h2>How Masking Works<a class="headerlink" href="#how-masking-works" title="Link to this heading"></a></h2>
-<p>When a manual mask is set, the <cite>depth</cite> property applies these rules:</p>
+<p>When a manual mask is set, the <cite>masked_depth</cite> property applies these rules:</p>
 <ol class="arabic simple">
 <li><p><strong>Ocean cells</strong> (user_mask == 1):</p>
 <ul class="simple">
@@ -144,25 +144,25 @@
 </li>
 <li><p><strong>Land cells</strong> (user_mask == 0):</p>
 <ul class="simple">
-<li><p>Values are set to 0.0</p></li>
+<li><p>Values are set to _land_fillval (typically 0.0)</p></li>
 </ul>
 </li>
 </ol>
 <div class="admonition caution">
 <p class="admonition-title">Caution</p>
-<p><strong>Cannot directly index-edit the depth property!</strong></p>
-<p>Since <code class="docutils literal notranslate"><span class="pre">depth</span></code> is now a calculated property (not raw storage), direct index assignment will not persist:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">depth</span><span class="p">[</span><span class="n">j</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="mf">5000.0</span>  <span class="c1"># ❌ This will NOT work - depth is computed on-the-fly</span>
+<p><strong>Cannot directly index-edit the masked_depth property!</strong></p>
+<p>Since <code class="docutils literal notranslate"><span class="pre">masked_depth</span></code> is computed on-the-fly, direct index assignment will not persist:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">masked_depth</span><span class="p">[</span><span class="n">j</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="mf">5000.0</span>  <span class="c1"># ❌ This will NOT work - masked_depth is computed on-the-fly</span>
 </pre></div>
 </div>
 <p>Instead, use one of these methods:</p>
 <ol class="arabic">
-<li><p><strong>Replace entire depth array</strong> (version controlled):</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">depth</span> <span class="o">=</span> <span class="n">new_depth_array</span>  <span class="c1"># This updates _depth_raw and preserves the manual mask</span>
+<li><p><strong>Replace entire raw depth array</strong> (version controlled):</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">depth</span> <span class="o">=</span> <span class="n">new_depth_array</span>  <span class="c1"># This updates _depth and preserves the manual mask</span>
 </pre></div>
 </div>
 </li>
-<li><p><strong>Edit specific indices</strong> (recommended for targeted changes):</p>
+<li><p><strong>Edit specific indices</strong> (recommended for targeted changes, version controlled):</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Single cell</span>
 <span class="n">topo</span><span class="o">.</span><span class="n">edit_depth</span><span class="p">([(</span><span class="n">j</span><span class="p">,</span> <span class="n">i</span><span class="p">)],</span> <span class="p">[</span><span class="mf">5000.0</span><span class="p">])</span>
 
@@ -191,46 +191,53 @@
 <span class="c1"># Apply ocean/land mask</span>
 <span class="n">topo</span><span class="o">.</span><span class="n">user_mask</span> <span class="o">=</span> <span class="n">ocean_mask</span>  <span class="c1"># Binary mask, shape (ny, nx)</span>
 
-<span class="c1"># Access masked depth values</span>
-<span class="n">masked_depth</span> <span class="o">=</span> <span class="n">topo</span><span class="o">.</span><span class="n">depth</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Ocean cells averaged: </span><span class="si">{</span><span class="n">topo</span><span class="o">.</span><span class="n">depth</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">ocean_mask</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Land cells: </span><span class="si">{</span><span class="n">topo</span><span class="o">.</span><span class="n">depth</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="o">~</span><span class="n">ocean_mask</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">bool</span><span class="p">))</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="si">}}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="c1"># Access masked depth values (with mask and min_depth enforcement applied)</span>
+<span class="n">masked_depth</span> <span class="o">=</span> <span class="n">topo</span><span class="o">.</span><span class="n">masked_depth</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Ocean cells averaged: </span><span class="si">{</span><span class="n">masked_depth</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">ocean_mask</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">bool</span><span class="p">))</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Land cells: </span><span class="si">{</span><span class="n">masked_depth</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="o">~</span><span class="n">ocean_mask</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">bool</span><span class="p">))</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
 <p><strong>Disable Masking</strong></p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Revert to unmasked raw depths</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Revert to no manual masking (depth-derived mask)</span>
 <span class="n">topo</span><span class="o">.</span><span class="n">user_mask</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="n">raw_depth</span> <span class="o">=</span> <span class="n">topo</span><span class="o">.</span><span class="n">depth</span>  <span class="c1"># Now returns _depth_raw unchanged by a user mask (still applies minimum depth adjustment)</span>
+<span class="n">masked_depth</span> <span class="o">=</span> <span class="n">topo</span><span class="o">.</span><span class="n">masked_depth</span>  <span class="c1"># Now tmask is derived from raw depth (cells &gt; min_depth are ocean)</span>
 </pre></div>
 </div>
 <p><strong>Check Raw vs Masked</strong></p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Compare raw and masked versions</span>
-<span class="n">raw</span> <span class="o">=</span> <span class="n">topo</span><span class="o">.</span><span class="n">_depth_raw</span>
-<span class="n">masked</span> <span class="o">=</span> <span class="n">topo</span><span class="o">.</span><span class="n">depth</span>
+<span class="n">raw</span> <span class="o">=</span> <span class="n">topo</span><span class="o">.</span><span class="n">depth</span>
+<span class="n">masked</span> <span class="o">=</span> <span class="n">topo</span><span class="o">.</span><span class="n">masked_depth</span>
 
+<span class="c1"># If a user mask exists, land cells will be set to _land_fillval and shallow ocean cells bumped to min_depth+0.1</span>
 <span class="k">if</span> <span class="n">topo</span><span class="o">.</span><span class="n">user_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-    <span class="n">diff</span> <span class="o">=</span> <span class="p">(</span><span class="n">masked</span> <span class="o">-</span> <span class="n">raw</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Masking applied - differences in </span><span class="si">{</span><span class="p">(</span><span class="n">masked</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">raw</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2"> cells&quot;</span><span class="p">)</span>
+    <span class="n">diff_cells</span> <span class="o">=</span> <span class="p">(</span><span class="n">masked</span> <span class="o">!=</span> <span class="n">raw</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Masking applied - differences in </span><span class="si">{</span><span class="n">diff_cells</span><span class="si">}</span><span class="s2"> cells&quot;</span><span class="p">)</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="c1"># Without user_mask, differences only occur where depth &lt; min_depth (bumped to min_depth+0.1)</span>
+    <span class="n">diff_cells</span> <span class="o">=</span> <span class="p">(</span><span class="n">masked</span> <span class="o">!=</span> <span class="n">raw</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Minimum depth enforcement applied to </span><span class="si">{</span><span class="n">diff_cells</span><span class="si">}</span><span class="s2"> cells&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>
 <section id="version-control-and-edits">
 <h2>Version Control and Edits<a class="headerlink" href="#version-control-and-edits" title="Link to this heading"></a></h2>
-<p>All full depth modifications go through the <code class="docutils literal notranslate"><span class="pre">send_entire_depth_change_to_tcm()</span></code> method, which:</p>
+<p>All depth modifications can be done through the <code class="docutils literal notranslate"><span class="pre">depth</span></code> property or <code class="docutils literal notranslate"><span class="pre">edit_depth()</span></code> method, which:</p>
 <ul class="simple">
-<li><p>Modifies only <code class="docutils literal notranslate"><span class="pre">_depth_raw</span></code> (the raw storage)</p></li>
+<li><p>Modifies only <code class="docutils literal notranslate"><span class="pre">_depth</span></code> (the raw storage)</p></li>
 <li><p>Preserves the existing manual mask</p></li>
 <li><p>Records changes in the TopoCommandManager (TCM) for undo/redo support</p></li>
 <li><p>Allows full version control of bathymetry edits</p></li>
 </ul>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># When you modify depth, the manual mask is preserved</span>
-<span class="n">topo</span><span class="o">.</span><span class="n">depth</span> <span class="o">=</span> <span class="n">new_depth_array</span>  <span class="c1"># Only _depth_raw is updated</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">depth</span> <span class="o">=</span> <span class="n">new_depth_array</span>  <span class="c1"># Only _depth is updated</span>
 
 <span class="c1"># The manual mask remains intact</span>
-<span class="k">assert</span> <span class="n">topo</span><span class="o">.</span><span class="n">mask</span> <span class="o">==</span> <span class="n">original_mask</span>
+<span class="k">assert</span> <span class="n">topo</span><span class="o">.</span><span class="n">user_mask</span> <span class="o">==</span> <span class="n">original_mask</span>
+
+<span class="c1"># Use edit_depth for targeted, fine-grained changes</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">edit_depth</span><span class="p">([(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">6</span><span class="p">)],</span> <span class="p">[</span><span class="mf">3000.0</span><span class="p">,</span> <span class="mf">4000.0</span><span class="p">])</span>
 </pre></div>
 </div>
-<p>You can also change the depth by index with the <code class="docutils literal notranslate"><span class="pre">edit_depth</span></code> function, which takes indexes and new values. This also preserves the manual mask and records changes in TCM.</p>
 </section>
 <section id="internal-architecture">
 <h2>Internal Architecture<a class="headerlink" href="#internal-architecture" title="Link to this heading"></a></h2>
@@ -238,18 +245,22 @@
             ↓
 Stored in: self._user_mask
             ↓
-        When user calls: topo.depth
+        When user calls: topo.masked_depth
             ↓
         Property checks: if self._user_mask is not None
             ↓
         If mask exists:
-            Calculate: masked_depth = where(mask==1, enforce_min_depth(_depth_raw),
-                                                       0.0)
+            Calculate: masked_depth = where(mask==1,
+                                    max(_depth, min_depth+0.1),
+                                    _land_fillval)
             ↓
         If no mask:
-            Return: self._depth_raw directly with enforced minimum depth
+            Derive mask from depth: tmask = where(_depth &gt; min_depth, 1, 0)
+            Calculate: masked_depth = where(tmask==1,
+                                    max(_depth, min_depth+0.1),
+                                    _land_fillval)
             ↓
-        Return: masked/raw depth array
+        Return: masked depth array
 </pre></div>
 </div>
 </section>
@@ -257,21 +268,23 @@ Stored in: self._user_mask
 <h2>API Reference<a class="headerlink" href="#api-reference" title="Link to this heading"></a></h2>
 <p><strong>Properties:</strong></p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">topo.depth</span></code> — Get/set the depth array (applies masking when reading if mask is set)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">topo.tmask</span></code> — Get the binary ocean/land mask</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">topo.user_mask</span></code> — Get/set the manual binary ocean/land mask</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">topo.masked_depth</span></code> — Get (read-only) the computed depth array with masking applied</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">topo.depth</span></code> — Get/set the raw underlying depth array (doesn’t include masking)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">topo.tmask</span></code> — Get the binary ocean/land mask (either user_mask if set, or computed from depth)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">topo.user_mask</span></code> — Get/set the optional manual binary ocean/land mask (1=ocean, 0=land)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">topo.umask</span></code> / <code class="docutils literal notranslate"><span class="pre">topo.vmask</span></code> / <code class="docutils literal notranslate"><span class="pre">topo.qmask</span></code> — Get ocean masks on staggered grids</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">topo.min_depth</span></code> — Get/set the minimum ocean depth threshold</p></li>
 </ul>
 <p><strong>Methods:</strong></p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">topo.apply_land_frac(...)</span></code> — Generate and apply ocean mask from land fraction data</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">topo.send_entire_depth_change_to_tcm(depth)</span></code> — Apply a full depth array update with version control</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">topo.edit_depth(index,</span> <span class="pre">new_values)</span></code> — Edit depth values at specific indexes with version control</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">topo.edit_depth(indices,</span> <span class="pre">values)</span></code> — Edit depth at specific cell indices with version control</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">topo.send_entire_depth_change_to_tcm(depth)</span></code> — Apply a complete depth array replacement with version control</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">topo.write_topo(file_path)</span></code> — Write bathymetry file (includes both raw depth and masked depth)</p></li>
 </ul>
 <p><strong>Internal:</strong></p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">topo._depth_raw</span></code> — Raw depth storage (use <code class="docutils literal notranslate"><span class="pre">topo.depth_raw</span></code> property or <code class="docutils literal notranslate"><span class="pre">topo.depth</span></code> instead)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">topo._user_mask</span></code> — Internal manual mask storage (use <code class="docutils literal notranslate"><span class="pre">topo.user_mask</span></code> property instead)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">topo._depth</span></code> — Raw depth storage (use <code class="docutils literal notranslate"><span class="pre">topo.depth</span></code> property instead)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">topo._user_mask</span></code> — Manual mask storage (use <code class="docutils literal notranslate"><span class="pre">topo.user_mask</span></code> property instead)</p></li>
 </ul>
 </section>
 <section id="benefits-of-this-design">

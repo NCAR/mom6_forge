@@ -26,7 +26,7 @@ Key Concepts
 
 **Separation of Concerns**
 
-Raw depth data (``_depth_raw``) is kept separate from masking logic (``_mask``). This enables:
+Raw depth data (``_depth``) is kept separate from masking logic (``tmask``). This enables:
 
 - Efficient storage (only one copy of depth data)
 - Flexible masking (masks can be applied/removed without re-computing)

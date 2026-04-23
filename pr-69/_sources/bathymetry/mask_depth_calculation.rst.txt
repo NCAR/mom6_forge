@@ -9,43 +9,43 @@ The `Topo` class uses a two part architecture for handling bathymetry depth and 
 Core Components
 ---------------
 
-**Raw Depth Storage: ``_depth_raw``**
+**Raw Depth Storage: ``_depth``**
 
-This is the internal storage for the actual bathymetry data as provided by the user or loaded from files. It represents the true water column depths without any masking applied. Access via the ``depth_raw`` property.
+This is the internal storage for the actual bathymetry data as provided by the user or loaded from files. It represents the true water column depths without any masking applied. Access via the ``depth`` property.
 
 .. code-block:: python
 
     # Read raw depth
-    raw_depth = topo._depth_raw  # xr.DataArray with shape (ny, nx)
+    raw_depth = topo._depth  # xr.DataArray with shape (ny, nx)
     
     # Set raw depth (preserves any existing manual mask)
-    topo._depth_raw[index] = new_vals
+    topo._depth[index] = new_vals
 
 **Manual Ocean/Land Mask: ``user_mask``**
 
-An optional binary mask indicating which cells are ocean (1) and which are land (0). When ``None``, no manual masking is applied. The mask is automatically enforced: ocean cells have min_depth enforcement, land cells receive depth of 0.
+An optional binary mask indicating which cells are ocean (1) and which are land (0). When ``None``, no manual masking is applied. The mask is automatically enforced: ocean cells have min_depth enforcement, land cells receive depth of _land_fillval (typically 0).
 
 .. code-block:: python
 
     # Set a binary ocean/land mask
-    topo.user_  mask = ocean_mask  # xr.DataArray or np.ndarray with values 0 or 1
+    topo.user_mask = ocean_mask  # xr.DataArray or np.ndarray with values 0 or 1
     
     # Disable manual masking
     topo.user_mask = None
 
-**Depth Property: ``depth``**
+**Depth Property: ``masked_depth``**
 
-The public interface that applies masking on-the-fly. When no manual mask is set, it returns ``_depth_raw`` with minimum depth correction. When a manual mask is set, it calculates and returns masked depth values with mask and minimum depth correction
+The public interface that applies masking on-the-fly. When no manual mask is set, it returns ``depth`` with minimum depth correction. When a manual mask is set, it calculates and returns masked depth values with mask and minimum depth correction
 
 .. code-block:: python
 
     # Read masked or raw depth depending on manual mask state
-    depth_array = topo.depth  # xr.DataArray with masking applied if mask is set
+    depth_array = topo.masked_depth  # xr.DataArray with masking applied if mask is set
 
 How Masking Works
 ------------------
 
-When a manual mask is set, the `depth` property applies these rules:
+When a manual mask is set, the `masked_depth` property applies these rules:
 
 1. **Ocean cells** (user_mask == 1):
    
@@ -54,27 +54,27 @@ When a manual mask is set, the `depth` property applies these rules:
    
 2. **Land cells** (user_mask == 0):
    
-   - Values are set to 0.0
+   - Values are set to _land_fillval (typically 0.0)
 
 .. caution::
 
-    **Cannot directly index-edit the depth property!**
+    **Cannot directly index-edit the masked_depth property!**
     
-    Since ``depth`` is now a calculated property (not raw storage), direct index assignment will not persist:
+    Since ``masked_depth`` is computed on-the-fly, direct index assignment will not persist:
     
     .. code-block:: python
     
-        topo.depth[j, i] = 5000.0  # ❌ This will NOT work - depth is computed on-the-fly
+        topo.masked_depth[j, i] = 5000.0  # ❌ This will NOT work - masked_depth is computed on-the-fly
     
     Instead, use one of these methods:
     
-    1. **Replace entire depth array** (version controlled):
+    1. **Replace entire raw depth array** (version controlled):
        
        .. code-block:: python
        
-           topo.depth = new_depth_array  # This updates _depth_raw and preserves the manual mask
+           topo.depth = new_depth_array  # This updates _depth and preserves the manual mask
     
-    2. **Edit specific indices** (recommended for targeted changes):
+    2. **Edit specific indices** (recommended for targeted changes, version controlled):
        
        .. code-block:: python
        
@@ -106,37 +106,42 @@ Usage Examples
     # Apply ocean/land mask
     topo.user_mask = ocean_mask  # Binary mask, shape (ny, nx)
     
-    # Access masked depth values
-    masked_depth = topo.depth
-    print(f"Ocean cells averaged: {topo.depth.where(ocean_mask).mean()}")
-    print(f"Land cells: {topo.depth.where(~ocean_mask.astype(bool)).unique()}}")
+    # Access masked depth values (with mask and min_depth enforcement applied)
+    masked_depth = topo.masked_depth
+    print(f"Ocean cells averaged: {masked_depth.where(ocean_mask.astype(bool)).mean()}")
+    print(f"Land cells: {masked_depth.where(~ocean_mask.astype(bool)).unique()}")
 
 **Disable Masking**
 
 .. code-block:: python
 
-    # Revert to unmasked raw depths
+    # Revert to no manual masking (depth-derived mask)
     topo.user_mask = None
-    raw_depth = topo.depth  # Now returns _depth_raw unchanged by a user mask (still applies minimum depth adjustment)
+    masked_depth = topo.masked_depth  # Now tmask is derived from raw depth (cells > min_depth are ocean)
 
 **Check Raw vs Masked**
 
 .. code-block:: python
 
     # Compare raw and masked versions
-    raw = topo._depth_raw
-    masked = topo.depth
+    raw = topo.depth
+    masked = topo.masked_depth
     
+    # If a user mask exists, land cells will be set to _land_fillval and shallow ocean cells bumped to min_depth+0.1
     if topo.user_mask is not None:
-        diff = (masked - raw).sum()
-        print(f"Masking applied - differences in {(masked != raw).sum()} cells")
+        diff_cells = (masked != raw).sum()
+        print(f"Masking applied - differences in {diff_cells} cells")
+    else:
+        # Without user_mask, differences only occur where depth < min_depth (bumped to min_depth+0.1)
+        diff_cells = (masked != raw).sum()
+        print(f"Minimum depth enforcement applied to {diff_cells} cells")
 
 Version Control and Edits
 --------------------------
 
-All full depth modifications go through the ``send_entire_depth_change_to_tcm()`` method, which:
+All depth modifications can be done through the ``depth`` property or ``edit_depth()`` method, which:
 
-- Modifies only ``_depth_raw`` (the raw storage)
+- Modifies only ``_depth`` (the raw storage)
 - Preserves the existing manual mask
 - Records changes in the TopoCommandManager (TCM) for undo/redo support
 - Allows full version control of bathymetry edits
@@ -144,12 +149,13 @@ All full depth modifications go through the ``send_entire_depth_change_to_tcm()`
 .. code-block:: python
 
     # When you modify depth, the manual mask is preserved
-    topo.depth = new_depth_array  # Only _depth_raw is updated
+    topo.depth = new_depth_array  # Only _depth is updated
     
     # The manual mask remains intact
-    assert topo.mask == original_mask
-
-You can also change the depth by index with the ``edit_depth`` function, which takes indexes and new values. This also preserves the manual mask and records changes in TCM.
+    assert topo.user_mask == original_mask
+    
+    # Use edit_depth for targeted, fine-grained changes
+    topo.edit_depth([(2, 5), (3, 6)], [3000.0, 4000.0])
 
 Internal Architecture
 ---------------------
@@ -160,39 +166,45 @@ Internal Architecture
                 ↓
     Stored in: self._user_mask
                 ↓
-            When user calls: topo.depth
+            When user calls: topo.masked_depth
                 ↓
             Property checks: if self._user_mask is not None
                 ↓
             If mask exists:
-                Calculate: masked_depth = where(mask==1, enforce_min_depth(_depth_raw),
-                                                           0.0)
+                Calculate: masked_depth = where(mask==1, 
+                                        max(_depth, min_depth+0.1),
+                                        _land_fillval)
                 ↓
             If no mask:
-                Return: self._depth_raw directly with enforced minimum depth
+                Derive mask from depth: tmask = where(_depth > min_depth, 1, 0)
+                Calculate: masked_depth = where(tmask==1,
+                                        max(_depth, min_depth+0.1),
+                                        _land_fillval)
                 ↓
-            Return: masked/raw depth array
+            Return: masked depth array
 
 API Reference
 -------------
 
 **Properties:**
 
-- ``topo.depth`` — Get/set the depth array (applies masking when reading if mask is set)
-- ``topo.tmask`` — Get the binary ocean/land mask
-- ``topo.user_mask`` — Get/set the manual binary ocean/land mask
+- ``topo.masked_depth`` — Get (read-only) the computed depth array with masking applied
+- ``topo.depth`` — Get/set the raw underlying depth array (doesn't include masking)
+- ``topo.tmask`` — Get the binary ocean/land mask (either user_mask if set, or computed from depth)
+- ``topo.user_mask`` — Get/set the optional manual binary ocean/land mask (1=ocean, 0=land)
+- ``topo.umask`` / ``topo.vmask`` / ``topo.qmask`` — Get ocean masks on staggered grids
 - ``topo.min_depth`` — Get/set the minimum ocean depth threshold
 
 **Methods:**
 
-- ``topo.apply_land_frac(...)`` — Generate and apply ocean mask from land fraction data
-- ``topo.send_entire_depth_change_to_tcm(depth)`` — Apply a full depth array update with version control
-- ``topo.edit_depth(index, new_values)`` — Edit depth values at specific indexes with version control
+- ``topo.edit_depth(indices, values)`` — Edit depth at specific cell indices with version control
+- ``topo.send_entire_depth_change_to_tcm(depth)`` — Apply a complete depth array replacement with version control
+- ``topo.write_topo(file_path)`` — Write bathymetry file (includes both raw depth and masked depth)
 
 **Internal:**
 
-- ``topo._depth_raw`` — Raw depth storage (use ``topo.depth_raw`` property or ``topo.depth`` instead)
-- ``topo._user_mask`` — Internal manual mask storage (use ``topo.user_mask`` property instead)
+- ``topo._depth`` — Raw depth storage (use ``topo.depth`` property instead)
+- ``topo._user_mask`` — Manual mask storage (use ``topo.user_mask`` property instead)
 
 Benefits of This Design
 -----------------------
