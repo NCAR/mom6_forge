@@ -1,0 +1,44 @@
+name: Test
+
+on: [push,workflow_dispatch]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  # --------------------------------
+  # 1️⃣ Build & test the environment
+  # --------------------------------
+  build-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11","3.12","3.13", "3.14"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Micromamba (with caching)
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: environment.yml
+          cache-downloads: true
+          micromamba-version: "latest"
+          create-args: python=${{ matrix.python-version }}
+      - name: Set git identity for testing
+        run: |
+          git config --global user.email "runner@example.com"
+          git config --global user.name "CI Runner"
+      - name: Run pytest
+        shell: bash -l {0}
+        run: |
+          pytest -v --maxfail=1 --disable-warnings --cov=mom6_forge --cov-branch --cov-report=xml
+      - name: Upload coverage report to CodeCov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+

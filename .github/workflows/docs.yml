@@ -1,0 +1,65 @@
+name: Docs
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+    
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Micromamba (with caching)
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: environment.yml    
+          cache-environment: true
+          cache-downloads: true
+          micromamba-version: "latest"
+
+      - name: Install Pandoc
+        run: sudo apt-get install -y pandoc
+
+      - name: Build Sphinx docs
+        shell: bash -l {0}
+        run: |
+          sphinx-build -b html docs/source docs/_build
+
+      - name: Deploy PR preview to GitHub Pages
+        if: github.event_name == 'pull_request'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: docs/_build
+          destination_dir: pr-${{ github.event.number }}
+          keep_files: false
+
+      - name: Comment PR with preview link
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          message: |
+            📄 Preview your docs here:
+            👉 https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/pr-${{ github.event.number }}/index.html
+
+      - name: Deploy main to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        with:
+          publish_branch: gh-pages
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: docs/_build
