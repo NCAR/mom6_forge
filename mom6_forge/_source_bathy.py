@@ -63,6 +63,7 @@ class SourceBathy:
         """
         lon_extent = (float(topo._grid.qlon.min()), float(topo._grid.qlon.max()))
         lat_extent = (float(topo._grid.qlat.min()), float(topo._grid.qlat.max()))
+        print(f"Slicing source bathymetry to domain: {lon_extent} x {lat_extent} with buffer {buf}")
 
         ds_src = xr.open_dataset(self.path, chunks="auto")
 
