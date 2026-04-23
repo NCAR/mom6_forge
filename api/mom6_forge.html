@@ -17,8 +17,6 @@
       <script src="../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
-      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
-      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -120,20 +118,14 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#module-mom6_forge.utils">mom6_forge.utils module</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.angle_between"><code class="docutils literal notranslate"><span class="pre">angle_between()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.cell_area_rad"><code class="docutils literal notranslate"><span class="pre">cell_area_rad()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.fill_missing_data"><code class="docutils literal notranslate"><span class="pre">fill_missing_data()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.get_avg_resolution"><code class="docutils literal notranslate"><span class="pre">get_avg_resolution()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.get_avg_resolution_km"><code class="docutils literal notranslate"><span class="pre">get_avg_resolution_km()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.get_mesh_dimensions"><code class="docutils literal notranslate"><span class="pre">get_mesh_dimensions()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.is_mesh_cyclic_x"><code class="docutils literal notranslate"><span class="pre">is_mesh_cyclic_x()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.latlon_to_cartesian"><code class="docutils literal notranslate"><span class="pre">latlon_to_cartesian()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.longitude_slicer"><code class="docutils literal notranslate"><span class="pre">longitude_slicer()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.mdist"><code class="docutils literal notranslate"><span class="pre">mdist()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.normalize_deg"><code class="docutils literal notranslate"><span class="pre">normalize_deg()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.quadrilateral_area"><code class="docutils literal notranslate"><span class="pre">quadrilateral_area()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.quadrilateral_areas"><code class="docutils literal notranslate"><span class="pre">quadrilateral_areas()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.vecdot"><code class="docutils literal notranslate"><span class="pre">vecdot()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#module-mom6_forge.vgrid">mom6_forge.vgrid module</a><ul>
@@ -1866,26 +1858,6 @@ The plot is embedded in a widget for use in the Jupyter interface.</p>
 <span id="mom6-forge-utils-module"></span><h2>mom6_forge.utils module<a class="headerlink" href="#module-mom6_forge.utils" title="Link to this heading"></a></h2>
 <p>Auxiliary functions for grid property computations.</p>
 <dl class="py function">
-<dt class="sig sig-object py" id="mom6_forge.utils.angle_between">
-<span class="sig-prename descclassname"><span class="pre">mom6_forge.utils.</span></span><span class="sig-name descname"><span class="pre">angle_between</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">v2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">v3</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.utils.angle_between" title="Link to this definition"></a></dt>
-<dd><p>Return the angle <code class="docutils literal notranslate"><span class="pre">v2</span></code>-<code class="docutils literal notranslate"><span class="pre">v1</span></code>-<code class="docutils literal notranslate"><span class="pre">v3</span></code> (in radians), where
-<code class="docutils literal notranslate"><span class="pre">v1</span></code>, <code class="docutils literal notranslate"><span class="pre">v2</span></code>, <code class="docutils literal notranslate"><span class="pre">v3</span></code> are 3-vectors. That is, the angle that
-is formed between vectors <code class="docutils literal notranslate"><span class="pre">v2</span> <span class="pre">-</span> <span class="pre">v1</span></code> and vector <code class="docutils literal notranslate"><span class="pre">v3</span> <span class="pre">-</span> <span class="pre">v1</span></code>.</p>
-<p class="rubric">Example</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">regional_mom6.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">angle_between</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">v1</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">v2</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">v3</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">angle_between</span><span class="p">(</span><span class="n">v1</span><span class="p">,</span> <span class="n">v2</span><span class="p">,</span> <span class="n">v3</span><span class="p">)</span>
-<span class="go">1.5707963267948966</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">rad2deg</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">rad2deg</span><span class="p">(</span><span class="n">angle_between</span><span class="p">(</span><span class="n">v1</span><span class="p">,</span> <span class="n">v2</span><span class="p">,</span> <span class="n">v3</span><span class="p">))</span>
-<span class="go">90.0</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py function">
 <dt class="sig sig-object py" id="mom6_forge.utils.cell_area_rad">
 <span class="sig-prename descclassname"><span class="pre">mom6_forge.utils.</span></span><span class="sig-name descname"><span class="pre">cell_area_rad</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xv_coords</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">yv_coords</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.utils.cell_area_rad" title="Link to this definition"></a></dt>
 <dd><p>Compute the area of cell(s) using spherical polygons.</p>
@@ -1986,43 +1958,6 @@ compute the dimensions of the 2D grid and return them as nx, ny.</p>
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="mom6_forge.utils.latlon_to_cartesian">
-<span class="sig-prename descclassname"><span class="pre">mom6_forge.utils.</span></span><span class="sig-name descname"><span class="pre">latlon_to_cartesian</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lat</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lon</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">R</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.utils.latlon_to_cartesian" title="Link to this definition"></a></dt>
-<dd><p>Convert latitude and longitude (in degrees) to Cartesian coordinates on
-a sphere of radius <code class="docutils literal notranslate"><span class="pre">R</span></code>. By default <code class="docutils literal notranslate"><span class="pre">R</span> <span class="pre">=</span> <span class="pre">1</span></code>.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>lat</strong> (<em>float</em>) – Latitude (in degrees).</p></li>
-<li><p><strong>lon</strong> (<em>float</em>) – Longitude (in degrees).</p></li>
-<li><p><strong>R</strong> (<em>float</em>) – The radius of the sphere; default: 1.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Tuple with the Cartesian coordinates <code class="docutils literal notranslate"><span class="pre">x,</span> <span class="pre">y,</span> <span class="pre">z</span></code></p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>tuple</p>
-</dd>
-</dl>
-<p class="rubric">Examples</p>
-<p>Find the Cartesian coordinates that correspond to point with
-<code class="docutils literal notranslate"><span class="pre">(lat,</span> <span class="pre">lon)</span> <span class="pre">=</span> <span class="pre">(0,</span> <span class="pre">0)</span></code> on a sphere with unit radius.</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">regional_mom6.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">latlon_to_cartesian</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">latlon_to_cartesian</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-<span class="go">(1.0, 0.0, 0.0)</span>
-</pre></div>
-</div>
-<p>Now let’s do the same on a sphere with Earth’s radius</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">regional_mom6.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">latlon_to_cartesian</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">R</span> <span class="o">=</span> <span class="mf">6371e3</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">latlon_to_cartesian</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">R</span><span class="p">)</span>
-<span class="go">(6371000.0, 0.0, 0.0)</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py function">
 <dt class="sig sig-object py" id="mom6_forge.utils.longitude_slicer">
 <span class="sig-prename descclassname"><span class="pre">mom6_forge.utils.</span></span><span class="sig-name descname"><span class="pre">longitude_slicer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_extent</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coords</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.utils.longitude_slicer" title="Link to this definition"></a></dt>
 <dd><p>Slices longitudes while handling periodicity and the ‘seams’, that is the
@@ -2064,18 +1999,6 @@ longitude coordinates(s) in <code class="docutils literal notranslate"><span cla
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="mom6_forge.utils.mdist">
-<span class="sig-prename descclassname"><span class="pre">mom6_forge.utils.</span></span><span class="sig-name descname"><span class="pre">mdist</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.utils.mdist" title="Link to this definition"></a></dt>
-<dd><p>Returns positive distance modulo 360.</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">x1</span><span class="o">=</span><span class="mf">0.0</span><span class="p">;</span><span class="n">x2</span><span class="o">=</span><span class="mf">730.</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">d</span><span class="o">=</span><span class="n">mdist</span><span class="p">(</span><span class="n">x1</span><span class="p">,</span><span class="n">x2</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
-<span class="go">10.0</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py function">
 <dt class="sig sig-object py" id="mom6_forge.utils.normalize_deg">
 <span class="sig-prename descclassname"><span class="pre">mom6_forge.utils.</span></span><span class="sig-name descname"><span class="pre">normalize_deg</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">coord</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.utils.normalize_deg" title="Link to this definition"></a></dt>
 <dd><p>Normalize a coordinate in degrees to the range [0, 360).</p>
@@ -2090,98 +2013,6 @@ longitude coordinates(s) in <code class="docutils literal notranslate"><span cla
 <dd class="field-odd"><p>float or np.ndarray</p>
 </dd>
 </dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="mom6_forge.utils.quadrilateral_area">
-<span class="sig-prename descclassname"><span class="pre">mom6_forge.utils.</span></span><span class="sig-name descname"><span class="pre">quadrilateral_area</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">v2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">v3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">v4</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.utils.quadrilateral_area" title="Link to this definition"></a></dt>
-<dd><p>Return the area of a spherical quadrilateral on the unit sphere that
-has vertices on the 3-vectors <code class="docutils literal notranslate"><span class="pre">v1</span></code>, <code class="docutils literal notranslate"><span class="pre">v2</span></code>, <code class="docutils literal notranslate"><span class="pre">v3</span></code>, <code class="docutils literal notranslate"><span class="pre">v4</span></code>
-(counter-clockwise orientation is implied). The area is computed via
-the excess of the sum of the spherical angles of the quadrilateral from 2π.</p>
-<p class="rubric">Example</p>
-<p>Calculate the area that corresponds to half the Northern hemisphere
-of a sphere of radius <em>R</em>. This should be 1/4 of the sphere’s total area,
-that is π <em>R</em><sup>2</sup>.</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">regional_mom6.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">quadrilateral_area</span><span class="p">,</span> <span class="n">latlon_to_cartesian</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">R</span> <span class="o">=</span> <span class="mf">434.3</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">v1</span> <span class="o">=</span> <span class="n">latlon_to_cartesian</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">R</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">v2</span> <span class="o">=</span> <span class="n">latlon_to_cartesian</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">90</span><span class="p">,</span> <span class="n">R</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">v3</span> <span class="o">=</span> <span class="n">latlon_to_cartesian</span><span class="p">(</span><span class="mi">90</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">R</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">v4</span> <span class="o">=</span> <span class="n">latlon_to_cartesian</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">90</span><span class="p">,</span> <span class="n">R</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">quadrilateral_area</span><span class="p">(</span><span class="n">v1</span><span class="p">,</span> <span class="n">v2</span><span class="p">,</span> <span class="n">v3</span><span class="p">,</span> <span class="n">v4</span><span class="p">)</span>
-<span class="go">592556.1793298927</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">pi</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">quadrilateral_area</span><span class="p">(</span><span class="n">v1</span><span class="p">,</span> <span class="n">v2</span><span class="p">,</span> <span class="n">v3</span><span class="p">,</span> <span class="n">v4</span><span class="p">)</span> <span class="o">==</span> <span class="n">pi</span> <span class="o">*</span> <span class="n">R</span><span class="o">**</span><span class="mi">2</span>
-<span class="go">True</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="mom6_forge.utils.quadrilateral_areas">
-<span class="sig-prename descclassname"><span class="pre">mom6_forge.utils.</span></span><span class="sig-name descname"><span class="pre">quadrilateral_areas</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lat</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lon</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">R</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.utils.quadrilateral_areas" title="Link to this definition"></a></dt>
-<dd><p>Return the area of spherical quadrilaterals on a sphere of radius <code class="docutils literal notranslate"><span class="pre">R</span></code>.
-By default, <code class="docutils literal notranslate"><span class="pre">R</span> <span class="pre">=</span> <span class="pre">1</span></code>. The quadrilaterals are formed by constant latitude and
-longitude lines on the <code class="docutils literal notranslate"><span class="pre">lat</span></code>-<code class="docutils literal notranslate"><span class="pre">lon</span></code> grid provided.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>lat</strong> (<em>numpy.array</em>) – Array of latitude points (in degrees).</p></li>
-<li><p><strong>lon</strong> (<em>numpy.array</em>) – Array of longitude points (in degrees).</p></li>
-<li><p><strong>R</strong> (<em>float</em>) – The radius of the sphere; default: 1.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Array with the areas of the quadrilaterals defined by the <code class="docutils literal notranslate"><span class="pre">lat</span></code>-<code class="docutils literal notranslate"><span class="pre">lon</span></code> grid
-provided. If the provided <code class="docutils literal notranslate"><span class="pre">lat</span></code>, <code class="docutils literal notranslate"><span class="pre">lon</span></code> arrays are of dimension <em>m</em> <span class="math notranslate nohighlight">\(\times\)</span> <em>n</em>
-then returned areas array is of dimension (<em>m-1</em>) <span class="math notranslate nohighlight">\(\times\)</span> (<em>n-1</em>).</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>numpy.array</p>
-</dd>
-</dl>
-<p class="rubric">Example</p>
-<p>Let’s construct a lat-lon grid on the sphere with 60 degree spacing.
-Then we compute the areas of each grid cell and confirm that the
-sum of the areas gives us the total area of the sphere.</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">regional_mom6.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">quadrilateral_areas</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">λ</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">360</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">φ</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mi">90</span><span class="p">,</span> <span class="mi">90</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">lon</span><span class="p">,</span> <span class="n">lat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">λ</span><span class="p">,</span> <span class="n">φ</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">lon</span>
-<span class="go">array([[  0.,  60., 120., 180., 240., 300., 360.],</span>
-<span class="go">       [  0.,  60., 120., 180., 240., 300., 360.],</span>
-<span class="go">       [  0.,  60., 120., 180., 240., 300., 360.],</span>
-<span class="go">       [  0.,  60., 120., 180., 240., 300., 360.]])</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">lat</span>
-<span class="go">array([[-90., -90., -90., -90., -90., -90., -90.],</span>
-<span class="go">       [-30., -30., -30., -30., -30., -30., -30.],</span>
-<span class="go">       [ 30.,  30.,  30.,  30.,  30.,  30.,  30.],</span>
-<span class="go">       [ 90.,  90.,  90.,  90.,  90.,  90.,  90.]])</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">R</span> <span class="o">=</span> <span class="mf">6371e3</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">areas</span> <span class="o">=</span> <span class="n">quadrilateral_areas</span><span class="p">(</span><span class="n">lat</span><span class="p">,</span> <span class="n">lon</span><span class="p">,</span> <span class="n">R</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">areas</span>
-<span class="go">array([[1.96911611e+13, 1.96911611e+13, 1.96911611e+13, 1.96911611e+13,</span>
-<span class="go">        1.96911611e+13, 1.96911611e+13],</span>
-<span class="go">       [4.56284230e+13, 4.56284230e+13, 4.56284230e+13, 4.56284230e+13,</span>
-<span class="go">        4.56284230e+13, 4.56284230e+13],</span>
-<span class="go">       [1.96911611e+13, 1.96911611e+13, 1.96911611e+13, 1.96911611e+13,</span>
-<span class="go">        1.96911611e+13, 1.96911611e+13]])</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">areas</span><span class="o">.</span><span class="n">sum</span><span class="p">(),</span> <span class="mi">4</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">R</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">areas</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
-<span class="go">True</span>
-</pre></div>
-</div>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="mom6_forge.utils.vecdot">
-<span class="sig-prename descclassname"><span class="pre">mom6_forge.utils.</span></span><span class="sig-name descname"><span class="pre">vecdot</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">v2</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.utils.vecdot" title="Link to this definition"></a></dt>
-<dd><p>Return the dot product of vectors <code class="docutils literal notranslate"><span class="pre">v1</span></code> and <code class="docutils literal notranslate"><span class="pre">v2</span></code>.
-<code class="docutils literal notranslate"><span class="pre">v1</span></code> and <code class="docutils literal notranslate"><span class="pre">v2</span></code> can be either numpy vectors or numpy.ndarrays
-in which case the last dimension is considered the dimension
-over which the dot product is taken.</p>
 </dd></dl>
 
 </section>
