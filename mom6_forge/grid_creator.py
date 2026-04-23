@@ -860,7 +860,9 @@ class GridCreator(widgets.HBox):
                     self.grid.supergrid._grid_params["center_lat"],
                     self.grid.supergrid._grid_params["center_lon"],
                 )
-                self._center_width.value = self.grid.supergrid._grid_params["width_m"] / 1000
+                self._center_width.value = (
+                    self.grid.supergrid._grid_params["width_m"] / 1000
+                )
                 self._center_height.value = (
                     self.grid.supergrid._grid_params["height_m"] / 1000
                 )
@@ -881,9 +883,13 @@ class GridCreator(widgets.HBox):
                 self._proj_resolution.value = (
                     self.grid.supergrid._grid_params["resolution_m"] / 1000
                 )
-                epsg = CRS.from_wkt(self.grid.supergrid._grid_params["crs_wkt"]).to_epsg()
+                epsg = CRS.from_wkt(
+                    self.grid.supergrid._grid_params["crs_wkt"]
+                ).to_epsg()
                 self._proj_crs_text.value = (
-                    f"EPSG:{epsg}" if epsg else self.grid.supergrid._grid_params["crs_wkt"]
+                    f"EPSG:{epsg}"
+                    if epsg
+                    else self.grid.supergrid._grid_params["crs_wkt"]
                 )
             else:
                 self._grid_mode = "latlon"
