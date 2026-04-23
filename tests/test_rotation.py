@@ -11,7 +11,7 @@ import pytest
 import xarray as xr
 import numpy as np
 
-tol_angle = 5e-1  # tolerance for angles (in degrees) from seperate calculations
+tol_angle = 5e-1  # tolerance for angles (in degrees) from seperate calculations, this is slightly higher than previously
 tol_angle_unit_test = 0  # tolerance for angles (in degrees) from unit test generation
 
 
