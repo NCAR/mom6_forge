@@ -70,7 +70,7 @@ class Topo:
 
     def __getitem__(self, slices):
         """
-        Get a subgrid copy based on the provided slices. 
+        Get a subgrid copy based on the provided slices.
 
         Parameters
         ----------
@@ -83,12 +83,12 @@ class Topo:
         Returns
         -------
         topo: Topo
-            A new Topo object with the same grid but with the depth and grid subsetted according to the provided slices. 
+            A new Topo object with the same grid but with the depth and grid subsetted according to the provided slices.
         """
 
         new_grid = self._grid[slices]
         new_topo = Topo(new_grid, self._min_depth)
-        if (self._depth is not None):
+        if self._depth is not None:
             new_topo._depth = self._depth[slices]
         return new_topo
 
