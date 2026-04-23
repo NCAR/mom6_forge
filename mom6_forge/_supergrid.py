@@ -15,9 +15,10 @@ import numpy as np
 import xarray as xr
 from datetime import datetime
 from typing import Optional
+
 _DEFAULT_RADIUS = 6.371e6  # mean radius of the Earth (IUGG), in metres
 from pyproj import CRS, Transformer
-from mom6_forge.utils import quadrilateral_areas, mdist, normalize_deg
+from mom6_forge.utils import normalize_deg
 
 
 class SupergridBase:
@@ -68,51 +69,6 @@ class SupergridBase:
         self.axis_units = axis_units
         self.grid_type = grid_params.get("grid_type", "base")
         self._grid_params = grid_params
-
-    @staticmethod
-    def _calc_dx_dy(x, y, R=_DEFAULT_RADIUS, type="smallangle"):
-        """Compute supergrid dx and dy from coordinate arrays.
-
-        Parameters
-        ----------
-        x, y : 2D arrays
-            Supergrid longitude and latitude in degrees, shape (2*ny+1, 2*nx+1).
-        R : float, optional
-            Sphere radius in metres. Defaults to Earth's IUGG mean radius.
-
-        Returns
-        -------
-        dx : 2D array, shape (2*ny+1, 2*nx)
-            Arc lengths between horizontally adjacent nodes, in metres.
-        dy : 2D array, shape (2*ny, 2*nx+1)
-            Arc lengths between vertically adjacent nodes, in metres.
-        """
-        if type == "smallangle":
-            # Use small angle approximation for dx, which is faster to compute and not much different
-            dx = R * np.cos(np.deg2rad(y[:, :-1])) * np.deg2rad(np.diff(x, axis=1))
-            dy = R * np.deg2rad(np.diff(y, axis=0))
-        elif type == "haversine":
-            dx = haversine(y[:, :-1], x[:, :-1], y[:, 1:], x[:, 1:], R)
-            dy = haversine(y[:-1, :], x[:-1, :], y[1:, :], x[1:, :], R)
-        return dx, dy
-
-    @staticmethod
-    def _calc_area(x, y, R=_DEFAULT_RADIUS):
-        """Compute supergrid cell areas from coordinate arrays.
-
-        Parameters
-        ----------
-        x, y : 2D arrays
-            Supergrid longitude and latitude in degrees, shape (2*ny+1, 2*nx+1).
-        R : float, optional
-            Sphere radius in metres. Defaults to Earth's IUGG mean radius.
-
-        Returns
-        -------
-        area : 2D array, shape (2*ny, 2*nx)
-            Cell areas in square metres.
-        """
-        return quadrilateral_areas(y, x, R)
 
     @staticmethod
     def _calc_dx_dy(x, y, R=_DEFAULT_RADIUS, type="smallangle"):
@@ -222,7 +178,7 @@ class SupergridBase:
         )
 
     @staticmethod
-    def calculate_supergrid_rotation_angles_using_expanded_supergrid_method(
+    def calc_supergrid_rotation_angles_using_expanded_supergrid_method(
         x,
         y,
     ) -> xr.Dataset:
@@ -312,7 +268,11 @@ class UniformSphericalSupergrid(SupergridBase):
     ):
         """Create a grid from domain extents (lon/lat degrees)."""
         x, y = cls._calc_xy_from_extents(lon_min, len_x, lat_min, len_y, nx, ny)
-        return cls.from_xy(x, y, radius=radius, grid_params = dict(
+        return cls.from_xy(
+            x,
+            y,
+            radius=radius,
+            grid_params=dict(
                 grid_type="uniform_spherical",
                 lon_min=lon_min,
                 len_x=len_x,
@@ -320,12 +280,21 @@ class UniformSphericalSupergrid(SupergridBase):
                 len_y=len_y,
                 nx=nx,
                 ny=ny,
-            ))
+                radius=radius,
+            ),
+        )
 
     @classmethod
     def from_xy(cls, x, y, radius=_DEFAULT_RADIUS, grid_params=None):
         """Create a grid directly from coordinate arrays."""
-        dx, dy, area, angle_dx, axis_units = cls._calc_geometry(x, y)
+        if grid_params is None:
+            grid_params = {}
+        dx, dy = cls._calc_dx_dy(x, y, R=radius)
+        area = cls._calc_area(x, y, R=radius)
+        angle_dx = np.zeros_like(
+            x
+        )  # Uniform spherical grid has no rotation, so angle_dx is zero everywhere
+        axis_units = "degrees"
         return cls(x, y, dx, dy, area, angle_dx, axis_units, grid_params=grid_params)
 
     @classmethod
@@ -378,6 +347,7 @@ class RectilinearCartesianSupergrid(SupergridBase):
                 lat_min=lat_min,
                 len_y=len_y,
                 resolution=resolution,
+                radius=radius,
             ),
         )
 
@@ -442,7 +412,9 @@ class ProjectedSupergrid(SupergridBase):
     """
 
     @classmethod
-    def from_crs(cls, crs, x_min, x_max, y_min, y_max, resolution_m):
+    def from_crs(
+        cls, crs, x_min, x_max, y_min, y_max, resolution_m, radius=_DEFAULT_RADIUS
+    ):
         """Create a grid from projected coordinate extents.
 
         Parameters
@@ -460,6 +432,8 @@ class ProjectedSupergrid(SupergridBase):
             Projected y-coordinate extent in metres.
         resolution_m : float
             Grid resolution in metres, uniform in both projected x and y.
+        radius : float, optional
+            Sphere radius in metres. Defaults to Earth's IUGG mean radius.
         """
 
         if not isinstance(crs, CRS):
@@ -475,7 +449,7 @@ class ProjectedSupergrid(SupergridBase):
         transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
         lon, lat = transformer.transform(xx, yy)
 
-        return cls._from_latlon(
+        return cls._from_xy(
             lon,
             lat,
             dict(
@@ -486,12 +460,21 @@ class ProjectedSupergrid(SupergridBase):
                 y_min=y_min,
                 y_max=y_max,
                 resolution_m=resolution_m,
+                radius=radius,
             ),
+            radius=radius,
         )
 
     @classmethod
     def from_center(
-        cls, center_lat, center_lon, width_m, height_m, resolution_m, angle_deg=0.0
+        cls,
+        center_lat,
+        center_lon,
+        width_m,
+        height_m,
+        resolution_m,
+        angle_deg=0.0,
+        radius=_DEFAULT_RADIUS,
     ):
         """Create a rotated rectangular grid centered at a geographic point.
 
@@ -513,6 +496,8 @@ class ProjectedSupergrid(SupergridBase):
             Clockwise rotation from north in degrees. Default 0 (north-up).
             Example: angle_deg=45 rotates so that the x-axis points NE,
             useful for a NE-SW estuary mouth.
+        radius : float, optional
+            Sphere radius in metres. Defaults to Earth's IUGG mean radius.
         """
 
         proj_str = (
@@ -536,7 +521,7 @@ class ProjectedSupergrid(SupergridBase):
         transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
         lon, lat = transformer.transform(xx_rot, yy_rot)
 
-        return cls._from_latlon(
+        return cls._from_xy(
             lon,
             lat,
             dict(
@@ -547,7 +532,9 @@ class ProjectedSupergrid(SupergridBase):
                 height_m=height_m,
                 resolution_m=resolution_m,
                 angle_deg=angle_deg,
+                radius=radius,
             ),
+            radius=radius,
         )
 
     @classmethod
@@ -583,71 +570,32 @@ class ProjectedSupergrid(SupergridBase):
         )
 
     @classmethod
-    def _from_latlon(cls, lon, lat, grid_params):
-        """Build supergrid metrics from reprojected lat/lon node arrays. Should not really be called directly by users (unless experienced); use from_crs or from_center instead.
+    def _from_xy(cls, x, y, grid_params, radius=_DEFAULT_RADIUS):
+        """Build supergrid metrics from reprojected y/x node arrays. Should not really be called directly by users (unless experienced); use from_crs or from_center instead.
 
         Parameters
         ----------
-        lon, lat : np.ndarray, shape (2*ny+1, 2*nx+1)
+        x, y : np.ndarray, shape (2*ny+1, 2*nx+1)
             Geographic coordinates of all supergrid nodes in degrees.
         grid_params : dict
             Construction parameters to store on the instance.
+        radius : float, optional
+            Sphere radius in metres. Defaults to Earth's IUGG mean radius.
         """
-        R = 6.378e6
-
         # Clamp to valid geographic range (floating-point overshoot from projection)
-        lat = np.clip(lat, -90.0, 90.0)
+        y = np.clip(y, -90.0, 90.0)
 
-        # dx: great-circle distance between horizontally adjacent nodes
-        # shape: (2*ny+1, 2*nx)
-        dx = _haversine(lat[:, :-1], lon[:, :-1], lat[:, 1:], lon[:, 1:], R)
+        # dx, dy, area: use base class consistent calcuyion methods
+        dx, dy = SupergridBase._calc_dx_dy(x, y, R=radius)
+        area = SupergridBase._calc_area(x, y, R=radius)
 
-        # dy: great-circle distance between vertically adjacent nodes
-        # shape: (2*ny, 2*nx+1)
-        dy = _haversine(lat[:-1, :], lon[:-1, :], lat[1:, :], lon[1:, :], R)
-
-        # area: exact spherical quadrilateral areas of supergrid sub-cells
-        # shape: (2*ny, 2*nx)
-        area = quadrilateral_areas(lat, lon, R)
-
-        # angle_dx: angle of grid i-direction relative to east (radians)
+        # angle_dx: angle of grid i-direction reyive to east
         # shape: (2*ny+1, 2*nx+1)
-        # _dlon_signed handles grids that cross the antimeridian.
-        angle_dx = np.zeros_like(lon)
-        angle_dx[:, 1:-1] = np.arctan2(
-            lat[:, 2:] - lat[:, :-2],
-            _dlon_signed(lon[:, :-2], lon[:, 2:]) * np.cos(np.deg2rad(lat[:, 1:-1])),
+        angle_dx = SupergridBase.calc_supergrid_rotation_angles_using_expanded_supergrid_method(
+            x, y
         )
-        angle_dx[:, 0] = np.arctan2(
-            lat[:, 1] - lat[:, 0],
-            _dlon_signed(lon[:, 0], lon[:, 1]) * np.cos(np.deg2rad(lat[:, 0])),
-        )
-        angle_dx[:, -1] = np.arctan2(
-            lat[:, -1] - lat[:, -2],
-            _dlon_signed(lon[:, -2], lon[:, -1]) * np.cos(np.deg2rad(lat[:, -1])),
-        )
-
-        return cls(lon, lat, dx, dy, area, angle_dx, "degrees", grid_params)
-
-
-def _haversine(lat1, lon1, lat2, lon2, R=6.378e6):
-    """Great-circle distance (metres) between arrays of points given in degrees."""
-    dlat = np.deg2rad(lat2 - lat1)
-    dlon = np.deg2rad(lon2 - lon1)
-    a = (
-        np.sin(dlat / 2) ** 2
-        + np.cos(np.deg2rad(lat1)) * np.cos(np.deg2rad(lat2)) * np.sin(dlon / 2) ** 2
-    )
-    return (
-        2
-        * R
-        * np.arctan2(np.sqrt(np.clip(a, 0.0, 1.0)), np.sqrt(np.clip(1.0 - a, 0.0, 1.0)))
-    )
-
-
-def _dlon_signed(lon_a, lon_b):
-    """Signed longitude difference lon_b - lon_a mapped to (-180, 180]."""
-    return ((lon_b - lon_a + 180.0) % 360.0) - 180.0
+        grid_params["radius"] = radius
+        return cls(x, y, dx, dy, area, angle_dx, "degrees", grid_params)
 
 
 _GRID_TYPE_TO_CLASS = {

@@ -323,10 +323,8 @@ def test_initialize_grid_rotation_angle(get_curvilinear_supergrid):
     """
     supergrid = get_curvilinear_supergrid
     sg = UniformSphericalSupergrid.from_xy(supergrid.x.values, supergrid.y.values)
-    sg.angle_dx = (
-        sg.calculate_supergrid_rotation_angles_using_expanded_supergrid_method(
-            sg.x, sg.y
-        )
+    sg.angle_dx = sg.calc_supergrid_rotation_angles_using_expanded_supergrid_method(
+        sg.x, sg.y
     )
     angle = xr.DataArray(sg.angle_dx[1::2, 1::2], dims=["nyp", "nxp"])
 
@@ -353,10 +351,8 @@ def test_calculate_grid_rotation_angle_using_expanded_supergrid(
     """
     supergrid = get_curvilinear_supergrid
     sg = UniformSphericalSupergrid.from_xy(supergrid.x.values, supergrid.y.values)
-    sg.angle_dx = (
-        sg.calculate_supergrid_rotation_angles_using_expanded_supergrid_method(
-            sg.x, sg.y
-        )
+    sg.angle_dx = sg.calc_supergrid_rotation_angles_using_expanded_supergrid_method(
+        sg.x, sg.y
     )
     angle = xr.DataArray(sg.angle_dx, dims=["nyp", "nxp"])
 

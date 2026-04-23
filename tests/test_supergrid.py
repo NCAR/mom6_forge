@@ -89,12 +89,14 @@ def test_projected_supergrid_from_latlon():
     lon = np.linspace(-10, 10, 2 * nx + 1)
     lat = np.linspace(30, 40, 2 * ny + 1)
     lon2d, lat2d = np.meshgrid(lon, lat)
-    sg = ProjectedSupergrid._from_latlon(lon2d, lat2d, {"grid_type": "projected_crs"})
+    sg = ProjectedSupergrid._from_xy(lon2d, lat2d, {"grid_type": "projected_crs"})
     assert isinstance(sg, ProjectedSupergrid)
     assert sg.x.shape == (2 * ny + 1, 2 * nx + 1)
     assert sg.area.shape == (2 * ny, 2 * nx)
     assert np.all(sg.area > 0)
     assert sg.axis_units == "degrees"
+
+
 def test_uniform_spherical_supergrid():
     nx, ny = 10, 10
     sg = UniformSphericalSupergrid.from_extents(
