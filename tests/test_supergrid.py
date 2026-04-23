@@ -1,5 +1,5 @@
 import pytest
-from mom6_bathy._supergrid import *
+from mom6_forge._supergrid import *
 import numpy as np
 
 

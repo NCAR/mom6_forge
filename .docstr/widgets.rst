@@ -1,9 +1,9 @@
 Topo & The Widgets!
 ===================
 
-This document explains the widget modules in ``mom6_bathy``.
+This document explains the widget modules in ``mom6_forge``.
 
-``mom6_bathy`` comes with three UI modules/classes that wrap the three main
+``mom6_forge`` comes with three UI modules/classes that wrap the three main
 classes—``VGrid``, ``Grid``, and ``Topo``—to help with creating vertical grids
 (``VGridCreator``), horizontal grids (``GridCreator``), and editing topography
 (``TopoEditor``).
@@ -144,7 +144,7 @@ We would use straight git functions, but the topo file itself is handled indepen
 
 See also the demonstration notebook:
 
-`6_demo_editors.ipynb <https://github.com/NCAR/mom6_bathy/blob/master/notebooks/6_demo_editors.ipynb>`_
+`6_demo_editors.ipynb <https://github.com/NCAR/mom6_forge/blob/master/notebooks/6_demo_editors.ipynb>`_
 
 
 

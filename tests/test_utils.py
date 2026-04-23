@@ -1,5 +1,5 @@
 import pytest
-from mom6_bathy.utils import (
+from mom6_forge.utils import (
     get_avg_resolution,
     get_avg_resolution_km,
     longitude_slicer,

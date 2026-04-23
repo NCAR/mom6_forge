@@ -12,14 +12,13 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath("../mom6_bathy/"))
-sys.path.insert(0, os.path.abspath("../mom6_bathy/midas/"))
+sys.path.insert(0, os.path.abspath("../mom6_forge/"))
 
 
 # -- Project information -----------------------------------------------------
 
-project = "mom6_bathy"
-copyright = "2024, NCAR"
+project = "mom6_forge"
+copyright = "2026, NCAR"
 author = "NCAR"
 
 # The full version, including alpha/beta/rc tags

@@ -4,12 +4,12 @@ from typing import Optional
 import numpy as np
 import xarray as xr
 from scipy.spatial import cKDTree
-from mom6_bathy._supergrid import (
+from mom6_forge._supergrid import (
     UniformSphericalSupergrid,
     RectilinearCartesianSupergrid,
     SupergridBase,
 )
-from mom6_bathy.utils import normalize_deg
+from mom6_forge.utils import normalize_deg
 
 
 class Grid:

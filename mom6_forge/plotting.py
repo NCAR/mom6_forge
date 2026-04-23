@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-from mom6_bathy.utils import get_mesh_dimensions
+from mom6_forge.utils import get_mesh_dimensions
 
 import numpy as np
 import xarray as xr

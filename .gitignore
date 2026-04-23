@@ -41,3 +41,8 @@ pip-delete-this-directory.txt
 
 # netcdf files
 notebooks/*.nc
+
+# TopoLibrary
+TopoLibrary/
+GridLibrary/
+VGridLibrary/

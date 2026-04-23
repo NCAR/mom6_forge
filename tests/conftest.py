@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
-from mom6_bathy.grid import Grid
-from mom6_bathy.topo import Topo
+from mom6_forge.grid import Grid
+from mom6_forge.topo import Topo
 
 
 @pytest.fixture

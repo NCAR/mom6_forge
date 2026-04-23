@@ -1,12 +1,12 @@
-from mom6_bathy.grid import Grid
-from mom6_bathy.topo import Topo
+from mom6_forge.grid import Grid
+from mom6_forge.topo import Topo
 import xarray as xr
 import numpy as np
 import xesmf as xe
 from datetime import datetime
 from pathlib import Path
 from os.path import isfile
-from mom6_bathy.utils import fill_missing_data
+from mom6_forge.utils import fill_missing_data
 
 
 def interpolate_and_fill_seawifs(
@@ -46,6 +46,10 @@ def interpolate_and_fill_seawifs(
     """
     if grid.name is None:
         grid.name = "UnknownGridName"
+
+    assert (
+        grid.is_rectangular()
+    ), "This function currently only supports rectangular grids."
     ocn_mask = topo.tmask
     ocn_nj, ocn_ni = ocn_mask.shape
     src_nc = xr.open_dataset(processed_seawifs_path)
@@ -111,7 +115,7 @@ def interpolate_and_fill_seawifs(
         + grid.name
     )
     chla.attrs["repository"] = (
-        "https://github.com/NCAR/SeaWIFS_MOM6 and https://github.com/NCAR/mom6_bathy"
+        "https://github.com/NCAR/SeaWIFS_MOM6 and https://github.com/NCAR/mom6_forge"
     )
     chla.attrs["authors"] = (
         "Gustavo Marques (gmarques@ucar.edu) and Frank Bryan (bryan@ucar.edu)"
@@ -120,8 +124,8 @@ def interpolate_and_fill_seawifs(
 
     # Assign variable data
     chla["CHL_A"].data[:] = chlor_a
-    chla["LON"].data[:] = grid.tlon[0, :]
-    chla["LAT"].data[:] = grid.tlat[:, 0]
+    chla["LON"] = grid.tlon[0, :]
+    chla["LAT"] = grid.tlat[:, 0]
 
     # Write to NetCDF
     chla.to_netcdf(

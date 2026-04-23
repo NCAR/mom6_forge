@@ -4,7 +4,7 @@ import ipywidgets as widgets
 import numpy as np
 import matplotlib.pyplot as plt
 import threading
-from mom6_bathy.vgrid import VGrid
+from mom6_forge.vgrid import VGrid
 
 
 class VGridCreator(widgets.HBox):

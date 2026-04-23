@@ -1,4 +1,4 @@
-from mom6_bathy.topo import *
+from mom6_forge.topo import *
 
 
 def test_topo_from_version_control(get_rect_topo):
