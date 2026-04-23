@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>mom6_bathy Notebook Gallery &mdash; mom6_forge 0.1 documentation</title>
+  <title>Coarsen an existing MOM6 grid &mdash; mom6_forge 0.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="../_static/nbsphinx-code-cells.css?v=2aa19091" />
@@ -56,8 +56,7 @@
 <li class="toctree-l2"><a class="reference internal" href="3_custom_bathy.html">Spherical grid with custom bathymetry and ridges</a></li>
 <li class="toctree-l2"><a class="reference internal" href="4_ingest_landmask.html">Applying an existing land fraction</a></li>
 <li class="toctree-l2"><a class="reference internal" href="5_modify_existing.html">Modify existing MOM6 grid</a></li>
-<li class="toctree-l2 current"><a class="current reference internal" href="#">mom6_bathy Notebook Gallery</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#Coarsen-an-existing-MOM6-grid">Coarsen an existing MOM6 grid</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Coarsen an existing MOM6 grid</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#1.-Import-Modules">1. Import Modules</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#2.-Create-a-MOM6-grid-object-from-an-existing-supergrid">2. Create a MOM6 grid object from an existing supergrid</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#3.-Read-the-bathymetry">3. Read the bathymetry</a></li>
@@ -92,7 +91,7 @@
   <ul class="wy-breadcrumbs">
       <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="../notebooks.html">Notebooks</a></li>
-      <li class="breadcrumb-item active">mom6_bathy Notebook Gallery</li>
+      <li class="breadcrumb-item active">Coarsen an existing MOM6 grid</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/notebooks/6_coarsen_existing.ipynb.txt" rel="nofollow"> View page source</a>
       </li>
@@ -102,10 +101,8 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="mom6_bathy-Notebook-Gallery">
-<h1>mom6_bathy Notebook Gallery<a class="headerlink" href="#mom6_bathy-Notebook-Gallery" title="Link to this heading"></a></h1>
-<section id="Coarsen-an-existing-MOM6-grid">
-<h2>Coarsen an existing MOM6 grid<a class="headerlink" href="#Coarsen-an-existing-MOM6-grid" title="Link to this heading"></a></h2>
+  <section id="Coarsen-an-existing-MOM6-grid">
+<h1>Coarsen an existing MOM6 grid<a class="headerlink" href="#Coarsen-an-existing-MOM6-grid" title="Link to this heading"></a></h1>
 <p>In this notebook, we create a coarse versions of an existing MOM6 grid, tx2_3v2. Setting CX=5 below results in a grid with ~3 degree resolution, while setting it to 15 results in a grid with ~10 degree resolution.</p>
 <div class="nbinput nblast docutils container">
 <div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[1]:
@@ -118,7 +115,6 @@
 </pre></div>
 </div>
 </div>
-</section>
 <section id="1.-Import-Modules">
 <h2>1. Import Modules<a class="headerlink" href="#1.-Import-Modules" title="Link to this heading"></a></h2>
 <div class="nbinput nblast docutils container">
