@@ -16,7 +16,7 @@ to learn about the `mom6_forge` tool.
 
    installation
    quickstart
-   examples
+   notebooks
    glossary
    widgets
 
@@ -24,7 +24,7 @@ to learn about the `mom6_forge` tool.
    :maxdepth: 2
    :caption: Python API:
 
-   modules
+   api/modules
 
 Indices and tables
 ==================
