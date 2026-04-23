@@ -520,47 +520,6 @@ class Grid:
 
         return obj
 
-    def calculate_t_point_rotation_angles_from_mom6_method(self) -> xr.DataArray:
-        """
-        Calculate the ``angle_dx`` in degrees from the true ``x`` direction (parallel to latitude) counter-clockwise
-        and return as a dataarray. (Mimics MOM6 angle calculation function :func:`~mom6_angle_calculation_method`)
-
-        Use this to compare with the angle_dx provided in the supergrid file to check if the angles are consistent with MOM6 method
-
-        Parameters
-        ----------
-        supergrid: xr.Dataset
-            The supergrid dataset
-
-        Returns
-        -------
-        xr.DataArray
-            The t-point angles
-        """
-        # t-points: cell centers at every other supergrid point starting at index 1
-        t_points = xr.Dataset(
-            {
-                "x": (("nyp", "nxp"), self.tlon.values),
-                "y": (("nyp", "nxp"), self.tlat.values),
-            }
-        )
-        # q-points: cell corners at every other supergrid point starting at index 0
-        q_points = xr.Dataset(
-            {
-                "x": (("nyp", "nxp"), self.qlon.values),
-                "y": (("nyp", "nxp"), self.qlat.values),
-            }
-        )
-
-        return mom6_angle_calculation_method(
-            self._supergrid.x.max() - self._supergrid.x.min(),
-            q_points.isel(nyp=slice(1, None), nxp=slice(0, -1)),
-            q_points.isel(nyp=slice(1, None), nxp=slice(1, None)),
-            q_points.isel(nyp=slice(0, -1), nxp=slice(0, -1)),
-            q_points.isel(nyp=slice(0, -1), nxp=slice(1, None)),
-            t_points,
-        )
-
     @classmethod
     def subgrid_from_supergrid(
         cls, path: str, llc: tuple[float, float], urc: tuple[float, float], name: str
