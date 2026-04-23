@@ -24,7 +24,7 @@ def test_mask_setter_and_getter(get_rect_topo):
 
 
 def test_mask_applies_to_depth(get_rect_topo):
-    """Test that user_mask modifies depth property correctly."""
+    """Test that user_mask modifies masked_depth property correctly."""
     topo = get_rect_topo
     ny, nx = topo._grid.ny, topo._grid.nx
 
@@ -34,14 +34,14 @@ def test_mask_applies_to_depth(get_rect_topo):
 
     topo.user_mask = mask
 
-    # Get masked depth
-    masked_depth = topo.depth
+    # Get masked depth (with masking applied)
+    masked_depth = topo.masked_depth
 
-    # Verify ocean cells (mask=1) keep original depth
-    assert (masked_depth[:, nx // 2 :] > topo.min_depth).all()
+    # Verify ocean cells (mask=1) have depth >= min_depth+0.1 (enforced minimum)
+    assert (masked_depth[:, nx // 2 :] >= topo.min_depth + 0.1 - 1e-10).all()
 
-    # Verify land cells (mask=0) are set to 0
-    assert (masked_depth[:, : nx // 2] == 0.0).all()
+    # Verify land cells (mask=0) are set to _land_fillval
+    assert (masked_depth[:, : nx // 2] == topo._land_fillval).all()
 
 
 def test_mask_none_disables_masking(get_rect_topo):

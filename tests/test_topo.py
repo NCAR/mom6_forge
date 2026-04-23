@@ -51,33 +51,33 @@ def test_send_entire_depth_change_to_tcm(get_rect_topo):
 def test_erase_selected_basin(get_rect_topo):
     topo = get_rect_topo
     # Make a land barrier in the middle
-    topo._depth_raw[2, :] = 0  # horizontal land strip
-    topo._depth_raw[:, 2] = 0  # vertical land strip
+    topo.depth[2, :] = 0  # horizontal land strip
+    topo.depth[:, 2] = 0  # vertical land strip
     j, i = 1, 1
     old_depth = topo.depth.copy()
 
     topo.erase_selected_basin(j, i)
     # Since we have a land barrier, only bottom left should be erased to zero
-    assert (topo.depth[:2, :2] == 0).all()
+    assert (topo.masked_depth[:2, :2] == 0).all()
     # Other basins are untouched
-    assert topo.depth[:2, 3:].equals(old_depth[:2, 3:])
-    assert topo.depth[3:, :2].equals(old_depth[3:, :2])
-    assert topo.depth[3:, 3:].equals(old_depth[3:, 3:])
+    assert topo.masked_depth[:2, 3:].equals(old_depth[:2, 3:])
+    assert topo.masked_depth[3:, :2].equals(old_depth[3:, :2])
+    assert topo.masked_depth[3:, 3:].equals(old_depth[3:, 3:])
 
 
 def test_erase_disconnected_basin(get_rect_topo):
     topo = get_rect_topo
     # Make a land barrier in the middle
-    topo._depth_raw[2, :] = 0  # horizontal land strip
-    topo._depth_raw[:, 2] = 0  # vertical land strip
+    topo.depth[2, :] = 0  # horizontal land strip
+    topo.depth[:, 2] = 0  # vertical land strip
     j, i = 1, 1
     old_depth = topo.depth.copy()
 
     topo.erase_disconnected_basin(j, i)
     # Since we have a land barrier, only bottom left should be erased to zero
-    assert topo.depth[:2, :2].equals(old_depth[:2, :2])
+    assert topo.masked_depth[:2, :2].equals(old_depth[:2, :2])
 
     # Other basins are erased
-    assert (topo.depth[:2, 3:] == 0).all()
-    assert (topo.depth[3:, :2] == 0).all()
-    assert (topo.depth[3:, 3:] == 0).all()
+    assert (topo.masked_depth[:2, 3:] == 0).all()
+    assert (topo.masked_depth[3:, :2] == 0).all()
+    assert (topo.masked_depth[3:, 3:] == 0).all()

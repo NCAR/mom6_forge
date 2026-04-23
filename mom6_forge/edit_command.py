@@ -83,10 +83,10 @@ class DepthEditCommand(EditCommand):
         self.message = message
 
     def _get_value(self, j, i):
-        return self._topo._depth_raw.data[j, i]
+        return self._topo._depth.data[j, i]
 
     def _set_value(self, j, i, value):
-        self._topo._depth_raw.data[j, i] = value
+        self._topo._depth.data[j, i] = value
 
     def __call__(self):
         if self.old_values is None:

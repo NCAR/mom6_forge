@@ -101,9 +101,9 @@ def test_TopoCommandManager_reapply_changes(get_rect_topo, gen_MinDepthCommand):
     topo.tcm.execute(gen_MinDepthCommand)
     assert topo.min_depth == 10.0  # Assert Action taken
     prev_hist = sum(1 for _ in topo.tcm.repo.iter_commits())
-    store_depth = topo._depth_raw.copy()
-    topo._depth_raw = xr.zeros_like(
-        topo._depth_raw
+    store_depth = topo._depth.copy()
+    topo._depth = xr.zeros_like(
+        topo._depth
     )  # Corrupt the depth to ensure reapply_changes works
     topo.tcm.reapply_changes()
     assert (topo.depth == store_depth).all()  # Assert reapply worked
@@ -117,7 +117,7 @@ def test_TopoCommandManager_reset(get_rect_topo, gen_MinDepthCommand):
     topo.tcm.execute(gen_MinDepthCommand)
     assert topo.min_depth == 10.0  # Assert Action taken
     topo.tcm.reset()
-    assert (topo.depth == 0).all()  # Assert reset worked
+    assert (topo.masked_depth == 0).all()  # Assert reset worked
     assert topo.min_depth == 0.0  # Assert min depth reset
 
 
