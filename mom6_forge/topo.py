@@ -68,13 +68,6 @@ class Topo:
             self, attr="min_depth", new_value=min_depth
         )
 
-        # Initialize the git repo
-        self.repo = get_repo(self.domain_dir)
-
-        # Set up TCM (requires that self.domain_dir exists)
-        self.tcm = TopoCommandManager(self, command_registry=COMMAND_REGISTRY)
-        self.tcm.execute(initial_command, cmd_type=CommandType.COMMAND)
-
         # Initialize channel widths
         if channel_widths is None:
             self.channel_widths = ChannelWidthList()
@@ -83,6 +76,13 @@ class Topo:
         else:
             # Assume it's a filepath
             self.channel_widths = ChannelWidthList(filepath=channel_widths)
+
+        # Initialize the git repo
+        self.repo = get_repo(self.domain_dir)
+
+        # Set up TCM (requires that self.domain_dir exists)
+        self.tcm = TopoCommandManager(self, command_registry=COMMAND_REGISTRY)
+        self.tcm.execute(initial_command, cmd_type=CommandType.COMMAND)
 
     def __getitem__(self, slices):
         """
