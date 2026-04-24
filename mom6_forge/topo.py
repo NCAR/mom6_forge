@@ -1345,7 +1345,18 @@ class Topo:
             Path to TOPO_FILE to be written.
         title: str, optional
             File title.
+
+        Note
+        ----
+        If channel_widths is not empty, remember to also write those constraints using
+        channel_widths.write(channel_file_path).
         """
+
+        if self.channel_widths.get_all():
+            print(
+                "Note: Channel widths are defined. Remember to write them with "
+                "channel_widths.write(filepath)"
+            )
 
         ds = self.gen_topo_ds(title=title)
         ds.to_netcdf(file_path, format="NETCDF3_64BIT")
