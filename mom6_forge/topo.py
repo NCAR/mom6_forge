@@ -12,6 +12,7 @@ from pathlib import Path
 from mom6_forge.edit_command import *
 from mom6_forge.command_manager import TopoCommandManager, CommandType
 from mom6_forge.mapping import regrid_dataset_via_xesmf
+from mom6_forge.channel_width import ChannelWidthList
 
 
 class Topo:
@@ -19,7 +20,9 @@ class Topo:
     Bathymetry Generator for MOM6 grids (mom6_forge.grid.Grid).
     """
 
-    def __init__(self, grid, min_depth, version_control_dir="TopoLibrary"):
+    def __init__(
+        self, grid, min_depth, version_control_dir="TopoLibrary", channel_widths=None
+    ):
         """
         MOM6 Simpler Models bathymetry constructor.
 
@@ -29,6 +32,10 @@ class Topo:
             horizontal grid instance for which the bathymetry is to be created.
         min_depth: float
             Minimum water column depth. Columns with shallow depths are to be masked out.
+        version_control_dir: str, optional
+            Directory for version control. Default is "TopoLibrary".
+        channel_widths: str | Path | ChannelWidthList, optional
+            Channel width constraints. Can be a filepath to load from, a ChannelWidthList object, or None.
         """
 
         self._grid = grid
@@ -68,6 +75,15 @@ class Topo:
         self.tcm = TopoCommandManager(self, command_registry=COMMAND_REGISTRY)
         self.tcm.execute(initial_command, cmd_type=CommandType.COMMAND)
 
+        # Initialize channel widths
+        if channel_widths is None:
+            self.channel_widths = ChannelWidthList()
+        elif isinstance(channel_widths, ChannelWidthList):
+            self.channel_widths = channel_widths
+        else:
+            # Assume it's a filepath
+            self.channel_widths = ChannelWidthList(filepath=channel_widths)
+
     def __getitem__(self, slices):
         """
         Get a subgrid copy based on the provided slices.
@@ -93,7 +109,7 @@ class Topo:
         return new_topo
 
     @classmethod
-    def from_version_control(cls, folder_path: str | Path):
+    def from_version_control(cls, folder_path: str | Path, channel_widths=None):
         """
         Create a bathymetry object from an existing version-controlled bathymetry folder.
 
@@ -101,6 +117,8 @@ class Topo:
         ----------
         folder_path: str | Path
             Path to an existing bathymetry folder created by mom6_forge with version control enabled.
+        channel_widths: str | Path | ChannelWidthList, optional
+            Channel width constraints. Can be a filepath to load from, a ChannelWidthList object, or None.
         """
 
         folder_path = Path(folder_path)
@@ -113,7 +131,10 @@ class Topo:
 
         # Create the topo object
         topo = Topo(
-            grid, 0.0, version_control_dir=folder_path.parent
+            grid,
+            0.0,
+            version_control_dir=folder_path.parent,
+            channel_widths=channel_widths,
         )  # Because we hash the grid, the correct domain will be selected
 
         # Reapply any changes
@@ -130,6 +151,7 @@ class Topo:
         min_depth=0.0,
         varname="depth",
         version_control_dir="TopoLibrary",
+        channel_widths=None,
     ):
         """
         Create a bathymetry object from an existing topog file.
@@ -144,9 +166,18 @@ class Topo:
             Minimum water column depth (m). Columns with shallower depths are to be masked out.
         varname : str, optional
             Name of the variable representing ocean depth in the dataset. Default is "depth".
+        version_control_dir: str, optional
+            Directory for version control. Default is "TopoLibrary".
+        channel_widths: str | Path | ChannelWidthList, optional
+            Channel width constraints. Can be a filepath to load from, a ChannelWidthList object, or None.
         """
 
-        topo = cls(grid, min_depth, version_control_dir=version_control_dir)
+        topo = cls(
+            grid,
+            min_depth,
+            version_control_dir=version_control_dir,
+            channel_widths=channel_widths,
+        )
         topo.tcm.reapply_changes()
         topo.set_depth_via_topog_file(topo_file_path, varname)
         return topo
