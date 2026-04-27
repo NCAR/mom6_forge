@@ -308,6 +308,52 @@ def cell_area_rad(xv_coords, yv_coords):
     return area
 
 
+def iterative_fill(depth, unfilled, mask=None, iter=100):
+    """
+    Returns data with masked values iteratively filled except where values exist or is over land. May not work for periodic grids.
+
+    Arguments:
+    depth - depth
+    unfilled = the 2d arr of depth cells that are unfilled
+    mask - np.array of 0 or 1, 0 for land, 1 for ocean. Match it with unfilled to get the true unfilled ocean cells.
+    iter - number of iterations to perform. Default 100.
+
+    Returns an array of depth with the iterative filling
+    """
+
+    # --- Iterative neighbour fill for cells with no source coverage ---
+    if unfilled.any():
+        n_miss = int(unfilled.sum())
+        print(f"Filling {n_miss} cells by iterative neighbour averaging…")
+        if mask is not None:
+            mask_2d = mask.values.astype(bool)
+            unfilled_2d = unfilled & mask_2d
+
+        for _ in range(iter):
+            if not unfilled_2d.any():
+                break
+            filled_f = (~unfilled_2d).astype(float)
+            d_pad = np.pad(depth, 1, mode="edge")  # pad 1 cell with edge values
+            f_pad = np.pad(
+                filled_f, 1, mode="constant", constant_values=0
+            )  # pad 1 mask cell with land (unfilled)
+            d_nbr = (
+                d_pad[:-2, 1:-1] + d_pad[2:, 1:-1] + d_pad[1:-1, :-2] + d_pad[1:-1, 2:]
+            )
+            f_nbr = (
+                f_pad[:-2, 1:-1] + f_pad[2:, 1:-1] + f_pad[1:-1, :-2] + f_pad[1:-1, 2:]
+            )
+            can_fill = unfilled_2d & (
+                f_nbr > 0
+            )  # only fill if there is at least one filled neighbor, which is done by adding all the neighboring cells
+            depth = np.where(
+                can_fill, d_nbr / np.maximum(f_nbr, 1), depth
+            )  # Takes the average of the neighboring cells to fill, only where can_fill is True
+            unfilled_2d = unfilled_2d & ~can_fill
+
+    return depth
+
+
 def fill_missing_data(idata, mask, maxiter=0, stabilizer=1.0e-14, tripole=False):
     """
     Returns data with masked values "objectively interpolated" except where values exist or is over land. Does not work for periodic grids.
