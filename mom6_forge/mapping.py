@@ -8,7 +8,7 @@ import datetime
 from time import time
 from pathlib import Path
 from scipy.spatial import cKDTree
-from scipy.sparse import csc_matrix, coo_matrix
+from scipy.sparse import csc_matrix, coo_matrix, csr_matrix
 import xesmf as xe
 
 MPI = None
@@ -948,7 +948,10 @@ def regrid_dataset_via_xesmf(
     output_dataset,
     regridding_method=None,
     write_to_file=True,
+    weights_path=None,
     output_path=Path("regridded_dataset.nc"),
+    locstream_out=False,
+    periodic=False,
 ):
     """
     Regrids the dataset given ``input_dataset`` which contains the original dataset and ``output_dataset`` which is a template for the regridded product.
@@ -974,13 +977,28 @@ def regrid_dataset_via_xesmf(
         + f"Regridded size: {output_dataset.nbytes/1e6:.2f} Mb\n"
     )
 
-    regridder = xe.Regridder(
-        input_dataset,
-        output_dataset,
-        method=regridding_method,
-        locstream_out=False,
-        periodic=False,
-    )
+    if weights_path is None:
+        print(
+            f"Generating regridding weights using xESMF with method '{regridding_method}'..."
+        )
+        regridder = xe.Regridder(
+            input_dataset,
+            output_dataset,
+            method=regridding_method,
+            locstream_out=locstream_out,
+            periodic=periodic,
+        )
+    else:
+        print(f"Using pre-computed regridding weights from {weights_path}...")
+        regridder = xe.Regridder(
+            input_dataset,
+            output_dataset,
+            method=regridding_method,  # This argument is required but ignored when reuse_weights=True
+            locstream_out=locstream_out,
+            periodic=periodic,
+            weights=weights_path,
+            reuse_weights=True,
+        )
 
     dataset = regridder(input_dataset)
 
@@ -992,6 +1010,251 @@ def regrid_dataset_via_xesmf(
         )
 
     return dataset
+
+
+def compute_cressman_weights(
+    src_ds: xr.Dataset,
+    dst_ds: xr.Dataset,
+    smooth_scl: float = 2.0,
+    cressman_exp: float = 2.0,
+    radius: float = 6_371_000.0,
+) -> xr.Dataset:
+    """Compute Cressman distance-weighted interpolation weights from a regular
+    source grid to a model destination grid. Mirrors ``interp_smooth.f90`` from
+    the tx2_3 topography workflow.
+
+    For each ocean destination cell ``i``:
+
+    * The smoothing radius is ``L = smooth_scl * sqrt(dst_area[i])`` (metres).
+    * All source ocean points within ``L`` are gathered.
+    * Weights are ``w = ((L²-r²)/(L²+r²))^cressman_exp`` where ``r`` is the
+      great-circle arc distance from the model cell centre to the source point.
+    * Row ``i`` of the returned matrix holds the normalised weights
+      (sum = 1) for destination cell ``i``.
+
+    Parameters
+    ----------
+    src_ds : xr.Dataset
+        Must have 1D coordinates ``lon`` and ``lat``, and a 2D variable ``depth``
+        of shape (ny_src, nx_src), positive-down. Land cells should be <= 0.
+    dst_ds : xr.Dataset
+        Must have 2D variables or coordinates ``lon``, ``lat``, ``area``, and
+        ``mask`` of shape (ny_dst, nx_dst).
+    smooth_scl : float
+        Smoothing scale multiplier: ``L = smooth_scl * sqrt(cell_area)``.
+        Default ``2.0`` (matches tx2_3 default).
+    cressman_exp : float
+        Exponent for the Cressman weight function. Default ``2.0``.
+    radius : float
+        Earth radius in metres. Default is 6,371,000 m.
+
+    Returns (xesmf weights Dataset with the following variables)
+    -------
+    S : xesmf weights from Cressman interpolation, shape (n_s,)
+        The non-zero interpolation weights in a sparse matrix format.
+    row : np.ndarray of int, shape (n_s,)
+        Row indices corresponding to the destination cell index for each weight (1-based).
+    col : np.ndarray of int, shape (n_s,)
+        Column indices corresponding to the source cell index for each weight (1-based).
+    unfilled : np.ndarray of bool, shape (n_dst,)
+        True for ocean destination cells that had no source ocean point within
+        ``L``. These cells need a fallback (e.g. iterative neighbour fill).
+    """
+    for var in ("lon", "lat"):
+        assert var in src_ds.coords, f"src_ds missing coordinate: '{var}'"
+        assert src_ds[var].ndim == 1, f"src_ds['{var}'] must be 1D (regular grid)"
+
+    assert "depth" in src_ds, "src_ds missing variable: 'depth'"
+    assert src_ds["depth"].ndim == 2, "src_ds['depth'] must be 2D (ny, nx)"
+
+    for var in ("lon", "lat", "area", "mask"):
+        assert var in dst_ds or var in dst_ds.coords, f"dst_ds missing: '{var}'"
+        arr = dst_ds[var]
+        assert arr.ndim == 2, f"dst_ds['{var}'] must be 2D (ny, nx)"
+
+    g = dict(
+        src_lon=src_ds["lon"].values,
+        src_lat=src_ds["lat"].values,
+        src_depth=src_ds["depth"].values,
+        dst_lon=dst_ds["lon"].values,
+        dst_lat=dst_ds["lat"].values,
+        dst_area=dst_ds["area"].values,
+        dst_mask=dst_ds["mask"].values.astype(bool),
+    )
+
+    R = radius
+
+    src_ocean_mask = g["src_depth"] > 0.0
+
+    # --- Source grid: 2-D coordinates and Cartesian points ---
+    src_lon_2d, src_lat_2d = np.meshgrid(g["src_lon"], g["src_lat"])  # (ny_src, nx_src)
+    n_src = src_lon_2d.size
+    lon_src_rad = np.deg2rad(src_lon_2d.ravel())
+    lat_src_rad = np.deg2rad(src_lat_2d.ravel())
+    xyz_src = np.stack(
+        [
+            R * np.cos(lat_src_rad) * np.cos(lon_src_rad),
+            R * np.cos(lat_src_rad) * np.sin(lon_src_rad),
+            R * np.sin(lat_src_rad),
+        ],
+        axis=1,
+    )
+
+    # KDTree only over ocean source points
+    ocean_src_idx = np.where(src_ocean_mask.ravel())[0]
+    tree = cKDTree(xyz_src[ocean_src_idx])
+
+    # --- Destination grid: Cartesian points ---
+    dst_lon_flat = g["dst_lon"].ravel()
+    dst_lat_flat = g["dst_lat"].ravel()
+    dst_area_flat = g["dst_area"].ravel()
+    dst_mask_flat = g["dst_mask"].ravel()
+
+    lon_dst_rad = np.deg2rad(dst_lon_flat)
+    lat_dst_rad = np.deg2rad(dst_lat_flat)
+    xyz_dst = np.stack(
+        [
+            R * np.cos(lat_dst_rad) * np.cos(lon_dst_rad),
+            R * np.cos(lat_dst_rad) * np.sin(lon_dst_rad),
+            R * np.sin(lat_dst_rad),
+        ],
+        axis=1,
+    )
+
+    rows, cols, data = [], [], []
+    unfilled = np.zeros(len(dst_lon_flat), dtype=bool)
+
+    for i in np.where(dst_mask_flat)[0]:
+        L = smooth_scl * np.sqrt(dst_area_flat[i])  # metres
+        L2 = L**2
+
+        neighbors = tree.query_ball_point(xyz_dst[i], L)
+        if not neighbors:
+            unfilled[i] = True
+            continue
+
+        nbr = np.asarray(neighbors)
+        d_xyz = xyz_src[ocean_src_idx[nbr]] - xyz_dst[i]
+        chord = np.linalg.norm(d_xyz, axis=1)
+        arc = 2.0 * R * np.arcsin(np.clip(chord / (2.0 * R), 0.0, 1.0))
+        d2 = arc**2
+
+        in_radius = d2 <= L2
+        if not in_radius.any():
+            unfilled[i] = True
+            continue
+
+        w = ((L2 - d2[in_radius]) / (L2 + d2[in_radius])) ** cressman_exp
+        w_sum = w.sum()
+        if w_sum == 0.0:
+            unfilled[i] = True
+            continue
+
+        src_cols = ocean_src_idx[nbr[in_radius]]
+        rows.extend([i] * int(in_radius.sum()))
+        cols.extend(src_cols.tolist())
+        data.extend((w / w_sum).tolist())
+
+    S = csr_matrix((data, (rows, cols)), shape=(len(dst_lon_flat), n_src))
+
+    S_coo = S.tocoo()
+    ds = xr.Dataset(
+        {
+            "S": xr.DataArray(
+                S_coo.data.astype(np.float64),
+                dims=["n_s"],
+                attrs={"long_name": "Cressman interpolation weight"},
+            ),
+            "row": xr.DataArray(
+                (S_coo.row + 1).astype(np.int32),
+                dims=["n_s"],
+                attrs={"long_name": "destination cell index (1-based)"},
+            ),
+            "col": xr.DataArray(
+                (S_coo.col + 1).astype(np.int32),
+                dims=["n_s"],
+                attrs={"long_name": "source cell index (1-based)"},
+            ),
+            "unfilled": xr.DataArray(
+                unfilled,
+                dims=["n_dst"],
+                attrs={
+                    "long_name": "True for ocean destination cells with no source points within smoothing radius"
+                },
+            ),
+        }
+    )
+    ds.attrs["title"] = "Cressman interpolation weights generated by mom6_forge"
+    return ds
+
+
+def regrid_dataset_via_cressman(
+    src_ds: xr.Dataset,
+    dst_ds: xr.Dataset,
+    weights_path: Path,
+    smooth_scl: float = 2.0,
+    cressman_exp: float = 2.0,
+    write_to_file: bool = True,
+    output_path: Path = Path("cressman_regridded.nc"),
+) -> tuple[np.ndarray, np.ndarray]:
+    """Compute Cressman weights, save to an ESMF weights file, and regrid
+    source depths to the destination model grid using ``xe.Regridder``.
+
+    Parameters
+    ----------
+    src_ds : xr.Dataset
+        Must have 1D coordinates ``lon`` and ``lat``, and a 2D variable ``depth``
+        of shape (ny_src, nx_src), positive-down. Land cells should be <= 0.
+    dst_ds : xr.Dataset
+        Must have 2D variables or coordinates ``lon``, ``lat``, ``area``, and
+        ``mask`` of shape (ny_dst, nx_dst).
+    weights_path : str or Path
+        Path where the ESMF-compatible weights netCDF will be written.
+        If the file already exists it is **overwritten**.
+    smooth_scl : float
+        Cressman smoothing scale multiplier. Default ``2.0``.
+    cressman_exp : float
+        Cressman weight function exponent. Default ``2.0``.
+    write_to_file : bool
+        If True, save the regridded dataset to ``output_path``. Default ``True``.
+    output_path : Path
+        Path for the regridded output netCDF. Default ``cressman_regridded.nc``.
+
+    Returns
+    -------
+    depth_dst : np.ndarray, shape (ny_dst, nx_dst)
+        Cressman-interpolated depth field. Unfilled ocean cells are 0.
+    unfilled : np.ndarray of bool, shape (ny_dst, nx_dst)
+        True for ocean cells that had no source ocean point within radius L
+        and therefore need a fallback (e.g. iterative neighbour fill).
+    """
+    # --- Compute per-cell Cressman weights ---
+    print("Computing Cressman weights...")
+    weights_ds = compute_cressman_weights(
+        src_ds,
+        dst_ds,
+        smooth_scl=smooth_scl,
+        cressman_exp=cressman_exp,
+    )
+
+    # --- Save weights to ESMF-compatible netCDF ---
+    weights_ds.to_netcdf(weights_path)
+    print(f"Cressman weights written to {weights_path}")
+
+    # --- Regrid using xesmf Regridder from the pre-computed weights ---
+    # The reason to do this is because it handles seams well
+    depth_dst = regrid_dataset_via_xesmf(
+        input_dataset=src_ds,
+        output_dataset=dst_ds,
+        regridding_method="bilinear",  # THis doesn't matter if you provide the weights directly, but we need to specify something to initialize the regridder
+        weights_path=weights_path,
+        write_to_file=write_to_file,  # We'll write the final regridded dataset at the end of this function
+        output_path=output_path,
+    )
+
+    unfilled = weights_ds["unfilled"].values.reshape(dst_ds["lon"].shape)
+
+    return depth_dst, unfilled
 
 
 def main(args):

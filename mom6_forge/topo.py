@@ -7,13 +7,13 @@ from typing import Optional
 from scipy import interpolate
 from scipy.ndimage import label, binary_fill_holes
 from scipy.spatial import cKDTree
-from mom6_forge.utils import cell_area_rad, longitude_slicer
+from mom6_forge.utils import cell_area_rad, longitude_slicer, iterative_fill
 from mom6_forge.grid import Grid
 from mom6_forge.git_utils import get_domain_dir, get_repo
 from pathlib import Path
 from mom6_forge.edit_command import *
 from mom6_forge.command_manager import TopoCommandManager, CommandType
-from mom6_forge.mapping import regrid_dataset_via_xesmf
+from mom6_forge.mapping import regrid_dataset_via_xesmf, regrid_dataset_via_cressman
 
 
 class Topo:
@@ -831,6 +831,82 @@ class Topo:
 
         print(
             "Configuration complete. Ready for regridding with MPI. See documentation for more details."
+        )
+
+    def direct_cressman_interp(
+        self,
+        src,
+        smooth_scl=2.0,
+        cressman_exp=2.0,
+        weights_path=None,
+    ):
+        """
+        Assign ocean depths using Cressman distance-weighted interpolation.
+        Mirrors ``interp_smooth.f90`` from the tx2_3 topography workflow.
+
+        For each ocean T-cell a smoothing radius ``L = smooth_scl * sqrt(cell_area)``
+        is computed. Source ocean points within ``L`` are averaged with weights
+
+        .. math::
+
+            w = \\left(\\frac{L^2 - r^2}{L^2 + r^2}\\right)^{c}
+
+        where ``r`` is the great-circle arc distance and ``c = cressman_exp``.
+        Only source points with positive depth (ocean) contribute, so depth
+        estimates are never contaminated by land elevations.
+
+        Weights are computed in :func:`~mom6_forge.mapping.compute_cressman_weights`,
+        saved to an ESMF-compatible netCDF via
+        :func:`~mom6_forge.mapping.write_cressman_weights`, and applied through
+        ``xe.Regridder`` — all orchestrated by
+        :func:`~mom6_forge.mapping.cressman_regrid`. Cells that receive no source
+        coverage are filled by iterative neighbour averaging (up to 100 passes).
+
+        Parameters
+        ----------
+        src : SourceBathy
+            Loaded (sliced) source bathymetry object.
+        smooth_scl : float
+            Smoothing scale multiplier for the Cressman radius. Default ``2.0``.
+        cressman_exp : float
+            Exponent for the Cressman weight function. Default ``2.0``.
+        weights_path : str or Path or None
+            Where to save the ESMF weights netCDF. If ``None``, a file named
+            ``cressman_weights.nc`` is written next to the bathymetry file.
+        """
+        if weights_path is None:
+            weights_path = src.path.parent / "cressman_weights.nc"
+
+        # --- Regrid via mapping module (weights → file → cressman Regridder) ---
+        src_ds = xr.Dataset(
+            {
+                "lon": (["x"], src.lon),
+                "lat": (["y"], src.lat),
+                "depth": (["y", "x"], src.depth),
+            }
+        )
+        dst_ds = xr.Dataset(
+            {
+                "lon": self._grid.tlon,
+                "lat": self._grid.tlat,
+                "area": self._grid.tarea,
+                "mask": self.tmask,
+            }
+        )
+        depth_dst, unfilled = regrid_dataset_via_cressman(
+            src_ds,
+            dst_ds,
+            smooth_scl=smooth_scl,
+            cressman_exp=cressman_exp,
+            weights_path=weights_path,
+        )
+
+        depth_dst = iterative_fill(depth_dst, unfilled, self.tmask)
+
+        self.send_entire_depth_change_to_tcm(
+            xr.DataArray(
+                depth_dst.astype(float), dims=["ny", "nx"], attrs={"units": "m"}
+            )
         )
 
     def config_dataset(
