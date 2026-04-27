@@ -136,17 +136,30 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">mom6_forge.grid</span><span class="w"> </span><span class="kn">import</span> <span class="n">Grid</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">mom6_forge.topo</span><span class="w"> </span><span class="kn">import</span> <span class="n">Topo</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">mom6_forge._source_bathy</span><span class="w"> </span><span class="kn">import</span> <span class="n">SourceBathy</span>
 
 <span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s2">&quot;figure.dpi&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">120</span>
 </pre></div>
+</div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[8]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">FakeSrc</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A fake version of a database that stores data in memory.&quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">da</span><span class="p">,</span> <span class="n">lon</span><span class="p">,</span> <span class="n">lat</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">path</span> <span class="o">=</span> <span class="n">path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">da</span> <span class="o">=</span> <span class="n">da</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lon</span> <span class="o">=</span> <span class="n">lon</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lat</span> <span class="o">=</span> <span class="n">lat</span>
+<br/><br/></pre></div>
 </div>
 </div>
 </section>
 <section id="1.-Setup">
 <h2>1. Setup<a class="headerlink" href="#1.-Setup" title="Link to this heading"></a></h2>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[2]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[91]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">grid</span> <span class="o">=</span> <span class="n">Grid</span><span class="p">(</span><span class="n">resolution</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">xstart</span><span class="o">=</span><span class="mf">262.0</span><span class="p">,</span> <span class="n">lenx</span><span class="o">=</span><span class="mf">10.0</span><span class="p">,</span> <span class="n">ystart</span><span class="o">=</span><span class="mf">20.0</span><span class="p">,</span> <span class="n">leny</span><span class="o">=</span><span class="mf">8.0</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;toy&quot;</span><span class="p">)</span>
@@ -155,32 +168,32 @@
 <span class="n">src_lats</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mf">18.0</span><span class="p">,</span>  <span class="mf">30.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">)</span>
 <span class="n">src_lon2d</span><span class="p">,</span> <span class="n">src_lat2d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">src_lons</span><span class="p">,</span> <span class="n">src_lats</span><span class="p">)</span>
 
-<span class="n">elevation</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">src_lon2d</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="o">-</span><span class="mf">2000.0</span><span class="p">)</span>
-<span class="n">elevation</span><span class="p">[(</span><span class="n">src_lat2d</span> <span class="o">&gt;</span> <span class="mf">26.0</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">src_lon2d</span> <span class="o">&lt;</span> <span class="mf">265.0</span><span class="p">)]</span> <span class="o">=</span> <span class="o">+</span><span class="mf">50.0</span>
+<span class="n">elevation</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">src_lon2d</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="o">-</span><span class="mf">2000.0</span><span class="p">)</span> <span class="o">*</span> <span class="o">-</span><span class="mi">1</span>
+<span class="n">elevation</span><span class="p">[(</span><span class="n">src_lat2d</span> <span class="o">&gt;</span> <span class="mf">26.0</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">src_lon2d</span> <span class="o">&lt;</span> <span class="mf">265.0</span><span class="p">)]</span> <span class="o">=</span> <span class="o">-</span><span class="mf">50.0</span>
 <span class="n">elevation</span><span class="p">[</span>
-    <span class="p">(</span><span class="n">src_lat2d</span> <span class="o">&gt;</span> <span class="mf">22.0</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">src_lat2d</span> <span class="o">&lt;</span> <span class="mf">24.0</span><span class="p">)</span> <span class="o">&amp;</span>
-    <span class="p">(</span><span class="n">src_lon2d</span> <span class="o">&gt;</span> <span class="mf">266.0</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">src_lon2d</span> <span class="o">&lt;</span> <span class="mf">268.0</span><span class="p">)</span>
-<span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mf">80.0</span>
+    <span class="p">(</span><span class="n">src_lat2d</span> <span class="o">&gt;</span> <span class="mf">24.0</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">src_lat2d</span> <span class="o">&lt;</span> <span class="mf">26.0</span><span class="p">)</span> <span class="o">&amp;</span>
+    <span class="p">(</span><span class="n">src_lon2d</span> <span class="o">&gt;</span> <span class="mf">268.0</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">src_lon2d</span> <span class="o">&lt;</span> <span class="mf">270.0</span><span class="p">)</span>
+<span class="p">]</span> <span class="o">=</span> <span class="mf">80.0</span>
 
 <span class="n">tmp_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">tempfile</span><span class="o">.</span><span class="n">mkdtemp</span><span class="p">())</span>
 <span class="n">src_path</span> <span class="o">=</span> <span class="n">tmp_dir</span> <span class="o">/</span> <span class="s2">&quot;synthetic_bathy.nc&quot;</span>
-<span class="n">xr</span><span class="o">.</span><span class="n">Dataset</span><span class="p">(</span>
+<span class="n">ds</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">Dataset</span><span class="p">(</span>
     <span class="p">{</span><span class="s2">&quot;elevation&quot;</span><span class="p">:</span> <span class="p">([</span><span class="s2">&quot;lat&quot;</span><span class="p">,</span> <span class="s2">&quot;lon&quot;</span><span class="p">],</span> <span class="n">elevation</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s2">&quot;float32&quot;</span><span class="p">))},</span>
     <span class="n">coords</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;lon&quot;</span><span class="p">:</span> <span class="n">src_lons</span><span class="p">,</span> <span class="s2">&quot;lat&quot;</span><span class="p">:</span> <span class="n">src_lats</span><span class="p">},</span>
-<span class="p">)</span><span class="o">.</span><span class="n">to_netcdf</span><span class="p">(</span><span class="n">src_path</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="n">ds</span><span class="o">.</span><span class="n">to_netcdf</span><span class="p">(</span><span class="n">src_path</span><span class="p">)</span>
 
 <span class="n">topo</span> <span class="o">=</span> <span class="n">Topo</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">min_depth</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span> <span class="n">version_control_dir</span><span class="o">=</span><span class="n">tmp_dir</span><span class="p">)</span>
 <span class="n">topo</span><span class="o">.</span><span class="n">set_flat</span><span class="p">(</span><span class="mi">1000</span><span class="p">)</span>
-<span class="n">src</span> <span class="o">=</span> <span class="n">SourceBathy</span><span class="p">(</span><span class="n">src_path</span><span class="p">)</span><span class="o">.</span><span class="n">slice_to_domain</span><span class="p">(</span><span class="n">topo</span><span class="p">)</span>
+<span class="n">src</span> <span class="o">=</span> <span class="n">FakeSrc</span><span class="p">(</span><span class="n">src_path</span><span class="p">,</span> <span class="n">ds</span><span class="p">[</span><span class="s2">&quot;elevation&quot;</span><span class="p">],</span> <span class="n">ds</span><span class="o">.</span><span class="n">lon</span><span class="p">,</span> <span class="n">ds</span><span class="o">.</span><span class="n">lat</span><span class="p">)</span>
 
-<span class="c1"># Generate mask (needed for Cressman)</span>
-<span class="n">mask</span> <span class="o">=</span> <span class="n">topo</span><span class="o">.</span><span class="n">generate_mask_ocean_frac</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="n">nx_sub</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">ny_sub</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+
 
 <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Setup complete.&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
-<div class="nboutput docutils container">
+<div class="nboutput nblast docutils container">
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
@@ -188,27 +201,12 @@
 Setup complete.
 </pre></div></div>
 </div>
-<div class="nboutput nblast docutils container">
-<div class="prompt empty docutils container">
-</div>
-<div class="output_area stderr docutils container">
-<div class="highlight"><pre>
-/glade/u/home/manishrv/documents/croc/regional_mom_workflows/mom6_forge/mom6_forge/topo.py:768: RuntimeWarning: Mean of empty slice
-  D_mean = np.nanmean(depth_ocean, axis=(-2, -1))
-/glade/u/home/manishrv/documents/croc/regional_mom_workflows/mom6_forge/mom6_forge/topo.py:769: RuntimeWarning: All-NaN slice encountered
-  D_min = np.nanmin(depth_ocean, axis=(-2, -1))
-/glade/u/home/manishrv/documents/croc/regional_mom_workflows/mom6_forge/mom6_forge/topo.py:770: RuntimeWarning: All-NaN slice encountered
-  D_max = np.nanmax(depth_ocean, axis=(-2, -1))
-/glade/u/home/manishrv/documents/croc/regional_mom_workflows/mom6_forge/mom6_forge/topo.py:771: RuntimeWarning: Mean of empty slice
-  D2_mean = np.nanmean(depth_ocean**2, axis=(-2, -1))
-</pre></div></div>
-</div>
 </section>
 <section id="2.-The-Cressman-weight-function">
 <h2>2. The Cressman weight function<a class="headerlink" href="#2.-The-Cressman-weight-function" title="Link to this heading"></a></h2>
 <p>Let’s first visualise <span class="math notranslate nohighlight">\(w\)</span> as a function of <span class="math notranslate nohighlight">\(r/L\)</span> to understand the shape.</p>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[3]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[92]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">r_over_L</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">200</span><span class="p">)</span>
@@ -234,7 +232,7 @@ Setup complete.
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/notebooks_10_cressman_interpolation_5_0.png" src="../_images/notebooks_10_cressman_interpolation_5_0.png" />
+<img alt="../_images/notebooks_10_cressman_interpolation_6_0.png" src="../_images/notebooks_10_cressman_interpolation_6_0.png" />
 </div>
 </div>
 <p>The weight is 1.0 at the cell centre (<span class="math notranslate nohighlight">\(r=0\)</span>) and 0.0 at the cutoff (<span class="math notranslate nohighlight">\(r=L\)</span>). Higher <code class="docutils literal notranslate"><span class="pre">cressman_exp</span></code> makes the function more peaked — more weight is given to nearby pixels, and the kernel decays more sharply.</p>
@@ -244,7 +242,7 @@ Setup complete.
 <p><span class="math notranslate nohighlight">\(L = \text{smooth\_scl} \times \sqrt{A}\)</span> where <span class="math notranslate nohighlight">\(A\)</span> is the T-cell area in m². This means larger cells get a larger search radius, which is physically correct — a coarser model cell should average over more source pixels.</p>
 <p>The cell area <code class="docutils literal notranslate"><span class="pre">DAREA</span></code> used in the Fortran is equivalent to <code class="docutils literal notranslate"><span class="pre">topo._grid.tarea</span></code>.</p>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[4]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[93]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">smooth_scl</span> <span class="o">=</span> <span class="mf">2.0</span>
@@ -276,7 +274,7 @@ Setup complete.
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/notebooks_10_cressman_interpolation_7_0.png" src="../_images/notebooks_10_cressman_interpolation_7_0.png" />
+<img alt="../_images/notebooks_10_cressman_interpolation_8_0.png" src="../_images/notebooks_10_cressman_interpolation_8_0.png" />
 </div>
 </div>
 <div class="nboutput nblast docutils container">
@@ -284,7 +282,7 @@ Setup complete.
 </div>
 <div class="output_area docutils container">
 <div class="highlight"><pre>
-L range: 422 – 431 km
+L range: 420 – 430 km
 (decreases toward poles as cell area shrinks)
 </pre></div></div>
 </div>
@@ -294,13 +292,13 @@ L range: 422 – 431 km
 <p>The Fortran uses a precomputed rectangular patch <code class="docutils literal notranslate"><span class="pre">(iwid</span> <span class="pre">×</span> <span class="pre">jwid)</span></code> as a bounding box and then tests each pixel in the box for <span class="math notranslate nohighlight">\(r \leq L\)</span>. The Python implementation replaces this with a <strong>KDTree</strong> built from the 3D Cartesian coordinates of the source ocean pixels.</p>
 <p>Why 3D Cartesian? Because <code class="docutils literal notranslate"><span class="pre">cKDTree.query_ball_point</span></code> uses Euclidean (chord) distance, which works globally without any longitude wraparound issues. The chord distance is then converted back to arc (great-circle) distance for the weight calculation.</p>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[5]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[94]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">R</span> <span class="o">=</span> <span class="mf">6_371_000.0</span>  <span class="c1"># Earth radius, m</span>
 
 <span class="c1"># Build the Cartesian coordinates of source ocean pixels</span>
-<span class="n">src_depth</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">depth</span>   <span class="c1"># positive-down; ocean &gt; 0</span>
+<span class="n">src_depth</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">da</span>   <span class="c1"># positive-down; ocean &gt; 0</span>
 <span class="n">src_lon_2d</span><span class="p">,</span> <span class="n">src_lat_2d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">src</span><span class="o">.</span><span class="n">lon</span><span class="p">,</span> <span class="n">src</span><span class="o">.</span><span class="n">lat</span><span class="p">)</span>
 <span class="n">is_ocean_src</span> <span class="o">=</span> <span class="n">src_depth</span> <span class="o">&gt;</span> <span class="mi">0</span>
 
@@ -313,7 +311,7 @@ L range: 422 – 431 km
 <span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
 
 <span class="c1"># KDTree built ONLY over ocean source pixels</span>
-<span class="n">ocean_src_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">is_ocean_src</span><span class="o">.</span><span class="n">ravel</span><span class="p">())[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">ocean_src_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">is_ocean_src</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">ravel</span><span class="p">())[</span><span class="mi">0</span><span class="p">]</span>
 <span class="n">tree</span> <span class="o">=</span> <span class="n">cKDTree</span><span class="p">(</span><span class="n">xyz_src_all</span><span class="p">[</span><span class="n">ocean_src_idx</span><span class="p">])</span>
 
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Total source pixels: </span><span class="si">{</span><span class="n">src_depth</span><span class="o">.</span><span class="n">size</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
@@ -327,13 +325,13 @@ L range: 422 – 431 km
 </div>
 <div class="output_area docutils container">
 <div class="highlight"><pre>
-Total source pixels: 9900
-Ocean source pixels in KDTree: 9025
-  (91.2% of source)
+Total source pixels: 17324
+Ocean source pixels in KDTree: 15224
+  (87.9% of source)
 </pre></div></div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[6]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[95]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># For a chosen target cell, show which source pixels are within radius L</span>
@@ -369,7 +367,7 @@ Ocean source pixels in KDTree: 9025
 <span class="n">weights</span> <span class="o">=</span> <span class="p">((</span><span class="n">L2</span> <span class="o">-</span> <span class="n">d2</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">L2</span> <span class="o">+</span> <span class="n">d2</span><span class="p">))</span> <span class="o">**</span> <span class="mf">2.0</span>
 
 <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Source ocean pixels within L: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">neighbor_src_idx</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Weighted depth estimate: </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">weights</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">src_depth</span><span class="o">.</span><span class="n">ravel</span><span class="p">()[</span><span class="n">neighbor_src_idx</span><span class="p">])</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">weights</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> m&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Weighted depth estimate: </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">weights</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">src_depth</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">ravel</span><span class="p">()[</span><span class="n">neighbor_src_idx</span><span class="p">])</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">weights</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> m&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
@@ -379,26 +377,25 @@ Ocean source pixels in KDTree: 9025
 <div class="output_area docutils container">
 <div class="highlight"><pre>
 Cell (1,2) at lon=267.0, lat=23.0
-Smoothing radius L = 428.4 km
-Source ocean pixels within L: 4987
-Weighted depth estimate: 1432.6 m
+Smoothing radius L = 427.1 km
+Source ocean pixels within L: 5033
+Weighted depth estimate: 1899.5 m
 </pre></div></div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[7]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">14</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>
 
 <span class="c1"># --- Left: source pixels coloured by weight ---</span>
 <span class="n">ax</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-<span class="n">ax</span><span class="o">.</span><span class="n">pcolormesh</span><span class="p">(</span><span class="n">src_lons</span><span class="p">,</span> <span class="n">src_lats</span><span class="p">,</span> <span class="n">elevation</span><span class="p">,</span>
-              <span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;RdBu&quot;</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=-</span><span class="mi">2200</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span> <span class="n">shading</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">pcolormesh</span><span class="p">(</span><span class="n">src_lons</span><span class="p">,</span> <span class="n">src_lats</span><span class="p">,</span> <span class="n">elevation</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span> <span class="n">shading</span><span class="o">=</span><span class="s2">&quot;auto&quot;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;RdBu&quot;</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=-</span><span class="mi">100</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mi">2200</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">19</span><span class="p">)</span>
 
 <span class="c1"># All source ocean pixels (small grey dots)</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">src_lon_2d</span><span class="o">.</span><span class="n">ravel</span><span class="p">()[</span><span class="n">ocean_src_idx</span><span class="p">],</span>
            <span class="n">src_lat_2d</span><span class="o">.</span><span class="n">ravel</span><span class="p">()[</span><span class="n">ocean_src_idx</span><span class="p">],</span>
-           <span class="n">c</span><span class="o">=</span><span class="s2">&quot;lightgray&quot;</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+           <span class="n">c</span><span class="o">=</span><span class="s2">&quot;lightgray&quot;</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
 
 <span class="c1"># Pixels within L coloured by weight</span>
 <span class="n">sc</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span>
@@ -410,16 +407,16 @@ Weighted depth estimate: 1432.6 m
 
 <span class="c1"># Model cell outline and centre</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">pcolormesh</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">qlon</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="n">grid</span><span class="o">.</span><span class="n">qlat</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">grid</span><span class="o">.</span><span class="n">ny</span><span class="p">,</span> <span class="n">grid</span><span class="o">.</span><span class="n">nx</span><span class="p">)),</span>
-              <span class="n">edgecolors</span><span class="o">=</span><span class="s2">&quot;k&quot;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">facecolor</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span> <span class="n">shading</span><span class="o">=</span><span class="s2">&quot;flat&quot;</span><span class="p">)</span>
+              <span class="n">edgecolors</span><span class="o">=</span><span class="s2">&quot;k&quot;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">facecolor</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span> <span class="n">shading</span><span class="o">=</span><span class="s2">&quot;flat&quot;</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">tlon</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">jc</span><span class="p">,</span> <span class="n">ic</span><span class="p">],</span> <span class="n">grid</span><span class="o">.</span><span class="n">tlat</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">jc</span><span class="p">,</span> <span class="n">ic</span><span class="p">],</span>
-           <span class="n">c</span><span class="o">=</span><span class="s2">&quot;yellow&quot;</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="mi">150</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">edgecolors</span><span class="o">=</span><span class="s2">&quot;k&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Target cell&quot;</span><span class="p">)</span>
+           <span class="n">c</span><span class="o">=</span><span class="s2">&quot;green&quot;</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="mi">150</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">edgecolors</span><span class="o">=</span><span class="s2">&quot;k&quot;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Target cell&quot;</span><span class="p">)</span>
 
 <span class="c1"># Draw the search circle (approximate in lon/lat)</span>
 <span class="n">theta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="mi">200</span><span class="p">)</span>
 <span class="n">deg_per_m</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">R</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mf">180.0</span><span class="p">)</span>
 <span class="n">circ_lon</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">tlon</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">jc</span><span class="p">,</span> <span class="n">ic</span><span class="p">]</span> <span class="o">+</span> <span class="n">L_cell</span> <span class="o">*</span> <span class="n">deg_per_m</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">theta</span><span class="p">)</span>
 <span class="n">circ_lat</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">tlat</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">jc</span><span class="p">,</span> <span class="n">ic</span><span class="p">]</span> <span class="o">+</span> <span class="n">L_cell</span> <span class="o">*</span> <span class="n">deg_per_m</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">theta</span><span class="p">)</span>
-<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">circ_lon</span><span class="p">,</span> <span class="n">circ_lat</span><span class="p">,</span> <span class="s2">&quot;k--&quot;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;L = </span><span class="si">{</span><span class="n">L_cell</span><span class="o">/</span><span class="mi">1000</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> km&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">circ_lon</span><span class="p">,</span> <span class="n">circ_lat</span><span class="p">,</span> <span class="s2">&quot;k--&quot;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;L = </span><span class="si">{</span><span class="n">L_cell</span><span class="o">/</span><span class="mi">1000</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> km&quot;</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">25</span><span class="p">)</span>
 
 <span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="mi">260</span><span class="p">,</span> <span class="mi">274</span><span class="p">)</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="mi">18</span><span class="p">,</span> <span class="mi">30</span><span class="p">)</span>
@@ -431,7 +428,7 @@ Weighted depth estimate: 1432.6 m
 <span class="c1"># --- Right: weight vs distance scatter ---</span>
 <span class="n">ax</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
 <span class="n">arc_km</span> <span class="o">=</span> <span class="n">arc</span> <span class="o">/</span> <span class="mf">1000.0</span>
-<span class="n">ax</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">arc_km</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="n">src_depth</span><span class="o">.</span><span class="n">ravel</span><span class="p">()[</span><span class="n">neighbor_src_idx</span><span class="p">],</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">arc_km</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="n">src_depth</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">ravel</span><span class="p">()[</span><span class="n">neighbor_src_idx</span><span class="p">],</span>
            <span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;Blues&quot;</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mi">2200</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
 <span class="n">r_plot</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">L_cell</span> <span class="o">/</span> <span class="mi">1000</span><span class="p">,</span> <span class="mi">200</span><span class="p">)</span>
 <span class="n">r_m</span> <span class="o">=</span> <span class="n">r_plot</span> <span class="o">*</span> <span class="mi">1000</span>
@@ -451,11 +448,21 @@ Weighted depth estimate: 1432.6 m
 </pre></div>
 </div>
 </div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area stderr docutils container">
+<div class="highlight"><pre>
+/glade/derecho/scratch/manishrv/tmp/ipykernel_79651/1012235770.py:38: UserWarning: Legend does not support handles for QuadMesh instances.
+See: https://matplotlib.org/stable/tutorials/intermediate/legend_guide.html#implementing-a-custom-legend-handler
+  ax.legend(fontsize=8)
+</pre></div></div>
+</div>
 <div class="nboutput nblast docutils container">
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/notebooks_10_cressman_interpolation_11_0.png" src="../_images/notebooks_10_cressman_interpolation_11_0.png" />
+<img alt="../_images/notebooks_10_cressman_interpolation_12_1.png" src="../_images/notebooks_10_cressman_interpolation_12_1.png" />
 </div>
 </div>
 </section>
@@ -467,27 +474,32 @@ Weighted depth estimate: 1432.6 m
 </div>
 <p>This matrix is also written to an ESMF-compatible netCDF so it can be cached and reused (e.g. for different fields or time steps).</p>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[8]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[97]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mom6_forge.mapping</span><span class="w"> </span><span class="kn">import</span> <span class="n">compute_cressman_weights</span>
-
-<span class="n">S</span><span class="p">,</span> <span class="n">unfilled</span> <span class="o">=</span> <span class="n">compute_cressman_weights</span><span class="p">(</span>
-    <span class="n">dst_lon</span><span class="o">=</span><span class="n">grid</span><span class="o">.</span><span class="n">tlon</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">ravel</span><span class="p">(),</span>
-    <span class="n">dst_lat</span><span class="o">=</span><span class="n">grid</span><span class="o">.</span><span class="n">tlat</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">ravel</span><span class="p">(),</span>
-    <span class="n">dst_area</span><span class="o">=</span><span class="n">grid</span><span class="o">.</span><span class="n">tarea</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">ravel</span><span class="p">(),</span>
-    <span class="n">dst_mask</span><span class="o">=</span><span class="n">mask</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">bool</span><span class="p">),</span>
-    <span class="n">src_lon</span><span class="o">=</span><span class="n">src</span><span class="o">.</span><span class="n">lon</span><span class="p">,</span>
-    <span class="n">src_lat</span><span class="o">=</span><span class="n">src</span><span class="o">.</span><span class="n">lat</span><span class="p">,</span>
-    <span class="n">src_ocean_mask</span><span class="o">=</span><span class="p">(</span><span class="n">src</span><span class="o">.</span><span class="n">depth</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">),</span>
-    <span class="n">smooth_scl</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span>
-    <span class="n">cressman_exp</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span>
+<span class="c1"># --- Regrid via mapping module (weights → file → cressman Regridder) ---</span>
+<span class="n">src_ds</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">Dataset</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="s2">&quot;lon&quot;</span><span class="p">:</span> <span class="p">([</span><span class="s2">&quot;lon&quot;</span><span class="p">],</span> <span class="n">src</span><span class="o">.</span><span class="n">lon</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="s2">&quot;lat&quot;</span><span class="p">:</span> <span class="p">([</span><span class="s2">&quot;lat&quot;</span><span class="p">],</span> <span class="n">src</span><span class="o">.</span><span class="n">lat</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+        <span class="s2">&quot;depth&quot;</span><span class="p">:</span> <span class="p">([</span><span class="s2">&quot;lat&quot;</span><span class="p">,</span> <span class="s2">&quot;lon&quot;</span><span class="p">],</span> <span class="n">src</span><span class="o">.</span><span class="n">da</span><span class="o">.</span><span class="n">data</span><span class="p">),</span>
+    <span class="p">}</span>
 <span class="p">)</span>
+<span class="n">dst_ds</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">Dataset</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="s2">&quot;lon&quot;</span><span class="p">:</span> <span class="n">topo</span><span class="o">.</span><span class="n">_grid</span><span class="o">.</span><span class="n">tlon</span><span class="p">,</span>
+        <span class="s2">&quot;lat&quot;</span><span class="p">:</span> <span class="n">topo</span><span class="o">.</span><span class="n">_grid</span><span class="o">.</span><span class="n">tlat</span><span class="p">,</span>
+        <span class="s2">&quot;area&quot;</span><span class="p">:</span> <span class="n">topo</span><span class="o">.</span><span class="n">_grid</span><span class="o">.</span><span class="n">tarea</span><span class="p">,</span>
+        <span class="s2">&quot;mask&quot;</span><span class="p">:</span> <span class="n">topo</span><span class="o">.</span><span class="n">tmask</span><span class="p">,</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+<span class="n">ds_weights</span><span class="o">=</span> <span class="n">compute_cressman_weights</span><span class="p">(</span>
+        <span class="n">src_ds</span><span class="p">,</span>
+        <span class="n">dst_ds</span><span class="p">)</span>
 
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;S shape: </span><span class="si">{</span><span class="n">S</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">  (n_dst × n_src)&quot;</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Non-zero entries: </span><span class="si">{</span><span class="n">S</span><span class="o">.</span><span class="n">nnz</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Average non-zeros per ocean row: </span><span class="si">{</span><span class="n">S</span><span class="o">.</span><span class="n">nnz</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="nb">int</span><span class="p">(</span><span class="n">mask</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> source pixels per model cell&quot;</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unfilled cells: </span><span class="si">{</span><span class="n">unfilled</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2"> (will use neighbour fill fallback)&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;S shape: </span><span class="si">{</span><span class="n">ds_weights</span><span class="o">.</span><span class="n">S</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">  (n_dst × n_src)&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unfilled cells: </span><span class="si">{</span><span class="n">ds_weights</span><span class="o">.</span><span class="n">unfilled</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">}</span><span class="s2"> (will use neighbour fill fallback)&quot;</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
@@ -496,29 +508,42 @@ Weighted depth estimate: 1432.6 m
 </div>
 <div class="output_area docutils container">
 <div class="highlight"><pre>
-S shape: (20, 9900)  (n_dst × n_src)
-Non-zero entries: 69432
-Average non-zeros per ocean row: 3654.3 source pixels per model cell
-Unfilled cells: 0 (will use neighbour fill fallback)
+S shape: (87880,)  (n_dst × n_src)
+Unfilled cells: &lt;xarray.DataArray &#39;unfilled&#39; ()&gt; Size: 8B
+array(0)
+Attributes:
+    long_name:  True for ocean destination cells with no source points within... (will use neighbour fill fallback)
 </pre></div></div>
 </div>
 <div class="nbinput docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[9]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[98]:
 </pre></div>
 </div>
-<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Visualise the sparsity pattern (each row = one model cell, each col = one source pixel)</span>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">scipy.sparse</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sp</span>
+
+<span class="c1"># Reconstruct sparse matrix from xesmf weight file (1-based indexing → 0-based)</span>
+<span class="n">row</span>  <span class="o">=</span> <span class="n">ds_weights</span><span class="p">[</span><span class="s2">&quot;row&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span> <span class="o">-</span> <span class="mi">1</span>
+<span class="n">col</span>  <span class="o">=</span> <span class="n">ds_weights</span><span class="p">[</span><span class="s2">&quot;col&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span> <span class="o">-</span> <span class="mi">1</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">ds_weights</span><span class="p">[</span><span class="s2">&quot;S&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span>
+
+<span class="n">n_dst</span> <span class="o">=</span> <span class="n">ds_weights</span><span class="o">.</span><span class="n">dims</span><span class="p">[</span><span class="s2">&quot;n_dst&quot;</span><span class="p">]</span>  <span class="c1"># 20 — matches grid.ny * grid.nx</span>
+<span class="n">n_src</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">da</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+<span class="n">S_sparse</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">coo_matrix</span><span class="p">((</span><span class="n">data</span><span class="p">,</span> <span class="p">(</span><span class="n">row</span><span class="p">,</span> <span class="n">col</span><span class="p">)),</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">n_dst</span><span class="p">,</span> <span class="n">n_src</span><span class="p">))</span><span class="o">.</span><span class="n">tocsr</span><span class="p">()</span>
+
+<span class="c1"># Visualise</span>
 <span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">13</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>
 
 <span class="n">ax</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-<span class="n">ax</span><span class="o">.</span><span class="n">spy</span><span class="p">(</span><span class="n">S</span><span class="p">,</span> <span class="n">markersize</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;steelblue&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">spy</span><span class="p">(</span><span class="n">S_sparse</span><span class="p">,</span> <span class="n">markersize</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">&quot;steelblue&quot;</span><span class="p">)</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s2">&quot;Source pixel index (flattened)&quot;</span><span class="p">)</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s2">&quot;Model cell index (flattened)&quot;</span><span class="p">)</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Sparsity pattern of weight matrix S&quot;</span><span class="p">)</span>
 
 <span class="c1"># Apply S to get depth estimates</span>
-<span class="n">depth_source_flat</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">depth</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
-<span class="n">depth_dst_flat</span> <span class="o">=</span> <span class="n">S</span> <span class="o">@</span> <span class="n">depth_source_flat</span>
-<span class="n">depth_dst</span> <span class="o">=</span> <span class="n">depth_dst_flat</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">ny</span><span class="p">,</span> <span class="n">grid</span><span class="o">.</span><span class="n">nx</span><span class="p">)</span>
+<span class="n">depth_source_flat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan_to_num</span><span class="p">(</span><span class="n">src</span><span class="o">.</span><span class="n">da</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">))</span>
+<span class="n">depth_dst_flat</span>    <span class="o">=</span> <span class="n">S_sparse</span> <span class="o">@</span> <span class="n">depth_source_flat</span>
+<span class="n">depth_dst</span>         <span class="o">=</span> <span class="n">depth_dst_flat</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">ny</span><span class="p">,</span> <span class="n">grid</span><span class="o">.</span><span class="n">nx</span><span class="p">)</span>
 
 <span class="n">ax</span> <span class="o">=</span> <span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
 <span class="n">c</span> <span class="o">=</span> <span class="n">ax</span><span class="o">.</span><span class="n">pcolormesh</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">qlon</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="n">grid</span><span class="o">.</span><span class="n">qlat</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="n">depth_dst</span><span class="p">,</span>
@@ -526,10 +551,10 @@ Unfilled cells: 0 (will use neighbour fill fallback)
 <span class="n">plt</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="n">ax</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Depth (m)&quot;</span><span class="p">)</span>
 <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">ny</span><span class="p">):</span>
     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">nx</span><span class="p">):</span>
-        <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">tlon</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">j</span><span class="p">,</span><span class="n">i</span><span class="p">],</span> <span class="n">grid</span><span class="o">.</span><span class="n">tlat</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">j</span><span class="p">,</span><span class="n">i</span><span class="p">],</span>
-                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">depth_dst</span><span class="p">[</span><span class="n">j</span><span class="p">,</span><span class="n">i</span><span class="p">]</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">tlon</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">j</span><span class="p">,</span> <span class="n">i</span><span class="p">],</span> <span class="n">grid</span><span class="o">.</span><span class="n">tlat</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">j</span><span class="p">,</span> <span class="n">i</span><span class="p">],</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">depth_dst</span><span class="p">[</span><span class="n">j</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">]</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
                 <span class="n">ha</span><span class="o">=</span><span class="s2">&quot;center&quot;</span><span class="p">,</span> <span class="n">va</span><span class="o">=</span><span class="s2">&quot;center&quot;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>
-                <span class="n">color</span><span class="o">=</span><span class="s2">&quot;white&quot;</span> <span class="k">if</span> <span class="n">depth_dst</span><span class="p">[</span><span class="n">j</span><span class="p">,</span><span class="n">i</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">500</span> <span class="k">else</span> <span class="s2">&quot;k&quot;</span><span class="p">)</span>
+                <span class="n">color</span><span class="o">=</span><span class="s2">&quot;white&quot;</span> <span class="k">if</span> <span class="n">depth_dst</span><span class="p">[</span><span class="n">j</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">500</span> <span class="k">else</span> <span class="s2">&quot;k&quot;</span><span class="p">)</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Depth after S @ depth_source (before hmin enforcement)&quot;</span><span class="p">)</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s2">&quot;Longitude&quot;</span><span class="p">)</span>
 <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s2">&quot;Latitude&quot;</span><span class="p">)</span>
@@ -539,12 +564,37 @@ Unfilled cells: 0 (will use neighbour fill fallback)
 </pre></div>
 </div>
 </div>
+<div class="nboutput docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area stderr docutils container">
+<div class="highlight"><pre>
+/glade/derecho/scratch/manishrv/tmp/ipykernel_79651/3312153172.py:8: FutureWarning: The return type of `Dataset.dims` will be changed to return a set of dimension names in future, in order to be more consistent with `DataArray.dims`. To access a mapping from dimension names to lengths, please use `Dataset.sizes`.
+  n_dst = ds_weights.dims[&#34;n_dst&#34;]  # 20 — matches grid.ny * grid.nx
+</pre></div></div>
+</div>
 <div class="nboutput nblast docutils container">
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/notebooks_10_cressman_interpolation_14_0.png" src="../_images/notebooks_10_cressman_interpolation_14_0.png" />
+<img alt="../_images/notebooks_10_cressman_interpolation_15_1.png" src="../_images/notebooks_10_cressman_interpolation_15_1.png" />
 </div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[87]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">ds_weights</span><span class="o">.</span><span class="n">dims</span><span class="p">)</span>
+<br/></pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+FrozenMappingWarningOnValuesAccess({&#39;n_s&#39;: 83499, &#39;n_dst&#39;: 20})
+</pre></div></div>
 </div>
 </section>
 <section id="6.-Iterative-neighbour-fill">
@@ -624,7 +674,7 @@ Iterations needed: 1
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/notebooks_10_cressman_interpolation_16_1.png" src="../_images/notebooks_10_cressman_interpolation_16_1.png" />
+<img alt="../_images/notebooks_10_cressman_interpolation_18_1.png" src="../_images/notebooks_10_cressman_interpolation_18_1.png" />
 </div>
 </div>
 </section>
@@ -743,7 +793,7 @@ Cressman weights written to /glade/derecho/scratch/manishrv/tmp/tmppx1l48md/weig
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/notebooks_10_cressman_interpolation_18_8.png" src="../_images/notebooks_10_cressman_interpolation_18_8.png" />
+<img alt="../_images/notebooks_10_cressman_interpolation_20_8.png" src="../_images/notebooks_10_cressman_interpolation_20_8.png" />
 </div>
 </div>
 <p>Higher <code class="docutils literal notranslate"><span class="pre">smooth_scl</span></code> averages over more source pixels — useful for very coarse grids but can smooth out real bathymetric features. The tx2_3 default is <code class="docutils literal notranslate"><span class="pre">smooth_scl=2.0</span></code>.</p>
