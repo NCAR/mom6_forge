@@ -724,7 +724,6 @@ class Topo:
 
     def direct_cressman_interp(
         self,
-        src,
         smooth_scl=2.0,
         cressman_exp=2.0,
         weights_path=None,
@@ -764,14 +763,14 @@ class Topo:
             ``cressman_weights.nc`` is written next to the bathymetry file.
         """
         if weights_path is None:
-            weights_path = src.path.parent / "cressman_weights.nc"
+            weights_path = self.src.path.parent / "cressman_weights.nc"
 
         # --- Regrid via mapping module (weights → file → cressman Regridder) ---
         src_ds = xr.Dataset(
             {
-                "lon": (["x"], src.lon),
-                "lat": (["y"], src.lat),
-                "depth": (["y", "x"], src.depth),
+                "lon": (["x"], self.src.lon),
+                "lat": (["y"], self.src.lat),
+                "depth": (["y", "x"], self._da.values),
             }
         )
         dst_ds = xr.Dataset(
