@@ -22,7 +22,9 @@
       <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
-    <link rel="search" title="Search" href="../search.html" /> 
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Spherical grid with an idealized bathymetry" href="1_spherical_grid.html" />
+    <link rel="prev" title="Notebooks" href="../notebooks.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -45,9 +47,33 @@
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
-<ul>
+<ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../notebooks.html">Notebooks</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Cressman Interpolation Deep Dive</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#What-is-Cressman-interpolation?">What is Cressman interpolation?</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#1.-Setup">1. Setup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#2.-The-Cressman-weight-function">2. The Cressman weight function</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#3.-Smoothing-radius-L-for-each-cell">3. Smoothing radius <span class="math notranslate nohighlight">\(L\)</span> for each cell</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#4.-The-KDTree-—-finding-source-pixels-within-radius-L">4. The KDTree — finding source pixels within radius <span class="math notranslate nohighlight">\(L\)</span></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#5.-The-sparse-weight-matrix">5. The sparse weight matrix</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#6.-Iterative-neighbour-fill">6. Iterative neighbour fill</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#7.-Putting-it-all-together:-cressman_interp">7. Putting it all together: <code class="docutils literal notranslate"><span class="pre">cressman_interp</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#Summary">Summary</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="1_spherical_grid.html">Spherical grid with an idealized bathymetry</a></li>
+<li class="toctree-l2"><a class="reference internal" href="2_equatorial_res.html">Spherical grid with equatorial refinement</a></li>
+<li class="toctree-l2"><a class="reference internal" href="3_custom_bathy.html">Spherical grid with custom bathymetry and ridges</a></li>
+<li class="toctree-l2"><a class="reference internal" href="4_ingest_landmask.html">Applying an existing land fraction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="5_modify_existing.html">Modify existing MOM6 grid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="6_coarsen_existing.html">Coarsen an existing MOM6 grid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="6_demo_editors.html">Object Configurators in mom6_forge</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../widgets.html">Topo &amp; The Widgets!</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Python API:</span></p>
 <ul>
@@ -68,6 +94,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../notebooks.html">Notebooks</a></li>
       <li class="breadcrumb-item active">Cressman Interpolation Deep Dive</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/notebooks/10_cressman_interpolation.ipynb.txt" rel="nofollow"> View page source</a>
@@ -96,7 +123,7 @@
 <div class="math notranslate nohighlight">
 \[d_i = \frac{\sum_k w_k \cdot d_k}{\sum_k w_k}\]</div>
 <div class="nbinput nblast docutils container">
-<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[1]:
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
@@ -109,7 +136,6 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">mom6_forge.grid</span><span class="w"> </span><span class="kn">import</span> <span class="n">Grid</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">mom6_forge.topo</span><span class="w"> </span><span class="kn">import</span> <span class="n">Topo</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">mom6_forge._source_bathy</span><span class="w"> </span><span class="kn">import</span> <span class="n">SourceBathy</span>
 
 <span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s2">&quot;figure.dpi&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">120</span>
 </pre></div>
@@ -740,7 +766,10 @@ Cressman weights written to /glade/derecho/scratch/manishrv/tmp/tmppx1l48md/weig
 
            </div>
           </div>
-          <footer>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../notebooks.html" class="btn btn-neutral float-left" title="Notebooks" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="1_spherical_grid.html" class="btn btn-neutral float-right" title="Spherical grid with an idealized bathymetry" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
 
   <hr/>
 
