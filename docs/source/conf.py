@@ -12,7 +12,7 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath("../mom6_forge/"))
+sys.path.insert(0, os.path.abspath("../../mom6_forge/"))
 
 
 # -- Project information -----------------------------------------------------
@@ -34,7 +34,11 @@ release = "0.1"
 extensions = [
     "sphinx_rtd_theme",
     "sphinx.ext.napoleon",
+    "nbsphinx",
 ]
+
+# Never re-execute notebooks during docs build — use existing cell outputs.
+nbsphinx_execute = "never"
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
