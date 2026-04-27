@@ -16,12 +16,7 @@ to learn about the `mom6_forge` tool.
 
    installation
    quickstart
-<<<<<<< HEAD:.docstr/index.rst
-   bathymetry/index
-   examples
-=======
    notebooks
->>>>>>> main:docs/source/index.rst
    glossary
    widgets
 
