@@ -2,6 +2,8 @@ name: Publish mom6_forge to PyPI (on release) and TestPyPI (on version changes)
 
 on:
   push:
+    branches:
+      - main
 
   release:
     types: [created]

@@ -83,10 +83,10 @@ class DepthEditCommand(EditCommand):
         self.message = message
 
     def _get_value(self, j, i):
-        return self._topo._depth_raw.data[j, i]
+        return self._topo._depth.data[j, i]
 
     def _set_value(self, j, i, value):
-        self._topo._depth_raw.data[j, i] = value
+        self._topo._depth.data[j, i] = value
 
     def __call__(self):
         if self.old_values is None:
@@ -144,7 +144,7 @@ class MaskEditCommand(EditCommand):
         self.message = message
 
     def _get_value(self, j, i):
-        return self._topo.mask.data[j, i]
+        return self._topo.tmask.data[j, i]
 
     def _set_value(self, j, i, value):
         """
@@ -153,15 +153,15 @@ class MaskEditCommand(EditCommand):
 
         # Validate binary value
         assert value in [0, 1], f"Mask value must be 0 (land) or 1 (ocean), got {value}"
-        self._topo._manual_mask.data[j, i] = value
+        self._topo._user_mask.data[j, i] = value
 
     def __call__(self):
         """If the manual mask is not initialized, it will be created from the depth raw mask, because at this point we are creating a mask."""
-        if self._topo._manual_mask is None:
+        if self._topo._user_mask is None:
             print(
                 "The manual mask is not initialized. Initializing it now from the depth raw mask"
             )
-            self._topo._manual_mask = self._topo._depth_raw_mask.copy()
+            self._topo._user_mask = self._topo._compute_tmask_from_raw_depth()
         if self.old_values is None:
             self.old_values = [
                 to_native(self._get_value(j, i)) for j, i in self.affected_indices
@@ -254,8 +254,8 @@ class ClearMaskCommand(EditCommand):
 
     def __call__(self):
         if self.old_mask is None:
-            self.old_mask = self._topo._manual_mask  # snapshot for undo
-        self._topo._manual_mask = None
+            self.old_mask = self._topo._user_mask  # snapshot for undo
+        self._topo._user_mask = None
 
     def serialize(self):
         return {

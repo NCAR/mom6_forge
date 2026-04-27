@@ -1,7 +1,41 @@
 import numpy as np
 import pytest
+import xarray as xr
 from mom6_forge.grid import Grid
 from mom6_forge.topo import Topo
+
+
+@pytest.fixture
+def get_curvilinear_supergrid():
+    """
+    Synthetic supergrid uniformly rotated by 30 degrees from East.
+    Every point has angle_dx = 30 degrees by construction, giving a known
+    ground truth to test against.
+    """
+    rotation_angle = 30.0  # degrees
+    nx, ny = 10, 10  # model cells
+    dx = dy = 0.1  # half-cell spacing in degrees
+    center_x, center_y = 10.0, 10.0  # well away from lat=0 to avoid cos issues
+
+    θ = np.deg2rad(rotation_angle)
+    nxp, nyp = 2 * nx + 1, 2 * ny + 1
+
+    # Build rotated grid via meshgrid
+    i_offsets = (np.arange(nxp) - nx) * dx
+    j_offsets = (np.arange(nyp) - ny) * dy
+    I, J = np.meshgrid(i_offsets, j_offsets)
+
+    x = center_x + I * np.cos(θ) - J * np.sin(θ)
+    y = center_y + I * np.sin(θ) + J * np.cos(θ)
+    angle_dx = np.full((nyp, nxp), rotation_angle)
+
+    return xr.Dataset(
+        {
+            "x": (["nyp", "nxp"], x),
+            "y": (["nyp", "nxp"], y),
+            "angle_dx": (["nyp", "nxp"], angle_dx),
+        }
+    )
 
 
 @pytest.fixture

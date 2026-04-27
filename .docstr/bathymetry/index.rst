@@ -26,7 +26,7 @@ Key Concepts
 
 **Separation of Concerns**
 
-Raw depth data (``_unmasked_depth``) is kept separate from masking logic (``_mask``). This enables:
+Raw depth data (``_depth``) is kept separate from masking logic (``tmask``). This enables:
 
 - Efficient storage (only one copy of depth data)
 - Flexible masking (masks can be applied/removed without re-computing)
@@ -41,7 +41,7 @@ All bathymetry modifications are tracked through the TopoCommandManager (TCM):
 - Version history saved to git
 - Can restore any previous bathymetry state
 
-**Minimal Depth Enforcement**
+**Minimum Depth Enforcement**
 
 The ``min_depth`` parameter ensures all ocean cells meet a minimum depth for model stability:
 
