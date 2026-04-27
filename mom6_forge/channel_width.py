@@ -1,8 +1,9 @@
 """
-A barebones set of classes to manage channel width constraints for MOM6 grids. It is effectively a list that can be applied on top of the bathymetry, and is not git-backed. 
+A barebones set of classes to manage channel width constraints for MOM6 grids. It is effectively a list that can be applied on top of the bathymetry, and is not git-backed.
 The channels represent a separate concern and can be independently shared, or managed outside the topography versioning system.
-It is a basically a dict of info for each channel and then a list wrapped with write/load functions. 
+It is a basically a dict of info for each channel and then a list wrapped with write/load functions.
 """
+
 from dataclasses import dataclass
 from typing import List, Optional
 from pathlib import Path
