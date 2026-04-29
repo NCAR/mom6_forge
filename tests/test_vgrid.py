@@ -255,10 +255,60 @@ def test_hyperbolictan_thickness_profile_symmetric(nlayers, ratio, total_depth):
     ).all()
 
 
-if __name__ == "__main__":
-    test_default_init()
-    test_cell_center_to_layer_thickness()
-    test_cell_interface_to_layer_thickness()
-    test_from_file_layer_thickness()
-    test_from_file_cell_center()
-    test_from_file_cell_interface()
+# =============================================================================
+# Writer tests: VGrid.write() and VGrid.write_z_file()
+# =============================================================================
+
+
+def test_vgrid_write_roundtrip(tmp_path):
+    """write() should produce a NetCDF file containing dz plus expected global attrs."""
+    vg = VGrid.uniform(nk=10, depth=1000.0, name="test_uniform")
+    out = tmp_path / "vgrid.nc"
+    vg.write(str(out), message="unit test", author="pytest")
+    assert out.exists()
+
+    ds = xr.open_dataset(out)
+    try:
+        assert "dz" in ds
+        assert ds.sizes["z"] == 10
+        np.testing.assert_allclose(ds["dz"].values, vg.dz)
+        assert ds.attrs["maximum_depth"] == vg.depth
+        assert ds.attrs["name"] == "test_uniform"
+        assert ds.attrs["message"] == "unit test"
+        assert ds.attrs["author"] == "pytest"
+        assert ds.attrs["top_bottom_ratio"] == 1.0  # uniform
+    finally:
+        ds.close()
+
+
+def test_vgrid_write_without_name_and_optional_fields(tmp_path):
+    """When the VGrid has no name and no message/author, those attrs are absent."""
+    vg = VGrid.uniform(nk=5, depth=500.0)  # name defaults to None
+    out = tmp_path / "vgrid_no_name.nc"
+    vg.write(str(out))
+    ds = xr.open_dataset(out)
+    try:
+        assert "name" not in ds.attrs
+        assert "message" not in ds.attrs
+        assert "author" not in ds.attrs
+    finally:
+        ds.close()
+
+
+def test_vgrid_write_z_file(tmp_path):
+    """write_z_file() should produce a NetCDF file with zi and zl arrays."""
+    vg = VGrid.uniform(nk=8, depth=800.0)
+    out = tmp_path / "vgrid_z.nc"
+    vg.write_z_file(str(out))
+    assert out.exists()
+
+    ds = xr.open_dataset(out)
+    try:
+        assert "zi" in ds and "zl" in ds
+        assert ds.sizes["zi"] == 9  # nk+1 interfaces
+        assert ds.sizes["zl"] == 8  # nk layer centers
+        np.testing.assert_allclose(ds["zi"].values, vg.zi)
+        np.testing.assert_allclose(ds["zl"].values, vg.zl)
+        assert ds.attrs["maximum_depth"] == vg.depth
+    finally:
+        ds.close()

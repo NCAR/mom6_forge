@@ -1,0 +1,30 @@
+# CodeCov configuration for mom6_forge
+#
+# We exclude the ipywidgets-based interactive editors and the xesmf/ESMF/MPI
+# regridding entry points from the coverage target. These modules are either
+# pure UI glue (untestable without a running Jupyter kernel) or rely on heavy
+# parallel/external libraries that are impractical to drive from unit tests.
+
+coverage:
+  status:
+    project:
+      default:
+        target: 80%
+        threshold: 1%
+    patch:
+      default:
+        target: 80%
+        threshold: 1%
+
+ignore:
+  # Interactive ipywidgets editors / creators
+  - "mom6_forge/grid_creator.py"
+  - "mom6_forge/topo_editor.py"
+  - "mom6_forge/vgrid_creator.py"
+  # Heavy external-dependency module (xesmf, ESMF, MPI)
+  - "mom6_forge/mapping.py"
+
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: default
+  require_changes: false
