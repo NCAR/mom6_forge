@@ -68,6 +68,30 @@ class Topo:
         self.tcm = TopoCommandManager(self, command_registry=COMMAND_REGISTRY)
         self.tcm.execute(initial_command, cmd_type=CommandType.COMMAND)
 
+    def __getitem__(self, slices):
+        """
+        Get a subgrid copy based on the provided slices.
+
+        Parameters
+        ----------
+        slices:
+            A tuple of two slices, e.g., [A:B:C, D:E:F]
+            The first slice A:B:C corresponds to the j-axis (y-axis) and the second
+            slice D:E:F corresponds to the i-axis (x-axis). Examples:
+            topo[0:10, 0:20] or topo[:, 0:20] or topo[0:10, :].
+
+        Returns
+        -------
+        topo: Topo
+            A new Topo object with the same grid but with the depth and grid subsetted according to the provided slices.
+        """
+
+        new_grid = self._grid[slices]
+        new_topo = Topo(new_grid, self._min_depth)
+        if self._depth is not None:
+            new_topo._depth = self._depth[slices]
+        return new_topo
+
     @classmethod
     def from_version_control(cls, folder_path: str | Path):
         """

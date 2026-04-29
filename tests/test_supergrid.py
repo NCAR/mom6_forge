@@ -16,3 +16,11 @@ def test_even_spacing_hgrid(lat, lon):
         ),
         RectilinearCartesianSupergrid,
     )
+
+
+def test_uniform_spherical_supergrid():
+    nx, ny = 10, 10
+    sg = UniformSphericalSupergrid.from_extents(
+        lon_min=0.0, len_x=10.0, lat_min=40.0, len_y=10.0, nx=nx, ny=ny
+    )
+    assert isinstance(sg, UniformSphericalSupergrid)
