@@ -247,14 +247,12 @@ class MinDepthEditCommand(EditCommand):
 class ClearMaskCommand(EditCommand):
     """Clears the manual mask, reverting to depth_raw_mask derived mask."""
 
-    def __init__(self, topo, old_mask=None, message="Clear Manual Mask"):
+    def __init__(self, topo, message="Clear Manual Mask"):
         self._topo = topo
-        self.old_mask = old_mask
+        self.old_mask = topo._user_mask
         self.message = message
 
     def __call__(self):
-        if self.old_mask is None:
-            self.old_mask = self._topo._user_mask  # snapshot for undo
         self._topo._user_mask = None
 
     def serialize(self):
@@ -290,9 +288,7 @@ class ClearMaskCommand(EditCommand):
             mask_array = np.array(old_mask)
             all_indices = list(np.ndindex(mask_array.shape))
             new_values = mask_array.ravel().tolist()
-            old_values = [0] * len(
-                new_values
-            )  # placeholder, will be overwritten on __call__
+            old_values = None  # We don't need old values for undoing a clear, since the command will just restore the old mask as-is
             return MaskEditCommand(
                 topo,
                 all_indices,

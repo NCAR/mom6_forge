@@ -1,5 +1,10 @@
-import regionmask
+"""Test mask functionality: setting, applying, and depth masking behavior."""
+
 import numpy as np
+import pytest
+import xarray as xr
+from mom6_forge.edit_command import MaskEditCommand, ClearMaskCommand
+import regionmask
 from unittest.mock import MagicMock, patch
 from mom6_forge.topo import Topo
 
@@ -67,12 +72,7 @@ def test_generate_mask_from_naturalearth_bad_resolution():
         topo.generate_mask_from_naturalearth(resolution="999")
 
 
-"""Test mask functionality: setting, applying, and depth masking behavior."""
 
-import numpy as np
-import pytest
-import xarray as xr
-from mom6_forge.edit_command import MaskEditCommand, ClearMaskCommand
 
 
 def test_mask_setter_and_getter(get_rect_topo):

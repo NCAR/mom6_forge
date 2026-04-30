@@ -199,8 +199,6 @@ API Reference
 
 - ``topo.generate_mask_from_landfrac_file(...)`` — Generate and apply ocean mask from land fraction data
 - ``topo.send_entire_depth_change_to_tcm(depth)`` — Apply a full depth array update with version control
-- ``topo.edit_depth(indices, values)`` — Edit depth at specific cell indices with version control
-- ``topo.send_entire_depth_change_to_tcm(depth)`` — Apply a complete depth array replacement with version control
 - ``topo.write_topo(file_path)`` — Write bathymetry file (includes both raw depth and masked depth)
 
 **Internal:**

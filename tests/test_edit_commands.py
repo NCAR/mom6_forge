@@ -104,5 +104,13 @@ def test_ClearMaskCommand_init_and_execute(get_rect_topo):
 
     # Clear it
     command = ClearMaskCommand(topo)
+    serialized = command.serialize()
+    reverse_deserialized_command = ClearMaskCommand.reverse_deserialize(serialized)(
+        topo
+    )
     command()
     assert topo._user_mask is None
+    # Test reverse_deserialized command also works
+    reverse_deserialized_command()
+    assert topo._user_mask is not None
+    assert (topo._user_mask == 1).all()
