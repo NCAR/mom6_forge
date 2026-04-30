@@ -839,7 +839,7 @@ class Topo:
             statistic in approved_list
         ), f"Invalid statistic {statistic}, must be one of {approved_list}"
 
-        self.send_entire_depth_change_to_tcm(self._stats[statistic])
+        self.send_entire_depth_change_to_tcm(self._stats[f"D_{statistic}"])
 
     def set_from_dataset(
         self,
