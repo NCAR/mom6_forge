@@ -861,7 +861,7 @@ class Topo:
             Binary ocean mask on the T-grid (1 = ocean, 0 = land),
             dims ``["ny", "nx"]``.
         """
-        stats = self._compute_topo_stats(nx_sub, ny_sub, mask_hmin)
+        stats = self._compute_stats(nx_sub, ny_sub, mask_hmin)
 
         ocean_mask = (stats["OCN_FRAC"].values >= mask_threshold).astype(int)
 
