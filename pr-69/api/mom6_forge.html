@@ -46,6 +46,9 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks.html">Notebooks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../widgets.html">Topo &amp; The Widgets!</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Python API:</span></p>
 <ul class="current">
@@ -409,7 +412,7 @@ For system commands (undo, redo, save, load, reset), the command object handles 
 <span id="mom6-forge-edit-command-module"></span><h2>mom6_forge.edit_command module<a class="headerlink" href="#module-mom6_forge.edit_command" title="Link to this heading"></a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="mom6_forge.edit_command.ClearMaskCommand">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mom6_forge.edit_command.</span></span><span class="sig-name descname"><span class="pre">ClearMaskCommand</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">topo</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">old_mask</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">message</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Clear</span> <span class="pre">Manual</span> <span class="pre">Mask'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.edit_command.ClearMaskCommand" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mom6_forge.edit_command.</span></span><span class="sig-name descname"><span class="pre">ClearMaskCommand</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">topo</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">message</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Clear</span> <span class="pre">Manual</span> <span class="pre">Mask'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.edit_command.ClearMaskCommand" title="Link to this definition"></a></dt>
 <dd><p>Bases: <a class="reference internal" href="#mom6_forge.edit_command.EditCommand" title="mom6_forge.edit_command.EditCommand"><code class="xref py py-class docutils literal notranslate"><span class="pre">EditCommand</span></code></a></p>
 <p>Clears the manual mask, reverting to depth_raw_mask derived mask.</p>
 <dl class="py method">

@@ -22,7 +22,9 @@
       <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
-    <link rel="search" title="Search" href="../search.html" /> 
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Glossary" href="../glossary.html" />
+    <link rel="prev" title="Coarsen an existing MOM6 grid" href="6_coarsen_existing.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -45,9 +47,66 @@
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
-<ul>
+<ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../notebooks.html">Notebooks</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="1_spherical_grid.html">Spherical grid with an idealized bathymetry</a></li>
+<li class="toctree-l2"><a class="reference internal" href="2_equatorial_res.html">Spherical grid with equatorial refinement</a></li>
+<li class="toctree-l2"><a class="reference internal" href="3_custom_bathy.html">Spherical grid with custom bathymetry and ridges</a></li>
+<li class="toctree-l2"><a class="reference internal" href="4_ingest_landmask.html">Applying an existing land fraction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="5_modify_existing.html">Modify existing MOM6 grid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="6_coarsen_existing.html">Coarsen an existing MOM6 grid</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Object Configurators in mom6_forge</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#Set-up-a-custom-regional-CESM-MOM6-domain-using-object-configurators">Set up a custom regional CESM-MOM6 domain using object configurators</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#SECTION-1:-Using-the-Grid-Creator">SECTION 1: Using the Grid Creator</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#1.-Launching-the-Grid-Creator">1. Launching the Grid Creator</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#2.-Grid-Parameter-Controls">2. Grid Parameter Controls</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#3.-Resetting-the-Grid">3. Resetting the Grid</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#4.-Saving-and-Loading-Grids">4. Saving and Loading Grids</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#Saving">Saving</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#Loading">Loading</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#5.-Grid-Library">5. Grid Library</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#6.-Map-Features">6. Map Features</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#Tips">Tips</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#SECTION-2:-Using-the-Topo-Editor">SECTION 2: Using the Topo Editor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#1.-Launching-the-Topo-Editor">1. Launching the Topo Editor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#2.-Interface-Overview">2. Interface Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#3.-Display-Controls">3. Display Controls</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#4.-Editing-Topography">4. Editing Topography</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#Selecting-and-Editing-Cells">Selecting and Editing Cells</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#Basin-Operations">Basin Operations</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#5.-Undo,-Redo,-and-Reset">5. Undo, Redo, and Reset</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#6.-Git-Version-Control">6. Git Version Control</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#Tag">Tag</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#8.-Tips-and-Best-Practices">8. Tips and Best Practices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#9.-Example-Workflow">9. Example Workflow</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#10.-Troubleshooting">10. Troubleshooting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#SECTION-3:-Using-the-VGrid-Creator">SECTION 3: Using the VGrid Creator</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#1.-Launching-the-VGrid-Creator">1. Launching the VGrid Creator</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id1">2. Interface Overview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#3.-Editing-Vertical-Grid-Parameters">3. Editing Vertical Grid Parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#4.-Plot-Panel">4. Plot Panel</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#5.-Saving-and-Loading-VGrids">5. Saving and Loading VGrids</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id2">Saving</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id3">Loading</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#6.-VGrid-Library">6. VGrid Library</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#7.-Tips-and-Best-Practices">7. Tips and Best Practices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#You-have-now-generated-a-regional-CESM-MOM6-domain!">You have now generated a regional CESM-MOM6 domain!</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../widgets.html">Topo &amp; The Widgets!</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Python API:</span></p>
 <ul>
@@ -68,6 +127,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../notebooks.html">Notebooks</a></li>
       <li class="breadcrumb-item active">Object Configurators in mom6_forge</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/notebooks/6_demo_editors.ipynb.txt" rel="nofollow"> View page source</a>
@@ -578,7 +638,10 @@ Adjust the minimum allowed depth for the domain.</p></li>
 
            </div>
           </div>
-          <footer>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="6_coarsen_existing.html" class="btn btn-neutral float-left" title="Coarsen an existing MOM6 grid" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../glossary.html" class="btn btn-neutral float-right" title="Glossary" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
 
   <hr/>
 
