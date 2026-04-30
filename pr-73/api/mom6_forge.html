@@ -1790,6 +1790,19 @@ parameter to “spoon”.</p>
 </dl>
 </dd></dl>
 
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.set_src">
+<span class="sig-name descname"><span class="pre">set_src</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bathymetry_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_coordinate_name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.set_src" title="Link to this definition"></a></dt>
+<dd><p>Set a <code class="xref py py-class docutils literal notranslate"><span class="pre">SourceBathy</span></code>, creating and slicing a new one
+only when the path or coordinate names differ from the current cache.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.src">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">src</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.src" title="Link to this definition"></a></dt>
+<dd><p>Cached SourceBathy object representing the source bathymetry dataset sliced to the topo grid extent. This is set by set_src() when a new source bathymetry is specified, and can be accessed for any cached source dataset.</p>
+</dd></dl>
+
 <dl class="py property">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.supergridmask">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">supergridmask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.supergridmask" title="Link to this definition"></a></dt>
