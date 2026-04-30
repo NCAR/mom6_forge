@@ -36,7 +36,7 @@ def test_active_cells_rect_takes_priority(get_editor):
 def test_mask_single_cell(get_editor):
     get_editor._select_cell(0, 0)
     get_editor.on_mask_change({"new": "Land"})
-    assert get_editor.topo.mask.data[0, 0] == 0
+    assert get_editor.topo.tmask.data[0, 0] == 0
 
 
 def test_mask_no_op_if_same_value(get_editor):
@@ -52,9 +52,9 @@ def test_mask_multi_cell_rect(get_editor):
     """Rectangle selection applies mask to all selected cells."""
     get_editor._selected_cells = [(0, 0), (0, 1), (1, 0)]
     get_editor.on_mask_change({"new": "Land"})
-    assert get_editor.topo.mask.data[0, 0] == 0
-    assert get_editor.topo.mask.data[0, 1] == 0
-    assert get_editor.topo.mask.data[1, 0] == 0
+    assert get_editor.topo.tmask.data[0, 0] == 0
+    assert get_editor.topo.tmask.data[0, 1] == 0
+    assert get_editor.topo.tmask.data[1, 0] == 0
 
 
 def test_mask_no_selection(get_editor):
@@ -109,10 +109,10 @@ def test_redo_depth_change(get_editor):
 
 def test_undo_mask_change(get_editor):
     get_editor._select_cell(0, 0)
-    original = get_editor.topo.mask.data[0, 0]
+    original = get_editor.topo.tmask.data[0, 0]
     get_editor.on_mask_change({"new": "Land"})
     get_editor.undo_last_edit()
-    assert get_editor.topo.mask.data[0, 0] == original
+    assert get_editor.topo.tmask.data[0, 0] == original
 
 
 # --- rect select toggle ---

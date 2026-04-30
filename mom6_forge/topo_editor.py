@@ -374,7 +374,7 @@ class TopoEditor(widgets.HBox):
             )  # For some reason, this needs to be set twice to get the correct minimum bound
             self.cbar.set_label(f"Depth ({self.topo.depth.units})")
         elif mode == "mask":
-            self.im.set_array(self.topo.mask.data)
+            self.im.set_array(self.topo.tmask.data)
             self.im.set_clim((0, 1))
             self.cbar.set_label("Land Mask")
         elif mode == "basinmask":
@@ -444,7 +444,7 @@ class TopoEditor(widgets.HBox):
         if hasattr(self, "_mask_specifier"):
             self._mask_specifier.disabled = False
             self._mask_specifier.value = (
-                "Ocean" if self.topo.mask.data[j, i] == 1 else "Land"
+                "Ocean" if self.topo.tmask.data[j, i] == 1 else "Land"
             )
         if hasattr(self, "_clear_manual_mask_button"):
             if self.topo._manual_mask is not None:
@@ -633,7 +633,7 @@ class TopoEditor(widgets.HBox):
         cells = self.active_cells
         mask_map = {"Land": 0, "Ocean": 1}
         new_val = mask_map[change["new"]]
-        old_values = [self.topo.mask.data[j, i] for j, i in cells]
+        old_values = [self.topo.tmask.data[j, i] for j, i in cells]
 
         if all(v == new_val for v in old_values):
             return
