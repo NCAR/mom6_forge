@@ -38,11 +38,13 @@ class SourceBathy:
         lon_name="lon",
         lat_name="lat",
         elevation_name="elevation",
+        positive_down=False,
     ):
         self.path = Path(path)
         self.lon_name = lon_name
         self.lat_name = lat_name
         self.elevation_name = elevation_name
+        self.positive_down = positive_down  # depth should be positive down (ocean > 0) if True, otherwise positive up (ocean < 0)
         self._da = None  # set by slice_to_domain
         self._topo_stats = None  # set by compute_topo_stats
 
@@ -86,7 +88,8 @@ class SourceBathy:
             ds = ds.sel(
                 {self.lon_name: slice(lon_extent[0] - buf, lon_extent[1] + buf)}
             )
-        self._ds = ds
+        if not self.positive_down:
+            ds[self.elevation_name] = -ds[self.elevation_name]
         self._da = ds[self.elevation_name].load()
         return self
 
@@ -107,7 +110,10 @@ class SourceBathy:
     @property
     def depth(self):
         """2-D depth array, positive-down (ocean > 0), shape (ny_src, nx_src)."""
-        return -self._da.values.astype(float)
+        if self.positive_down:
+            return self._da.values.astype(float)
+        else:
+            return -self._da.values.astype(float)
 
     @property
     def da(self):
