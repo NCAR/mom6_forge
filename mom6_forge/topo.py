@@ -33,7 +33,7 @@ class Topo:
             Minimum water column depth. Columns with shallow depths are to be masked out.
         version_control_dir: str, optional
             Directory in which to store version-controlled bathymetry data. Defaults to
-            "TopoLibrary". Pass None to disable git (equivalent to git=False).
+            "TopoLibrary". Ignored if git is False (version control is no longer used)
         git: bool, optional
             If True (default), initialize a git repository for version control and
             undo/redo support. If False, skip all git and filesystem side-effects;
