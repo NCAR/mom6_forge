@@ -814,6 +814,21 @@ class Topo:
         )
         return src._topo_stats
 
+    def direct_stats_depth(self, statistic):
+        """Set the topo depth to a statistic from compute_topo_stats"""
+        assert statistic in [
+            "D_mean",
+            "D_min",
+            "D_max",
+        ], f"Invalid statistic {statistic}, must be one of OCN_FRAC, D_mean, D_min, D_max, D2_mean"
+        assert (
+            self._src is not None
+        ), "Source bathymetry must be loaded to compute topo stats"
+        assert (
+            self._src._topo_stats is not None
+        ), "Source bathymetry must have topo stats computed, please call _compute_topo_stats first if you have not already"
+        self.send_entire_depth_change_to_tcm(self._src._topo_stats[statistic])
+
     def set_from_dataset(
         self,
         bathymetry_path,
