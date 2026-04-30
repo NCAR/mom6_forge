@@ -61,6 +61,7 @@ class SourceBathy:
         topo : Topo — only ``topo._grid.qlon`` / ``topo._grid.qlat`` are used.
         buf : float — degree buffer around the Q-grid bounding box. Default 0.5.
         """
+        self.topo = topo
         lon_extent = (float(topo._grid.qlon.min()), float(topo._grid.qlon.max()))
         lat_extent = (float(topo._grid.qlat.min()), float(topo._grid.qlat.max()))
         print(
