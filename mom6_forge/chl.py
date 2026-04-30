@@ -46,6 +46,10 @@ def interpolate_and_fill_seawifs(
     """
     if grid.name is None:
         grid.name = "UnknownGridName"
+
+    assert (
+        grid.is_rectangular()
+    ), "This function currently only supports rectangular grids."
     ocn_mask = topo.tmask
     ocn_nj, ocn_ni = ocn_mask.shape
     src_nc = xr.open_dataset(processed_seawifs_path)
@@ -120,8 +124,8 @@ def interpolate_and_fill_seawifs(
 
     # Assign variable data
     chla["CHL_A"].data[:] = chlor_a
-    chla["LON"].data[:] = grid.tlon[0, :]
-    chla["LAT"].data[:] = grid.tlat[:, 0]
+    chla["LON"] = grid.tlon[0, :]
+    chla["LAT"] = grid.tlat[:, 0]
 
     # Write to NetCDF
     chla.to_netcdf(
