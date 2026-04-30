@@ -206,7 +206,7 @@ class TopoEditor(widgets.HBox):
             layout={"width": "80%"},
             style={"description_width": "auto"},
         )
-        self._clear_manual_mask_button = widgets.Button(
+        self._clear_user_mask_button = widgets.Button(
             description="Clear Manual Mask",
             disabled=True,
             button_style="warning",
@@ -292,7 +292,7 @@ class TopoEditor(widgets.HBox):
                 self._selected_cell_label,
                 self._depth_specifier,
                 self._mask_specifier,
-                self._clear_manual_mask_button,
+                self._clear_user_mask_button,
             ]
         )
         self.basin_section = widgets.VBox(
@@ -360,7 +360,7 @@ class TopoEditor(widgets.HBox):
         mode = change["new"]
         self._depth_specifier.layout.display = "flex" if mode == "depth" else "none"
         self._mask_specifier.layout.display = "flex" if mode == "mask" else "none"
-        self._clear_manual_mask_button.layout.display = (
+        self._clear_user_mask_button.layout.display = (
             "flex" if mode == "mask" else "none"
         )
         self.basin_section.layout.display = "flex" if mode == "basinmask" else "none"
@@ -446,11 +446,11 @@ class TopoEditor(widgets.HBox):
             self._mask_specifier.value = (
                 "Ocean" if self.topo.tmask.data[j, i] == 1 else "Land"
             )
-        if hasattr(self, "_clear_manual_mask_button"):
-            if self.topo._manual_mask is not None:
-                self._clear_manual_mask_button.disabled = False
+        if hasattr(self, "_clear_user_mask_button"):
+            if self.topo._user_mask is not None:
+                self._clear_user_mask_button.disabled = False
             else:
-                self._clear_manual_mask_button.disabled = True
+                self._clear_user_mask_button.disabled = True
         if hasattr(self, "_basin_specifier"):
             label = self.topo.basintmask.data[j, i]
             self._basin_specifier.value = f"Basin Label Number: {str(label)}"
@@ -491,7 +491,7 @@ class TopoEditor(widgets.HBox):
 
         # Mask change observer for selected cell
         self._mask_specifier.observe(self.on_mask_change, names="value", type="change")
-        self._clear_manual_mask_button.on_click(self.clear_manual_mask)
+        self._clear_user_mask_button.on_click(self.clear_user_mask)
 
         # Undo/Redo/Reset buttons
         self._undo_button.on_click(self.undo_last_edit)
@@ -597,10 +597,10 @@ class TopoEditor(widgets.HBox):
         self.topo.erase_disconnected_basin(i, j)
         self.update_undo_redo_buttons()
 
-    def clear_manual_mask(self, b):
+    def clear_user_mask(self, b):
         """Clear the manual mask if it exists."""
-        if self.topo._manual_mask is not None:
-            self.topo.clear_manual_mask()
+        if self.topo._user_mask is not None:
+            self.topo.clear_user_mask()
             self.update_undo_redo_buttons()
             self.trigger_refresh()
 
