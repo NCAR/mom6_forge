@@ -55,3 +55,20 @@ def test_compute_topo_stats(get_rect_topo, synthetic_bathy_file):
         stats2 = topo._compute_stats(nx_sub=nx_sub, ny_sub=ny_sub, mask_hmin=0.0)
         # Should be the exact same object (cached)
         assert stats2 is stats
+
+
+def test_direct_stats_depth(get_rect_topo, synthetic_bathy_file):
+    """Test direct_stats_depth method which computes depth stats directly from source bathymetry without sub-sampling."""
+    topo = get_rect_topo
+
+    # Load source bathymetry and slice to topo domain
+    src = SourceBathy(synthetic_bathy_file)
+    src.slice_to_domain(topo, buf=0.5)
+    topo.src = src
+    topo._compute_stats(nx_sub=2, ny_sub=2, mask_hmin=0.0)
+
+    # Call direct_stats_depth
+    topo.direct_stats_depth("mean")
+
+    mask = ~np.isnan(topo.depth.values)
+    assert np.isclose(topo.depth.values[mask], topo._stats["D_mean"].values[mask]).all()

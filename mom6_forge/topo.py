@@ -919,6 +919,22 @@ class Topo:
         print(sep)
         return bool(ratio_median >= CRESSMAN_THRESHOLD)
 
+    def direct_stats_depth(self, statistic):
+        """Set the topo depth to a statistic from compute_topo_stats"""
+
+        assert (
+            self._stats is not None
+        ), "Source bathymetry must have topo stats computed, please call _compute_stats first if you have not already"
+        approved_list = []
+        for key in self._stats:
+            if key.startswith("D_"):
+                approved_list.append(key[2:])
+        assert (
+            statistic in approved_list
+        ), f"Invalid statistic {statistic}, must be one of {approved_list}"
+
+        self.send_entire_depth_change_to_tcm(self._stats[f"D_{statistic}"])
+
     def set_from_dataset(
         self,
         bathymetry_path,

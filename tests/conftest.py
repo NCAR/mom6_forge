@@ -307,14 +307,14 @@ def synthetic_bathy_file():
     lat = np.linspace(5, 12, 70)  # Cover 7-10 with buffer
 
     # Create synthetic elevation data (positive-up, like GEBCO)
-    # Ocean is negative (water), land is positive
-    elevation = np.full((len(lat), len(lon)), -500.0)  # Ocean baseline = 500m deep
+    # Ocean is positive (water), land is negative
+    elevation = np.full((len(lat), len(lon)), 500.0)  # Ocean baseline = 500m deep
 
     # Add synthetic land masses (islands)
     # Create an island around (280, 8.5)
     lon_2d, lat_2d = np.meshgrid(lon, lat)
     island_mask = (lon_2d - 280) ** 2 + (lat_2d - 8.5) ** 2 < 0.5
-    elevation[island_mask] = 200.0  # Synthetic island
+    elevation[island_mask] = -200.0  # Synthetic island
 
     ds = xr.Dataset(
         {
