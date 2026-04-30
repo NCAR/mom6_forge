@@ -1,7 +1,9 @@
 import os
 import numpy as np
 import xarray as xr
+import xesmf as xe
 from datetime import datetime
+from typing import Optional
 from scipy import interpolate
 from scipy.ndimage import label, binary_fill_holes
 from scipy.spatial import cKDTree
@@ -37,9 +39,13 @@ class Topo:
             np.full((grid.ny, grid.nx), np.nan, dtype=float),
             dims=["ny", "nx"],
             attrs={"units": "m"},
-        )  # Initialize depth with NaNs
+        )  # Initialize raw depth with NaNs
+        self._user_mask: Optional[xr.DataArray] = (
+            None  # Binary ocean/land mask (None = no mask applied)
+        )
         self._min_depth = min_depth
         self._src = None  # cached SourceBathy; set by _get_src()
+        self.land_fillval = 0.0  # Depth value for land cells
 
         if version_control_dir is None:
             raise ValueError(
@@ -69,6 +75,30 @@ class Topo:
         # Set up TCM (requires that self.domain_dir exists)
         self.tcm = TopoCommandManager(self, command_registry=COMMAND_REGISTRY)
         self.tcm.execute(initial_command, cmd_type=CommandType.COMMAND)
+
+    def __getitem__(self, slices):
+        """
+        Get a subgrid copy based on the provided slices.
+
+        Parameters
+        ----------
+        slices:
+            A tuple of two slices, e.g., [A:B:C, D:E:F]
+            The first slice A:B:C corresponds to the j-axis (y-axis) and the second
+            slice D:E:F corresponds to the i-axis (x-axis). Examples:
+            topo[0:10, 0:20] or topo[:, 0:20] or topo[0:10, :].
+
+        Returns
+        -------
+        topo: Topo
+            A new Topo object with the same grid but with the depth and grid subsetted according to the provided slices.
+        """
+
+        new_grid = self._grid[slices]
+        new_topo = Topo(new_grid, self._min_depth)
+        if self._depth is not None:
+            new_topo._depth = self._depth[slices]
+        return new_topo
 
     @classmethod
     def from_version_control(cls, folder_path: str | Path):
@@ -130,38 +160,55 @@ class Topo:
         return topo
 
     @property
+    def masked_depth(self):
+        """
+        Computed depth array with masking applied (m). Positive below MSL.
+
+        This is a computed property that applies land/ocean masking on-the-fly. When a user mask is set,
+        returns masked depth: ocean cells enforced to at least min_depth+0.1, land cells set to _land_fillval.
+        When mask is None, derives mask from raw depth (cells > min_depth are ocean).
+
+        Note: Index-based assignment like `topo.masked_depth[j, i] = value` will not persist because
+        this property is computed on-the-fly. To modify depth, use `topo.depth = new_array` or `topo.edit_depth()`.
+        """
+
+        # Enforce minimum depth criteria for ocean cells: if depth ≤ min_depth and mask is ocean, set to min_depth + 0.1 to ensure they are still treated as ocean. If mask is land and depth > min_depth, set to _land_fillval to ensure they are treated as land.
+        masked_depth = xr.where(
+            self.tmask,
+            xr.where(
+                self._depth > self._min_depth,
+                self._depth,
+                self._min_depth + 0.1,
+            ),
+            self._land_fillval,  # Land cells to _land_fillval
+        )
+        return masked_depth
+
+    @property
     def depth(self):
-        """
-        MOM6 grid depth array (m). Positive below MSL.
-        """
         return self._depth
 
     @depth.setter
     def depth(self, depth):
         """
-        Apply a custom bathymetry via a user-defined depth array.
+        Set raw depth array. Preserves existing mask.
 
         Parameters
         ----------
-        depth: np.array
+        depth: np.array or xr.DataArray
             2-D Array of ocean depth (m).
         """
-
-        if np.isscalar(depth):
-            self.set_flat(depth)
-            return
-
-        assert depth.shape == (
-            self._grid.ny,
-            self._grid.nx,
-        ), "Incompatible depth array shape"
-
         if isinstance(depth, xr.DataArray):
             depth = depth.data
         else:
             assert isinstance(
                 depth, np.ndarray
-            ), "depth must be a numpy array or xarray DataArray"
+            ), "depth_raw must be a numpy array or xarray DataArray"
+
+        assert depth.shape == (
+            self._grid.ny,
+            self._grid.nx,
+        ), "Incompatible depth array shape"
 
         self._depth = xr.DataArray(
             depth,
@@ -188,9 +235,92 @@ class Topo:
         self._min_depth = new_min_depth
 
     @property
+    def land_fillval(self):
+        """
+        Depth value assigned to land cells when mask is applied. Default is 0.0 (dry).
+        """
+        return self._land_fillval
+
+    @land_fillval.setter
+    def land_fillval(self, new_land_fillval):
+        assert isinstance(
+            new_land_fillval, (int, float)
+        ), "land_fillval must be a number"
+        assert (
+            new_land_fillval <= self._min_depth
+        ), "land_fillval should be less than or equal to min_depth to ensure land cells are not mistakenly treated as ocean"
+        self._land_fillval = float(new_land_fillval)
+
+    @property
+    def user_mask(self):
+        """
+        Optional binary ocean/land mask. 1 if ocean, 0 if land.
+        When set, the depth property applies masking: ocean cells enforced greater than min_depth+0.1, land cells set to _land_fillval.
+        """
+        return self._user_mask
+
+    @user_mask.setter
+    def user_mask(self, new_mask):
+        """
+        Set the binary ocean/land mask.
+
+        Parameters
+        ----------
+        new_mask: xr.DataArray or np.ndarray or None
+            Binary mask (1=ocean, 0=land) with shape (ny, nx), or None to disable masking.
+        """
+        if new_mask is None:
+            self.clear_user_mask()  # Clear the manual mask if None is passed
+            return
+
+        if isinstance(new_mask, xr.DataArray):
+            new_mask = new_mask.data
+        else:
+            assert isinstance(
+                new_mask, np.ndarray
+            ), "mask must be a numpy array, xarray DataArray, or None"
+
+        assert new_mask.shape == (
+            self._grid.ny,
+            self._grid.nx,
+        ), "Incompatible mask shape"
+
+        all_indices = list(np.ndindex(new_mask.shape))
+        new_values = new_mask.ravel().tolist()
+        old_values = (
+            self.tmask.values.ravel().tolist()
+        )  # effective mask (manual or raw depth mask)
+
+        cmd = MaskEditCommand(
+            self, all_indices, new_values, old_values=old_values, message="Set mask"
+        )
+        self.tcm.execute(cmd, cmd_type=CommandType.COMMAND)
+
+    @property
     def tmask(self):
         """
         Ocean domain mask at T grid. 1 if ocean, 0 if land.
+
+        This is a derived mask computed from the depth property. The computation depends on whether
+        a user mask has been set:
+
+        - If _user_mask is None: Returns a mask derived from raw depth (_depth).
+          Cells with depth > min_depth are marked as ocean (1), otherwise land (0).
+        - If _user_mask is set: Returns a mask set by the user. The depth property will apply this mask to the raw depth, ensuring that ocean cells are at least min_depth+0.1 and land cells are set to 0.
+
+        This design means tmask is always consistent with the current depth state, whether
+        driven by raw bathymetry or by a manually applied mask.
+        """
+
+        if self._user_mask is None:
+            return self._compute_tmask_from_raw_depth()
+        else:
+            return self.user_mask
+
+    def _compute_tmask_from_raw_depth(self):
+        """
+        If no user_mask is calculated, tmask is derived directly from raw depth: ocean (1) where depth > min_depth, else land (0).
+        This is a separate helper to keep the logic clear and maintainable, it is only used if the user mask is not set (which may be the case for many users who just want to set depth and have the mask be automatically derived from it).
         """
         tmask_da = xr.DataArray(
             np.where(self._depth > self._min_depth, 1, 0),
@@ -318,6 +448,12 @@ class Topo:
             ).slice_to_domain(self)
         return self._src
 
+    def clear_user_mask(self):
+        cmd = ClearMaskCommand(
+            self, message="Clear manual mask"
+        )  # Resets back to reading from depth
+        self.tcm.execute(cmd, cmd_type=CommandType.COMMAND)
+
     def point_is_ocean(self, lons, lats):
         """
         Given a list of coordinates, return a list of booleans indicating if the coordinates are in the ocean (True) or land (False)
@@ -338,16 +474,17 @@ class Topo:
     def send_entire_depth_change_to_tcm(self, depth, quietly=False):
         """
         This function takes an entire depth change and adds it through the TopoCommandManager (TCM) or directly if quietly is enabled.
+        Modifies _depth, preserves mask.
         """
         # 1. Generate all affected indices (row-major order)
-        all_indices = list(np.ndindex(self.depth.shape))  # list of (j, i) tuples
+        all_indices = list(np.ndindex(self._depth.shape))  # list of (j, i) tuples
 
         # 2. Flatten the new values to match the indices
         new_values = depth.values.ravel().tolist()
 
-        # 3. Flatten old values if depth exists
+        # 3. Flatten old values from raw depth
         old_values = (
-            self.depth.values.ravel().tolist() if self.depth is not None else None
+            self._depth.values.ravel().tolist() if self._depth is not None else None
         )
 
         # 4. Build command
@@ -359,6 +496,28 @@ class Topo:
             self.tcm.execute(depth_edit_command, cmd_type=CommandType.COMMAND)
         else:
             depth_edit_command()
+
+    def edit_depth(self, indices, values):
+        """
+        Edit depth at specific indices with version control.
+
+        Parameters
+        ----------
+        indices : list of tuples
+            List of (j, i) indices to modify.
+        values : list or array-like
+            New depth values for each index.
+        """
+        # Convert single index to list of indices
+        if isinstance(indices, tuple):
+            indices = [indices]
+
+        # Get old values
+        old_values = [self._depth.values[j, i] for j, i in indices]
+
+        # Create and execute command
+        cmd = DepthEditCommand(self, indices, values, old_values=old_values)
+        self.tcm.execute(cmd, cmd_type=CommandType.COMMAND)
 
     def set_flat(self, D):
         """
@@ -1147,9 +1306,9 @@ class Topo:
         indices = list(zip(affected[0], affected[1]))
         if not indices:
             return
-        old_values = [self.depth.data[jj, ii] for jj, ii in indices]
+        old_values = [self.tmask.data[jj, ii] for jj, ii in indices]
         new_values = [0] * len(indices)
-        cmd = DepthEditCommand(self, indices, new_values, old_values=old_values)
+        cmd = MaskEditCommand(self, indices, new_values, old_values=old_values)
         self.tcm.execute(cmd)
 
     def erase_disconnected_basin(self, i, j):
@@ -1158,9 +1317,9 @@ class Topo:
         indices = list(zip(affected[0], affected[1]))
         if not indices:
             return
-        old_values = [self.depth.data[jj, ii] for jj, ii in indices]
+        old_values = [self.tmask.data[jj, ii] for jj, ii in indices]
         new_values = [0] * len(indices)
-        cmd = DepthEditCommand(self, indices, new_values, old_values=old_values)
+        cmd = MaskEditCommand(self, indices, new_values, old_values=old_values)
         self.tcm.execute(cmd)
 
     def apply_ridge(self, height, width, lon, ilat):
@@ -1197,8 +1356,8 @@ class Topo:
         new_vals = []
         for j in range(ilat[0], ilat[1]):
             affected_indices.extend([(j, i) for i in range(self._grid.nx)])
-            old_vals.extend(self._depth[j, :].values)
-            new_vals.extend((self._depth[j, :] + ridge_height_mapped).values)
+            old_vals.extend(self.depth[j, :].values)
+            new_vals.extend((self.depth[j, :] + ridge_height_mapped).values)
         depth_edit_command = DepthEditCommand(
             self, affected_indices, new_vals, old_values=old_vals
         )
@@ -1210,7 +1369,6 @@ class Topo:
         landfrac_name,
         xcoord_name,
         ycoord_name,
-        depth_fillval=0.0,
         cutoff_frac=0.5,
         method="bilinear",
     ):
@@ -1227,15 +1385,11 @@ class Topo:
             The name of the x coordinate of the landfrac dataset (e.g., "lon").
         ycoord_name : str
             The name of the y coordinate of the landfrac dataset (e.g., "lat").
-        depth_fillval : float
-            The depth value for dry cells.
         cutoff_frac : float
             Cells with landfrac > cutoff_frac are deemed land cells.
         method : str
             Mapping method for determining the ocean mask (lnd -> ocn)
         """
-
-        import xesmf as xe
 
         assert isinstance(landfrac_filepath, str), "landfrac_filepath must be a string"
         assert landfrac_filepath.endswith(
@@ -1256,17 +1410,11 @@ class Topo:
             landfrac_name in ds
         ), f"Couldn't find {ycoord_name} in {landfrac_filepath}"
         assert isinstance(
-            depth_fillval, float
-        ), f"depth_fillval={depth_fillval} must be a float"
-        assert (
-            depth_fillval < self._min_depth
-        ), f"depth_fillval (the depth of dry cells) must be smaller than the minimum depth {self._min_depth}"
-        assert isinstance(
             cutoff_frac, float
         ), f"cutoff_frac={cutoff_frac} must be a float"
         assert (
             0.0 <= cutoff_frac <= 1.0
-        ), f"cutoff_frac={cutoff_frac} must be 0<= and <=1"
+        ), f"cutoff_frac={cutoff_frac} must be between 0 and 1"
 
         valid_methods = [
             "bilinear",
@@ -1287,26 +1435,33 @@ class Topo:
         regridder = xe.Regridder(ds, ds_mapped, method, periodic=self._grid.is_cyclic_x)
         mask_mapped = regridder(ds.landfrac)
 
-        # Build TCM Object - This is not the entire depth change, just the cells to be filled
-        mask = mask_mapped > cutoff_frac  # boolean mask
-        ny, nx = self._depth.shape
+        # Convert land fraction to binary mask (1=ocean, 0=land)
+        binary_mask = (mask_mapped <= cutoff_frac).astype(int)
 
-        affected_indices = []
-        old_vals = []
-        new_vals = []
+        # Use MaskEditCommand for version-controlled mask application
+        # Generate all affected indices
+        all_indices = list(np.ndindex(binary_mask.shape))  # list of (j, i) tuples
+        new_values = binary_mask.values.ravel().tolist()
 
-        for j in range(ny):
-            for i in range(nx):
-
-                if mask[j, i]:
-                    affected_indices.append((j, i))
-                    old_vals.append(float(self._depth[j, i]))  # extract scalar here
-                    new_vals.append(float(depth_fillval))  # and here
-
-        depth_edit_command = DepthEditCommand(
-            self, affected_indices, new_vals, old_values=old_vals
+        # Get old values (current mask or 0 if no mask set)
+        old_mask = self.mask
+        old_values = (
+            old_mask.values.ravel().tolist()
+            if isinstance(old_mask, xr.DataArray)
+            else old_mask.ravel().tolist()
         )
-        self.tcm.execute(depth_edit_command)
+
+        # Build and execute command
+        mask_edit_command = MaskEditCommand(
+            self,
+            all_indices,
+            new_values,
+            old_values=old_values,
+            message="Apply Land Fraction Mask",
+        )
+        self.tcm.execute(mask_edit_command, cmd_type=CommandType.COMMAND)
+
+        # legacy code set the depth of land cells to depth_fillval, but now that is handled in the depth property.
 
     def gen_topo_ds(self, title=None):
         """
@@ -1355,10 +1510,21 @@ class Topo:
             },
         )
 
-        ds["depth"] = xr.DataArray(
-            self._depth.data,
+        # Write raw depth to file
+        ds["depth_raw"] = xr.DataArray(
+            self.depth.data,
             dims=["ny", "nx"],
-            attrs={"long_name": "t-grid cell depth", "units": "m"},
+            attrs={
+                "long_name": "t-grid cell depth (raw, before masking)",
+                "units": "m",
+            },
+        )
+
+        # Write masked depth (from property) to file
+        ds["depth"] = xr.DataArray(
+            self.masked_depth.data,
+            dims=["ny", "nx"],
+            attrs={"long_name": "t-grid cell masked depth", "units": "m"},
         )
 
         return ds
