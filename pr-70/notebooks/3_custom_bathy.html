@@ -22,7 +22,9 @@
       <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
-    <link rel="search" title="Search" href="../search.html" /> 
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Applying an existing land fraction" href="4_ingest_landmask.html" />
+    <link rel="prev" title="Spherical grid with equatorial refinement" href="2_equatorial_res.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -45,9 +47,32 @@
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
-<ul>
+<ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../notebooks.html">Notebooks</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="1_spherical_grid.html">Spherical grid with an idealized bathymetry</a></li>
+<li class="toctree-l2"><a class="reference internal" href="2_equatorial_res.html">Spherical grid with equatorial refinement</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Spherical grid with custom bathymetry and ridges</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#1.-Import-Modules">1. Import Modules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#2.-Create-a-horizontal-MOM6-grid">2. Create a horizontal MOM6 grid</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#3.-Configure-the-bathymetry">3. Configure the bathymetry</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#Define-a-custom-bathymetry"><em>Define a custom bathymetry</em></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#Apply-ridges"><em>Apply ridges</em></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#Plot-the-ocean-mask:"><em>Plot the ocean mask:</em></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#4.-Save-the-grid-and-bathymetry-files">4. Save the grid and bathymetry files</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="4_ingest_landmask.html">Applying an existing land fraction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="5_modify_existing.html">Modify existing MOM6 grid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="6_coarsen_existing.html">Coarsen an existing MOM6 grid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="6_demo_editors.html">Object Configurators in mom6_forge</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../widgets.html">Topo &amp; The Widgets!</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Python API:</span></p>
 <ul>
@@ -68,6 +93,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../notebooks.html">Notebooks</a></li>
       <li class="breadcrumb-item active">Spherical grid with custom bathymetry and ridges</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../_sources/notebooks/3_custom_bathy.ipynb.txt" rel="nofollow"> View page source</a>
@@ -275,7 +301,10 @@
 
            </div>
           </div>
-          <footer>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="2_equatorial_res.html" class="btn btn-neutral float-left" title="Spherical grid with equatorial refinement" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="4_ingest_landmask.html" class="btn btn-neutral float-right" title="Applying an existing land fraction" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
 
   <hr/>
 
