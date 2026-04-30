@@ -44,7 +44,7 @@ class Topo:
             None  # Binary ocean/land mask (None = no mask applied)
         )
         self._min_depth = min_depth
-        self._src = None  # cached SourceBathy; set by _get_src()
+        self._src = None  # cached SourceBathy; set by _set_src()
         self.land_fillval = 0.0  # Depth value for land cells
 
         if version_control_dir is None:
@@ -183,6 +183,17 @@ class Topo:
             self._land_fillval,  # Land cells to _land_fillval
         )
         return masked_depth
+
+    @property
+    def src(self):
+        """
+        Cached SourceBathy object representing the source bathymetry dataset sliced to the topo grid extent. This is set by set_src() when a new source bathymetry is specified, and can be accessed for any cached source dataset.
+        """
+        return self._src
+
+    @src.setter
+    def src(self, new_src):
+        self._src = new_src
 
     @property
     def depth(self):
@@ -423,30 +434,30 @@ class Topo:
         supergridmask[1::2, 1::2] = self.tmask.values
         return supergridmask
 
-    def _get_src(
+    def set_src(
         self,
         bathymetry_path,
         longitude_coordinate_name,
         latitude_coordinate_name,
         vertical_coordinate_name,
     ):
-        """Return a cached :class:`SourceBathy`, creating and slicing a new one
+        """Set a :class:`SourceBathy`, creating and slicing a new one
         only when the path or coordinate names differ from the current cache."""
         path = Path(bathymetry_path)
         if (
-            self._src is None
-            or self._src.path != path
-            or self._src.lon_name != longitude_coordinate_name
-            or self._src.lat_name != latitude_coordinate_name
-            or self._src.elevation_name != vertical_coordinate_name
+            self.src is None
+            or self.src.path != path
+            or self.src.lon_name != longitude_coordinate_name
+            or self.src.lat_name != latitude_coordinate_name
+            or self.src.elevation_name != vertical_coordinate_name
         ):
-            self._src = SourceBathy(
+            self.src = SourceBathy(
                 path,
                 longitude_coordinate_name,
                 latitude_coordinate_name,
                 vertical_coordinate_name,
             ).slice_to_domain(self)
-        return self._src
+        return self.src
 
     def clear_user_mask(self):
         cmd = ClearMaskCommand(
@@ -730,10 +741,10 @@ class Topo:
         # Save to object (Build TCM Object)
         self.send_entire_depth_change_to_tcm(new_values)
 
-    def _compute_topo_stats(self, nx_sub, ny_sub, mask_hmin):
+    def _compute_stats(self, nx_sub, ny_sub, mask_hmin):
         """Compute per-cell depth statistics by uniform sub-sampling.
 
-        Results are cached on ``src._topo_stats`` so a second call with the
+        Results are cached on ``stats`` so a second call with the
         same source file returns immediately without recomputation.
         (Originally created by Frank Bryan in Fortran for NCAR/tx2_3, reimplemented in Python)
 
@@ -748,11 +759,11 @@ class Topo:
         xr.Dataset  —  ``OCN_FRAC``, ``D_mean``, ``D_min``, ``D_max``, ``D2_mean``.
         """
         assert (
-            self._src is not None
+            self.src is not None
         ), "Source bathymetry must be loaded to compute topo stats"
-        src = self._src
-        if src._topo_stats is not None:
-            return src._topo_stats
+        src = self.src
+        if self._stats is not None:
+            return self._stats
 
         # Compute subsampling factor and generate sub-point grid
         ds = regrid_with_subsampling(
@@ -777,7 +788,7 @@ class Topo:
             D2_mean = np.nanmean(depth_ocean**2, axis=(-2, -1))
 
         dims = ["ny", "nx"]
-        src._topo_stats = xr.Dataset(
+        self._stats = xr.Dataset(
             {
                 "OCN_FRAC": xr.DataArray(
                     ocn_frac,
@@ -812,7 +823,7 @@ class Topo:
                 ),
             }
         )
-        return src._topo_stats
+        return self._stats
 
     def direct_stats_depth(self, statistic):
         """Set the topo depth to a statistic from compute_topo_stats"""
