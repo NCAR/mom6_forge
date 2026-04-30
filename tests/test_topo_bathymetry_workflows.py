@@ -85,7 +85,7 @@ def test_compute_topo_stats(small_topo, src_bathy):
     # Test with different sub-sampling densities
     for nx_sub, ny_sub in [(2, 2), (3, 3)]:
         # Call _compute_topo_stats
-        stats = topo._compute_topo_stats(nx_sub=nx_sub, ny_sub=ny_sub, mask_hmin=0.0)
+        stats = topo._compute_stats(nx_sub=nx_sub, ny_sub=ny_sub, mask_hmin=0.0)
 
         # Verify output is a Dataset with expected variables
         assert isinstance(stats, xr.Dataset)
@@ -115,6 +115,6 @@ def test_compute_topo_stats(small_topo, src_bathy):
         ).all()
 
         # Verify caching: second call should return cached result
-        stats2 = topo._compute_topo_stats(nx_sub=nx_sub, ny_sub=ny_sub, mask_hmin=0.0)
+        stats2 = topo._compute_stats(nx_sub=nx_sub, ny_sub=ny_sub, mask_hmin=0.0)
         # Should be the exact same object (cached)
         assert stats2 is stats
