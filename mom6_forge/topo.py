@@ -53,10 +53,6 @@ class Topo:
         self._min_depth = min_depth
         self.land_fillval = 0.0  # Depth value for land cells
 
-        # version_control_dir=None is a legacy way to express git=False
-        if version_control_dir is None:
-            git = False
-
         if git:
             self.version_control = True
 
@@ -65,7 +61,9 @@ class Topo:
 
             # Create the subfolder for this specific bathymetry
             self.domain_dir = Path(get_domain_dir(grid, base_dir=version_control_dir))
-            self.domain_dir.mkdir(exist_ok=True)  # This folder should not already exist.
+            self.domain_dir.mkdir(
+                exist_ok=True
+            )  # This folder should not already exist.
 
             # Save the grid info there (there can only be 1 grid per bathymetry)
             self.grid_file_path = self.domain_dir / "grid.nc"
@@ -1250,7 +1248,7 @@ class Topo:
             self.tcm.execute(cmd)
         else:
             cmd()
-    
+
     def erase_disconnected_basin(self, i, j):
         label = self.basintmask.data[j, i]
         affected = np.where(self.basintmask.data != label)
@@ -1410,7 +1408,6 @@ class Topo:
             self.tcm.execute(mask_edit_command, cmd_type=CommandType.COMMAND)
         else:
             mask_edit_command()
-       
 
         # legacy code set the depth of land cells to depth_fillval, but now that is handled in the depth property.
 

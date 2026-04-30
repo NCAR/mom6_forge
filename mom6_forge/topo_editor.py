@@ -31,7 +31,10 @@ class TopoEditor(widgets.HBox):
 
     def apply_edit(self, cmd):
         """Apply an edit command, update the UI, and autosave the working state."""
-        self.topo.tcm.execute(cmd)
+        if self.topo.tcm is not None: # If git is off
+            self.topo.tcm.execute(cmd)
+        else:
+            cmd()
         self.trigger_refresh()
 
     def undo_last_edit(self, b=None):
