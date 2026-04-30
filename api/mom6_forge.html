@@ -67,8 +67,10 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#module-mom6_forge.edit_command">mom6_forge.edit_command module</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.edit_command.ClearMaskCommand"><code class="docutils literal notranslate"><span class="pre">ClearMaskCommand</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.edit_command.DepthEditCommand"><code class="docutils literal notranslate"><span class="pre">DepthEditCommand</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.edit_command.EditCommand"><code class="docutils literal notranslate"><span class="pre">EditCommand</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.edit_command.MaskEditCommand"><code class="docutils literal notranslate"><span class="pre">MaskEditCommand</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.edit_command.MinDepthEditCommand"><code class="docutils literal notranslate"><span class="pre">MinDepthEditCommand</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.edit_command.register_command"><code class="docutils literal notranslate"><span class="pre">register_command()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.edit_command.to_native"><code class="docutils literal notranslate"><span class="pre">to_native()</span></code></a></li>
@@ -409,6 +411,38 @@ For system commands (undo, redo, save, load, reset), the command object handles 
 <section id="module-mom6_forge.edit_command">
 <span id="mom6-forge-edit-command-module"></span><h2>mom6_forge.edit_command module<a class="headerlink" href="#module-mom6_forge.edit_command" title="Link to this heading"></a></h2>
 <dl class="py class">
+<dt class="sig sig-object py" id="mom6_forge.edit_command.ClearMaskCommand">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mom6_forge.edit_command.</span></span><span class="sig-name descname"><span class="pre">ClearMaskCommand</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">topo</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">message</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Clear</span> <span class="pre">Manual</span> <span class="pre">Mask'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.edit_command.ClearMaskCommand" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#mom6_forge.edit_command.EditCommand" title="mom6_forge.edit_command.EditCommand"><code class="xref py py-class docutils literal notranslate"><span class="pre">EditCommand</span></code></a></p>
+<p>Clears the manual mask, reverting to depth_raw_mask derived mask.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.edit_command.ClearMaskCommand.deserialize">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">deserialize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.edit_command.ClearMaskCommand.deserialize" title="Link to this definition"></a></dt>
+<dd><p>Deserialize the command from a dictionary format.</p>
+<p>Parameters: Dictionary containing serialized command data.
+Returns an instance of the command class.</p>
+<p>Notes: Derived classes should override this method to reconstruct their specific attributes.
+The input dictionary should match the output of the corresponding serialize method.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.edit_command.ClearMaskCommand.reverse_deserialize">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">reverse_deserialize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.edit_command.ClearMaskCommand.reverse_deserialize" title="Link to this definition"></a></dt>
+<dd><p>Undo a clear by restoring the old mask via MaskEditCommand.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.edit_command.ClearMaskCommand.serialize">
+<span class="sig-name descname"><span class="pre">serialize</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.edit_command.ClearMaskCommand.serialize" title="Link to this definition"></a></dt>
+<dd><p>Serialize the command to a dictionary format suitable for JSON encoding.</p>
+<p>Returns a dictionary with the command type and necessary data.</p>
+<p>Notes: Derived classes should override this method to include their specific attributes.
+Output should be compatible with corresponding deserialize method.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
 <dt class="sig sig-object py" id="mom6_forge.edit_command.DepthEditCommand">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mom6_forge.edit_command.</span></span><span class="sig-name descname"><span class="pre">DepthEditCommand</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">topo</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">affected_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">new_values</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">old_values</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">message</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Depth</span> <span class="pre">Edit'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.edit_command.DepthEditCommand" title="Link to this definition"></a></dt>
 <dd><p>Bases: <a class="reference internal" href="#mom6_forge.edit_command.EditCommand" title="mom6_forge.edit_command.EditCommand"><code class="xref py py-class docutils literal notranslate"><span class="pre">EditCommand</span></code></a></p>
@@ -469,6 +503,41 @@ Returns an instance of the command class configured for undoing the original act
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.edit_command.EditCommand.serialize">
 <span class="property"><span class="k"><span class="pre">abstractmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">serialize</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="headerlink" href="#mom6_forge.edit_command.EditCommand.serialize" title="Link to this definition"></a></dt>
+<dd><p>Serialize the command to a dictionary format suitable for JSON encoding.</p>
+<p>Returns a dictionary with the command type and necessary data.</p>
+<p>Notes: Derived classes should override this method to include their specific attributes.
+Output should be compatible with corresponding deserialize method.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mom6_forge.edit_command.MaskEditCommand">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mom6_forge.edit_command.</span></span><span class="sig-name descname"><span class="pre">MaskEditCommand</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">topo</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">affected_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">new_values</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">old_values</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">message</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Mask</span> <span class="pre">Edit'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.edit_command.MaskEditCommand" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#mom6_forge.edit_command.EditCommand" title="mom6_forge.edit_command.EditCommand"><code class="xref py py-class docutils literal notranslate"><span class="pre">EditCommand</span></code></a></p>
+<p>Define any edit that affects one or more elements of the binary ocean/land mask array</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.edit_command.MaskEditCommand.deserialize">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">deserialize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.edit_command.MaskEditCommand.deserialize" title="Link to this definition"></a></dt>
+<dd><p>Deserialize the command from a dictionary format.</p>
+<p>Parameters: Dictionary containing serialized command data.
+Returns an instance of the command class.</p>
+<p>Notes: Derived classes should override this method to reconstruct their specific attributes.
+The input dictionary should match the output of the corresponding serialize method.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.edit_command.MaskEditCommand.reverse_deserialize">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">reverse_deserialize</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.edit_command.MaskEditCommand.reverse_deserialize" title="Link to this definition"></a></dt>
+<dd><p>Deserialize a command for undoing purposes.</p>
+<p>This method creates a command instance that can revert the changes made by the original command.</p>
+<p>Parameters: Dictionary containing serialized command data.
+Returns an instance of the command class configured for undoing the original action.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.edit_command.MaskEditCommand.serialize">
+<span class="sig-name descname"><span class="pre">serialize</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.edit_command.MaskEditCommand.serialize" title="Link to this definition"></a></dt>
 <dd><p>Serialize the command to a dictionary format suitable for JSON encoding.</p>
 <p>Returns a dictionary with the command type and necessary data.</p>
 <p>Notes: Derived classes should override this method to include their specific attributes.
@@ -1367,7 +1436,7 @@ geographical coordinates will be used as axes. Default is False.</p></li>
 </dl>
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.apply_land_frac">
-<span class="sig-name descname"><span class="pre">apply_land_frac</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">landfrac_filepath</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">landfrac_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xcoord_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ycoord_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">depth_fillval</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff_frac</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bilinear'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.apply_land_frac" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">apply_land_frac</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">landfrac_filepath</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">landfrac_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xcoord_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ycoord_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff_frac</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bilinear'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.apply_land_frac" title="Link to this definition"></a></dt>
 <dd><p>Given a dataset containing land fraction, generate and apply ocean mask.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1376,7 +1445,6 @@ geographical coordinates will be used as axes. Default is False.</p></li>
 <li><p><strong>landfrac_name</strong> (<em>str</em>) – The field name corresponding to the land fraction  (e.g., “landfrac”).</p></li>
 <li><p><strong>xcoord_name</strong> (<em>str</em>) – The name of the x coordinate of the landfrac dataset (e.g., “lon”).</p></li>
 <li><p><strong>ycoord_name</strong> (<em>str</em>) – The name of the y coordinate of the landfrac dataset (e.g., “lat”).</p></li>
-<li><p><strong>depth_fillval</strong> (<em>float</em>) – The depth value for dry cells.</p></li>
 <li><p><strong>cutoff_frac</strong> (<em>float</em>) – Cells with landfrac &gt; cutoff_frac are deemed land cells.</p></li>
 <li><p><strong>method</strong> (<em>str</em>) – Mapping method for determining the ocean mask (lnd -&gt; ocn)</p></li>
 </ul>
@@ -1405,6 +1473,11 @@ geographical coordinates will be used as axes. Default is False.</p></li>
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">basintmask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.basintmask" title="Link to this definition"></a></dt>
 <dd><p>Ocean domain mask at T grid. Seperate number for each connected water cell, 0 if land.</p>
 </dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.clear_user_mask">
+<span class="sig-name descname"><span class="pre">clear_user_mask</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.clear_user_mask" title="Link to this definition"></a></dt>
+<dd></dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.config_dataset">
@@ -1439,7 +1512,20 @@ The str or Path the write to file should write to. Defaults to the directory the
 <dl class="py property">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.depth">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">depth</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.depth" title="Link to this definition"></a></dt>
-<dd><p>MOM6 grid depth array (m). Positive below MSL.</p>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.edit_depth">
+<span class="sig-name descname"><span class="pre">edit_depth</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">values</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.edit_depth" title="Link to this definition"></a></dt>
+<dd><p>Edit depth at specific indices with version control.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>indices</strong> (<em>list</em><em> of </em><em>tuples</em>) – List of (j, i) indices to modify.</p></li>
+<li><p><strong>values</strong> (<em>list</em><em> or </em><em>array-like</em>) – New depth values for each index.</p></li>
+</ul>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
@@ -1491,6 +1577,23 @@ The str or Path the write to file should write to. Defaults to the directory the
 </dd></dl>
 
 <dl class="py property">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.land_fillval">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">land_fillval</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.land_fillval" title="Link to this definition"></a></dt>
+<dd><p>Depth value assigned to land cells when mask is applied. Default is 0.0 (dry).</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.masked_depth">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">masked_depth</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.masked_depth" title="Link to this definition"></a></dt>
+<dd><p>Computed depth array with masking applied (m). Positive below MSL.</p>
+<p>This is a computed property that applies land/ocean masking on-the-fly. When a user mask is set,
+returns masked depth: ocean cells enforced to at least min_depth+0.1, land cells set to _land_fillval.
+When mask is None, derives mask from raw depth (cells &gt; min_depth are ocean).</p>
+<p>Note: Index-based assignment like <cite>topo.masked_depth[j, i] = value</cite> will not persist because
+this property is computed on-the-fly. To modify depth, use <cite>topo.depth = new_array</cite> or <cite>topo.edit_depth()</cite>.</p>
+</dd></dl>
+
+<dl class="py property">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.max_depth">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">max_depth</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.max_depth" title="Link to this definition"></a></dt>
 <dd><p>Maximum water column depth.</p>
@@ -1528,7 +1631,8 @@ The str or Path the write to file should write to. Defaults to the directory the
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.send_entire_depth_change_to_tcm">
 <span class="sig-name descname"><span class="pre">send_entire_depth_change_to_tcm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">depth</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quietly</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.send_entire_depth_change_to_tcm" title="Link to this definition"></a></dt>
-<dd><p>This function takes an entire depth change and adds it through the TopoCommandManager (TCM) or directly if quietly is enabled.</p>
+<dd><p>This function takes an entire depth change and adds it through the TopoCommandManager (TCM) or directly if quietly is enabled.
+Modifies _depth, preserves mask.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -1657,12 +1761,28 @@ that was created by <code class="xref py py-func docutils literal notranslate"><
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.tmask">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">tmask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.tmask" title="Link to this definition"></a></dt>
 <dd><p>Ocean domain mask at T grid. 1 if ocean, 0 if land.</p>
+<p>This is a derived mask computed from the depth property. The computation depends on whether
+a user mask has been set:</p>
+<ul class="simple">
+<li><p>If _user_mask is None: Returns a mask derived from raw depth (_depth).
+Cells with depth &gt; min_depth are marked as ocean (1), otherwise land (0).</p></li>
+<li><p>If _user_mask is set: Returns a mask set by the user. The depth property will apply this mask to the raw depth, ensuring that ocean cells are at least min_depth+0.1 and land cells are set to 0.</p></li>
+</ul>
+<p>This design means tmask is always consistent with the current depth state, whether
+driven by raw bathymetry or by a manually applied mask.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.umask">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">umask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.umask" title="Link to this definition"></a></dt>
 <dd><p>Ocean domain mask on U grid. 1 if ocean, 0 if land.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.user_mask">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">user_mask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.user_mask" title="Link to this definition"></a></dt>
+<dd><p>Optional binary ocean/land mask. 1 if ocean, 0 if land.
+When set, the depth property applies masking: ocean cells enforced greater than min_depth+0.1, land cells set to _land_fillval.</p>
 </dd></dl>
 
 <dl class="py property">
