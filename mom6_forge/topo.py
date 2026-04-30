@@ -44,7 +44,7 @@ class Topo:
             None  # Binary ocean/land mask (None = no mask applied)
         )
         self._min_depth = min_depth
-        self._src = None  # cached SourceBathy; set by _get_src()
+        self._src = None  # cached SourceBathy; set by _set_src()
         self.land_fillval = 0.0  # Depth value for land cells
 
         if version_control_dir is None:
@@ -183,6 +183,17 @@ class Topo:
             self._land_fillval,  # Land cells to _land_fillval
         )
         return masked_depth
+
+    @property
+    def src(self):
+        """
+        Cached SourceBathy object representing the source bathymetry dataset sliced to the topo grid extent. This is set by set_src() when a new source bathymetry is specified, and can be accessed for any cached source dataset.
+        """
+        return self._src
+
+    @src.setter
+    def src(self, new_src):
+        self._src = new_src
 
     @property
     def depth(self):
@@ -423,14 +434,14 @@ class Topo:
         supergridmask[1::2, 1::2] = self.tmask.values
         return supergridmask
 
-    def _get_src(
+    def set_src(
         self,
         bathymetry_path,
         longitude_coordinate_name,
         latitude_coordinate_name,
         vertical_coordinate_name,
     ):
-        """Return a cached :class:`SourceBathy`, creating and slicing a new one
+        """Set a :class:`SourceBathy`, creating and slicing a new one
         only when the path or coordinate names differ from the current cache."""
         path = Path(bathymetry_path)
         if (
@@ -440,13 +451,13 @@ class Topo:
             or self._src.lat_name != latitude_coordinate_name
             or self._src.elevation_name != vertical_coordinate_name
         ):
-            self._src = SourceBathy(
+            self.src = SourceBathy(
                 path,
                 longitude_coordinate_name,
                 latitude_coordinate_name,
                 vertical_coordinate_name,
             ).slice_to_domain(self)
-        return self._src
+        return self.src
 
     def clear_user_mask(self):
         cmd = ClearMaskCommand(
