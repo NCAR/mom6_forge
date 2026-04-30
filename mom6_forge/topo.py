@@ -445,11 +445,11 @@ class Topo:
         only when the path or coordinate names differ from the current cache."""
         path = Path(bathymetry_path)
         if (
-            self._src is None
-            or self._src.path != path
-            or self._src.lon_name != longitude_coordinate_name
-            or self._src.lat_name != latitude_coordinate_name
-            or self._src.elevation_name != vertical_coordinate_name
+            self.src is None
+            or self.src.path != path
+            or self.src.lon_name != longitude_coordinate_name
+            or self.src.lat_name != latitude_coordinate_name
+            or self.src.elevation_name != vertical_coordinate_name
         ):
             self.src = SourceBathy(
                 path,
