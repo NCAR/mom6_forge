@@ -65,6 +65,8 @@ def test_generate_mask_from_naturalearth_bad_resolution():
     topo._grid = MagicMock()
     with pytest.raises(AssertionError, match="has no resolution"):
         topo.generate_mask_from_naturalearth(resolution="999")
+
+
 """Test mask functionality: setting, applying, and depth masking behavior."""
 
 import numpy as np
