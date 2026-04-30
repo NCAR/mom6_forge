@@ -1,0 +1,412 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>mom6_forge &mdash; mom6_forge 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=2709fde1"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="mom6_forge package" href="mom6_forge.html" />
+    <link rel="prev" title="Topo &amp; The Widgets!" href="../widgets.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            mom6_forge
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks.html">Notebooks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../widgets.html">Topo &amp; The Widgets!</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Python API:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">mom6_forge</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="mom6_forge.html">mom6_forge package</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">mom6_forge</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">mom6_forge</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/api/modules.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="mom6-forge">
+<h1>mom6_forge<a class="headerlink" href="#mom6-forge" title="Link to this heading"></a></h1>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="mom6_forge.html">mom6_forge package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#module-mom6_forge.chl">mom6_forge.chl module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.chl.gen_chl_empty_dataset"><code class="docutils literal notranslate"><span class="pre">gen_chl_empty_dataset()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.chl.interpolate_and_fill_seawifs"><code class="docutils literal notranslate"><span class="pre">interpolate_and_fill_seawifs()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#module-mom6_forge.command_manager">mom6_forge.command_manager module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandManager"><code class="docutils literal notranslate"><span class="pre">CommandManager</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandManager.add_to_history"><code class="docutils literal notranslate"><span class="pre">CommandManager.add_to_history()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandManager.commit"><code class="docutils literal notranslate"><span class="pre">CommandManager.commit()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandManager.create_branch"><code class="docutils literal notranslate"><span class="pre">CommandManager.create_branch()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandManager.execute"><code class="docutils literal notranslate"><span class="pre">CommandManager.execute()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandManager.get_current_branch"><code class="docutils literal notranslate"><span class="pre">CommandManager.get_current_branch()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandManager.get_tag_names"><code class="docutils literal notranslate"><span class="pre">CommandManager.get_tag_names()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandManager.list_branches"><code class="docutils literal notranslate"><span class="pre">CommandManager.list_branches()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandManager.load_history"><code class="docutils literal notranslate"><span class="pre">CommandManager.load_history()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandManager.parse_commit_message"><code class="docutils literal notranslate"><span class="pre">CommandManager.parse_commit_message()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandManager.redo"><code class="docutils literal notranslate"><span class="pre">CommandManager.redo()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandManager.touch_history"><code class="docutils literal notranslate"><span class="pre">CommandManager.touch_history()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandManager.undo"><code class="docutils literal notranslate"><span class="pre">CommandManager.undo()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandManager.write_history"><code class="docutils literal notranslate"><span class="pre">CommandManager.write_history()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandType"><code class="docutils literal notranslate"><span class="pre">CommandType</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandType.COMMAND"><code class="docutils literal notranslate"><span class="pre">CommandType.COMMAND</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandType.INITIAL"><code class="docutils literal notranslate"><span class="pre">CommandType.INITIAL</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandType.REDO"><code class="docutils literal notranslate"><span class="pre">CommandType.REDO</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandType.UNDO"><code class="docutils literal notranslate"><span class="pre">CommandType.UNDO</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.TopoCommandManager"><code class="docutils literal notranslate"><span class="pre">TopoCommandManager</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.TopoCommandManager.checkout"><code class="docutils literal notranslate"><span class="pre">TopoCommandManager.checkout()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.TopoCommandManager.execute"><code class="docutils literal notranslate"><span class="pre">TopoCommandManager.execute()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.TopoCommandManager.reapply_changes"><code class="docutils literal notranslate"><span class="pre">TopoCommandManager.reapply_changes()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.TopoCommandManager.redo"><code class="docutils literal notranslate"><span class="pre">TopoCommandManager.redo()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.TopoCommandManager.reset"><code class="docutils literal notranslate"><span class="pre">TopoCommandManager.reset()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.TopoCommandManager.save"><code class="docutils literal notranslate"><span class="pre">TopoCommandManager.save()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.TopoCommandManager.tag"><code class="docutils literal notranslate"><span class="pre">TopoCommandManager.tag()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.TopoCommandManager.undo"><code class="docutils literal notranslate"><span class="pre">TopoCommandManager.undo()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#module-mom6_forge.edit_command">mom6_forge.edit_command module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.ClearMaskCommand"><code class="docutils literal notranslate"><span class="pre">ClearMaskCommand</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.ClearMaskCommand.deserialize"><code class="docutils literal notranslate"><span class="pre">ClearMaskCommand.deserialize()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.ClearMaskCommand.reverse_deserialize"><code class="docutils literal notranslate"><span class="pre">ClearMaskCommand.reverse_deserialize()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.ClearMaskCommand.serialize"><code class="docutils literal notranslate"><span class="pre">ClearMaskCommand.serialize()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.DepthEditCommand"><code class="docutils literal notranslate"><span class="pre">DepthEditCommand</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.DepthEditCommand.deserialize"><code class="docutils literal notranslate"><span class="pre">DepthEditCommand.deserialize()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.DepthEditCommand.reverse_deserialize"><code class="docutils literal notranslate"><span class="pre">DepthEditCommand.reverse_deserialize()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.DepthEditCommand.serialize"><code class="docutils literal notranslate"><span class="pre">DepthEditCommand.serialize()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.EditCommand"><code class="docutils literal notranslate"><span class="pre">EditCommand</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.EditCommand.deserialize"><code class="docutils literal notranslate"><span class="pre">EditCommand.deserialize()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.EditCommand.reverse_deserialize"><code class="docutils literal notranslate"><span class="pre">EditCommand.reverse_deserialize()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.EditCommand.serialize"><code class="docutils literal notranslate"><span class="pre">EditCommand.serialize()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.MaskEditCommand"><code class="docutils literal notranslate"><span class="pre">MaskEditCommand</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.MaskEditCommand.deserialize"><code class="docutils literal notranslate"><span class="pre">MaskEditCommand.deserialize()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.MaskEditCommand.reverse_deserialize"><code class="docutils literal notranslate"><span class="pre">MaskEditCommand.reverse_deserialize()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.MaskEditCommand.serialize"><code class="docutils literal notranslate"><span class="pre">MaskEditCommand.serialize()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.MinDepthEditCommand"><code class="docutils literal notranslate"><span class="pre">MinDepthEditCommand</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.MinDepthEditCommand.deserialize"><code class="docutils literal notranslate"><span class="pre">MinDepthEditCommand.deserialize()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.MinDepthEditCommand.reverse_deserialize"><code class="docutils literal notranslate"><span class="pre">MinDepthEditCommand.reverse_deserialize()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.MinDepthEditCommand.serialize"><code class="docutils literal notranslate"><span class="pre">MinDepthEditCommand.serialize()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.register_command"><code class="docutils literal notranslate"><span class="pre">register_command()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.to_native"><code class="docutils literal notranslate"><span class="pre">to_native()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.edit_command.to_native_tuple"><code class="docutils literal notranslate"><span class="pre">to_native_tuple()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#module-mom6_forge.git_utils">mom6_forge.git_utils module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.git_utils.get_domain_dir"><code class="docutils literal notranslate"><span class="pre">get_domain_dir()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.git_utils.get_repo"><code class="docutils literal notranslate"><span class="pre">get_repo()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#module-mom6_forge.grid">mom6_forge.grid module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid"><code class="docutils literal notranslate"><span class="pre">Grid</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.tlon"><code class="docutils literal notranslate"><span class="pre">Grid.tlon</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.tlat"><code class="docutils literal notranslate"><span class="pre">Grid.tlat</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.ulon"><code class="docutils literal notranslate"><span class="pre">Grid.ulon</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.ulat"><code class="docutils literal notranslate"><span class="pre">Grid.ulat</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.vlon"><code class="docutils literal notranslate"><span class="pre">Grid.vlon</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.vlat"><code class="docutils literal notranslate"><span class="pre">Grid.vlat</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.qlon"><code class="docutils literal notranslate"><span class="pre">Grid.qlon</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.qlat"><code class="docutils literal notranslate"><span class="pre">Grid.qlat</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.dxt"><code class="docutils literal notranslate"><span class="pre">Grid.dxt</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.dyt"><code class="docutils literal notranslate"><span class="pre">Grid.dyt</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.dxCv"><code class="docutils literal notranslate"><span class="pre">Grid.dxCv</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.dyCu"><code class="docutils literal notranslate"><span class="pre">Grid.dyCu</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.dxCu"><code class="docutils literal notranslate"><span class="pre">Grid.dxCu</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.dyCv"><code class="docutils literal notranslate"><span class="pre">Grid.dyCv</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.angle"><code class="docutils literal notranslate"><span class="pre">Grid.angle</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.angle_q"><code class="docutils literal notranslate"><span class="pre">Grid.angle_q</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.tarea"><code class="docutils literal notranslate"><span class="pre">Grid.tarea</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.check_supergrid"><code class="docutils literal notranslate"><span class="pre">Grid.check_supergrid()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.from_supergrid"><code class="docutils literal notranslate"><span class="pre">Grid.from_supergrid()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.from_supergrid_ds"><code class="docutils literal notranslate"><span class="pre">Grid.from_supergrid_ds()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.get_bounding_boxes_of_rectangular_grid"><code class="docutils literal notranslate"><span class="pre">Grid.get_bounding_boxes_of_rectangular_grid()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.get_indices"><code class="docutils literal notranslate"><span class="pre">Grid.get_indices()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.is_cyclic_x"><code class="docutils literal notranslate"><span class="pre">Grid.is_cyclic_x()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.is_rectangular"><code class="docutils literal notranslate"><span class="pre">Grid.is_rectangular()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.is_tripolar"><code class="docutils literal notranslate"><span class="pre">Grid.is_tripolar()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.kdtree"><code class="docutils literal notranslate"><span class="pre">Grid.kdtree</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.lenx"><code class="docutils literal notranslate"><span class="pre">Grid.lenx</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.leny"><code class="docutils literal notranslate"><span class="pre">Grid.leny</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.name"><code class="docutils literal notranslate"><span class="pre">Grid.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.nx"><code class="docutils literal notranslate"><span class="pre">Grid.nx</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.ny"><code class="docutils literal notranslate"><span class="pre">Grid.ny</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.plot"><code class="docutils literal notranslate"><span class="pre">Grid.plot()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.plot_cross_section"><code class="docutils literal notranslate"><span class="pre">Grid.plot_cross_section()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.subgrid_from_supergrid"><code class="docutils literal notranslate"><span class="pre">Grid.subgrid_from_supergrid()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.supergrid"><code class="docutils literal notranslate"><span class="pre">Grid.supergrid</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.update_supergrid"><code class="docutils literal notranslate"><span class="pre">Grid.update_supergrid()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid.Grid.write_supergrid"><code class="docutils literal notranslate"><span class="pre">Grid.write_supergrid()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#module-mom6_forge.grid_creator">mom6_forge.grid_creator module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid_creator.GridCreator"><code class="docutils literal notranslate"><span class="pre">GridCreator</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid_creator.GridCreator.construct_control_panel"><code class="docutils literal notranslate"><span class="pre">GridCreator.construct_control_panel()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid_creator.GridCreator.construct_observances"><code class="docutils literal notranslate"><span class="pre">GridCreator.construct_observances()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid_creator.GridCreator.load_grid"><code class="docutils literal notranslate"><span class="pre">GridCreator.load_grid()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid_creator.GridCreator.plot_grid"><code class="docutils literal notranslate"><span class="pre">GridCreator.plot_grid()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid_creator.GridCreator.refresh_commit_dropdown"><code class="docutils literal notranslate"><span class="pre">GridCreator.refresh_commit_dropdown()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid_creator.GridCreator.reset_grid"><code class="docutils literal notranslate"><span class="pre">GridCreator.reset_grid()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid_creator.GridCreator.save_grid"><code class="docutils literal notranslate"><span class="pre">GridCreator.save_grid()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid_creator.GridCreator.sync_sliders_to_grid"><code class="docutils literal notranslate"><span class="pre">GridCreator.sync_sliders_to_grid()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.grid_creator.GridCreator.update_commit_details"><code class="docutils literal notranslate"><span class="pre">GridCreator.update_commit_details()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#module-mom6_forge.mapping">mom6_forge.mapping module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.mapping.compute_smoothing_weights"><code class="docutils literal notranslate"><span class="pre">compute_smoothing_weights()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.mapping.extract_coastline_mask"><code class="docutils literal notranslate"><span class="pre">extract_coastline_mask()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.mapping.gen_rof_maps"><code class="docutils literal notranslate"><span class="pre">gen_rof_maps()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.mapping.generate_ESMF_map_via_esmpy"><code class="docutils literal notranslate"><span class="pre">generate_ESMF_map_via_esmpy()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.mapping.generate_ESMF_map_via_xesmf"><code class="docutils literal notranslate"><span class="pre">generate_ESMF_map_via_xesmf()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.mapping.get_nn_map_filepath"><code class="docutils literal notranslate"><span class="pre">get_nn_map_filepath()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.mapping.get_smoothed_map_filepath"><code class="docutils literal notranslate"><span class="pre">get_smoothed_map_filepath()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.mapping.get_suggested_smoothing_params"><code class="docutils literal notranslate"><span class="pre">get_suggested_smoothing_params()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.mapping.grid_from_esmf_mesh"><code class="docutils literal notranslate"><span class="pre">grid_from_esmf_mesh()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.mapping.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.mapping.rank"><code class="docutils literal notranslate"><span class="pre">rank()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.mapping.regrid_dataset_via_xesmf"><code class="docutils literal notranslate"><span class="pre">regrid_dataset_via_xesmf()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.mapping.regrid_with_subsampling"><code class="docutils literal notranslate"><span class="pre">regrid_with_subsampling()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.mapping.sum_weights"><code class="docutils literal notranslate"><span class="pre">sum_weights()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.mapping.write_mapping_file"><code class="docutils literal notranslate"><span class="pre">write_mapping_file()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#module-mom6_forge.plotting">mom6_forge.plotting module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.plotting.plot_esmf_mesh"><code class="docutils literal notranslate"><span class="pre">plot_esmf_mesh()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#module-mom6_forge.topo">mom6_forge.topo module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo"><code class="docutils literal notranslate"><span class="pre">Topo</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.apply_land_frac"><code class="docutils literal notranslate"><span class="pre">Topo.apply_land_frac()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.apply_ridge"><code class="docutils literal notranslate"><span class="pre">Topo.apply_ridge()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.basintmask"><code class="docutils literal notranslate"><span class="pre">Topo.basintmask</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.clear_user_mask"><code class="docutils literal notranslate"><span class="pre">Topo.clear_user_mask()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.config_dataset"><code class="docutils literal notranslate"><span class="pre">Topo.config_dataset()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.depth"><code class="docutils literal notranslate"><span class="pre">Topo.depth</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.direct_stats_depth"><code class="docutils literal notranslate"><span class="pre">Topo.direct_stats_depth()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.edit_depth"><code class="docutils literal notranslate"><span class="pre">Topo.edit_depth()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.erase_disconnected_basin"><code class="docutils literal notranslate"><span class="pre">Topo.erase_disconnected_basin()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.erase_selected_basin"><code class="docutils literal notranslate"><span class="pre">Topo.erase_selected_basin()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.from_topo_file"><code class="docutils literal notranslate"><span class="pre">Topo.from_topo_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.from_version_control"><code class="docutils literal notranslate"><span class="pre">Topo.from_version_control()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.gen_topo_ds"><code class="docutils literal notranslate"><span class="pre">Topo.gen_topo_ds()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.land_fillval"><code class="docutils literal notranslate"><span class="pre">Topo.land_fillval</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.masked_depth"><code class="docutils literal notranslate"><span class="pre">Topo.masked_depth</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.max_depth"><code class="docutils literal notranslate"><span class="pre">Topo.max_depth</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.min_depth"><code class="docutils literal notranslate"><span class="pre">Topo.min_depth</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.mpi_set_from_dataset"><code class="docutils literal notranslate"><span class="pre">Topo.mpi_set_from_dataset()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.point_is_ocean"><code class="docutils literal notranslate"><span class="pre">Topo.point_is_ocean()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.qmask"><code class="docutils literal notranslate"><span class="pre">Topo.qmask</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.save"><code class="docutils literal notranslate"><span class="pre">Topo.save()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.send_entire_depth_change_to_tcm"><code class="docutils literal notranslate"><span class="pre">Topo.send_entire_depth_change_to_tcm()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.set_bowl"><code class="docutils literal notranslate"><span class="pre">Topo.set_bowl()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.set_depth_via_topog_file"><code class="docutils literal notranslate"><span class="pre">Topo.set_depth_via_topog_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.set_flat"><code class="docutils literal notranslate"><span class="pre">Topo.set_flat()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.set_from_dataset"><code class="docutils literal notranslate"><span class="pre">Topo.set_from_dataset()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.set_spoon"><code class="docutils literal notranslate"><span class="pre">Topo.set_spoon()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.supergridmask"><code class="docutils literal notranslate"><span class="pre">Topo.supergridmask</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.tidy_dataset"><code class="docutils literal notranslate"><span class="pre">Topo.tidy_dataset()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.tmask"><code class="docutils literal notranslate"><span class="pre">Topo.tmask</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.umask"><code class="docutils literal notranslate"><span class="pre">Topo.umask</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.user_mask"><code class="docutils literal notranslate"><span class="pre">Topo.user_mask</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.vmask"><code class="docutils literal notranslate"><span class="pre">Topo.vmask</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.write_cice_grid"><code class="docutils literal notranslate"><span class="pre">Topo.write_cice_grid()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.write_esmf_mesh"><code class="docutils literal notranslate"><span class="pre">Topo.write_esmf_mesh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.write_scrip_grid"><code class="docutils literal notranslate"><span class="pre">Topo.write_scrip_grid()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.write_topo"><code class="docutils literal notranslate"><span class="pre">Topo.write_topo()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#module-mom6_forge.topo_editor">mom6_forge.topo_editor module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo_editor.TopoEditor"><code class="docutils literal notranslate"><span class="pre">TopoEditor</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo_editor.TopoEditor.apply_edit"><code class="docutils literal notranslate"><span class="pre">TopoEditor.apply_edit()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo_editor.TopoEditor.construct_control_panel"><code class="docutils literal notranslate"><span class="pre">TopoEditor.construct_control_panel()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo_editor.TopoEditor.construct_interactive_plot"><code class="docutils literal notranslate"><span class="pre">TopoEditor.construct_interactive_plot()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo_editor.TopoEditor.construct_observances"><code class="docutils literal notranslate"><span class="pre">TopoEditor.construct_observances()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo_editor.TopoEditor.erase_disconnected_basin"><code class="docutils literal notranslate"><span class="pre">TopoEditor.erase_disconnected_basin()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo_editor.TopoEditor.erase_selected_basin"><code class="docutils literal notranslate"><span class="pre">TopoEditor.erase_selected_basin()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo_editor.TopoEditor.on_depth_change"><code class="docutils literal notranslate"><span class="pre">TopoEditor.on_depth_change()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo_editor.TopoEditor.on_double_click"><code class="docutils literal notranslate"><span class="pre">TopoEditor.on_double_click()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo_editor.TopoEditor.on_git_checkout"><code class="docutils literal notranslate"><span class="pre">TopoEditor.on_git_checkout()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo_editor.TopoEditor.on_git_create_branch"><code class="docutils literal notranslate"><span class="pre">TopoEditor.on_git_create_branch()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo_editor.TopoEditor.on_min_depth_change"><code class="docutils literal notranslate"><span class="pre">TopoEditor.on_min_depth_change()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo_editor.TopoEditor.on_tag"><code class="docutils literal notranslate"><span class="pre">TopoEditor.on_tag()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo_editor.TopoEditor.redo_last_edit"><code class="docutils literal notranslate"><span class="pre">TopoEditor.redo_last_edit()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo_editor.TopoEditor.refresh_display_mode"><code class="docutils literal notranslate"><span class="pre">TopoEditor.refresh_display_mode()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo_editor.TopoEditor.reset"><code class="docutils literal notranslate"><span class="pre">TopoEditor.reset()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo_editor.TopoEditor.trigger_refresh"><code class="docutils literal notranslate"><span class="pre">TopoEditor.trigger_refresh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo_editor.TopoEditor.undo_last_edit"><code class="docutils literal notranslate"><span class="pre">TopoEditor.undo_last_edit()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo_editor.TopoEditor.update_undo_redo_buttons"><code class="docutils literal notranslate"><span class="pre">TopoEditor.update_undo_redo_buttons()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#module-mom6_forge.utils">mom6_forge.utils module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.utils.angle_between"><code class="docutils literal notranslate"><span class="pre">angle_between()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.utils.cell_area_rad"><code class="docutils literal notranslate"><span class="pre">cell_area_rad()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.utils.compute_subsampling_factor"><code class="docutils literal notranslate"><span class="pre">compute_subsampling_factor()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.utils.fill_missing_data"><code class="docutils literal notranslate"><span class="pre">fill_missing_data()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.utils.get_avg_resolution"><code class="docutils literal notranslate"><span class="pre">get_avg_resolution()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.utils.get_avg_resolution_km"><code class="docutils literal notranslate"><span class="pre">get_avg_resolution_km()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.utils.get_mesh_dimensions"><code class="docutils literal notranslate"><span class="pre">get_mesh_dimensions()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.utils.is_mesh_cyclic_x"><code class="docutils literal notranslate"><span class="pre">is_mesh_cyclic_x()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.utils.latlon_to_cartesian"><code class="docutils literal notranslate"><span class="pre">latlon_to_cartesian()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.utils.longitude_slicer"><code class="docutils literal notranslate"><span class="pre">longitude_slicer()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.utils.mdist"><code class="docutils literal notranslate"><span class="pre">mdist()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.utils.normalize_deg"><code class="docutils literal notranslate"><span class="pre">normalize_deg()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.utils.quadrilateral_area"><code class="docutils literal notranslate"><span class="pre">quadrilateral_area()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.utils.quadrilateral_areas"><code class="docutils literal notranslate"><span class="pre">quadrilateral_areas()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.utils.vecdot"><code class="docutils literal notranslate"><span class="pre">vecdot()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#module-mom6_forge.vgrid">mom6_forge.vgrid module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.vgrid.VGrid"><code class="docutils literal notranslate"><span class="pre">VGrid</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.vgrid.VGrid.dz"><code class="docutils literal notranslate"><span class="pre">VGrid.dz</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.vgrid.VGrid.nk"><code class="docutils literal notranslate"><span class="pre">VGrid.nk</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.vgrid.VGrid.depth"><code class="docutils literal notranslate"><span class="pre">VGrid.depth</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.vgrid.VGrid.z"><code class="docutils literal notranslate"><span class="pre">VGrid.z</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#id0"><code class="docutils literal notranslate"><span class="pre">VGrid.depth</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.vgrid.VGrid.from_file"><code class="docutils literal notranslate"><span class="pre">VGrid.from_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.vgrid.VGrid.hyperbolic"><code class="docutils literal notranslate"><span class="pre">VGrid.hyperbolic()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#id1"><code class="docutils literal notranslate"><span class="pre">VGrid.nk</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.vgrid.VGrid.uniform"><code class="docutils literal notranslate"><span class="pre">VGrid.uniform()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.vgrid.VGrid.write"><code class="docutils literal notranslate"><span class="pre">VGrid.write()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.vgrid.VGrid.write_z_file"><code class="docutils literal notranslate"><span class="pre">VGrid.write_z_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.vgrid.VGrid.zi"><code class="docutils literal notranslate"><span class="pre">VGrid.zi</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.vgrid.VGrid.zl"><code class="docutils literal notranslate"><span class="pre">VGrid.zl</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#module-mom6_forge.vgrid_creator">mom6_forge.vgrid_creator module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.vgrid_creator.VGridCreator"><code class="docutils literal notranslate"><span class="pre">VGridCreator</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.vgrid_creator.VGridCreator.construct_control_panel"><code class="docutils literal notranslate"><span class="pre">VGridCreator.construct_control_panel()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.vgrid_creator.VGridCreator.construct_observances"><code class="docutils literal notranslate"><span class="pre">VGridCreator.construct_observances()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.vgrid_creator.VGridCreator.infer_ratio_and_type"><code class="docutils literal notranslate"><span class="pre">VGridCreator.infer_ratio_and_type()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.vgrid_creator.VGridCreator.load_vgrid"><code class="docutils literal notranslate"><span class="pre">VGridCreator.load_vgrid()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.vgrid_creator.VGridCreator.plot_vgrid"><code class="docutils literal notranslate"><span class="pre">VGridCreator.plot_vgrid()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.vgrid_creator.VGridCreator.refresh_commit_dropdown"><code class="docutils literal notranslate"><span class="pre">VGridCreator.refresh_commit_dropdown()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.vgrid_creator.VGridCreator.reset_vgrid"><code class="docutils literal notranslate"><span class="pre">VGridCreator.reset_vgrid()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.vgrid_creator.VGridCreator.save_vgrid"><code class="docutils literal notranslate"><span class="pre">VGridCreator.save_vgrid()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.vgrid_creator.VGridCreator.update_commit_details"><code class="docutils literal notranslate"><span class="pre">VGridCreator.update_commit_details()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#module-mom6_forge">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../widgets.html" class="btn btn-neutral float-left" title="Topo &amp; The Widgets!" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="mom6_forge.html" class="btn btn-neutral float-right" title="mom6_forge package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, NCAR.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
