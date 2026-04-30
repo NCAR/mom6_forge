@@ -825,6 +825,100 @@ class Topo:
         )
         return self._stats
 
+    def diagnose_resolution(self):
+        """
+        Print resolution diagnostics comparing the model grid to a source bathymetry
+        dataset, and recommend whether Cressman interpolation / stats-based masking
+        is worthwhile.
+
+        The recommendation threshold is a resolution ratio of 12x (model dx /
+        dataset dx), equivalent to ~0.05° (~5 km) for GEBCO 15-arcsecond source
+        data. This matches the criterion used by the tx2_3 global workflow
+        (interp_smooth.f90) and is the scale at which ocean-aware Cressman
+        interpolation meaningfully improves coastal depth estimates over standard
+        xesmf conservative regridding.
+
+        Parameters
+        ----------
+        src : SourceBathy
+            Source bathymetry object.  The DataArray need not be loaded —
+            coordinate arrays are read from the file if ``src`` has not yet
+            been sliced to the domain.
+
+        Returns
+        -------
+        bool
+            True if Cressman / stats-based masking is recommended (ratio >= 12x),
+            False otherwise.
+        """
+        CRESSMAN_THRESHOLD = 12.0
+
+        # --- Model T-cell spacing in meters ---
+        # sqrt(tarea) gives the geometric mean cell spacing (equiv. to sqrt(dxt * dyt))
+        cell_dx_m = np.sqrt(self._grid.tarea.values)
+
+        median_dx_m = float(np.median(cell_dx_m))
+        min_dx_m = float(np.min(cell_dx_m))
+        max_dx_m = float(np.max(cell_dx_m))
+
+        # --- Source dataset spacing ---
+        src = self.src
+        if src.ds is not None:
+            lon = src.lon
+            lat = src.lat
+        else:
+            ds = xr.open_dataset(src.path)
+            lon = ds[src.lon_name].values
+            lat = ds[src.lat_name].values
+            ds.close()
+
+        dlon_deg = float(abs(lon[1] - lon[0]))
+        dlat_deg = float(abs(lat[1] - lat[0]))
+
+        mid_lat_deg = float(self._grid.tlat.mean())
+        R = 6371000.0
+        dataset_dx_m = dlon_deg * (np.pi / 180) * R * np.cos(mid_lat_deg * np.pi / 180)
+        dataset_dy_m = dlat_deg * (np.pi / 180) * R
+
+        ratio_median = median_dx_m / dataset_dx_m
+        ratio_max = max_dx_m / dataset_dx_m
+
+        # --- Print ---
+        sep = "=" * 58
+        print(sep)
+        print("  Resolution Diagnostics")
+        print(sep)
+        print(f"\n  Source dataset ({src.path.name}):")
+        print(f"    dlon = {dlon_deg * 3600:.1f} arcsec  ({dlon_deg:.6f}°)")
+        print(f"    dlat = {dlat_deg * 3600:.1f} arcsec  ({dlat_deg:.6f}°)")
+        print(
+            f"    dx   ~ {dataset_dx_m:.0f} m  (at domain mid-lat {mid_lat_deg:.1f}°)"
+        )
+        print(f"    dy   ~ {dataset_dy_m:.0f} m")
+        print(f"\n  Model grid (T-cell spacing):")
+        print(f"    median = {median_dx_m / 1000:.2f} km")
+        print(f"    min    = {min_dx_m / 1000:.2f} km")
+        print(f"    max    = {max_dx_m / 1000:.2f} km")
+        print(f"\n  Resolution ratio (model dx / dataset dx):")
+        print(f"    median = {ratio_median:.1f}x")
+        print(f"    max    = {ratio_max:.1f}x")
+        print(f"\n  Cressman / stats-mask threshold: {CRESSMAN_THRESHOLD:.0f}x")
+        if ratio_median >= CRESSMAN_THRESHOLD:
+            print(f"  → RECOMMENDED: high_res_regrid()  (Cressman + stats mask)")
+            print(
+                f"    Each model cell spans ~{ratio_median:.0f} dataset pixels per side."
+            )
+            print(f"    Ocean-aware Cressman interpolation will meaningfully reduce")
+            print(f"    land contamination of coastal depth estimates.")
+        else:
+            print(f"  → RECOMMENDED: direct_xesmf_regrid()  (bilinear / conservative)")
+            print(
+                f"    Ratio {ratio_median:.1f}x is below the threshold where Cressman"
+            )
+            print(f"    provides significant benefit over xesmf regridding.")
+        print(sep)
+        return bool(ratio_median >= CRESSMAN_THRESHOLD)
+
     def set_from_dataset(
         self,
         bathymetry_path,
@@ -834,7 +928,34 @@ class Topo:
         fill_channels=False,
         positive_down=False,
         output_dir=Path(""),
-        write_to_file=True,
+        write_to_file=False,
+        **kwargs,
+    ):
+        return self.direct_xesmf_regrid(
+            bathymetry_path=bathymetry_path,
+            longitude_coordinate_name=longitude_coordinate_name,
+            latitude_coordinate_name=latitude_coordinate_name,
+            vertical_coordinate_name=vertical_coordinate_name,
+            fill_channels=fill_channels,
+            positive_down=positive_down,
+            output_dir=output_dir,
+            write_to_file=write_to_file,
+            regridding_method=kwargs["regridding_method"],
+            run_config_dataset=kwargs["run_config_dataset"],
+            run_regrid_dataset=kwargs["run_regrid_dataset"],
+            run_tidy_dataset=kwargs["run_tidy_dataset"],
+        )
+
+    def direct_xesmf_regrid(
+        self,
+        bathymetry_path,
+        longitude_coordinate_name,
+        latitude_coordinate_name,
+        vertical_coordinate_name,
+        fill_channels=False,
+        positive_down=False,
+        output_dir=Path(""),
+        write_to_file=False,
         regridding_method="bilinear",
         run_config_dataset=True,
         run_regrid_dataset=True,
