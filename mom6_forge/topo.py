@@ -762,7 +762,7 @@ class Topo:
             self.src is not None
         ), "Source bathymetry must be loaded to compute topo stats"
         src = self.src
-        if self._stats is not None:
+        if hasattr(self, "_stats") and self._stats is not None:
             return self._stats
 
         # Compute subsampling factor and generate sub-point grid
