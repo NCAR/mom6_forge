@@ -78,7 +78,7 @@ class Topo:
 
             # Set up TCM (requires that self.domain_dir exists)
             self.tcm = TopoCommandManager(self, command_registry=COMMAND_REGISTRY)
-            self.tcm.execute(initial_command, cmd_type=CommandType.COMMAND)
+            self.apply_edit(initial_command)
 
         else:
             self.version_control = False
@@ -309,10 +309,7 @@ class Topo:
         cmd = MaskEditCommand(
             self, all_indices, new_values, old_values=old_values, message="Set mask"
         )
-        if self.tcm is not None:
-            self.tcm.execute(cmd, cmd_type=CommandType.COMMAND)
-        else:
-            cmd()
+        self.apply_edit(cmd)
 
     @property
     def tmask(self):
@@ -461,14 +458,29 @@ class Topo:
         supergridmask[1::2, 1::2] = self.tmask.values
         return supergridmask
 
+    def apply_edit(self, cmd, quietly=False, cmd_type=CommandType.COMMAND):
+        """Apply an edit command aware of version control. If version control is enabled, the command is executed through the TopoCommandManager (TCM) to ensure it is recorded in the version history and can be undone/redone.
+        If version control is disabled, the command is executed directly without recording.
+
+        Parameters
+        -----------
+          cmd: Command
+              The command to be applied.
+          quietly: bool
+                  If True, the command will be executed without recording in version control even if version control is enabled. This can be useful for programmatic changes that should not be part of the user-facing version history.
+          cmd_type: CommandType
+                  The type of the command, used for version control categorization. Ignored if quietly is True or if version control is disabled.
+        """
+        if quietly or self.tcm is not None:  # tcm is None means git is off
+            self.tcm.execute(cmd, cmd_type=cmd_type)
+        else:
+            cmd()
+
     def clear_user_mask(self):
         cmd = ClearMaskCommand(
             self, message="Clear manual mask"
         )  # Resets back to reading from depth
-        if self.tcm is not None:
-            self.tcm.execute(cmd, cmd_type=CommandType.COMMAND)
-        else:
-            cmd()
+        self.apply_edit(cmd)
 
     def point_is_ocean(self, lons, lats):
         """
@@ -508,10 +520,7 @@ class Topo:
             self, all_indices, new_values, old_values=old_values
         )
 
-        if not quietly and self.tcm is not None:
-            self.tcm.execute(depth_edit_command, cmd_type=CommandType.COMMAND)
-        else:
-            depth_edit_command()
+        self.apply_edit(depth_edit_command, quietly=quietly)
 
     def edit_depth(self, indices, values):
         """
@@ -533,10 +542,7 @@ class Topo:
 
         # Create and execute command
         cmd = DepthEditCommand(self, indices, values, old_values=old_values)
-        if self.tcm is not None:
-            self.tcm.execute(cmd, cmd_type=CommandType.COMMAND)
-        else:
-            cmd()
+        self.apply_edit(cmd)
 
     def set_flat(self, D):
         """
@@ -1244,10 +1250,7 @@ class Topo:
         old_values = [self.tmask.data[jj, ii] for jj, ii in indices]
         new_values = [0] * len(indices)
         cmd = MaskEditCommand(self, indices, new_values, old_values=old_values)
-        if self.tcm is not None:
-            self.tcm.execute(cmd)
-        else:
-            cmd()
+        self.apply_edit(cmd)
 
     def erase_disconnected_basin(self, i, j):
         label = self.basintmask.data[j, i]
@@ -1258,10 +1261,7 @@ class Topo:
         old_values = [self.tmask.data[jj, ii] for jj, ii in indices]
         new_values = [0] * len(indices)
         cmd = MaskEditCommand(self, indices, new_values, old_values=old_values)
-        if self.tcm is not None:
-            self.tcm.execute(cmd)
-        else:
-            cmd()
+        self.apply_edit(cmd)
 
     def apply_ridge(self, height, width, lon, ilat):
         """
@@ -1302,10 +1302,7 @@ class Topo:
         depth_edit_command = DepthEditCommand(
             self, affected_indices, new_vals, old_values=old_vals
         )
-        if self.tcm is not None:
-            self.tcm.execute(depth_edit_command)
-        else:
-            depth_edit_command()
+        self.apply_edit(depth_edit_command)
 
     def apply_land_frac(
         self,
@@ -1404,10 +1401,7 @@ class Topo:
             message="Apply Land Fraction Mask",
         )
 
-        if self.tcm is not None:
-            self.tcm.execute(mask_edit_command, cmd_type=CommandType.COMMAND)
-        else:
-            mask_edit_command()
+        self.apply_edit(mask_edit_command)
 
         # legacy code set the depth of land cells to depth_fillval, but now that is handled in the depth property.
 
@@ -1476,17 +1470,6 @@ class Topo:
         )
 
         return ds
-
-    def save(self):
-        """
-        Save the TOPO_FILE (bathymetry file) in netcdf format to version control
-        """
-
-        if self.tcm is None:
-            raise RuntimeError(
-                "save() requires version control. Construct Topo with git=True (the default)."
-            )
-        self.tcm.save()
 
     def write_topo(self, file_path, title=None):
         """

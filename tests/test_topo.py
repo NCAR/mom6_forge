@@ -81,3 +81,17 @@ def test_erase_disconnected_basin(get_rect_topo):
     assert (topo.masked_depth[:2, 3:] == 0).all()
     assert (topo.masked_depth[3:, :2] == 0).all()
     assert (topo.masked_depth[3:, 3:] == 0).all()
+
+
+def test_topo_no_git(get_rect_topo_without_vc):
+    topo = get_rect_topo_without_vc
+    assert topo.tcm is None
+    # Make an edit
+    j, i = 1, 1
+    new_val = 12123
+    old_val = topo.depth[j, i]
+    command = DepthEditCommand(
+        topo, [(j, i)], [new_val], old_values=[old_val]
+    )  # This command should still work even without version control, but it just won't be registered in version control
+    topo.apply_edit(command)
+    assert topo.depth[j, i] == new_val
