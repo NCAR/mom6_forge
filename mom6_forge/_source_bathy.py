@@ -46,6 +46,7 @@ class SourceBathy:
         self.elevation_name = elevation_name
         self.positive_down = positive_down  # depth should be positive down (ocean > 0) if True, otherwise positive up (ocean < 0)
         self._da = None  # set by slice_to_domain
+        self._ds = None  # set by slice_to_domain
         self._topo_stats = None  # set by compute_topo_stats
 
     # ------------------------------------------------------------------
@@ -88,8 +89,7 @@ class SourceBathy:
             ds = ds.sel(
                 {self.lon_name: slice(lon_extent[0] - buf, lon_extent[1] + buf)}
             )
-        if not self.positive_down:
-            ds[self.elevation_name] = -ds[self.elevation_name]
+        self._ds = ds
         self._da = ds[self.elevation_name].load()
         return self
 
@@ -118,12 +118,20 @@ class SourceBathy:
     @property
     def da(self):
         """Raw elevation DataArray with source coordinate names (positive-up)."""
-        return self._da
+        if not self.positive_down:
+            return -self._da
+        else:
+            return self._da
 
     @property
     def ds(self):
         """Raw dataset with source coordinate names (positive-up)."""
-        return self._ds
+        if not self.positive_down:
+            ds = self._ds.copy()
+            ds[self.elevation_name] = -ds[self.elevation_name]
+            return ds
+        else:
+            return self._ds
 
     def __repr__(self):
         shape = self._da.shape if self._da is not None else "not loaded"
