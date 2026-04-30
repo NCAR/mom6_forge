@@ -741,10 +741,10 @@ class Topo:
         # Save to object (Build TCM Object)
         self.send_entire_depth_change_to_tcm(new_values)
 
-    def _compute_topo_stats(self, nx_sub, ny_sub, mask_hmin):
+    def _compute_stats(self, nx_sub, ny_sub, mask_hmin):
         """Compute per-cell depth statistics by uniform sub-sampling.
 
-        Results are cached on ``src._topo_stats`` so a second call with the
+        Results are cached on ``stats`` so a second call with the
         same source file returns immediately without recomputation.
         (Originally created by Frank Bryan in Fortran for NCAR/tx2_3, reimplemented in Python)
 
@@ -759,11 +759,11 @@ class Topo:
         xr.Dataset  —  ``OCN_FRAC``, ``D_mean``, ``D_min``, ``D_max``, ``D2_mean``.
         """
         assert (
-            self._src is not None
+            self.src is not None
         ), "Source bathymetry must be loaded to compute topo stats"
-        src = self._src
-        if src._topo_stats is not None:
-            return src._topo_stats
+        src = self.src
+        if self._stats is not None:
+            return self._stats
 
         # Compute subsampling factor and generate sub-point grid
         ds = regrid_with_subsampling(
@@ -788,7 +788,7 @@ class Topo:
             D2_mean = np.nanmean(depth_ocean**2, axis=(-2, -1))
 
         dims = ["ny", "nx"]
-        src._topo_stats = xr.Dataset(
+        self._stats = xr.Dataset(
             {
                 "OCN_FRAC": xr.DataArray(
                     ocn_frac,
@@ -823,7 +823,7 @@ class Topo:
                 ),
             }
         )
-        return src._topo_stats
+        return self._stats
 
     def set_from_dataset(
         self,
