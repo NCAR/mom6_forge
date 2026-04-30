@@ -464,12 +464,12 @@ class Topo:
 
         Parameters
         -----------
-          cmd: Command
-              The command to be applied.
-          quietly: bool
-                  If True, the command will be executed without recording in version control even if version control is enabled. This can be useful for programmatic changes that should not be part of the user-facing version history.
-          cmd_type: CommandType
-                  The type of the command, used for version control categorization. Ignored if quietly is True or if version control is disabled.
+        cmd: Command
+            The command to be applied.
+        quietly: bool
+            If True, the command will be executed without recording in version control even if version control is enabled. This can be useful for programmatic changes that should not be part of the user-facing version history.
+        cmd_type: CommandType
+            The type of the command, used for version control categorization. Ignored if quietly is True or if version control is disabled.
         """
         if not quietly and self.tcm is not None:  # tcm is None means git is off
             self.tcm.execute(cmd, cmd_type=cmd_type)
