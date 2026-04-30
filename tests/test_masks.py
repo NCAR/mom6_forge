@@ -72,9 +72,6 @@ def test_generate_mask_from_naturalearth_bad_resolution():
         topo.generate_mask_from_naturalearth(resolution="999")
 
 
-
-
-
 def test_mask_setter_and_getter(get_rect_topo):
     """Test setting and getting user_mask property."""
     topo = get_rect_topo
