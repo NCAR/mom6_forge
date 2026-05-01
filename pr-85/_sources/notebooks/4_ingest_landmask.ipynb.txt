@@ -134,7 +134,7 @@
    },
    "outputs": [],
    "source": [
-    "topo.apply_land_frac(\n",
+    "topo.generate_mask_from_landfrac_file(\n",
     "    landfrac_filepath = \"/glade/work/altuntas/cesm.input/vcg/fill_indianocean.nc\",\n",
     "    landfrac_name = \"landfrac\",\n",
     "    xcoord_name = \"lon\",\n",
@@ -165,7 +165,7 @@
     "topo.set_flat(D=2000.0)\n",
     "\n",
     "# re-apply land frac with a different cutoff\n",
-    "topo.apply_land_frac(\n",
+    "topo.generate_mask_from_landfrac_file(\n",
     "    landfrac_filepath = \"/glade/work/altuntas/cesm.input/vcg/fill_indianocean.nc\",\n",
     "    landfrac_name = \"landfrac\",\n",
     "    xcoord_name = \"lon\",\n",
