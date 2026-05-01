@@ -50,9 +50,10 @@ def synthetic_bathy_file():
     Path(bathy_file).unlink()
 
 
-def test_source_bathy_initialization(synthetic_bathy_file):
+def test_source_bathy_initialization(synthetic_bathy_file, get_rect_topo):
     """Test SourceBathy initialization and coordinate names."""
     src = SourceBathy(
+        get_rect_topo,
         synthetic_bathy_file,
         lon_name="lon",
         lat_name="lat",
@@ -63,15 +64,13 @@ def test_source_bathy_initialization(synthetic_bathy_file):
     assert src.lon_name == "lon"
     assert src.lat_name == "lat"
     assert src.elevation_name == "elevation"
-    assert src._da is None  # Not loaded yet
 
 
 def test_source_bathy_slice_to_domain(get_rect_topo, synthetic_bathy_file):
     """Smoke test: load and slice elevation to topo domain."""
     topo = get_rect_topo
 
-    src = SourceBathy(synthetic_bathy_file)
-    src.slice_to_domain(topo, buf=0.4)
+    src = SourceBathy(topo, synthetic_bathy_file)
 
     # Verify data was loaded
     assert src._da is not None
@@ -88,8 +87,7 @@ def test_source_bathy_depth_conversion(get_rect_topo, synthetic_bathy_file):
     """Test that elevation is converted to positive-down depth."""
     topo = get_rect_topo
 
-    src = SourceBathy(synthetic_bathy_file)
-    src.slice_to_domain(topo, buf=0.5)
+    src = SourceBathy(topo, synthetic_bathy_file)
 
     # Get depth and verify sign conversion
     depth = src.depth
