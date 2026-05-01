@@ -937,9 +937,35 @@ class Topo:
         positive_down=False,
         output_dir=Path(""),
         write_to_file=False,
-        mask = None,
+        mask_method=None,
+        depth_method=None,
         **kwargs,
     ):
+        """
+        This is a high-level workflow function that runs multiple steps in sequence to set the bathymetry from a source dataset, with optional masking and depth method choices. It is designed to be opinionated and make recommendations based on resolution diagnostics, but users can override the defaults by specifying mask_method and depth_method.
+        The workflow is as follows:
+        1. Set the source dataset (this will not modify the depth or mask yet,
+            it just loads the dataset and prepares it for regridding)
+        2. Diagnose whether to use stats-based masking and Cressman interpolation based on resolution comparison between the source dataset and the model grid
+        3. Apply a mask based on the user's choice or the resolution diagnostics recommendation (options are 'naturalearth', 'ocean_frac', 'dataset', 'manual', or None)
+        4. Set the depth based on the user's choice or the resolution diagnostics recommendation (options are 'stats', 'xesmf', or None)
+        5. Tidy the dataset (fill channels, apply mask, etc.)
+
+        Parameters
+        ----------
+        bathymetry_path (str): Path to the netCDF file with the bathymetry
+        longitude_coordinate_name (str): The name of the longitude coordinate in the bathymetry dataset at ``bathymetry_path``. For example, for GEBCO bathymetry: ``'lon'``.
+        latitude_coordinate_name (str): The name of the latitude coordinate in the bathymetry dataset at ``bathymetry_path``. For example, for GEBCO bathymetry: ``'lat'``.
+        vertical_coordinate_name (str): The name of the vertical coordinate (elevation) in the bathymetry dataset at ``bathymetry_path``. For example, for GEBCO bathymetry: ``'elevation'``.
+        fill_channels (bool, optional): Whether to fill narrow channels in the final depth. Default is False.
+        positive_down (bool, optional): Whether the vertical coordinate in the source dataset is positive down (e.g. depth) rather than positive up (e.g. elevation). Default is False (positive up).
+        output_dir (str or Path, optional): Directory to save intermediate files if needed (e.g. for Cressman interpolation). Default is current directory.
+        write_to_file (bool, optional): Whether to write intermediate files to disk (e.g. for Cressman interpolation). Default is False.
+        mask_method (str or None, optional): Method to use for masking land vs ocean. Options are 'naturalearth' (use natural earth land polygons), 'ocean_frac' (use ocean fraction from sub-sampling stats), 'dataset' (derive mask directly from raw depth from dataset), 'manual' (use a user-provided mask set via the user_mask property), or None to automatically choose based on resolution diagnostics. Default is None.
+        depth_method (str or None, optional): Method to use for setting depth. Options are 'stats' (use a statistic from the sub-sampling stats), 'xesmf' (do a direct xesmf regrid of the source dataset depth), or None to automatically choose based on resolution diagnostics. Default is None.
+        **kwargs: Additional keyword arguments needed for specific mask or depth methods. For example, if mask_method is 'ocean_frac', then kwargs should include 'nx_sub', 'ny_sub', and 'mask_hmin' for the sub-sampling stats calculation.
+
+        """
         # Set source
         self.set_src(
             bathymetry_path,
@@ -953,43 +979,92 @@ class Topo:
         use_stats_depth = self.diagnose_resolution()
 
         # Apply a mask if specified
-        if mask is not None or "dataset":
-            if mask == "naturalearth":
+        if mask_method is not None:
+            if mask_method == "naturalearth":
                 self.user_mask = self.generate_mask_from_naturalearth()
-            elif mask == "ocean_frac":
+            elif mask_method == "ocean_frac":
                 self._compute_stats(
                     nx_sub=kwargs["nx_sub"],
                     ny_sub=kwargs["ny_sub"],
                     mask_hmin=kwargs["mask_hmin"],
                 )
                 self.user_mask = self.generate_mask_from_stats_oceanfrac()
-
-        if not use_stats_depth:
-
-            self.direct_xesmf_depth(
-                fill_channels=fill_channels,
-                output_dir=output_dir,
-                write_to_file=write_to_file,
-                regridding_method=kwargs["regridding_method"],
-            )
-            
+            elif mask_method == "dataset":
+                self.clear_user_mask()  # ensure no user mask is set so that the mask is derived from the raw depth, which is directly from the dataset
+            elif mask_method == "manual":
+                assert (
+                    self.user_mask is not None
+                ), "Mask method set to 'manual' but no user mask has been set. Please set the user mask before calling set_from_dataset with mask_method='manual'"
+            else:
+                raise ValueError(
+                    f"Invalid mask option {mask_method}, must be one of 'naturalearth', 'ocean_frac', 'dataset', or None"
+                )
         else:
-            # Compute stats
-            self._compute_stats(
-                nx_sub=kwargs["nx_sub"],
-                ny_sub=kwargs["ny_sub"],
-                mask_hmin=kwargs["mask_hmin"],
-            )
+            if use_stats_depth:
+                print(
+                    "Resolution diagnostics recommend using stats-based masking, which we will set because no mask option was specified"
+                )
+                self.user_mask = self.generate_mask_from_stats_oceanfrac()
+            else:
+                print(
+                    "Resolution diagnostics recommend not using stats-based masking, so we'll use the natural earth mask"
+                )
+                self.user_mask = self.generate_mask_from_naturalearth()
 
-            # Create Mask
-            self.user_mask = self.generate_mask_from_naturalearth()
+        if depth_method is not None:
+            if depth_method == "stats":
+                if not use_stats_depth:
+                    print(
+                        "Resolution diagnostics recommend not using stats-based masking, but stats-based depth was requested"
+                    )
+                self._compute_stats(
+                    nx_sub=kwargs["nx_sub"],
+                    ny_sub=kwargs["ny_sub"],
+                    mask_hmin=kwargs["mask_hmin"],
+                )
+                self.direct_stats_depth(statistic="mean")
+            elif depth_method == "xesmf":
+                if use_stats_depth:
+                    print(
+                        "Resolution diagnostics recommend using stats-based masking, but xesmf-based depth was requested, so we will do a direct xesmf regrid anyway because it was explicitly requested, but be aware that this may lead to significant land contamination of coastal depth estimates"
+                    )
+                self.direct_xesmf_depth(
+                    fill_channels=fill_channels,
+                    output_dir=output_dir,
+                    write_to_file=write_to_file,
+                    regridding_method=kwargs["regridding_method"],
+                )
+            else:
+                raise ValueError(
+                    f"Invalid depth option {depth_method}, must be one of 'stats', 'xesmf', or None"
+                )
+        else:
+            if not use_stats_depth:
+                print(
+                    "Resolution diagnostics recommend not using stats-based depth method, so we'll do a direct xesmf regrid for depth because no depth option was specified"
+                )
+                self.direct_xesmf_depth(
+                    fill_channels=fill_channels,
+                    output_dir=output_dir,
+                    write_to_file=write_to_file,
+                    regridding_method=kwargs["regridding_method"],
+                )
+            else:
+                print(
+                    "Resolution diagnostics recommend using stats-based depth method, which we will set for depth because no depth option was specified"
+                )
+                self._compute_stats(
+                    nx_sub=kwargs["nx_sub"],
+                    ny_sub=kwargs["ny_sub"],
+                    mask_hmin=kwargs["mask_hmin"],
+                )
+                self.direct_stats_depth(statistic=kwargs["statistic"])
 
-            # Set depth to mean depth from stats
-            self.direct_stats_depth(statistic="mean")
+        # Tidy the dataset (fill channels, positive_down, etc...)
+        self.tidy(fill_channels=fill_channels)
 
-        # Tidy the dataset (fill channels, apply mask, etc.)
-        self.tidy(
-            fill_channels=fill_channels
+        print(
+            "Warning! This was an opionated workflow function that ran multiple steps in sequence. Please edit the mask manually if need be (Some depth methods, like cressman, are mask-aware and may need to be rerun)! "
         )
 
     def direct_xesmf_depth(
@@ -1048,6 +1123,10 @@ class Topo:
             write_to_file=write_to_file,
             output_path=output_dir / "bathymetry_unfinished.nc",
         )
+        if write_to_file:
+            self.write_topo(
+                output_dir / "bathymetry_unfinished.nc"
+            )  # This is called unfinished because the regridding is not fully complete until the one-cell channels are filled and mask is applied in tidy()
 
     def mpi_direct_xesmf_depth(
         self,
@@ -1252,9 +1331,7 @@ class Topo:
 
         self.positive_down_check(positive_down=positive_down)
 
-        if (
-            fill_channels
-        ):  
+        if fill_channels:
             self.fill_channels()
 
     def erase_selected_basin(self, i, j):
