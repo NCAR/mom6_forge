@@ -63,7 +63,10 @@ def src_bathy(small_topo, synthetic_gebco):
 def test_generate_mask_ocean_frac_returns_binary_mask(small_topo, src_bathy):
     """Mask values must be 0 (land) or 1 (ocean) only."""
     small_topo._src = src_bathy  # Set the source bathy for the topo
-    mask = small_topo.generate_mask_from_stats_oceanfrac(nx_sub=3, ny_sub=3)
+    small_topo._compute_stats(
+        nx_sub=2, ny_sub=2, mask_hmin=0.0
+    )  # Compute stats to populate cache
+    mask = small_topo.generate_mask_from_stats_oceanfrac()
     assert set(np.unique(mask.values)).issubset({0, 1})
 
 
