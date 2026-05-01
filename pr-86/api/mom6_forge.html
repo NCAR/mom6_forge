@@ -1550,21 +1550,22 @@ The str or Path the write to file should write to. Defaults to the directory the
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.diagnose_resolution">
-<span class="sig-name descname"><span class="pre">diagnose_resolution</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.diagnose_resolution" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">diagnose_resolution</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">radius</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">6371000.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.diagnose_resolution" title="Link to this definition"></a></dt>
 <dd><p>Print resolution diagnostics comparing the model grid to a source bathymetry
 dataset, and recommend whether Cressman interpolation / stats-based masking
 is worthwhile.</p>
 <p>The recommendation threshold is a resolution ratio of 12x (model dx /
 dataset dx), equivalent to ~0.05° (~5 km) for GEBCO 15-arcsecond source
 data. This matches the criterion used by the tx2_3 global workflow
-(interp_smooth.f90) and is the scale at which ocean-aware Cressman
+(interp_smooth.f90) and might be the scale at which ocean-aware Cressman
 interpolation meaningfully improves coastal depth estimates over standard
 xesmf conservative regridding.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>src</strong> (<em>SourceBathy</em>) – Source bathymetry object.  The DataArray need not be loaded —
-coordinate arrays are read from the file if <code class="docutils literal notranslate"><span class="pre">src</span></code> has not yet
-been sliced to the domain.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>src</strong> (<em>SourceBathy</em><em> (</em><em>provided internally by the class</em><em>)</em>) – Source bathymetry object.</p></li>
+<li><p><strong>radius</strong> (<em>float</em><em>, </em><em>optional</em>) – Radius of the Earth in meters, used to convert source dataset lat/lon spacing to approximate physical spacing in meters at the domain’s mid-latitude. Default is 6.371e6 m.</p></li>
+</ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>True if Cressman / stats-based masking is recommended (ratio &gt;= 12x),
@@ -1800,7 +1801,7 @@ parameter to “spoon”.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.set_src">
-<span class="sig-name descname"><span class="pre">set_src</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bathymetry_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_coordinate_name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.set_src" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">set_src</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bathymetry_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">positive_down</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">buf</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.set_src" title="Link to this definition"></a></dt>
 <dd><p>Set a <code class="xref py py-class docutils literal notranslate"><span class="pre">SourceBathy</span></code>, creating and slicing a new one
 only when the path or coordinate names differ from the current cache.</p>
 </dd></dl>
