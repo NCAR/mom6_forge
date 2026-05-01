@@ -833,10 +833,7 @@ class Topo:
 
     def generate_mask_from_stats_oceanfrac(
         self,
-        nx_sub=5,
-        ny_sub=5,
         mask_threshold=0.5,
-        mask_hmin=0.0,
     ):
         """
         Generate an ocean mask by uniform sub-sampling of the source
@@ -867,9 +864,12 @@ class Topo:
             Binary ocean mask on the T-grid (1 = ocean, 0 = land),
             dims ``["ny", "nx"]``.
         """
-        stats = self._compute_stats(nx_sub, ny_sub, mask_hmin)
 
-        ocean_mask = (stats["OCN_FRAC"].values >= mask_threshold).astype(int)
+        assert (
+            hasattr(self, "_stats") and self._stats is not None
+        ), "Per-cell statistics must be computed before generating mask. Call _compute_stats() first."
+
+        ocean_mask = (self._stats["OCN_FRAC"].values >= mask_threshold).astype(int)
 
         return xr.DataArray(
             ocean_mask,
@@ -877,9 +877,6 @@ class Topo:
             attrs={
                 "long_name": "ocean mask from sub-sampling",
                 "mask_threshold": mask_threshold,
-                "mask_hmin": mask_hmin,
-                "nx_sub": nx_sub,
-                "ny_sub": ny_sub,
             },
         )
 
