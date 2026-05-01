@@ -7,7 +7,7 @@ from typing import Optional
 from scipy import interpolate
 from scipy.ndimage import label, binary_fill_holes
 from scipy.spatial import cKDTree
-from mom6_forge.utils import cell_area_rad, longitude_slicer
+from mom6_forge.utils import cell_area_rad, longitude_slicer, compute_subsampling_factor
 from mom6_forge.grid import Grid
 from mom6_forge.git_utils import get_domain_dir, get_repo
 from pathlib import Path
@@ -834,16 +834,14 @@ class Topo:
         The recommendation threshold is a resolution ratio of 12x (model dx /
         dataset dx), equivalent to ~0.05° (~5 km) for GEBCO 15-arcsecond source
         data. This matches the criterion used by the tx2_3 global workflow
-        (interp_smooth.f90) and is the scale at which ocean-aware Cressman
+        (interp_smooth.f90) and might be the scale at which ocean-aware Cressman
         interpolation meaningfully improves coastal depth estimates over standard
         xesmf conservative regridding.
 
         Parameters
         ----------
-        src : SourceBathy
-            Source bathymetry object.  The DataArray need not be loaded —
-            coordinate arrays are read from the file if ``src`` has not yet
-            been sliced to the domain.
+        src : SourceBathy (provided internally by the class)
+            Source bathymetry object. 
 
         Returns
         -------
