@@ -858,6 +858,12 @@ down to the lat/lon ranges required for efficient regridding:</p>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.grid.Grid.get_esmf_ready_tracer_ds">
+<span class="sig-name descname"><span class="pre">get_esmf_ready_tracer_ds</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.grid.Grid.get_esmf_ready_tracer_ds" title="Link to this definition"></a></dt>
+<dd><p>This is to generate a ds that esmf/xesmf can use for regridding. It contains the tlat and tlon coordinates and the area variable (tarea) that can be used as weights for conservative regridding.</p>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.grid.Grid.get_indices">
 <span class="sig-name descname"><span class="pre">get_indices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tlat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tlon</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.get_indices" title="Link to this definition"></a></dt>
 <dd><p>Get the i, j indices of a given tlat and tlon pair.</p>
