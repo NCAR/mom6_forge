@@ -184,6 +184,7 @@ class Topo:
             ),
             self._land_fillval,  # Land cells to _land_fillval
         )
+        masked_depth = masked_depth.fillna(0)
         return masked_depth
 
     @property
@@ -972,6 +973,7 @@ class Topo:
             )
 
             # Create Mask
+            self.user_mask = self.generate_mask_from_naturalearth()
 
             # Set depth to mean depth from stats
             self.direct_stats_depth(statistic="mean")
@@ -979,13 +981,8 @@ class Topo:
             # Tidy the dataset (fill channels, apply mask, etc.)
             self.tidy_dataset(
                 fill_channels=fill_channels,
-                positive_down=True, # Should have already been handled in set_src,
-                vertical_coordinate_name=vertical_coordinate_name,
-                bathymetry=self._stats["D_mean"],
-                output_dir=output_dir,
-                write_to_file=write_to_file,
-                longitude_coordinate_name=longitude_coordinate_name,
-                latitude_coordinate_name=latitude_coordinate_name,
+                positive_down=True,  # Should have already been handled in set_src,
+                mask=None,  # We're already handling that earlier
             )
 
     def direct_xesmf_regrid(
@@ -1032,7 +1029,9 @@ class Topo:
             Call ``[topo_object_name].mpi_set_from_dataset()`` instead. Follow the given instructions for using mpi
             and ESMF_Regrid outside of a python environment. This breaks up the process, so be sure to call
             ``[topo_object_name].tidy_dataset() after regridding with mpi.""")
-        assert self.src is not None, "Source bathymetry must be set to use direct_xesmf_regrid, please call set_src first if you have not already"
+        assert (
+            self.src is not None
+        ), "Source bathymetry must be set to use direct_xesmf_regrid, please call set_src first if you have not already"
         if run_config_dataset:
             self.bathymetry_output, self.empty_bathy = self.config_dataset(
                 bathymetry_path=self.src.path,
@@ -1057,12 +1056,7 @@ class Topo:
             self.tidy_dataset(
                 fill_channels=fill_channels,
                 positive_down=self.src.positive_down,
-                vertical_coordinate_name="depth",
-                bathymetry=self.regridded_bathy,
-                output_dir=output_dir,
-                write_to_file=write_to_file,
-                longitude_coordinate_name="lon",
-                latitude_coordinate_name="lat",
+                mask="dataset",
             )
 
     def mpi_set_from_dataset(
@@ -1253,16 +1247,148 @@ class Topo:
             empty_bathy.close()
         return bathymetry_output, empty_bathy
 
+    def positive_down_check(self, positive_down=True):
+        """
+        Reverse the sign of the depth variable. This is useful for converting between positive-up and positive-down conventions.
+        """
+        if not positive_down:
+            self._depth *= -1
+
+    def fill_channels(self):
+        """
+        Fill in one-cell-wide channels. This removes more narrow inlets, but can also connect extra islands to land.
+        """
+        changed = True  ## keeps track of whether solution has converged or not
+
+        forward = True  ## only useful for iterating through diagonal channel removal. Means iteration goes SW -> NE
+        ocean_mask = self.user_mask
+        land_mask = np.abs(ocean_mask - 1)
+
+        while changed == True:
+            ## First fill in all lakes.
+            ## scipy.ndimage.binary_fill_holes fills holes made of 0's within a field of 1's
+            land_mask[:, :] = binary_fill_holes(land_mask.data)
+            ## Get the ocean mask instead of land- easier to remove channels this way
+            ocean_mask = np.abs(land_mask - 1)
+
+            ## fill in all one-cell-wide horizontal channels
+            newmask = xr.where(
+                ocean_mask * (land_mask.shift(nx=1) + land_mask.shift(nx=-1)) == 2,
+                1,
+                0,
+            )
+            newmask += xr.where(
+                ocean_mask * (land_mask.shift(ny=1) + land_mask.shift(ny=-1)) == 2,
+                1,
+                0,
+            )
+            ## Diagonal channels
+            if forward == True:
+                ## horizontal channels
+                newmask += xr.where(
+                    (ocean_mask * ocean_mask.shift(nx=1))
+                    * (
+                        land_mask.shift({"nx": 1, "ny": 1})
+                        + land_mask.shift({"ny": -1})
+                    )
+                    == 2,
+                    1,
+                    0,
+                )  ## up right & below
+                newmask += xr.where(
+                    (ocean_mask * ocean_mask.shift(nx=1))
+                    * (
+                        land_mask.shift({"nx": 1, "ny": -1})
+                        + land_mask.shift({"ny": 1})
+                    )
+                    == 2,
+                    1,
+                    0,
+                )  ## down right & above
+                ## Vertical channels
+                newmask += xr.where(
+                    (ocean_mask * ocean_mask.shift(ny=1))
+                    * (
+                        land_mask.shift({"nx": 1, "ny": 1})
+                        + land_mask.shift({"nx": -1})
+                    )
+                    == 2,
+                    1,
+                    0,
+                )  ## up right & left
+                newmask += xr.where(
+                    (ocean_mask * ocean_mask.shift(ny=1))
+                    * (
+                        land_mask.shift({"nx": -1, "ny": 1})
+                        + land_mask.shift({"nx": 1})
+                    )
+                    == 2,
+                    1,
+                    0,
+                )  ## up left & right
+
+                forward = False
+
+            if forward == False:
+                ## Horizontal channels
+                newmask += xr.where(
+                    (ocean_mask * ocean_mask.shift(nx=-1))
+                    * (
+                        land_mask.shift({"nx": -1, "ny": 1})
+                        + land_mask.shift({"ny": -1})
+                    )
+                    == 2,
+                    1,
+                    0,
+                )  ## up left & below
+                newmask += xr.where(
+                    (ocean_mask * ocean_mask.shift(nx=-1))
+                    * (
+                        land_mask.shift({"nx": -1, "ny": -1})
+                        + land_mask.shift({"ny": 1})
+                    )
+                    == 2,
+                    1,
+                    0,
+                )  ## down left & above
+                ## Vertical channels
+                newmask += xr.where(
+                    (ocean_mask * ocean_mask.shift(ny=-1))
+                    * (
+                        land_mask.shift({"nx": 1, "ny": -1})
+                        + land_mask.shift({"nx": -1})
+                    )
+                    == 2,
+                    1,
+                    0,
+                )  ## down right & left
+                newmask += xr.where(
+                    (ocean_mask * ocean_mask.shift(ny=-1))
+                    * (
+                        land_mask.shift({"nx": -1, "ny": -1})
+                        + land_mask.shift({"nx": 1})
+                    )
+                    == 2,
+                    1,
+                    0,
+                )  ## down left & right
+
+                forward = True
+
+            newmask = xr.where(newmask > 0, 1, 0)
+            changed = np.max(newmask) == 1
+            land_mask += newmask
+
+        ocean_mask = np.abs(land_mask - 1)
+
+        # Reset the mask through Mask Edit
+        self.user_mask = ocean_mask
+
     def tidy_dataset(
         self,
         fill_channels=False,
         positive_down=False,
-        vertical_coordinate_name="depth",
-        bathymetry=None,
-        output_dir=Path(""),
-        write_to_file=True,
-        longitude_coordinate_name="lon",
-        latitude_coordinate_name="lat",
+        mask=None,
     ):
         """
         An auxiliary method for bathymetry used to fix up the metadata and remove inland
@@ -1280,191 +1406,24 @@ class Topo:
                 Default: ``False``.
             positive_down (Optional[bool]): If ``False`` (default), assume that
                 bathymetry vertical coordinate is positive down, as is the case in GEBCO for example.
-            bathymetry (Optional[xr.Dataset]): The bathymetry dataset to tidy up. If not provided,
-                it will read the bathymetry from the file ``bathymetry_unfinished.nc`` in the input directory
-                that was created by :func:`~config/regrid_dataset`.
+            mask (Optional: str): If provided, should be a masking algorithm to use. "Dataset" uses the straight depth
         """
-        ## reopen bathymetry to modify
-        print(
-            "Tidy bathymetry: Reading in regridded bathymetry to fix up metadata...",
-            end="",
-        )
-        if read_bathy_from_file := bathymetry is None:
-            bathymetry = xr.open_dataset(
-                output_dir / "bathymetry_unfinished.nc", engine="netcdf4"
-            )
 
-        ## Ensure correct encoding
-        bathymetry = xr.Dataset(
-            {"depth": (["ny", "nx"], bathymetry[vertical_coordinate_name].values)},
-            coords={
-                "lon": (["ny", "nx"], bathymetry[longitude_coordinate_name].values),
-                "lat": (["ny", "nx"], bathymetry[latitude_coordinate_name].values),
-            },
-        )
-        bathymetry.attrs["depth"] = "meters"
-        bathymetry.attrs["standard_name"] = "bathymetric depth at T-cell centers"
-        bathymetry.attrs["coordinates"] = "zi"
-
-        bathymetry.expand_dims("tiles", 0)
-
-        if not positive_down:
-            ## Ensure that coordinate is positive down!
-            bathymetry["depth"] *= -1
-
+        self.positive_down_check(positive_down=positive_down)
         ## Make a land mask based on the bathymetry
-        ocean_mask = xr.where(bathymetry.depth <= 0, 0, 1)
-        land_mask = np.abs(ocean_mask - 1)
-
-        ## REMOVE INLAND LAKES
-        print("done. Filling in inland lakes and channels... ", end="")
-
-        changed = True  ## keeps track of whether solution has converged or not
-
-        forward = True  ## only useful for iterating through diagonal channel removal. Means iteration goes SW -> NE
-
-        while changed == True:
-            ## First fill in all lakes.
-            ## scipy.ndimage.binary_fill_holes fills holes made of 0's within a field of 1's
-            land_mask[:, :] = binary_fill_holes(land_mask.data)
-            ## Get the ocean mask instead of land- easier to remove channels this way
-            ocean_mask = np.abs(land_mask - 1)
-
-            ## Now fill in all one-cell-wide channels
-            newmask = xr.where(
-                ocean_mask * (land_mask.shift(nx=1) + land_mask.shift(nx=-1)) == 2, 1, 0
+        if mask == "naturalearth":
+            ocean_mask = self.generate_mask_from_naturalearth()
+        elif mask is None or mask == "dataset":  # Don't do anything
+            # This is calced other places.
+            x = 1
+        else:
+            raise ValueError(
+                f"Invalid mask option {mask}, must be one of 'dataset', 'naturalearth', or None"
             )
-            newmask += xr.where(
-                ocean_mask * (land_mask.shift(ny=1) + land_mask.shift(ny=-1)) == 2, 1, 0
-            )
-
-            if fill_channels == True:
-                ## fill in all one-cell-wide horizontal channels
-                newmask = xr.where(
-                    ocean_mask * (land_mask.shift(nx=1) + land_mask.shift(nx=-1)) == 2,
-                    1,
-                    0,
-                )
-                newmask += xr.where(
-                    ocean_mask * (land_mask.shift(ny=1) + land_mask.shift(ny=-1)) == 2,
-                    1,
-                    0,
-                )
-                ## Diagonal channels
-                if forward == True:
-                    ## horizontal channels
-                    newmask += xr.where(
-                        (ocean_mask * ocean_mask.shift(nx=1))
-                        * (
-                            land_mask.shift({"nx": 1, "ny": 1})
-                            + land_mask.shift({"ny": -1})
-                        )
-                        == 2,
-                        1,
-                        0,
-                    )  ## up right & below
-                    newmask += xr.where(
-                        (ocean_mask * ocean_mask.shift(nx=1))
-                        * (
-                            land_mask.shift({"nx": 1, "ny": -1})
-                            + land_mask.shift({"ny": 1})
-                        )
-                        == 2,
-                        1,
-                        0,
-                    )  ## down right & above
-                    ## Vertical channels
-                    newmask += xr.where(
-                        (ocean_mask * ocean_mask.shift(ny=1))
-                        * (
-                            land_mask.shift({"nx": 1, "ny": 1})
-                            + land_mask.shift({"nx": -1})
-                        )
-                        == 2,
-                        1,
-                        0,
-                    )  ## up right & left
-                    newmask += xr.where(
-                        (ocean_mask * ocean_mask.shift(ny=1))
-                        * (
-                            land_mask.shift({"nx": -1, "ny": 1})
-                            + land_mask.shift({"nx": 1})
-                        )
-                        == 2,
-                        1,
-                        0,
-                    )  ## up left & right
-
-                    forward = False
-
-                if forward == False:
-                    ## Horizontal channels
-                    newmask += xr.where(
-                        (ocean_mask * ocean_mask.shift(nx=-1))
-                        * (
-                            land_mask.shift({"nx": -1, "ny": 1})
-                            + land_mask.shift({"ny": -1})
-                        )
-                        == 2,
-                        1,
-                        0,
-                    )  ## up left & below
-                    newmask += xr.where(
-                        (ocean_mask * ocean_mask.shift(nx=-1))
-                        * (
-                            land_mask.shift({"nx": -1, "ny": -1})
-                            + land_mask.shift({"ny": 1})
-                        )
-                        == 2,
-                        1,
-                        0,
-                    )  ## down left & above
-                    ## Vertical channels
-                    newmask += xr.where(
-                        (ocean_mask * ocean_mask.shift(ny=-1))
-                        * (
-                            land_mask.shift({"nx": 1, "ny": -1})
-                            + land_mask.shift({"nx": -1})
-                        )
-                        == 2,
-                        1,
-                        0,
-                    )  ## down right & left
-                    newmask += xr.where(
-                        (ocean_mask * ocean_mask.shift(ny=-1))
-                        * (
-                            land_mask.shift({"nx": -1, "ny": -1})
-                            + land_mask.shift({"nx": 1})
-                        )
-                        == 2,
-                        1,
-                        0,
-                    )  ## down left & right
-
-                    forward = True
-
-            newmask = xr.where(newmask > 0, 1, 0)
-            changed = np.max(newmask) == 1
-            land_mask += newmask
-
-        ocean_mask = np.abs(land_mask - 1)
-
-        bathymetry["depth"] *= ocean_mask
-
-        ## Now, any points in the bathymetry that are shallower than minimum depth are set to minimum depth.
-        ## This preserves the true land/ocean mask.
-        bathymetry["depth"] = bathymetry["depth"].where(bathymetry["depth"] > 0, np.nan)
-        bathymetry["depth"] = bathymetry["depth"].where(
-            ~(bathymetry.depth <= self.min_depth), self.min_depth + 0.1
-        )
-        bathymetry = bathymetry.fillna(
-            0
-        )  # After min_depth filtering, move the land values to zero
-        bathymetry.depth.attrs["units"] = "meters"
-        new_values = bathymetry.depth
-
-        # Save to object (Build TCM Object)
-        self.send_entire_depth_change_to_tcm(new_values)
+        if (
+            fill_channels
+        ):  # Since this is a mask edit operation, we need to do it after we set a user requested mask
+            self.fill_channels()
 
     def erase_selected_basin(self, i, j):
         label = self.basintmask.data[j, i]
