@@ -495,7 +495,9 @@ class Topo:
         all_indices = list(np.ndindex(self._depth.shape))  # list of (j, i) tuples
 
         # 2. Flatten the new values to match the indices
-        new_values = depth.values.ravel().tolist()
+        if type(depth) == xr.DataArray:
+            depth = depth.data
+        new_values = depth.ravel().tolist()
 
         # 3. Flatten old values from raw depth
         old_values = (
