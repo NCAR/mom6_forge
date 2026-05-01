@@ -119,6 +119,24 @@ class SourceBathy:
             return -self._da.values.astype(float)
 
     @property
+    def xesmf_ready_ds(self):
+        """Dataset with standardized coordinate names and positive-down elevation."""
+        ds = self.ds.copy()
+        ds.rename(
+            {
+                self.lon_name: "lon",
+                self.lat_name: "lat",
+                self.elevation_name: "depth",
+            }
+        )
+        ds.depth.attrs["_FillValue"] = -1e20
+        ds.depth.attrs["units"] = "meters"
+        ds.depth.attrs["standard_name"] = "height_above_reference_ellipsoid"
+        ds.depth.attrs["long_name"] = "Depth relative to sea level"
+        ds.depth.attrs["coordinates"] = "lon lat"
+        return ds
+
+    @property
     def da(self):
         """Raw elevation DataArray with source coordinate names (positive-up)."""
         if not self.positive_down:
