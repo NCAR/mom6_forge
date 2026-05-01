@@ -57,7 +57,7 @@ def synthetic_gebco(tmp_path):
 @pytest.fixture
 def src_bathy(small_topo, synthetic_gebco):
     """SourceBathy sliced to the small_topo domain."""
-    return SourceBathy(synthetic_gebco).slice_to_domain(small_topo)
+    return SourceBathy(small_topo, synthetic_gebco)
 
 
 def test_generate_mask_ocean_frac_returns_binary_mask(small_topo, src_bathy):
