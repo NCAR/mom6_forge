@@ -224,11 +224,7 @@ class Topo:
             self._grid.nx,
         ), "Incompatible depth array shape"
 
-        self._depth = xr.DataArray(
-            depth,
-            dims=["ny", "nx"],
-            attrs={"units": "m"},
-        )
+        self.send_entire_depth_change_to_tcm(depth)
 
     @property
     def min_depth(self):
@@ -941,6 +937,7 @@ class Topo:
         positive_down=False,
         output_dir=Path(""),
         write_to_file=False,
+        mask = None,
         **kwargs,
     ):
         # Set source
@@ -951,19 +948,31 @@ class Topo:
             vertical_coordinate_name,
             positive_down,
         )
+
+        # Diagnose wether to use stats-based masking and Cressman interpolation based on resolution comparison between the source dataset and the model grid
         use_stats_depth = self.diagnose_resolution()
+
+        # Apply a mask if specified
+        if mask is not None or "dataset":
+            if mask == "naturalearth":
+                self.user_mask = self.generate_mask_from_naturalearth()
+            elif mask == "ocean_frac":
+                self._compute_stats(
+                    nx_sub=kwargs["nx_sub"],
+                    ny_sub=kwargs["ny_sub"],
+                    mask_hmin=kwargs["mask_hmin"],
+                )
+                self.user_mask = self.generate_mask_from_stats_oceanfrac()
 
         if not use_stats_depth:
 
-            return self.direct_xesmf_regrid(
+            self.direct_xesmf_depth(
                 fill_channels=fill_channels,
                 output_dir=output_dir,
                 write_to_file=write_to_file,
                 regridding_method=kwargs["regridding_method"],
-                run_config_dataset=kwargs["run_config_dataset"],
-                run_regrid_dataset=kwargs["run_regrid_dataset"],
-                run_tidy_dataset=kwargs["run_tidy_dataset"],
             )
+            
         else:
             # Compute stats
             self._compute_stats(
@@ -978,21 +987,16 @@ class Topo:
             # Set depth to mean depth from stats
             self.direct_stats_depth(statistic="mean")
 
-            # Tidy the dataset (fill channels, apply mask, etc.)
-            self.tidy_dataset(
-                fill_channels=fill_channels,
-                positive_down=True,  # Should have already been handled in set_src,
-                mask=None,  # We're already handling that earlier
-            )
+        # Tidy the dataset (fill channels, apply mask, etc.)
+        self.tidy(
+            fill_channels=fill_channels
+        )
 
-    def direct_xesmf_regrid(
+    def direct_xesmf_depth(
         self,
-        fill_channels=False,
         output_dir=Path(""),
         write_to_file=False,
         regridding_method="bilinear",
-        run_regrid_dataset=True,
-        run_tidy_dataset=True,
     ):
         """
         This code was originally written by Ashley Barnes in regional_mom6(https://github.com/COSIMA/regional-mom6) and adapted for this package.
@@ -1036,34 +1040,19 @@ class Topo:
         if write_to_file:
             self.bathymetry_output.to_netcdf(output_dir / "bathymetry_original.nc")
             self.empty_bathy.to_netcdf(output_dir / "bathymetry_unfinished.nc")
-        if run_regrid_dataset:
-            self.regridded_bathy = regrid_dataset_via_xesmf(
-                input_dataset=self.bathymetry_output,
-                output_dataset=self.empty_bathy,
-                regridding_method=regridding_method,
-                write_to_file=write_to_file,
-                output_path=output_dir / "bathymetry_unfinished.nc",
-            )
 
-        if run_tidy_dataset:
-            # Set directly into self.depth in this function
-            self.tidy_dataset(
-                fill_channels=fill_channels,
-                positive_down=True,  # src should have already handled the positive down case.
-                mask="dataset",
-            )
+        self.depth = regrid_dataset_via_xesmf(
+            input_dataset=self.bathymetry_output,
+            output_dataset=self.empty_bathy,
+            regridding_method=regridding_method,
+            write_to_file=write_to_file,
+            output_path=output_dir / "bathymetry_unfinished.nc",
+        )
 
-    def mpi_set_from_dataset(
+    def mpi_direct_xesmf_depth(
         self,
         *,
-        bathymetry_path,
-        longitude_coordinate_name,
-        latitude_coordinate_name,
-        vertical_coordinate_name,
-        fill_channels=False,
-        positive_down=False,
         output_dir=Path(""),
-        write_to_file=True,
         verbose=True,
     ):
         if verbose:
@@ -1082,23 +1071,20 @@ class Topo:
 
             `mpirun -np NUMBER_OF_CPUS ESMF_Regrid -s bathymetry_original.nc -d bathymetry_unfinished.nc -m bilinear --src_var depth --dst_var depth --netcdf4 --src_regional --dst_regional`
 
-            4. Run Topo_object.tidy_bathymetry(args) to finish processing the bathymetry.
+            4. Run Topo_object.tidy(args) to finish processing the bathymetry.
 
             Example PBS script using NCAR's Casper Machine: https://gist.github.com/AidanJanney/911290acaef62107f8e2d4ccef9d09be
 
             For additional details see: https://xesmf.readthedocs.io/en/latest/large_problems_on_HPC.html
             """)
+        assert (
+            self.src is not None
+        ), "Source bathymetry must be set to use direct_xesmf_regrid, please call set_src first if you have not already"
 
-        self.bathymetry_output, self.empty_bathy = self.config_dataset(
-            bathymetry_path=bathymetry_path,
-            longitude_coordinate_name=longitude_coordinate_name,
-            latitude_coordinate_name=latitude_coordinate_name,
-            vertical_coordinate_name=vertical_coordinate_name,
-            fill_channels=fill_channels,
-            positive_down=positive_down,
-            output_dir=output_dir,
-            write_to_file=write_to_file,
-        )
+        self.bathymetry_output = self.src.xesmf_ready_ds()
+        self.empty_bathy = self._grid.get_esmf_ready_tracer_ds()
+        self.bathymetry_output.to_netcdf(output_dir / "bathymetry_original.nc")
+        self.empty_bathy.to_netcdf(output_dir / "bathymetry_unfinished.nc")
 
         print(
             "Configuration complete. Ready for regridding with MPI. See documentation for more details."
@@ -1118,7 +1104,7 @@ class Topo:
         changed = True  ## keeps track of whether solution has converged or not
 
         forward = True  ## only useful for iterating through diagonal channel removal. Means iteration goes SW -> NE
-        ocean_mask = self.user_mask
+        ocean_mask = self.tmask.values
         land_mask = np.abs(ocean_mask - 1)
 
         while changed == True:
@@ -1241,11 +1227,10 @@ class Topo:
         # Reset the mask through Mask Edit
         self.user_mask = ocean_mask
 
-    def tidy_dataset(
+    def tidy(
         self,
         fill_channels=False,
-        positive_down=False,
-        mask=None,
+        positive_down=True,
     ):
         """
         An auxiliary method for bathymetry used to fix up the metadata and remove inland
@@ -1263,23 +1248,13 @@ class Topo:
                 Default: ``False``.
             positive_down (Optional[bool]): If ``False`` (default), assume that
                 bathymetry vertical coordinate is positive down, as is the case in GEBCO for example.
-            mask (Optional: str): If provided, should be a masking algorithm to use. "Dataset" uses the straight depth
         """
 
         self.positive_down_check(positive_down=positive_down)
-        ## Make a land mask based on the bathymetry
-        if mask == "naturalearth":
-            ocean_mask = self.generate_mask_from_naturalearth()
-        elif mask is None or mask == "dataset":  # Don't do anything
-            # This is calced other places.
-            x = 1
-        else:
-            raise ValueError(
-                f"Invalid mask option {mask}, must be one of 'dataset', 'naturalearth', or None"
-            )
+
         if (
             fill_channels
-        ):  # Since this is a mask edit operation, we need to do it after we set a user requested mask
+        ):  
             self.fill_channels()
 
     def erase_selected_basin(self, i, j):
