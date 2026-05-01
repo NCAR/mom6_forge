@@ -831,7 +831,7 @@ class Topo:
         )
         return self._stats
 
-    def diagnose_resolution(self, radius =  6.371e6):
+    def diagnose_resolution(self, radius=6.371e6):
         """
         Print resolution diagnostics comparing the model grid to a source bathymetry
         dataset, and recommend whether Cressman interpolation / stats-based masking
@@ -847,7 +847,7 @@ class Topo:
         Parameters
         ----------
         src : SourceBathy (provided internally by the class)
-            Source bathymetry object. 
+            Source bathymetry object.
         radius: float, optional
             Radius of the Earth in meters, used to convert source dataset lat/lon spacing to approximate physical spacing in meters at the domain's mid-latitude. Default is 6.371e6 m.
 
@@ -873,8 +873,8 @@ class Topo:
         dlon_deg = float(abs(src.lon[1] - src.lon[0]))
         dlat_deg = float(abs(src.lat[1] - src.lat[0]))
         R = radius
-        dataset_dx_m = haversine(src.lat[0], src.lon[0], src.lat[0], src.lon[1], R) 
-        dataset_dy_m = haversine(src.lat[0], src.lon[0], src.lat[1], src.lon[0], R) 
+        dataset_dx_m = haversine(src.lat[0], src.lon[0], src.lat[0], src.lon[1], R)
+        dataset_dy_m = haversine(src.lat[0], src.lon[0], src.lat[1], src.lon[0], R)
 
         ratio_median = median_dx_m / dataset_dx_m
         ratio_max = max_dx_m / dataset_dx_m
@@ -887,9 +887,7 @@ class Topo:
         print(f"\n  Source dataset ({src.path.name}):")
         print(f"    dlon = {dlon_deg * 3600:.1f} arcsec  ({dlon_deg:.6f}°)")
         print(f"    dlat = {dlat_deg * 3600:.1f} arcsec  ({dlat_deg:.6f}°)")
-        print(
-            f"    dx   ~ {dataset_dx_m:.0f} m)"
-        )
+        print(f"    dx   ~ {dataset_dx_m:.0f} m)")
         print(f"    dy   ~ {dataset_dy_m:.0f} m")
         print(f"\n  Model grid (T-cell spacing):")
         print(f"    median = {median_dx_m / 1000:.2f} km")
@@ -944,32 +942,54 @@ class Topo:
         **kwargs,
     ):
         # Set source
-        self.set_src(bathymetry_path, longitude_coordinate_name, latitude_coordinate_name, vertical_coordinate_name, positive_down)
-        diagnosis = self.diagnose_resolution()
-
-        return self.direct_xesmf_regrid(
-            bathymetry_path=bathymetry_path,
-            longitude_coordinate_name=longitude_coordinate_name,
-            latitude_coordinate_name=latitude_coordinate_name,
-            vertical_coordinate_name=vertical_coordinate_name,
-            fill_channels=fill_channels,
-            positive_down=positive_down,
-            output_dir=output_dir,
-            write_to_file=write_to_file,
-            regridding_method=kwargs["regridding_method"],
-            run_config_dataset=kwargs["run_config_dataset"],
-            run_regrid_dataset=kwargs["run_regrid_dataset"],
-            run_tidy_dataset=kwargs["run_tidy_dataset"],
+        self.set_src(
+            bathymetry_path,
+            longitude_coordinate_name,
+            latitude_coordinate_name,
+            vertical_coordinate_name,
+            positive_down,
         )
+        use_stats_depth = self.diagnose_resolution()
+
+        if not use_stats_depth:
+
+            return self.direct_xesmf_regrid(
+                fill_channels=fill_channels,
+                output_dir=output_dir,
+                write_to_file=write_to_file,
+                regridding_method=kwargs["regridding_method"],
+                run_config_dataset=kwargs["run_config_dataset"],
+                run_regrid_dataset=kwargs["run_regrid_dataset"],
+                run_tidy_dataset=kwargs["run_tidy_dataset"],
+            )
+        else:
+            # Compute stats
+            self._compute_stats(
+                nx_sub=kwargs["nx_sub"],
+                ny_sub=kwargs["ny_sub"],
+                mask_hmin=kwargs["mask_hmin"],
+            )
+
+            # Create Mask
+
+            # Set depth to mean depth from stats
+            self.direct_stats_depth(statistic="mean")
+
+            # Tidy the dataset (fill channels, apply mask, etc.)
+            self.tidy_dataset(
+                fill_channels=fill_channels,
+                positive_down=True, # Should have already been handled in set_src,
+                vertical_coordinate_name=vertical_coordinate_name,
+                bathymetry=self._stats["D_mean"],
+                output_dir=output_dir,
+                write_to_file=write_to_file,
+                longitude_coordinate_name=longitude_coordinate_name,
+                latitude_coordinate_name=latitude_coordinate_name,
+            )
 
     def direct_xesmf_regrid(
         self,
-        bathymetry_path,
-        longitude_coordinate_name,
-        latitude_coordinate_name,
-        vertical_coordinate_name,
         fill_channels=False,
-        positive_down=False,
         output_dir=Path(""),
         write_to_file=False,
         regridding_method="bilinear",
@@ -1011,14 +1031,13 @@ class Topo:
             Call ``[topo_object_name].mpi_set_from_dataset()`` instead. Follow the given instructions for using mpi
             and ESMF_Regrid outside of a python environment. This breaks up the process, so be sure to call
             ``[topo_object_name].tidy_dataset() after regridding with mpi.""")
+        assert self.src is not None, "Source bathymetry must be set to use direct_xesmf_regrid, please call set_src first if you have not already"
         if run_config_dataset:
             self.bathymetry_output, self.empty_bathy = self.config_dataset(
-                bathymetry_path=bathymetry_path,
-                longitude_coordinate_name=longitude_coordinate_name,
-                latitude_coordinate_name=latitude_coordinate_name,
-                vertical_coordinate_name=vertical_coordinate_name,
-                fill_channels=fill_channels,
-                positive_down=positive_down,
+                bathymetry_path=self.src.path,
+                longitude_coordinate_name=self.src.lon_name,
+                latitude_coordinate_name=self.src.lat_name,
+                vertical_coordinate_name=self.src.elevation_name,
                 output_dir=output_dir,
                 write_to_file=write_to_file,
             )
@@ -1036,7 +1055,7 @@ class Topo:
             # Set directly into self.depth in this function
             self.tidy_dataset(
                 fill_channels=fill_channels,
-                positive_down=positive_down,
+                positive_down=self.src.positive_down,
                 vertical_coordinate_name="depth",
                 bathymetry=self.regridded_bathy,
                 output_dir=output_dir,
@@ -1102,8 +1121,6 @@ class Topo:
         longitude_coordinate_name,
         latitude_coordinate_name,
         vertical_coordinate_name,
-        fill_channels=False,
-        positive_down=False,
         output_dir=Path(""),
         write_to_file=True,
     ):
