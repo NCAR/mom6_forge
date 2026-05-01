@@ -441,6 +441,8 @@ class Topo:
         longitude_coordinate_name,
         latitude_coordinate_name,
         vertical_coordinate_name,
+        positive_down=False,
+        buf=0.5,
     ):
         """Set a :class:`SourceBathy`, creating and slicing a new one
         only when the path or coordinate names differ from the current cache."""
@@ -458,6 +460,8 @@ class Topo:
                 longitude_coordinate_name,
                 latitude_coordinate_name,
                 vertical_coordinate_name,
+                positive_down=positive_down,
+                buf=buf,
             )
         return self.src
 
