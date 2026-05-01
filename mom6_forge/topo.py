@@ -452,11 +452,12 @@ class Topo:
             or self.src.elevation_name != vertical_coordinate_name
         ):
             self.src = SourceBathy(
+                self,
                 path,
                 longitude_coordinate_name,
                 latitude_coordinate_name,
                 vertical_coordinate_name,
-            ).slice_to_domain(self)
+            )
         return self.src
 
     def clear_user_mask(self):

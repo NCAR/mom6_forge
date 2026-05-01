@@ -34,11 +34,13 @@ class SourceBathy:
 
     def __init__(
         self,
+        topo,
         path,
         lon_name="lon",
         lat_name="lat",
         elevation_name="elevation",
         positive_down=False,
+        buf=0.5,
     ):
         self.path = Path(path)
         self.lon_name = lon_name
@@ -48,12 +50,13 @@ class SourceBathy:
         self._da = None  # set by slice_to_domain
         self._ds = None  # set by slice_to_domain
         self._topo_stats = None  # set by compute_topo_stats
+        self._slice_to_domain(topo, buf=buf)
 
     # ------------------------------------------------------------------
     # Loading
     # ------------------------------------------------------------------
 
-    def slice_to_domain(self, topo, buf=0.5):
+    def _slice_to_domain(self, topo, buf=0.5):
         """Load and clip elevation to the topo grid extent plus ``buf`` degrees.
 
         Handles the global-longitude seam automatically.  Mutates ``self``
