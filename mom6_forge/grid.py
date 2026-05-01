@@ -940,3 +940,14 @@ class Grid:
         ds.attrs["filename"] = os.path.basename(path)
         ds.to_netcdf(path, format="NETCDF3_64BIT")
         return ds
+
+    def get_esmf_ready_tracer_ds(self):
+        """This is to generate a ds that esmf/xesmf can use for regridding. It contains the tlat and tlon coordinates and the area variable (tarea) that can be used as weights for conservative regridding."""
+        ds = xr.Dataset(
+            {
+                "tlat": self.tlat,
+                "tlon": self.tlon,
+                "tarea": self.tarea,
+            }
+        )
+        return ds

@@ -991,7 +991,6 @@ class Topo:
         output_dir=Path(""),
         write_to_file=False,
         regridding_method="bilinear",
-        run_config_dataset=True,
         run_regrid_dataset=True,
         run_tidy_dataset=True,
     ):
@@ -1032,16 +1031,11 @@ class Topo:
         assert (
             self.src is not None
         ), "Source bathymetry must be set to use direct_xesmf_regrid, please call set_src first if you have not already"
-        if run_config_dataset:
-            self.bathymetry_output, self.empty_bathy = self.config_dataset(
-                bathymetry_path=self.src.path,
-                longitude_coordinate_name=self.src.lon_name,
-                latitude_coordinate_name=self.src.lat_name,
-                vertical_coordinate_name=self.src.elevation_name,
-                output_dir=output_dir,
-                write_to_file=write_to_file,
-            )
-
+        self.bathymetry_output = self.src.xesmf_ready_ds()
+        self.empty_bathy = self._grid.get_esmf_ready_tracer_ds()
+        if write_to_file:
+            self.bathymetry_output.to_netcdf(output_dir / "bathymetry_original.nc")
+            self.empty_bathy.to_netcdf(output_dir / "bathymetry_unfinished.nc")
         if run_regrid_dataset:
             self.regridded_bathy = regrid_dataset_via_xesmf(
                 input_dataset=self.bathymetry_output,
@@ -1055,7 +1049,7 @@ class Topo:
             # Set directly into self.depth in this function
             self.tidy_dataset(
                 fill_channels=fill_channels,
-                positive_down=self.src.positive_down,
+                positive_down=True,  # src should have already handled the positive down case.
                 mask="dataset",
             )
 
@@ -1109,143 +1103,6 @@ class Topo:
         print(
             "Configuration complete. Ready for regridding with MPI. See documentation for more details."
         )
-
-    def config_dataset(
-        self,
-        bathymetry_path,
-        longitude_coordinate_name,
-        latitude_coordinate_name,
-        vertical_coordinate_name,
-        output_dir=Path(""),
-        write_to_file=True,
-    ):
-        """
-        Sets up necessary objects/files for regridding bathymetry. Can be flexibly used with
-        mapping.regrid_bathy_dataset() or user can manually regrid with ESMF_regrid.
-
-        If manual regridding is necessary, write_to_file must be set to True.
-
-        Arguments:
-            bathymetry_path (str): Path to netCDF file with bathymetry data.
-            longitude_coordinate_name (Optional[str]): The name of the longitude coordinate in the bathymetry
-                dataset at ``bathymetry_path``. For example, for GEBCO bathymetry: ``'lon'`` (default).
-            latitude_coordinate_name (Optional[str]): The name of the latitude coordinate in the bathymetry
-                dataset at ``bathymetry_path``. For example, for GEBCO bathymetry: ``'lat'`` (default).
-            vertical_coordinate_name (Optional[str]): The name of the vertical coordinate in the bathymetry
-                dataset at ``bathymetry_path``. For example, for GEBCO bathymetry: ``'elevation'`` (default).
-            output_dir: str | Path
-                The str or Path the write to file should write to. Defaults to the directory the script is running in.
-            write_to_file (Optional[bool]): Files saved to ``output_dir``. Defaults to ``True``. Must be set to true if using manual regridding methods with ESMF_regrid.
-
-        Returns:
-            (``bathymetry_output``,``empty_bathy``) (tuple of Datasets): where ``bathymetry_output`` is the original bathymetry data with proper metadata and attributes and ``empty_bathy`` is a template for the regridder.
-        """
-        coordinate_names = {
-            "xh": longitude_coordinate_name,
-            "yh": latitude_coordinate_name,
-            "depth": vertical_coordinate_name,
-        }
-        longitude_extent = (
-            float(self._grid.qlon.min()),
-            float(self._grid.qlon.max()),
-        )
-        latitude_extent = (
-            float(self._grid.qlat.min()),
-            float(self._grid.qlat.max()),
-        )
-
-        bathymetry = xr.open_dataset(bathymetry_path, chunks="auto")[
-            coordinate_names["depth"]
-        ]
-
-        bathymetry = bathymetry.sel(
-            {
-                coordinate_names["yh"]: slice(
-                    latitude_extent[0] - 0.5, latitude_extent[1] + 0.5
-                )
-            }  # 0.5 degree latitude buffer (hardcoded) for regridding
-        ).astype("float")
-
-        ## Check if the original bathymetry provided has a longitude extent that goes around the globe
-        ## to take care of the longitude seam when we slice out the regional domain.
-
-        horizontal_resolution = (
-            bathymetry[coordinate_names["xh"]][1]
-            - bathymetry[coordinate_names["xh"]][0]
-        )
-
-        horizontal_extent = (
-            bathymetry[coordinate_names["xh"]][-1]
-            - bathymetry[coordinate_names["xh"]][0]
-            + horizontal_resolution
-        )
-
-        longitude_buffer = 0.5  # 0.5 degree longitude buffer (hardcoded) for regridding
-
-        if np.isclose(horizontal_extent, 360):
-            ## longitude extent that goes around the globe -- use longitude_slicer
-            bathymetry = longitude_slicer(
-                bathymetry,
-                np.array(longitude_extent)
-                + np.array([-longitude_buffer, longitude_buffer]),
-                coordinate_names["xh"],
-            )
-        else:
-            ## otherwise, slice normally
-            bathymetry = bathymetry.sel(
-                {
-                    coordinate_names["xh"]: slice(
-                        longitude_extent[0] - longitude_buffer,
-                        longitude_extent[1] + longitude_buffer,
-                    )
-                }
-            )
-
-        bathymetry.attrs["missing_value"] = -1e20  # missing value expected by FRE tools
-        bathymetry_output = xr.Dataset({"depth": bathymetry})
-        bathymetry.close()
-
-        bathymetry_output = bathymetry_output.rename(
-            {coordinate_names["xh"]: "lon", coordinate_names["yh"]: "lat"}
-        )
-
-        bathymetry_output.depth.attrs["_FillValue"] = -1e20
-        bathymetry_output.depth.attrs["units"] = "meters"
-        bathymetry_output.depth.attrs["standard_name"] = (
-            "height_above_reference_ellipsoid"
-        )
-        bathymetry_output.depth.attrs["long_name"] = "Elevation relative to sea level"
-        bathymetry_output.depth.attrs["coordinates"] = "lon lat"
-        if write_to_file:
-            bathymetry_output.to_netcdf(
-                output_dir / "bathymetry_original.nc",
-                mode="w",
-                engine="netcdf4",
-            )
-
-        empty_bathy = xr.Dataset(
-            {
-                "lon": self._grid.tlon,
-                "lat": self._grid.tlat,
-            }
-        )
-
-        empty_bathy = empty_bathy.set_coords(("lon", "lat"))
-        empty_bathy["depth"] = xr.zeros_like(empty_bathy["lon"])
-        empty_bathy.lon.attrs["units"] = "degrees_east"
-        empty_bathy.lon.attrs["_FillValue"] = 1e20
-        empty_bathy.lat.attrs["units"] = "degrees_north"
-        empty_bathy.lat.attrs["_FillValue"] = 1e20
-        empty_bathy.depth.attrs["units"] = "meters"
-        empty_bathy.depth.attrs["coordinates"] = "lon lat"
-        if write_to_file:
-            empty_bathy.to_netcdf(
-                output_dir / "bathymetry_unfinished.nc",
-                mode="w",
-                engine="netcdf4",
-            )
-            empty_bathy.close()
-        return bathymetry_output, empty_bathy
 
     def positive_down_check(self, positive_down=True):
         """
