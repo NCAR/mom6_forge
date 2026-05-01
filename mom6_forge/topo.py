@@ -15,6 +15,7 @@ from mom6_forge.edit_command import *
 from mom6_forge.command_manager import TopoCommandManager, CommandType
 from mom6_forge.mapping import regrid_dataset_via_xesmf, regrid_with_subsampling
 from mom6_forge._source_bathy import SourceBathy
+from mom6_forge._supergrid import haversine
 
 
 class Topo:
@@ -826,7 +827,7 @@ class Topo:
         )
         return self._stats
 
-    def diagnose_resolution(self):
+    def diagnose_resolution(self, radius =  6.371e6):
         """
         Print resolution diagnostics comparing the model grid to a source bathymetry
         dataset, and recommend whether Cressman interpolation / stats-based masking
@@ -843,6 +844,8 @@ class Topo:
         ----------
         src : SourceBathy (provided internally by the class)
             Source bathymetry object. 
+        radius: float, optional
+            Radius of the Earth in meters, used to convert source dataset lat/lon spacing to approximate physical spacing in meters at the domain's mid-latitude. Default is 6.371e6 m.
 
         Returns
         -------
@@ -862,22 +865,12 @@ class Topo:
 
         # --- Source dataset spacing ---
         src = self.src
-        if src.ds is not None:
-            lon = src.lon
-            lat = src.lat
-        else:
-            ds = xr.open_dataset(src.path)
-            lon = ds[src.lon_name].values
-            lat = ds[src.lat_name].values
-            ds.close()
 
-        dlon_deg = float(abs(lon[1] - lon[0]))
-        dlat_deg = float(abs(lat[1] - lat[0]))
-
-        mid_lat_deg = float(self._grid.tlat.mean())
-        R = 6371000.0
-        dataset_dx_m = dlon_deg * (np.pi / 180) * R * np.cos(mid_lat_deg * np.pi / 180)
-        dataset_dy_m = dlat_deg * (np.pi / 180) * R
+        dlon_deg = float(abs(src.lon[1] - src.lon[0]))
+        dlat_deg = float(abs(src.lat[1] - src.lat[0]))
+        R = radius
+        dataset_dx_m = haversine(src.lat[0], src.lon[0], src.lat[0], src.lon[1], R) 
+        dataset_dy_m = haversine(src.lat[0], src.lon[0], src.lat[1], src.lon[0], R) 
 
         ratio_median = median_dx_m / dataset_dx_m
         ratio_max = max_dx_m / dataset_dx_m
@@ -891,7 +884,7 @@ class Topo:
         print(f"    dlon = {dlon_deg * 3600:.1f} arcsec  ({dlon_deg:.6f}°)")
         print(f"    dlat = {dlat_deg * 3600:.1f} arcsec  ({dlat_deg:.6f}°)")
         print(
-            f"    dx   ~ {dataset_dx_m:.0f} m  (at domain mid-lat {mid_lat_deg:.1f}°)"
+            f"    dx   ~ {dataset_dx_m:.0f} m)"
         )
         print(f"    dy   ~ {dataset_dy_m:.0f} m")
         print(f"\n  Model grid (T-cell spacing):")
@@ -914,7 +907,7 @@ class Topo:
             print(
                 f"    Ratio {ratio_median:.1f}x is below the threshold where Cressman"
             )
-            print(f"    provides significant benefit over xesmf regridding.")
+            print(f"    likely provides benefit over xesmf regridding.")
         print(sep)
         return bool(ratio_median >= CRESSMAN_THRESHOLD)
 
@@ -946,6 +939,10 @@ class Topo:
         write_to_file=False,
         **kwargs,
     ):
+        # Set source
+        self.set_src(bathymetry_path, longitude_coordinate_name, latitude_coordinate_name, vertical_coordinate_name, positive_down)
+        diagnosis = self.diagnose_resolution()
+
         return self.direct_xesmf_regrid(
             bathymetry_path=bathymetry_path,
             longitude_coordinate_name=longitude_coordinate_name,
