@@ -15,8 +15,7 @@ def test_compute_topo_stats(get_rect_topo, synthetic_bathy_file):
     topo = get_rect_topo
 
     # Load source bathymetry and slice to topo domain
-    src = SourceBathy(synthetic_bathy_file)
-    src.slice_to_domain(topo, buf=0.5)
+    src = SourceBathy(topo, synthetic_bathy_file)
     topo._src = src
 
     # Test with different sub-sampling densities
@@ -62,8 +61,7 @@ def test_direct_stats_depth(get_rect_topo, synthetic_bathy_file):
     topo = get_rect_topo
 
     # Load source bathymetry and slice to topo domain
-    src = SourceBathy(synthetic_bathy_file)
-    src.slice_to_domain(topo, buf=0.5)
+    src = SourceBathy(topo, synthetic_bathy_file)
     topo.src = src
     topo._compute_stats(nx_sub=2, ny_sub=2, mask_hmin=0.0)
 
