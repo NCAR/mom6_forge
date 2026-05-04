@@ -80,7 +80,6 @@ class Topo:
 
         else:
             self.version_control = False
-            self.domain_dir = None
             self.tcm = None
             # Apply the initial min_depth command directly without git recording
             initial_command()
@@ -471,7 +470,7 @@ class Topo:
         cmd_type: CommandType
             The type of the command, used for version control categorization. Ignored if quietly is True or if version control is disabled.
         """
-        if not quietly and self.tcm is not None:  # tcm is None means git is off
+        if not quietly and not self.version_control:  # tcm is None means git is off
             self.tcm.execute(cmd, cmd_type=cmd_type)
         else:
             cmd()
