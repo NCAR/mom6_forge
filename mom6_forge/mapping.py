@@ -1088,7 +1088,7 @@ def regrid_with_subsampling(
     regridded_dataset : xr.Dataset
             Regridded dataset with dimensions (..., ny, nx, ny_sub, nx_sub), where the sub-sampling points are kept as separate dimensions. (User should perform stats calc)
     """
-    assert input_dataset.lon.dims == ("lon",) and input_dataset.lat.dims == (
+    assert len(input_dataset.lon.dims) == 1 and input_dataset.lat.dims == (
         "lat",
     ), "input_dataset must have 1D 'lon' and 'lat' coordinates"
     ny, nx = qlon.shape[0] - 1, qlon.shape[1] - 1

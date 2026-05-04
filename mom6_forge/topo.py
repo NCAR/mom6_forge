@@ -768,12 +768,12 @@ class Topo:
             self.src is not None
         ), "Source bathymetry must be loaded to compute topo stats"
         src = self.src
-        if hasattr(self, "_stats") and isinstance(self._stats, dict):
-            if self._stats["args"] == {
-                "nx_sub": nx_sub,
-                "ny_sub": ny_sub,
-                "mask_hmin": mask_hmin,
-            }:
+        if hasattr(self, "_stats") and isinstance(self._stats, xr.Dataset):
+            if (
+                self._stats.attrs.get("nx_sub") == nx_sub
+                and self._stats.attrs.get("ny_sub") == ny_sub
+                and self._stats.attrs.get("mask_hmin") == mask_hmin
+            ):
                 return self._stats
 
         # Compute subsampling factor and generate sub-point grid
@@ -786,7 +786,7 @@ class Topo:
             regridding_method="nearest_s2d",
         )
 
-        depth_sub = ds[src.elevation_name].values  # (ny, nx, ny_sub, nx_sub)
+        depth_sub = ds[src.depth_name].values  # (ny, nx, ny_sub, nx_sub)
 
         is_ocean = depth_sub > mask_hmin
         ocn_frac = is_ocean.sum(axis=(-2, -1)) / (nx_sub * ny_sub)
@@ -801,11 +801,6 @@ class Topo:
         dims = ["ny", "nx"]
         self._stats = xr.Dataset(
             {
-                "args": {
-                    "nx_sub": nx_sub,
-                    "ny_sub": ny_sub,
-                    "mask_hmin": mask_hmin,
-                },
                 "OCN_FRAC": xr.DataArray(
                     ocn_frac,
                     dims=dims,
@@ -837,7 +832,12 @@ class Topo:
                         "units": "m2",
                     },
                 ),
-            }
+            },
+            attrs={
+                "nx_sub": nx_sub,
+                "ny_sub": ny_sub,
+                "mask_hmin": mask_hmin,
+            },
         )
         return self._stats
 
