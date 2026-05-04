@@ -768,8 +768,13 @@ class Topo:
             self.src is not None
         ), "Source bathymetry must be loaded to compute topo stats"
         src = self.src
-        if hasattr(self, "_stats") and self._stats is not None:
-            return self._stats
+        if hasattr(self, "_stats") and isinstance(self._stats, dict):
+            if self._stats["args"] == {
+                "nx_sub": nx_sub,
+                "ny_sub": ny_sub,
+                "mask_hmin": mask_hmin,
+            }:
+                return self._stats
 
         # Compute subsampling factor and generate sub-point grid
         ds = regrid_with_subsampling(
@@ -796,6 +801,11 @@ class Topo:
         dims = ["ny", "nx"]
         self._stats = xr.Dataset(
             {
+                "args": {
+                    "nx_sub": nx_sub,
+                    "ny_sub": ny_sub,
+                    "mask_hmin": mask_hmin,
+                },
                 "OCN_FRAC": xr.DataArray(
                     ocn_frac,
                     dims=dims,
