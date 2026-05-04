@@ -37,7 +37,7 @@ class Topo:
         git: bool, optional
             If True (default), initialize a git repository for version control and
             undo/redo support. If False, skip all git and filesystem side-effects;
-            note that save(), undo(), redo(), branch, and tag operations will be
+            note that undo(), redo(), branch, and tag operations will be
             unavailable. TopoEditor also requires git=True.
         """
 
@@ -52,7 +52,9 @@ class Topo:
         )
         self._min_depth = min_depth
         self.land_fillval = 0.0  # Depth value for land cells
-
+        initial_command = MinDepthEditCommand(
+            self, attr="min_depth", new_value=min_depth
+        )
         if git:
             self.version_control = True
 
@@ -69,10 +71,6 @@ class Topo:
             self.grid_file_path = self.domain_dir / "grid.nc"
             grid.write_supergrid(self.grid_file_path)
 
-            initial_command = MinDepthEditCommand(
-                self, attr="min_depth", new_value=min_depth
-            )
-
             # Initialize the git repo
             self.repo = get_repo(self.domain_dir)
 
@@ -85,7 +83,7 @@ class Topo:
             self.domain_dir = None
             self.tcm = None
             # Apply the initial min_depth command directly without git recording
-            MinDepthEditCommand(self, attr="min_depth", new_value=min_depth)()
+            initial_command()
 
     def __getitem__(self, slices):
         """
@@ -106,7 +104,9 @@ class Topo:
         """
 
         new_grid = self._grid[slices]
-        new_topo = Topo(new_grid, self._min_depth)
+        new_topo = Topo(
+            new_grid, self._min_depth, git=self.version_control
+        )  # Create new topo with the same version control setting
         if self._depth is not None:
             new_topo._depth = self._depth[slices]
         return new_topo
