@@ -966,6 +966,13 @@ class Topo:
         )
         bathymetry_output.depth.attrs["long_name"] = "Elevation relative to sea level"
         bathymetry_output.depth.attrs["coordinates"] = "lon lat"
+
+        # Ensure the source bathymetry as a units attribute
+        if "units" not in bathymetry_output[longitude_coordinate_name].attrs:
+            bathymetry_output[longitude_coordinate_name].attrs["units"] = "degrees_east"
+        if "units" not in bathymetry_output[latitude_coordinate_name].attrs:
+            bathymetry_output[latitude_coordinate_name].attrs["units"] = "degrees_north"
+
         if write_to_file:
             bathymetry_output.to_netcdf(
                 output_dir / "bathymetry_original.nc",
