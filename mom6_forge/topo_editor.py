@@ -17,6 +17,7 @@ class TopoEditor(widgets.HBox):
         self.topo = topo
         self.ny = self.topo.depth.data.shape[0]
         self.nx = self.topo.depth.data.shape[1]
+        self.build_ui = build_ui
 
         # --- Command Manager ---
         self.current_branch = self.topo.tcm.get_current_branch()
@@ -134,12 +135,12 @@ class TopoEditor(widgets.HBox):
 
         # Wrap the figure in a widget for display
 
-        if isinstance(self.fig.canvas, FigureCanvasAgg):  # For testing
-            self._interactive_plot = widgets.VBox([])  # empty placeholder
-        else:
+        if self.build_ui:
             self._interactive_plot = widgets.HBox(
                 children=(self.fig.canvas,), layout={"border_left": "1px solid grey"}
             )
+        else:
+            self._interactive_plot = widgets.VBox([])
         self._rect_selector = RectangleSelector(
             self.ax,
             self._on_rect_select,

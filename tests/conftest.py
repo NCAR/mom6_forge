@@ -3,10 +3,7 @@ import pytest
 import xarray as xr
 from mom6_forge.grid import Grid
 from mom6_forge.topo import Topo
-import matplotlib
 from mom6_forge.topo_editor import TopoEditor
-
-matplotlib.use("Agg")  # must be before any other matplotlib import
 
 
 @pytest.fixture
@@ -18,7 +15,7 @@ def get_rect_topo(tmp_path, get_rect_grid):
 
 @pytest.fixture
 def get_editor(get_rect_topo):
-    return TopoEditor(get_rect_topo)
+    return TopoEditor(get_rect_topo, build_ui=False)
 
 
 @pytest.fixture
