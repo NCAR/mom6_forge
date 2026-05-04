@@ -61,6 +61,7 @@ class CommandManager(ABC):
         self.repo.git.add(rel_path)
 
         self.repo.git.commit(
+            "--no-gpg-sign",
             "-m",
             f"{cmd_type.value}-{command_message if command_message is not None else ''}",
         )
