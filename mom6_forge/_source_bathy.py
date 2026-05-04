@@ -43,7 +43,7 @@ class SourceBathy:
         buf=0.5,
     ):
         self.path = Path(path)
-        self.ds = xr.open_dataset(self.path, chunks="auto")
+        self._ds = xr.open_dataset(self.path, chunks="auto")
         self._rename_dims(
             lon_name=lon_name, lat_name=lat_name, depth_name=depth_name
         )  # ensure consistent coordinate names for slicing
@@ -127,11 +127,8 @@ class SourceBathy:
 
     @property
     def depth(self):
-        """2-D depth array, positive-down (ocean > 0), shape (ny_src, nx_src)."""
-        if self.positive_down:
-            return self.ds[self.depth_name].values
-        else:
-            return -self.ds[self.depth_name].values
+        """2-D depth array, depth positive (ocean > 0)"""
+        return self.ds[self.depth_name].values
 
     @property
     def ds(self):
