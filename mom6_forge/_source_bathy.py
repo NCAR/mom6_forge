@@ -67,6 +67,10 @@ class SourceBathy:
         self.lon_name = "lon"
         self.lat_name = "lat"
         self.depth_name = "depth"
+        if "units" not in self._ds[self.lon_name].attrs:
+            self._ds[self.lon_name].attrs["units"] = "degrees_east"
+        if "units" not in self._ds[self.lat_name].attrs:
+            self._ds[self.lat_name].attrs["units"] = "degrees_north"
 
     def _slice_to_domain(self, topo, buf=0.5):
         """Load and clip elevation to the topo grid extent plus ``buf`` degrees.
