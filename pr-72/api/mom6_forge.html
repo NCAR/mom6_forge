@@ -1307,7 +1307,7 @@ properly analyze high-res source data into each coarse cell.  (Originally create
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>input_dataset</strong> (<em>xr.Dataset</em>)</p></li>
+<li><p><strong>input_dataset</strong> (<em>xr.Dataset</em><em> (</em><em>not curvilinear</em><em>)</em>)</p></li>
 <li><p><strong>qlon</strong> (<em>np.ndarray  shape</em><em> (</em><em>ny+1</em><em>, </em><em>nx+1</em><em>)</em>) – Corner coordinates of the destination grid.</p></li>
 <li><p><strong>qlat</strong> (<em>np.ndarray  shape</em><em> (</em><em>ny+1</em><em>, </em><em>nx+1</em><em>)</em>) – Corner coordinates of the destination grid.</p></li>
 <li><p><strong>nx_sub</strong> (<em>int</em>) – Number of sub-points per cell (typically from compute_subsampling_factor).</p></li>
