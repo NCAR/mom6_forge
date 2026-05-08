@@ -446,23 +446,15 @@ class Topo:
     ):
         """Set a :class:`SourceBathy`, creating and slicing a new one
         only when the path or coordinate names differ from the current cache."""
-        path = Path(bathymetry_path)
-        if (
-            self.src is None
-            or self.src.path != path
-            or self.src.lon_name != longitude_coordinate_name
-            or self.src.lat_name != latitude_coordinate_name
-            or self.src.elevation_name != vertical_coordinate_name
-        ):
-            self.src = SourceBathy(
-                self,
-                path,
-                longitude_coordinate_name,
-                latitude_coordinate_name,
-                vertical_coordinate_name,
-                positive_down=positive_down,
-                buf=buf,
-            )
+        self.src = SourceBathy(
+            self,
+            Path(bathymetry_path),
+            longitude_coordinate_name,
+            latitude_coordinate_name,
+            vertical_coordinate_name,
+            positive_down=positive_down,
+            buf=buf,
+        )
         return self.src
 
     def clear_user_mask(self):

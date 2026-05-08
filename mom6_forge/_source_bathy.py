@@ -29,7 +29,7 @@ class SourceBathy:
     path : str or Path
     lon_name : str   — longitude coordinate name. Default ``"lon"``.
     lat_name : str   — latitude coordinate name. Default ``"lat"``.
-    elevation_name : str — elevation variable (positive-up). Default ``"elevation"``.
+    depth_name : str — depth variable. Default ``"depth"``.
     """
 
     def __init__(
@@ -38,8 +38,8 @@ class SourceBathy:
         path,
         lon_name="lon",
         lat_name="lat",
-        depth_name="elevation",
-        depth_positive=True,
+        depth_name="depth",
+        is_input_depth_positive_below_msl=True,
         buf=0.5,
     ):
         self.path = Path(path)
@@ -48,7 +48,7 @@ class SourceBathy:
             lon_name=lon_name, lat_name=lat_name, depth_name=depth_name
         )  # ensure consistent coordinate names for slicing
         self._slice_to_domain(topo, buf=buf)
-        self._ensure_depth_positive(depth_positive)
+        self._ensure_depth_is_positive_below_msl(is_input_depth_positive_below_msl)
 
     # ------------------------------------------------------------------
     # Loading
@@ -110,7 +110,7 @@ class SourceBathy:
             )
         return self._ds
 
-    def _ensure_depth_positive(self, depth_positive):
+    def _ensure_depth_is_positive_below_msl(self, depth_positive):
         """Ensure depth is positive-down. Mutates self in place."""
         if not depth_positive:
             self._ds[self.depth_name] = -self._ds[self.depth_name]
