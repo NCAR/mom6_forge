@@ -39,7 +39,7 @@ class SourceBathy:
         lon_name="lon",
         lat_name="lat",
         depth_name="depth",
-        is_input_depth_positive_below_msl=True,
+        is_input_positive_below_msl=True,
         buf=0.5,
     ):
         self.path = Path(path)
@@ -48,7 +48,7 @@ class SourceBathy:
             lon_name=lon_name, lat_name=lat_name, depth_name=depth_name
         )  # ensure consistent coordinate names for slicing
         self._slice_to_domain(topo, buf=buf)
-        self._ensure_depth_is_positive_below_msl(is_input_depth_positive_below_msl)
+        self._ensure_depth_is_positive_below_msl(is_input_positive_below_msl)
 
     # ------------------------------------------------------------------
     # Loading
