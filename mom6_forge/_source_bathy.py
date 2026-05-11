@@ -1,9 +1,8 @@
 """Source bathymetry loader for mom6_forge.
 
 ``SourceBathy`` is a lightweight data container for a regional slice of a
-source bathymetry dataset.  ``Topo._get_src()`` creates and caches one
-automatically when ``set_from_dataset`` is called.  Users who call pipeline
-methods directly (e.g. ``high_res_regrid``, ``generate_mask_ocean_frac``)
+source bathymetry dataset.  Users who call pipeline
+methods directly
 should construct a ``SourceBathy`` explicitly::
 
     from mom6_forge._source_bathy import SourceBathy
