@@ -356,30 +356,11 @@ class Grid:
 
         Parameters
         ----------
-        supergrid : xr.DataArray or np.array or SupergridBase
+        supergrid : SupergridBase
             Supergrid to check if tripolar.
         """
 
-        nlines = (
-            0  # number of lines along the top row,
-            # (i.e., 2 or more cells with the same x coordinate)
-        )
-
-        ny, nx = supergrid.x.shape
-
-        within_line = False
-        for i in range(0, nx - 1):
-            if not within_line:
-                if supergrid.x[-1, i] == supergrid.x[-1, i + 1]:
-                    within_line = True
-                    nlines += 1
-            else:
-                if supergrid.x[-1, i] != supergrid.x[-1, i + 1]:
-                    within_line = False
-
-        # If there are 3 lines (i.e., 2 or more cells with the same x coordinate),
-        # the grid is tripolar
-        return nlines == 3
+        return supergrid.is_tripolar
 
     def is_rectangular(self, rtol=1e-3) -> bool:
         """Check if the grid is a rectangular lat-lon grid by comparing the

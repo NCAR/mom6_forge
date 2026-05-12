@@ -30,6 +30,29 @@ class SupergridBase:
         )
 
     @property
+    def is_tripolar(self):
+        nlines = (
+            0  # number of lines along the top row,
+            # (i.e., 2 or more cells with the same x coordinate)
+        )
+
+        ny, nx = self.x.shape
+
+        within_line = False
+        for i in range(0, nx - 1):
+            if not within_line:
+                if self.x[-1, i] == self.x[-1, i + 1]:
+                    within_line = True
+                    nlines += 1
+            else:
+                if self.x[-1, i] != self.x[-1, i + 1]:
+                    within_line = False
+
+        # If there are 3 lines (i.e., 2 or more cells with the same x coordinate),
+        # the grid is tripolar
+        return nlines == 3
+
+    @property
     def lenx(self):
         return self.x.max() - self.x.min()
 
@@ -149,6 +172,301 @@ class SupergridBase:
         )
 
         return ds
+
+    def to_esmf_mesh(self, file_path, mask=None, title=None, radius=_DEFAULT_RADIUS):
+        """
+        Write the supergrid as an ESMF mesh file.
+
+        Parameters
+        ----------
+        file_path : str
+            Path to write the ESMF mesh NetCDF file.
+        mask : 2D array, optional
+            Element mask in MOM6 convention (1=ocean, 0=land). Will be converted
+            to ESMF convention (0=unmasked, 1=masked) before writing.
+        title : str, optional
+            Optional title global attribute.
+        radius : float, optional
+            Sphere radius in metres. Used only to compute elementArea.
+        """
+
+        # --- Pull corner and center points from supergrid ---
+        # Supergrid layout: corners at even indices, centers at odd indices
+        qlon = self.x[::2, ::2]  # shape (ny+1, nx)   cyclic, or (ny+1, nx+1) non-cyclic
+        qlat = self.y[::2, ::2]
+        tlon = self.x[1::2, 1::2]  # shape (ny, nx)
+        tlat = self.y[1::2, 1::2]
+
+        ny, nx = tlon.shape
+        ncells = ny * nx
+
+        # --- Element area: sum the 4 supergrid sub-cells that make each MOM6 cell ---
+        # self.area has shape (2*ny, 2*nx); sub-cells are at even pairs
+        sub_area = self.area.reshape(ny, 2, nx, 2)
+        tarea = sub_area.sum(axis=(1, 3))  # shape (ny, nx)
+
+        # --- Node coordinates ---
+        # Flatten corner arrays. Handle cyclic x: ESMF needs the wrap-around
+        # column dropped since connectivity encodes the periodicity.
+
+        # --- Element connectivity (1-based) ---
+        i0 = 1  # ESMF start index
+
+        if self.is_tripolar:
+            # Tripolar fold: top row of nodes is collapsed — the second half
+            # of the top row folds back, so we drop the redundant nodes.
+            qlon_flat = qlon[:, :-1].flatten()[: -(nx // 2 - 1)]
+            qlat_flat = qlat[:, :-1].flatten()[: -(nx // 2 - 1)]
+            nnodes = len(qlon_flat)
+            assert nnodes + (nx // 2 - 1) == nx * (ny + 1)
+
+            def get_element_conn(i):
+                is_final_column = (i + 1) % nx == 0
+                on_top_row = i // nx == ny - 1
+                on_second_half_of_stitch = on_top_row and (i % nx) >= nx // 2
+
+                ll = i0 + i % nx + (i // nx) * nx
+
+                lr = ll + 1
+                if is_final_column:
+                    lr -= nx
+
+                ur = lr + nx
+                if on_second_half_of_stitch and not is_final_column:
+                    ur -= 2 * (i % nx + 1 - nx // 2)
+
+                ul = ll + nx
+                if on_second_half_of_stitch:
+                    ul = ur + 1
+
+                return [ll, lr, ur, ul]
+
+        elif self.is_cyclic_x:
+            # Wrap-around: last column of elements connects back to column 0
+            qlon_flat = (
+                qlon[:, :-1].flatten() if qlon.shape[1] == nx + 1 else qlon.flatten()
+            )
+            qlat_flat = (
+                qlat[:, :-1].flatten() if qlat.shape[1] == nx + 1 else qlat.flatten()
+            )
+            nnodes = len(qlon_flat)
+
+            def get_element_conn(i):
+                row, col = divmod(i, nx)
+                ll = i0 + col + row * nx
+                lr = i0 + (col + 1) % nx + row * nx
+                ur = i0 + (col + 1) % nx + (row + 1) * nx
+                ul = i0 + col + (row + 1) * nx
+                return [ll, lr, ur, ul]
+
+        else:
+            qlon_flat = qlon.flatten()
+            qlat_flat = qlat.flatten()
+            nnodes = len(qlon_flat)
+
+            def get_element_conn(i):
+                row, col = divmod(i, nx)
+                ll = i0 + col + row * (nx + 1)
+                lr = i0 + col + 1 + row * (nx + 1)
+                ur = i0 + col + 1 + (row + 1) * (nx + 1)
+                ul = i0 + col + (row + 1) * (nx + 1)
+                return [ll, lr, ur, ul]
+
+        # --- Build dataset ---
+        ds = xr.Dataset()
+
+        ds.attrs["gridType"] = "unstructured mesh"
+        ds.attrs["date_created"] = datetime.now().isoformat()
+        ds.attrs["grid_topology"] = (
+            "tripolar"
+            if self.is_tripolar
+            else "cyclic" if self.is_cyclic_x else "non_cyclic"
+        )
+        if title:
+            ds.attrs["title"] = title
+
+        ds["nodeIds"] = xr.DataArray(
+            np.arange(1, nnodes + 1, dtype=np.int32),
+            dims=["nodeCount"],
+        )
+
+        ds["nodeCoords"] = xr.DataArray(
+            np.column_stack((qlon_flat, qlat_flat)),
+            dims=["nodeCount", "coordDim"],
+            attrs={"units": self.axis_units},
+        )
+
+        ds["elementIds"] = xr.DataArray(
+            np.arange(1, ncells + 1, dtype=np.int32),
+            dims=["elementCount"],
+        )
+
+        ds["centerCoords"] = xr.DataArray(
+            np.column_stack((tlon.flatten(), tlat.flatten())),
+            dims=["elementCount", "coordDim"],
+            attrs={"units": self.axis_units},
+        )
+
+        ds["numElementConn"] = xr.DataArray(
+            np.full(ncells, 4, dtype=np.int8),
+            dims=["elementCount"],
+            attrs={"long_name": "Number of nodes per element"},
+        )
+
+        ds["elementConn"] = xr.DataArray(
+            np.array([get_element_conn(i) for i in range(ncells)], dtype=np.int32),
+            dims=["elementCount", "maxNodePElement"],
+            attrs={
+                "long_name": "Node indices that define the element connectivity",
+                "start_index": np.int32(i0),
+            },
+        )
+
+        ds["elementArea"] = xr.DataArray(
+            tarea.flatten(),
+            dims=["elementCount"],
+            attrs={"units": "m2"},
+        )
+
+        if mask is not None:
+            esmf_mask = mask.astype(np.int32)
+            ds["elementMask"] = xr.DataArray(
+                esmf_mask.flatten(),
+                dims=["elementCount"],
+            )
+
+        ds.to_netcdf(file_path, format="NETCDF3_64BIT")
+
+    @classmethod
+    def from_esmf_mesh(cls, file_path, radius=_DEFAULT_RADIUS):
+        """
+        Reconstruct a SupergridBase from an ESMF mesh file.
+
+        Corners (q-points) and centers (t-points) are read directly.
+        Edge midpoints (u/v-points) are interpolated from the corners.
+        Metrics (dx, dy, area, angle_dx) are recomputed from the recovered
+        supergrid coordinates.
+
+        Parameters
+        ----------
+        file_path : str
+            Path to an ESMF mesh NetCDF file written by to_esmf_mesh().
+        radius : float, optional
+            Sphere radius in metres used for metric calculations.
+
+        Returns
+        -------
+        SupergridBase instance with all supergrid arrays populated.
+        """
+
+        ds = xr.open_dataset(file_path)
+
+        topology = ds.attrs.get("grid_topology", None)
+        if topology == "tripolar":
+            raise NotImplementedError(
+                "from_esmf_mesh does not support tripolar grids. "
+                "The fold node truncation performed during writing cannot be "
+                "cleanly reversed. Reconstruct from the original supergrid file instead."
+            )
+        is_cyclic = topology == "cyclic"
+
+        # --- Infer grid shape from connectivity ---
+        # elementCount = ny * nx; nodeCount tells us whether cyclic or not
+        ncells = ds.dims["elementCount"]
+        nnodes = ds.dims["nodeCount"]
+        conn = ds["elementConn"].values  # (ncells, 4)
+
+        # Recover nx, ny: elementConn encodes row/col structure.
+        # For cyclic:     nnodes = nx * (ny+1)  →  nx = nnodes / (ncells/nx + 1) ... circular
+        # Simpler: scan first row of connectivity to find where the row wraps.
+        # The lower-left node index increments by 1 each element until the wrap.
+        i0 = int(ds["elementConn"].attrs.get("start_index", 1))
+        if topology == "cyclic" or (
+            topology is None and nnodes < ncells + int(ncells**0.5) + 2
+        ):
+            # cyclic: nx * (ny+1) = nnodes,  nx * ny = ncells  → nx = nnodes - ncells
+            nx = nnodes - ncells
+            ny = ncells // nx
+            is_cyclic = True
+        else:
+            # non-cyclic: (nx+1)*(ny+1) = nnodes,  nx*ny = ncells
+            # find nx as divisor of ncells where (nx+1) divides nnodes
+            nx = None
+            for candidate in range(ncells, 0, -1):  # iterate largest first
+                if ncells % candidate == 0:
+                    ny_candidate = ncells // candidate
+                    if (candidate + 1) * (ny_candidate + 1) == nnodes:
+                        nx = candidate
+                        ny = ny_candidate
+                        break
+            if nx is None:
+                raise ValueError(
+                    f"Could not infer grid shape from elementCount={ncells}, nodeCount={nnodes}"
+                )
+            is_cyclic = False
+
+        # --- Recover corner (q) points from nodeCoords ---
+        node_lon = ds["nodeCoords"].values[:, 0]
+        node_lat = ds["nodeCoords"].values[:, 1]
+        axis_units = ds["nodeCoords"].attrs.get("units", "degrees")
+
+        if is_cyclic:
+            # nodes stored without wrap column; add it back by repeating column 0
+            qlon_inner = node_lon.reshape(ny + 1, nx)
+            qlat_inner = node_lat.reshape(ny + 1, nx)
+            qlon = np.hstack(
+                [qlon_inner, 360.0]
+            )  # shape (ny+1, nx+1) TODO: Check if the 360.0 makes sense. Will qlon every be in degrees west?
+            qlat = np.hstack([qlat_inner, qlat_inner[:, :1]])
+        else:
+            qlon = node_lon.reshape(ny + 1, nx + 1)
+            qlat = node_lat.reshape(ny + 1, nx + 1)
+
+        # --- Recover center (t) points from centerCoords ---
+        tlon = ds["centerCoords"].values[:, 0].reshape(ny, nx)
+        tlat = ds["centerCoords"].values[:, 1].reshape(ny, nx)
+
+        # --- Interpolate edge midpoints ---
+        # U-points: midpoint of west/east edges (between vertically adjacent corners)
+        ulon = 0.5 * (qlon[:-1, :] + qlon[1:, :])  # shape (ny, nx+1)
+        ulat = 0.5 * (qlat[:-1, :] + qlat[1:, :])
+
+        # V-points: midpoint of south/north edges (between horizontally adjacent corners)
+        vlon = 0.5 * (qlon[:, :-1] + qlon[:, 1:])  # shape (ny+1, nx)
+        vlat = 0.5 * (qlat[:, :-1] + qlat[:, 1:])
+
+        # --- Assemble full supergrid (2*ny+1, 2*nx+1) ---
+        # Layout:
+        #   even rows, even cols -> q points (corners)
+        #   even rows, odd  cols -> v points (N/S edge midpoints)
+        #   odd  rows, even cols -> u points (E/W edge midpoints)
+        #   odd  rows, odd  cols -> t points (centers)
+        sny = 2 * ny + 1
+        snx = 2 * nx + 1
+
+        x = np.empty((sny, snx))
+        y = np.empty((sny, snx))
+
+        x[::2, ::2] = qlon
+        x[::2, 1::2] = vlon
+        x[1::2, ::2] = ulon
+        x[1::2, 1::2] = tlon
+
+        y[::2, ::2] = qlat
+        y[::2, 1::2] = vlat
+        y[1::2, ::2] = ulat
+        y[1::2, 1::2] = tlat
+
+        # --- Recompute metrics ---
+        dx, dy = cls._calc_dx_dy(x, y, R=radius)
+        area = cls._calc_area(x, y, R=radius)
+        angle_dx = (
+            cls.calculate_supergrid_rotation_angles_using_expanded_supergrid_method(
+                x, y
+            )
+        )
+
+        return cls(x, y, dx, dy, area, angle_dx, axis_units)
 
     @staticmethod
     def calculate_supergrid_rotation_angles_using_expanded_supergrid_method(
