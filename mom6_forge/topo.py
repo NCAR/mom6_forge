@@ -1730,4 +1730,4 @@ class Topo:
             File title.
         """
 
-        self._grid.supergrid.to_esmf_mesh(file_path, mask=self.tmask, title=title)
+        self._grid.supergrid.to_esmf_mesh(file_path, mask=self.tmask.data, title=title)
