@@ -14,6 +14,8 @@ from pathlib import Path
 from mom6_forge.edit_command import *
 from mom6_forge.command_manager import TopoCommandManager, CommandType
 from mom6_forge.mapping import regrid_dataset_via_xesmf
+import regionmask
+from mom6_forge.utils import normalize_deg
 
 
 class Topo:
@@ -977,12 +979,15 @@ class Topo:
                 coordinate_names["xh"],
             )
         else:
+            bathymetry[coordinate_names["xh"]] = normalize_deg(
+                bathymetry[coordinate_names["xh"]]
+            )
             ## otherwise, slice normally
             bathymetry = bathymetry.sel(
                 {
                     coordinate_names["xh"]: slice(
-                        longitude_extent[0] - longitude_buffer,
-                        longitude_extent[1] + longitude_buffer,
+                        normalize_deg(longitude_extent[0]) - longitude_buffer,
+                        normalize_deg(longitude_extent[1]) + longitude_buffer,
                     )
                 }
             )
@@ -1002,6 +1007,13 @@ class Topo:
         )
         bathymetry_output.depth.attrs["long_name"] = "Elevation relative to sea level"
         bathymetry_output.depth.attrs["coordinates"] = "lon lat"
+
+        # Ensure the source bathymetry as a units attribute
+        if "units" not in bathymetry_output["lon"].attrs:
+            bathymetry_output["lon"].attrs["units"] = "degrees_east"
+        if "units" not in bathymetry_output["lat"].attrs:
+            bathymetry_output["lat"].attrs["units"] = "degrees_north"
+
         if write_to_file:
             bathymetry_output.to_netcdf(
                 output_dir / "bathymetry_original.nc",
@@ -1309,7 +1321,7 @@ class Topo:
         )
         self.apply_edit(depth_edit_command)
 
-    def apply_land_frac(
+    def generate_mask_from_landfrac_file(
         self,
         landfrac_filepath,
         landfrac_name,
@@ -1409,6 +1421,44 @@ class Topo:
         self.apply_edit(mask_edit_command)
 
         # legacy code set the depth of land cells to depth_fillval, but now that is handled in the depth property.
+
+    def generate_mask_from_naturalearth(
+        self,
+        resolution="10",
+        version="v5_1_2",
+    ):
+        """
+        Generate and apply a land mask using regionmask's Natural Earth dataset. (Recommended by Fred Castruccio)
+
+        Parameters
+        ----------
+        resolution : str
+            Resolution of the Natural Earth land dataset. One of "10", "50", "110" (minutes).
+        version : str
+            Version of the Natural Earth dataset in regionmask. e.g. "v5_1_2".
+        """
+
+        region_attr = f"natural_earth_{version}"
+        land_attr = f"land_{resolution}"
+
+        assert hasattr(
+            regionmask.defined_regions, region_attr
+        ), f"regionmask has no Natural Earth version '{version}'. Available: {dir(regionmask.defined_regions)}"
+
+        ne = getattr(regionmask.defined_regions, region_attr)
+
+        assert hasattr(
+            ne, land_attr
+        ), f"Natural Earth '{version}' has no resolution '{resolution}'. Available: {dir(ne)}"
+
+        land = getattr(ne, land_attr)
+
+        raw_mask = land.mask(self._grid.tlon.values, self._grid.tlat.values)
+
+        # NaN = ocean (not masked by any land region), non-NaN = land
+        binary_mask = raw_mask.isnull().astype(int)  # 1 = ocean, 0 = land
+
+        return binary_mask.values
 
     def gen_topo_ds(self, title=None):
         """
