@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="mom6_forge",  # Replace with your own username
-    version="0.0.5",
+    version="0.0.6",
     author="Alper Altuntas",
     author_email="altuntas@ucar.edu",
     description="MOM6 simple grid and bathymetry generator",
