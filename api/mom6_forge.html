@@ -1422,7 +1422,7 @@ geographical coordinates will be used as axes. Default is False.</p></li>
 <span id="mom6-forge-topo-module"></span><h2>mom6_forge.topo module<a class="headerlink" href="#module-mom6_forge.topo" title="Link to this heading"></a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mom6_forge.topo.</span></span><span class="sig-name descname"><span class="pre">Topo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_depth</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version_control_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'TopoLibrary'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mom6_forge.topo.</span></span><span class="sig-name descname"><span class="pre">Topo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_depth</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version_control_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'TopoLibrary'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">git</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo" title="Link to this definition"></a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Bathymetry Generator for MOM6 grids (mom6_forge.grid.Grid).</p>
 <p>MOM6 Simpler Models bathymetry constructor.</p>
@@ -1431,9 +1431,31 @@ geographical coordinates will be used as axes. Default is False.</p></li>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>grid</strong> (<a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid"><em>mom6_forge.grid.Grid</em></a>) – horizontal grid instance for which the bathymetry is to be created.</p></li>
 <li><p><strong>min_depth</strong> (<em>float</em>) – Minimum water column depth. Columns with shallow depths are to be masked out.</p></li>
+<li><p><strong>version_control_dir</strong> (<em>str</em><em>, </em><em>optional</em>) – Directory in which to store version-controlled bathymetry data. Defaults to
+“TopoLibrary”. Ignored if git is False (version control is no longer used)</p></li>
+<li><p><strong>git</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True (default), initialize a git repository for version control and
+undo/redo support. If False, skip all git and filesystem side-effects;
+note that undo(), redo(), branch, and tag operations will be
+unavailable. TopoEditor also requires git=True.</p></li>
 </ul>
 </dd>
 </dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.apply_edit">
+<span class="sig-name descname"><span class="pre">apply_edit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skip_version_control</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cmd_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">CommandType.COMMAND</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.apply_edit" title="Link to this definition"></a></dt>
+<dd><p>Apply an edit command aware of version control. If version control is enabled, the command is executed through the TopoCommandManager (TCM) to ensure it is recorded in the version history and can be undone/redone.
+If version control is disabled, the command is executed directly without recording.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cmd</strong> (<em>Command</em>) – The command to be applied.</p></li>
+<li><p><strong>skip_version_control</strong> (<em>bool</em>) – If True, the command will be executed without recording in version control even if version control is enabled. This can be useful for programmatic changes that should not be part of the user-facing version history.</p></li>
+<li><p><strong>cmd_type</strong> (<a class="reference internal" href="#mom6_forge.command_manager.CommandType" title="mom6_forge.command_manager.CommandType"><em>CommandType</em></a>) – The type of the command, used for version control categorization. Ignored if skip_version_control is True or if version control is disabled.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.apply_ridge">
 <span class="sig-name descname"><span class="pre">apply_ridge</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">height</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lon</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ilat</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.apply_ridge" title="Link to this definition"></a></dt>
@@ -1522,7 +1544,7 @@ The str or Path the write to file should write to. Defaults to the directory the
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.from_topo_file">
-<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_topo_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topo_file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_depth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">varname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'depth'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version_control_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'TopoLibrary'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.from_topo_file" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_topo_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topo_file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_depth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">varname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'depth'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version_control_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'TopoLibrary'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">git</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.from_topo_file" title="Link to this definition"></a></dt>
 <dd><p>Create a bathymetry object from an existing topog file.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1531,6 +1553,7 @@ The str or Path the write to file should write to. Defaults to the directory the
 <li><p><strong>topo_file_path</strong> (<em>str</em>) – Path to an existing MOM6 topog file.</p></li>
 <li><p><strong>min_depth</strong> (<em>float</em><em>, </em><em>optional</em>) – Minimum water column depth (m). Columns with shallower depths are to be masked out.</p></li>
 <li><p><strong>varname</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of the variable representing ocean depth in the dataset. Default is “depth”.</p></li>
+<li><p><strong>git</strong> (<em>bool</em><em>, </em><em>optional</em>) – Passed through to Topo.__init__. See Topo docstring for details.</p></li>
 </ul>
 </dd>
 </dl>
@@ -1591,6 +1614,11 @@ The str or Path the write to file should write to. Defaults to the directory the
 </dd></dl>
 
 <dl class="py property">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.has_version_control">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">has_version_control</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.has_version_control" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.land_fillval">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">land_fillval</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.land_fillval" title="Link to this definition"></a></dt>
 <dd><p>Depth value assigned to land cells when mask is applied. Default is 0.0 (dry).</p>
@@ -1637,15 +1665,9 @@ this property is computed on-the-fly. To modify depth, use <cite>topo.depth = ne
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="mom6_forge.topo.Topo.save">
-<span class="sig-name descname"><span class="pre">save</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.save" title="Link to this definition"></a></dt>
-<dd><p>Save the TOPO_FILE (bathymetry file) in netcdf format to version control</p>
-</dd></dl>
-
-<dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.send_entire_depth_change_to_tcm">
-<span class="sig-name descname"><span class="pre">send_entire_depth_change_to_tcm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">depth</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quietly</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.send_entire_depth_change_to_tcm" title="Link to this definition"></a></dt>
-<dd><p>This function takes an entire depth change and adds it through the TopoCommandManager (TCM) or directly if quietly is enabled.
+<span class="sig-name descname"><span class="pre">send_entire_depth_change_to_tcm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">depth</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skip_version_control</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.send_entire_depth_change_to_tcm" title="Link to this definition"></a></dt>
+<dd><p>This function takes an entire depth change and adds it through the TopoCommandManager (TCM) or directly if skip_version_control is enabled.
 Modifies _depth, preserves mask.</p>
 </dd></dl>
 
@@ -1667,7 +1689,7 @@ Modifies _depth, preserves mask.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.set_depth_via_topog_file">
-<span class="sig-name descname"><span class="pre">set_depth_via_topog_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">topog_file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">varname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'depth'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">quietly</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.set_depth_via_topog_file" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">set_depth_via_topog_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">topog_file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">varname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'depth'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skip_version_control</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.set_depth_via_topog_file" title="Link to this definition"></a></dt>
 <dd><p>Apply a bathymetry read from an existing topog file</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1911,6 +1933,12 @@ The plot is embedded in a widget for use in the Jupyter interface.</p>
 <dt class="sig sig-object py" id="mom6_forge.topo_editor.TopoEditor.erase_selected_basin">
 <span class="sig-name descname"><span class="pre">erase_selected_basin</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">b</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo_editor.TopoEditor.erase_selected_basin" title="Link to this definition"></a></dt>
 <dd><p>Erase the basin associated with the currently selected cell.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mom6_forge.topo_editor.TopoEditor.has_version_control">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">has_version_control</span></span><a class="headerlink" href="#mom6_forge.topo_editor.TopoEditor.has_version_control" title="Link to this definition"></a></dt>
+<dd><p>Check if the topo’s has version control.</p>
 </dd></dl>
 
 <dl class="py method">
