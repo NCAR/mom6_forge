@@ -199,7 +199,7 @@ class Topo:
     @property
     def depth(self):
         return self._depth
-    
+
     @property
     def has_version_control(self):
         return self.tcm is not None
@@ -564,7 +564,9 @@ class Topo:
         # Save to object
         self.send_entire_depth_change_to_tcm(depth)
 
-    def set_depth_via_topog_file(self, topog_file_path, varname="depth", skip_version_control=False):
+    def set_depth_via_topog_file(
+        self, topog_file_path, varname="depth", skip_version_control=False
+    ):
         """
         Apply a bathymetry read from an existing topog file
 
@@ -655,7 +657,9 @@ class Topo:
         depth = depth.fillna(0)
 
         # Save to object (Build TCM Object)
-        self.send_entire_depth_change_to_tcm(depth, skip_version_control=skip_version_control)
+        self.send_entire_depth_change_to_tcm(
+            depth, skip_version_control=skip_version_control
+        )
 
     def set_spoon(self, max_depth, dedge, rad_earth=6.378e6, expdecay=400000.0):
         """

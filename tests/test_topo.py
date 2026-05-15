@@ -14,7 +14,7 @@ def test_topo_from_topo_file(get_rect_topo, tmp_path):
     new_val = 12123
     old_val = topo.depth[j, i]
     command = DepthEditCommand(topo, [(j, i)], [new_val], old_values=[old_val])
-    command()  # execute command quietly so that the topo version control doesn't control it (this way if I did from version control, it wouldn't pick up this change)
+    command()  # execute command skip_version_control so that the topo version control doesn't control it (this way if I did from version control, it wouldn't pick up this change)
     assert not Topo.from_version_control(topo.domain_dir).depth.equals(
         topo.depth
     )  # Assert command was quiet and not registered in version control
@@ -42,7 +42,7 @@ def test_send_entire_depth_change_to_tcm(get_rect_topo):
     topo.tcm.undo()
     assert (topo.depth == old_depth).all()
     prev_hist = sum(1 for _ in topo.tcm.repo.iter_commits())
-    topo.send_entire_depth_change_to_tcm(new_depth, quietly=True)
+    topo.send_entire_depth_change_to_tcm(new_depth, skip_version_control=True)
     assert prev_hist == sum(
         1 for _ in topo.tcm.repo.iter_commits()
     )  # Assert no new commit
