@@ -56,7 +56,6 @@ class Topo:
             self, attr="min_depth", new_value=min_depth
         )
         if git:
-            self.version_control = True
 
             # Create a folder to store bathymetry objects in
             self.topos_root = Path(version_control_dir).mkdir(exist_ok=True)
@@ -79,7 +78,6 @@ class Topo:
             self.apply_edit(initial_command)
 
         else:
-            self.version_control = False
             self.tcm = None
             # Apply the initial min_depth command directly without git recording
             initial_command()
@@ -104,7 +102,7 @@ class Topo:
 
         new_grid = self._grid[slices]
         new_topo = Topo(
-            new_grid, self._min_depth, git=self.version_control
+            new_grid, self._min_depth, git=self.has_version_control
         )  # Create new topo with the same version control setting
         if self._depth is not None:
             new_topo._depth = self._depth[slices]
@@ -201,6 +199,10 @@ class Topo:
     @property
     def depth(self):
         return self._depth
+    
+    @property
+    def has_version_control(self):
+        return self.tcm is not None
 
     @depth.setter
     def depth(self, depth):
@@ -457,7 +459,7 @@ class Topo:
         supergridmask[1::2, 1::2] = self.tmask.values
         return supergridmask
 
-    def apply_edit(self, cmd, quietly=False, cmd_type=CommandType.COMMAND):
+    def apply_edit(self, cmd, skip_version_control=False, cmd_type=CommandType.COMMAND):
         """Apply an edit command aware of version control. If version control is enabled, the command is executed through the TopoCommandManager (TCM) to ensure it is recorded in the version history and can be undone/redone.
         If version control is disabled, the command is executed directly without recording.
 
@@ -465,15 +467,15 @@ class Topo:
         -----------
         cmd: Command
             The command to be applied.
-        quietly: bool
+        skip_version_control: bool
             If True, the command will be executed without recording in version control even if version control is enabled. This can be useful for programmatic changes that should not be part of the user-facing version history.
         cmd_type: CommandType
-            The type of the command, used for version control categorization. Ignored if quietly is True or if version control is disabled.
+            The type of the command, used for version control categorization. Ignored if skip_version_control is True or if version control is disabled.
         """
-        if not quietly and not self.version_control:  # tcm is None means git is off
-            self.tcm.execute(cmd, cmd_type=cmd_type)
-        else:
+        if skip_version_control or not self.has_version_control:
             cmd()
+        else:
+            self.tcm.execute(cmd, cmd_type=cmd_type)
 
     def clear_user_mask(self):
         cmd = ClearMaskCommand(
@@ -498,9 +500,9 @@ class Topo:
             is_ocean.append(self.supergridmask[match[0], match[1]].item())
         return is_ocean
 
-    def send_entire_depth_change_to_tcm(self, depth, quietly=False):
+    def send_entire_depth_change_to_tcm(self, depth, skip_version_control=False):
         """
-        This function takes an entire depth change and adds it through the TopoCommandManager (TCM) or directly if quietly is enabled.
+        This function takes an entire depth change and adds it through the TopoCommandManager (TCM) or directly if skip_version_control is enabled.
         Modifies _depth, preserves mask.
         """
         # 1. Generate all affected indices (row-major order)
@@ -519,7 +521,7 @@ class Topo:
             self, all_indices, new_values, old_values=old_values
         )
 
-        self.apply_edit(depth_edit_command, quietly=quietly)
+        self.apply_edit(depth_edit_command, skip_version_control=skip_version_control)
 
     def edit_depth(self, indices, values):
         """
@@ -562,7 +564,7 @@ class Topo:
         # Save to object
         self.send_entire_depth_change_to_tcm(depth)
 
-    def set_depth_via_topog_file(self, topog_file_path, varname="depth", quietly=False):
+    def set_depth_via_topog_file(self, topog_file_path, varname="depth", skip_version_control=False):
         """
         Apply a bathymetry read from an existing topog file
 
@@ -653,7 +655,7 @@ class Topo:
         depth = depth.fillna(0)
 
         # Save to object (Build TCM Object)
-        self.send_entire_depth_change_to_tcm(depth, quietly=quietly)
+        self.send_entire_depth_change_to_tcm(depth, skip_version_control=skip_version_control)
 
     def set_spoon(self, max_depth, dedge, rad_earth=6.378e6, expdecay=400000.0):
         """

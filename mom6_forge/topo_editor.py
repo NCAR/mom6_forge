@@ -16,7 +16,7 @@ class TopoEditor(widgets.HBox):
         self._selected_cell = None
 
         # --- Command Manager ---
-        if self.has_vc:
+        if self.has_version_control:
             self.current_branch = self.topo.tcm.get_current_branch()
             self._original_depth = np.array(self.topo.masked_depth.data)
             self._original_min_depth = self.topo.min_depth
@@ -31,9 +31,9 @@ class TopoEditor(widgets.HBox):
         super().__init__([self._control_panel, self._interactive_plot])
 
     @property
-    def has_vc(self):
+    def has_version_control(self):
         """Check if the topo's has version control."""
-        return self.topo.version_control
+        return self.topo.has_version_control
 
     def apply_edit(self, cmd):
         """Apply an edit command, update the UI, and autosave the working state."""
@@ -57,7 +57,7 @@ class TopoEditor(widgets.HBox):
 
     def update_undo_redo_buttons(self):
         """Enable or disable the undo/redo buttons based on command history."""
-        if not self.has_vc:
+        if not self.has_version_control:
             return
         if hasattr(self, "_undo_button"):
             self._undo_button.disabled = not self.topo.tcm.undo(check_only=True)
@@ -202,7 +202,7 @@ class TopoEditor(widgets.HBox):
             description="Reset", layout={"width": "44%"}, button_style="danger"
         )
 
-        if self.has_vc:
+        if self.has_version_control:
             # --- Snapshot controls ---
             self._tag_name = widgets.Text(
                 value="",
@@ -267,7 +267,7 @@ class TopoEditor(widgets.HBox):
                 ),
             ]
         )
-        if self.has_vc:
+        if self.has_version_control:
             git_section = widgets.VBox(
                 [
                     # Domain controls
@@ -291,13 +291,13 @@ class TopoEditor(widgets.HBox):
             cell_editing_section,
             basin_section,
         ]
-        if self.has_vc:
+        if self.has_version_control:
             main_panel.append(history_section)
         main_controls = widgets.VBox(main_panel)
 
         # --- Combine everything into the control panel ---
         cp = [widgets.HTML("<h2>Topo Editor</h2>"), main_controls]
-        if self.has_vc:
+        if self.has_version_control:
             git_accordion = widgets.Accordion(children=[git_section])
             git_accordion.set_title(0, "Git Version Control")
             git_accordion.selected_index = None  # collapsed by default
@@ -430,7 +430,7 @@ class TopoEditor(widgets.HBox):
             self.on_depth_change, names="value", type="change"
         )
 
-        if self.has_vc:
+        if self.has_version_control:
             # Undo/Redo/Reset buttons
             self._undo_button.on_click(self.undo_last_edit)
             self._redo_button.on_click(self.redo_last_edit)
