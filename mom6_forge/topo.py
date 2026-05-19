@@ -834,6 +834,11 @@ class Topo:
         )
         self.src_bathymetry_dataset = self.src.ds
         self.destination_bathymetry = self._grid.get_esmf_ready_tracer_ds()
+        self.destination_bathymetry["depth"] = np.zeros_like(
+            self.destination_bathymetry.tarea
+        )
+        self.destination_bathymetry.depth.attrs["units"] = "meters"
+        self.destination_bathymetry.depth.attrs["coordinates"] = "lon lat"
         if write_to_file:
             self.src_bathymetry_dataset.to_netcdf(output_dir / "bathymetry_original.nc")
             self.destination_bathymetry.to_netcdf(
@@ -906,6 +911,11 @@ class Topo:
         )
         self.src_bathymetry_dataset = self.src.ds
         self.destination_bathymetry = self._grid.get_esmf_ready_tracer_ds()
+        self.destination_bathymetry["depth"] = np.zeros_like(
+            self.destination_bathymetry.tarea
+        )
+        self.destination_bathymetry.depth.attrs["units"] = "meters"
+        self.destination_bathymetry.depth.attrs["coordinates"] = "lon lat"
         self.src_bathymetry_dataset.to_netcdf(output_dir / "bathymetry_original.nc")
         self.destination_bathymetry.to_netcdf(output_dir / "bathymetry_unfinished.nc")
 
