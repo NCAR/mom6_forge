@@ -23,7 +23,7 @@ class Topo:
     Bathymetry Generator for MOM6 grids (mom6_forge.grid.Grid).
     """
 
-    def __init__(self, grid, min_depth, version_control_dir="TopoLibrary"):
+    def __init__(self, grid, min_depth, version_control_dir="TopoLibrary", git=True):
         """
         MOM6 Simpler Models bathymetry constructor.
 
@@ -33,6 +33,14 @@ class Topo:
             horizontal grid instance for which the bathymetry is to be created.
         min_depth: float
             Minimum water column depth. Columns with shallow depths are to be masked out.
+        version_control_dir: str, optional
+            Directory in which to store version-controlled bathymetry data. Defaults to
+            "TopoLibrary". Ignored if git is False (version control is no longer used)
+        git: bool, optional
+            If True (default), initialize a git repository for version control and
+            undo/redo support. If False, skip all git and filesystem side-effects;
+            note that undo(), redo(), branch, and tag operations will be
+            unavailable. TopoEditor also requires git=True.
         """
 
         self._grid = grid
@@ -47,35 +55,35 @@ class Topo:
         self._min_depth = min_depth
         self._src = None  # cached SourceBathy; set by _set_src()
         self.land_fillval = 0.0  # Depth value for land cells
-
-        if version_control_dir is None:
-            raise ValueError(
-                "version_control_dir cannot be None. Version control is required for Topo objects. Old Topo Files can be added through from_topo_file() or from_topo_version_control() classmethods."
-            )
-
-        self.version_control = True
-
-        # Create a folder to store bathymetry objects in
-        self.topos_root = Path(version_control_dir).mkdir(exist_ok=True)
-
-        # Create the subfolder for this specific bathymetry
-        self.domain_dir = Path(get_domain_dir(grid, base_dir=version_control_dir))
-        self.domain_dir.mkdir(exist_ok=True)  # This folder should not already exist.
-
-        # Save the grid info there (there can only be 1 grid per bathymetry)
-        self.grid_file_path = self.domain_dir / "grid.nc"
-        grid.write_supergrid(self.grid_file_path)
-
         initial_command = MinDepthEditCommand(
             self, attr="min_depth", new_value=min_depth
         )
+        if git:
 
-        # Initialize the git repo
-        self.repo = get_repo(self.domain_dir)
+            # Create a folder to store bathymetry objects in
+            self.topos_root = Path(version_control_dir).mkdir(exist_ok=True)
 
-        # Set up TCM (requires that self.domain_dir exists)
-        self.tcm = TopoCommandManager(self, command_registry=COMMAND_REGISTRY)
-        self.tcm.execute(initial_command, cmd_type=CommandType.COMMAND)
+            # Create the subfolder for this specific bathymetry
+            self.domain_dir = Path(get_domain_dir(grid, base_dir=version_control_dir))
+            self.domain_dir.mkdir(
+                exist_ok=True
+            )  # This folder should not already exist.
+
+            # Save the grid info there (there can only be 1 grid per bathymetry)
+            self.grid_file_path = self.domain_dir / "grid.nc"
+            grid.write_supergrid(self.grid_file_path)
+
+            # Initialize the git repo
+            self.repo = get_repo(self.domain_dir)
+
+            # Set up TCM (requires that self.domain_dir exists)
+            self.tcm = TopoCommandManager(self, command_registry=COMMAND_REGISTRY)
+            self.apply_edit(initial_command)
+
+        else:
+            self.tcm = None
+            # Apply the initial min_depth command directly without git recording
+            initial_command()
 
     def __getitem__(self, slices):
         """
@@ -96,7 +104,9 @@ class Topo:
         """
 
         new_grid = self._grid[slices]
-        new_topo = Topo(new_grid, self._min_depth)
+        new_topo = Topo(
+            new_grid, self._min_depth, git=self.has_version_control
+        )  # Create new topo with the same version control setting
         if self._depth is not None:
             new_topo._depth = self._depth[slices]
         return new_topo
@@ -139,6 +149,7 @@ class Topo:
         min_depth=0.0,
         varname="depth",
         version_control_dir="TopoLibrary",
+        git=True,
     ):
         """
         Create a bathymetry object from an existing topog file.
@@ -153,10 +164,13 @@ class Topo:
             Minimum water column depth (m). Columns with shallower depths are to be masked out.
         varname : str, optional
             Name of the variable representing ocean depth in the dataset. Default is "depth".
+        git: bool, optional
+            Passed through to Topo.__init__. See Topo docstring for details.
         """
 
-        topo = cls(grid, min_depth, version_control_dir=version_control_dir)
-        topo.tcm.reapply_changes()
+        topo = cls(grid, min_depth, version_control_dir=version_control_dir, git=git)
+        if topo.tcm is not None:
+            topo.tcm.reapply_changes()
         topo.set_depth_via_topog_file(topo_file_path, varname)
         return topo
 
@@ -199,6 +213,10 @@ class Topo:
     @property
     def depth(self):
         return self._depth
+
+    @property
+    def has_version_control(self):
+        return self.tcm is not None
 
     @depth.setter
     def depth(self, depth):
@@ -306,7 +324,7 @@ class Topo:
         cmd = MaskEditCommand(
             self, all_indices, new_values, old_values=old_values, message="Set mask"
         )
-        self.tcm.execute(cmd, cmd_type=CommandType.COMMAND)
+        self.apply_edit(cmd)
 
     @property
     def tmask(self):
@@ -435,6 +453,24 @@ class Topo:
         supergridmask[1::2, 1::2] = self.tmask.values
         return supergridmask
 
+    def apply_edit(self, cmd, skip_version_control=False, cmd_type=CommandType.COMMAND):
+        """Apply an edit command aware of version control. If version control is enabled, the command is executed through the TopoCommandManager (TCM) to ensure it is recorded in the version history and can be undone/redone.
+        If version control is disabled, the command is executed directly without recording.
+
+        Parameters
+        -----------
+        cmd: Command
+            The command to be applied.
+        skip_version_control: bool
+            If True, the command will be executed without recording in version control even if version control is enabled. This can be useful for programmatic changes that should not be part of the user-facing version history.
+        cmd_type: CommandType
+            The type of the command, used for version control categorization. Ignored if skip_version_control is True or if version control is disabled.
+        """
+        if skip_version_control or not self.has_version_control:
+            cmd()
+        else:
+            self.tcm.execute(cmd, cmd_type=cmd_type)
+
     def set_src(
         self,
         bathymetry_path,
@@ -461,7 +497,7 @@ class Topo:
         cmd = ClearMaskCommand(
             self, message="Clear manual mask"
         )  # Resets back to reading from depth
-        self.tcm.execute(cmd, cmd_type=CommandType.COMMAND)
+        self.apply_edit(cmd)
 
     def point_is_ocean(self, lons, lats):
         """
@@ -480,9 +516,9 @@ class Topo:
             is_ocean.append(self.supergridmask[match[0], match[1]].item())
         return is_ocean
 
-    def send_entire_depth_change_to_tcm(self, depth, quietly=False):
+    def send_entire_depth_change_to_tcm(self, depth, skip_version_control=False):
         """
-        This function takes an entire depth change and adds it through the TopoCommandManager (TCM) or directly if quietly is enabled.
+        This function takes an entire depth change and adds it through the TopoCommandManager (TCM) or directly if skip_version_control is enabled.
         Modifies _depth, preserves mask.
         """
         # 1. Generate all affected indices (row-major order)
@@ -501,10 +537,7 @@ class Topo:
             self, all_indices, new_values, old_values=old_values
         )
 
-        if not quietly:
-            self.tcm.execute(depth_edit_command, cmd_type=CommandType.COMMAND)
-        else:
-            depth_edit_command()
+        self.apply_edit(depth_edit_command, skip_version_control=skip_version_control)
 
     def edit_depth(self, indices, values):
         """
@@ -526,7 +559,7 @@ class Topo:
 
         # Create and execute command
         cmd = DepthEditCommand(self, indices, values, old_values=old_values)
-        self.tcm.execute(cmd, cmd_type=CommandType.COMMAND)
+        self.apply_edit(cmd)
 
     def set_flat(self, D):
         """
@@ -547,7 +580,9 @@ class Topo:
         # Save to object
         self.send_entire_depth_change_to_tcm(depth)
 
-    def set_depth_via_topog_file(self, topog_file_path, varname="depth", quietly=False):
+    def set_depth_via_topog_file(
+        self, topog_file_path, varname="depth", skip_version_control=False
+    ):
         """
         Apply a bathymetry read from an existing topog file
 
@@ -638,7 +673,9 @@ class Topo:
         depth = depth.fillna(0)
 
         # Save to object (Build TCM Object)
-        self.send_entire_depth_change_to_tcm(depth, quietly=quietly)
+        self.send_entire_depth_change_to_tcm(
+            depth, skip_version_control=skip_version_control
+        )
 
     def set_spoon(self, max_depth, dedge, rad_earth=6.378e6, expdecay=400000.0):
         """
@@ -981,6 +1018,13 @@ class Topo:
         )
         bathymetry_output.depth.attrs["long_name"] = "Elevation relative to sea level"
         bathymetry_output.depth.attrs["coordinates"] = "lon lat"
+
+        # Ensure the source bathymetry as a units attribute
+        if "units" not in bathymetry_output["lon"].attrs:
+            bathymetry_output["lon"].attrs["units"] = "degrees_east"
+        if "units" not in bathymetry_output["lat"].attrs:
+            bathymetry_output["lat"].attrs["units"] = "degrees_north"
+
         if write_to_file:
             bathymetry_output.to_netcdf(
                 output_dir / "bathymetry_original.nc",
@@ -1234,7 +1278,7 @@ class Topo:
         old_values = [self.tmask.data[jj, ii] for jj, ii in indices]
         new_values = [0] * len(indices)
         cmd = MaskEditCommand(self, indices, new_values, old_values=old_values)
-        self.tcm.execute(cmd)
+        self.apply_edit(cmd)
 
     def erase_disconnected_basin(self, i, j):
         label = self.basintmask.data[j, i]
@@ -1245,7 +1289,7 @@ class Topo:
         old_values = [self.tmask.data[jj, ii] for jj, ii in indices]
         new_values = [0] * len(indices)
         cmd = MaskEditCommand(self, indices, new_values, old_values=old_values)
-        self.tcm.execute(cmd)
+        self.apply_edit(cmd)
 
     def apply_ridge(self, height, width, lon, ilat):
         """
@@ -1286,7 +1330,7 @@ class Topo:
         depth_edit_command = DepthEditCommand(
             self, affected_indices, new_vals, old_values=old_vals
         )
-        self.tcm.execute(depth_edit_command)
+        self.apply_edit(depth_edit_command)
 
     def generate_mask_from_landfrac_file(
         self,
@@ -1384,7 +1428,8 @@ class Topo:
             old_values=old_values,
             message="Apply Land Fraction Mask",
         )
-        self.tcm.execute(mask_edit_command, cmd_type=CommandType.COMMAND)
+
+        self.apply_edit(mask_edit_command)
 
         # legacy code set the depth of land cells to depth_fillval, but now that is handled in the depth property.
 
@@ -1491,13 +1536,6 @@ class Topo:
         )
 
         return ds
-
-    def save(self):
-        """
-        Save the TOPO_FILE (bathymetry file) in netcdf format to version control
-        """
-
-        self.tcm.save()
 
     def write_topo(self, file_path, title=None):
         """
@@ -1857,6 +1895,8 @@ class Topo:
                 "start_index": np.int32(i0),
             },
         )
-
+        all_vars_encoding = {
+            var: {"_FillValue": None} for var in ds.data_vars
+        }  # disable _FillValue for all variables to avoid issues in ESMF
         self.mesh_path = file_path
-        ds.to_netcdf(self.mesh_path, format="NETCDF3_64BIT")
+        ds.to_netcdf(self.mesh_path, format="NETCDF3_64BIT", encoding=all_vars_encoding)

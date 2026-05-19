@@ -286,3 +286,10 @@ def get_rect_topo(get_rect_grid, tmp_path):
     topo = Topo(get_rect_grid, min_depth=0, version_control_dir=tmp_path)
     topo.set_flat(1000)
     return topo
+
+
+@pytest.fixture
+def get_rect_topo_without_vc(get_rect_grid, tmp_path):
+    topo = Topo(get_rect_grid, min_depth=0, git=False)
+    topo.set_flat(1000)
+    return topo
