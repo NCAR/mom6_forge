@@ -977,7 +977,7 @@ class Topo:
         )
         self.src_bathymetry_dataset = self.src.ds
         self.destination_bathymetry = self._grid.get_esmf_ready_tracer_ds()
-        self.destination_bathymetry["depth"] = np.zeros_like(
+        self.destination_bathymetry["depth"] = xr.zeros_like(
             self.destination_bathymetry.tarea
         )
         self.destination_bathymetry.depth.attrs["units"] = "meters"
@@ -1004,7 +1004,6 @@ class Topo:
                 vertical_coordinate_name="depth",
                 bathymetry=self.regridded_bathy,
                 output_dir=output_dir,
-                write_to_file=write_to_file,
                 longitude_coordinate_name="lon",
                 latitude_coordinate_name="lat",
             )
@@ -1053,7 +1052,7 @@ class Topo:
         )
         self.src_bathymetry_dataset = self.src.ds
         self.destination_bathymetry = self._grid.get_esmf_ready_tracer_ds()
-        self.destination_bathymetry["depth"] = np.zeros_like(
+        self.destination_bathymetry["depth"] = xr.zeros_like(
             self.destination_bathymetry.tarea
         )
         self.destination_bathymetry.depth.attrs["units"] = "meters"
