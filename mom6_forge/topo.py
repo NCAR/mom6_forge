@@ -1256,7 +1256,6 @@ class Topo:
                 output_dir / "bathymetry_unfinished.nc"
             )  # This is called unfinished because the regridding is not fully complete until the one-cell channels are filled and mask is applied in tidy()
 
-
     def mpi_direct_xesmf_depth(
         self,
         *,
@@ -1473,7 +1472,9 @@ class Topo:
                 bathymetry vertical coordinate is positive down, as is the case in GEBCO for example.
         """
 
-        self.is_input_positive_below_msl_check(is_input_positive_below_msl=is_input_positive_below_msl)
+        self.is_input_positive_below_msl_check(
+            is_input_positive_below_msl=is_input_positive_below_msl
+        )
 
         if fill_channels:
             self.fill_channels()
