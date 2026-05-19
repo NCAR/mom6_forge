@@ -81,7 +81,7 @@ def test_compute_topo_stats(small_topo, src_bathy):
     topo = small_topo
 
     # Load source bathymetry and slice to topo domain
-    src = SourceBathy(topo, synthetic_bathy_file)
+    src = SourceBathy(topo, synthetic_bathy_file, depth_name="elevation")
     topo._src = src
 
     # Test with different sub-sampling densities
