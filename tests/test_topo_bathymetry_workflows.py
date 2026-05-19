@@ -61,7 +61,7 @@ def test_direct_stats_depth(get_rect_topo, synthetic_bathy_file):
     topo = get_rect_topo
 
     # Load source bathymetry and slice to topo domain
-    src = SourceBathy(topo, synthetic_bathy_file)
+    src = SourceBathy(topo, synthetic_bathy_file, depth_name = "elevation")
     topo.src = src
     topo._compute_stats(nx_sub=2, ny_sub=2, mask_hmin=0.0)
 
