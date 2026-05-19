@@ -70,7 +70,12 @@ def test_source_bathy_slice_to_domain(get_rect_topo, synthetic_bathy_file):
     """Smoke test: load and slice elevation to topo domain."""
     topo = get_rect_topo
 
-    src = SourceBathy(topo, synthetic_bathy_file)
+    src = SourceBathy(
+        topo,
+        synthetic_bathy_file,
+        depth_name="elevation",
+        is_input_positive_below_msl=False,
+    )
 
     # Verify data was loaded
     assert src.lon is not None
@@ -86,7 +91,12 @@ def test_source_bathy_depth_conversion(get_rect_topo, synthetic_bathy_file):
     """Test that elevation is converted to positive-down depth."""
     topo = get_rect_topo
 
-    src = SourceBathy(topo, synthetic_bathy_file)
+    src = SourceBathy(
+        topo,
+        synthetic_bathy_file,
+        depth_name="elevation",
+        is_input_positive_below_msl=False,
+    )
 
     # Get depth and verify sign conversion
     depth = src.depth
