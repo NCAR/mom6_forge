@@ -954,4 +954,5 @@ class Grid:
         ds.lon.attrs["_FillValue"] = 1e20
         ds.lat.attrs["units"] = "degrees_north"
         ds.lat.attrs["_FillValue"] = 1e20
+        ds = ds.set_coords(["lat", "lon"])
         return ds
