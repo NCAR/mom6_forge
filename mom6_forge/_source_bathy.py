@@ -43,7 +43,7 @@ class SourceBathy:
     ):
         self.path = Path(path)
         self._ds = xr.open_dataset(self.path, chunks="auto")
-        self._rename_dims(
+        self._rename_dims_and_format_ds(
             lon_name=lon_name, lat_name=lat_name, depth_name=depth_name
         )  # ensure consistent coordinate names for slicing
         self._slice_to_domain(topo, buf=buf)
@@ -53,7 +53,7 @@ class SourceBathy:
     # Loading
     # ------------------------------------------------------------------
 
-    def _rename_dims(self, lon_name, lat_name, depth_name):
+    def _rename_dims_and_format_ds(self, lon_name, lat_name, depth_name):
         """Rename dimensions in the source dataset to match the provided names. This helps prep the dataset for ESMF regridding, which expects specific coordinate names."""
 
         self._ds = self._ds.rename(
@@ -66,6 +66,14 @@ class SourceBathy:
         self.lon_name = "lon"
         self.lat_name = "lat"
         self.depth_name = "depth"
+        self._ds.depth.attrs["missing_value"] = (
+            -1e20
+        )  # missing value expected by FRE tools
+        self._ds.depth.attrs["_FillValue"] = -1e20
+        self._ds.depth.attrs["units"] = "meters"
+        self._ds.depth.attrs["standard_name"] = "height_above_reference_ellipsoid"
+        self._ds.depth.attrs["long_name"] = "Elevation relative to sea level"
+        self._ds.depth.attrs["coordinates"] = "lon lat"
         if "units" not in self._ds[self.lon_name].attrs:
             self._ds[self.lon_name].attrs["units"] = "degrees_east"
         if "units" not in self._ds[self.lat_name].attrs:
@@ -94,19 +102,12 @@ class SourceBathy:
         )
 
         dlon = float(self._ds[self.lon_name][1] - self._ds[self.lon_name][0])
-        total_lon = float(
-            self._ds[self.lon_name][-1] - self._ds[self.lon_name][0] + dlon
+        self._ds = longitude_slicer(
+            self._ds,
+            np.array(lon_extent) + np.array([-buf, buf]),
+            self.lon_name,
         )
-        if np.isclose(total_lon, 360):
-            self._ds = longitude_slicer(
-                self._ds,
-                np.array(lon_extent) + np.array([-buf, buf]),
-                self.lon_name,
-            )
-        else:
-            self._ds = self._ds.sel(
-                {self.lon_name: slice(lon_extent[0] - buf, lon_extent[1] + buf)}
-            )
+
         return self._ds
 
     def _ensure_depth_is_positive_below_msl(self, depth_positive):

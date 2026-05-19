@@ -430,6 +430,7 @@ def longitude_slicer(data, longitude_extent, longitude_coords):
         longitude_coords = [longitude_coords]
 
     for lon in longitude_coords:
+
         central_longitude = np.mean(longitude_extent)  ## Midpoint of target domain
 
         ## Find a corresponding value for the intended domain midpoint in our data.
@@ -437,6 +438,7 @@ def longitude_slicer(data, longitude_extent, longitude_coords):
 
         lons = data[lon].data
         dlons = lons[1] - lons[0]
+        lon_span = lons[-1] - lons[0] + dlons
 
         assert np.allclose(
             np.diff(lons), dlons * np.ones(np.size(lons) - 1)
@@ -456,7 +458,8 @@ def longitude_slicer(data, longitude_extent, longitude_coords):
                 ## Number of indices between the data midpoint and the target midpoint.
                 ## Sign indicates direction needed to shift.
                 shift = int(
-                    -(data[lon].shape[0] * (_central_longitude - central_data)) // 360
+                    -(data[lon].shape[0] * (_central_longitude - central_data))
+                    // lon_span
                 )
 
                 ## Shift data so that the midpoint of the target domain is the middle of
@@ -486,9 +489,9 @@ def longitude_slicer(data, longitude_extent, longitude_coords):
 
                 ## Choose the number of lon points to take from the middle, including a buffer.
                 ## Use this to index the new global dataset
-                num_lonpoints = (
+                num_lonpoints = int(
                     int(data[lon].shape[0] * (central_longitude - longitude_extent[0]))
-                    // 360
+                    // lon_span
                 )
 
         data = new_data.isel(
