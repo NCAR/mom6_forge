@@ -797,13 +797,13 @@ class Topo:
             self.src is not None
         ), "Source bathymetry must be loaded to compute topo stats"
         src = self.src
-        if hasattr(self, "_stats") and isinstance(self._stats, xr.Dataset):
+        if hasattr(self.src, "_stats") and isinstance(self.src._stats, xr.Dataset):
             if (
-                self._stats.attrs.get("nx_sub") == nx_sub
-                and self._stats.attrs.get("ny_sub") == ny_sub
-                and self._stats.attrs.get("mask_hmin") == mask_hmin
+                self.src._stats.attrs.get("nx_sub") == nx_sub
+                and self.src._stats.attrs.get("ny_sub") == ny_sub
+                and self.src._stats.attrs.get("mask_hmin") == mask_hmin
             ):
-                return self._stats
+                return self.src._stats
 
         # Compute subsampling factor and generate sub-point grid
         ds = regrid_with_subsampling(
@@ -828,7 +828,7 @@ class Topo:
             D2_mean = np.nanmean(depth_ocean**2, axis=(-2, -1))
 
         dims = ["ny", "nx"]
-        self._stats = xr.Dataset(
+        self.src._stats = xr.Dataset(
             {
                 "OCN_FRAC": xr.DataArray(
                     ocn_frac,
@@ -868,7 +868,7 @@ class Topo:
                 "mask_hmin": mask_hmin,
             },
         )
-        return self._stats
+        return self.src._stats
 
     def set_from_dataset(
         self,
