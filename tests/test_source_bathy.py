@@ -57,37 +57,46 @@ def test_source_bathy_initialization(synthetic_bathy_file, get_rect_topo):
         synthetic_bathy_file,
         lon_name="lon",
         lat_name="lat",
-        elevation_name="elevation",
+        depth_name="elevation",
     )
 
     assert src.path == Path(synthetic_bathy_file)
     assert src.lon_name == "lon"
     assert src.lat_name == "lat"
-    assert src.elevation_name == "elevation"
+    assert src.depth_name == "depth"
 
 
 def test_source_bathy_slice_to_domain(get_rect_topo, synthetic_bathy_file):
     """Smoke test: load and slice elevation to topo domain."""
     topo = get_rect_topo
 
-    src = SourceBathy(topo, synthetic_bathy_file)
+    src = SourceBathy(
+        topo,
+        synthetic_bathy_file,
+        depth_name="elevation",
+        is_input_positive_below_msl=False,
+    )
 
     # Verify data was loaded
-    assert src._da is not None
     assert src.lon is not None
     assert src.lat is not None
 
     # Verify shape makes sense
     assert len(src.lon) > 0, f"Expected lon data, got empty array"
     assert len(src.lat) > 0, f"Expected lat data, got empty array"
-    assert src._da.shape == (len(src.lat), len(src.lon))
+    assert src.depth.shape == (len(src.lat), len(src.lon))
 
 
 def test_source_bathy_depth_conversion(get_rect_topo, synthetic_bathy_file):
     """Test that elevation is converted to positive-down depth."""
     topo = get_rect_topo
 
-    src = SourceBathy(topo, synthetic_bathy_file)
+    src = SourceBathy(
+        topo,
+        synthetic_bathy_file,
+        depth_name="elevation",
+        is_input_positive_below_msl=False,
+    )
 
     # Get depth and verify sign conversion
     depth = src.depth
@@ -100,4 +109,4 @@ def test_source_bathy_depth_conversion(get_rect_topo, synthetic_bathy_file):
     assert len(non_nan_values) > 0, "No valid depth values"
     assert np.any(non_nan_values > 0), "Expected positive depth values for ocean"
 
-    assert depth.shape == src.da.shape
+    assert depth.shape == src.depth.shape
