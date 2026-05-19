@@ -858,7 +858,6 @@ class Topo:
             # Set directly into self.depth in this function
             self.tidy_dataset(
                 fill_channels=fill_channels,
-                is_input_positive_below_msl=is_input_positive_below_msl,
                 vertical_coordinate_name="depth",
                 bathymetry=self.regridded_bathy,
                 output_dir=output_dir,
@@ -926,11 +925,9 @@ class Topo:
     def tidy_dataset(
         self,
         fill_channels=False,
-        is_input_positive_below_msl=False,
         vertical_coordinate_name="depth",
         bathymetry=None,
         output_dir=Path(""),
-        write_to_file=True,
         longitude_coordinate_name="lon",
         latitude_coordinate_name="lat",
     ):
@@ -977,10 +974,6 @@ class Topo:
         bathymetry.attrs["coordinates"] = "zi"
 
         bathymetry.expand_dims("tiles", 0)
-
-        if not is_input_positive_below_msl:
-            ## Ensure that coordinate is positive down!
-            bathymetry["depth"] *= -1
 
         ## Make a land mask based on the bathymetry
         ocean_mask = xr.where(bathymetry.depth <= 0, 0, 1)
