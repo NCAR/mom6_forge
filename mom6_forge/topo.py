@@ -15,7 +15,6 @@ from mom6_forge.edit_command import *
 from mom6_forge.command_manager import TopoCommandManager, CommandType
 from mom6_forge.mapping import regrid_dataset_via_xesmf
 import regionmask
-from mom6_forge.utils import normalize_deg
 
 
 class Topo:
@@ -979,15 +978,12 @@ class Topo:
                 coordinate_names["xh"],
             )
         else:
-            bathymetry[coordinate_names["xh"]] = normalize_deg(
-                bathymetry[coordinate_names["xh"]]
-            )
             ## otherwise, slice normally
             bathymetry = bathymetry.sel(
                 {
                     coordinate_names["xh"]: slice(
-                        normalize_deg(longitude_extent[0]) - longitude_buffer,
-                        normalize_deg(longitude_extent[1]) + longitude_buffer,
+                        longitude_extent[0] - longitude_buffer,
+                        longitude_extent[1] + longitude_buffer,
                     )
                 }
             )
