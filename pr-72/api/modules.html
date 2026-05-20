@@ -89,7 +89,11 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="mom6_forge.html">mom6_forge package</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#submodules">Submodules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#mom6-forge-chl-module">mom6_forge.chl module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#module-mom6_forge.chl">mom6_forge.chl module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.chl.gen_chl_empty_dataset"><code class="docutils literal notranslate"><span class="pre">gen_chl_empty_dataset()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.chl.interpolate_and_fill_seawifs"><code class="docutils literal notranslate"><span class="pre">interpolate_and_fill_seawifs()</span></code></a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#module-mom6_forge.command_manager">mom6_forge.command_manager module</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandManager"><code class="docutils literal notranslate"><span class="pre">CommandManager</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandManager.add_to_history"><code class="docutils literal notranslate"><span class="pre">CommandManager.add_to_history()</span></code></a></li>
@@ -249,7 +253,51 @@
 <li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.plotting.plot_esmf_mesh"><code class="docutils literal notranslate"><span class="pre">plot_esmf_mesh()</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#mom6-forge-topo-module">mom6_forge.topo module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#module-mom6_forge.topo">mom6_forge.topo module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo"><code class="docutils literal notranslate"><span class="pre">Topo</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.apply_edit"><code class="docutils literal notranslate"><span class="pre">Topo.apply_edit()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.apply_ridge"><code class="docutils literal notranslate"><span class="pre">Topo.apply_ridge()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.basintmask"><code class="docutils literal notranslate"><span class="pre">Topo.basintmask</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.clear_user_mask"><code class="docutils literal notranslate"><span class="pre">Topo.clear_user_mask()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.depth"><code class="docutils literal notranslate"><span class="pre">Topo.depth</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.edit_depth"><code class="docutils literal notranslate"><span class="pre">Topo.edit_depth()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.erase_disconnected_basin"><code class="docutils literal notranslate"><span class="pre">Topo.erase_disconnected_basin()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.erase_selected_basin"><code class="docutils literal notranslate"><span class="pre">Topo.erase_selected_basin()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.from_topo_file"><code class="docutils literal notranslate"><span class="pre">Topo.from_topo_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.from_version_control"><code class="docutils literal notranslate"><span class="pre">Topo.from_version_control()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.gen_topo_ds"><code class="docutils literal notranslate"><span class="pre">Topo.gen_topo_ds()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.generate_mask_from_landfrac_file"><code class="docutils literal notranslate"><span class="pre">Topo.generate_mask_from_landfrac_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.generate_mask_from_naturalearth"><code class="docutils literal notranslate"><span class="pre">Topo.generate_mask_from_naturalearth()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.has_version_control"><code class="docutils literal notranslate"><span class="pre">Topo.has_version_control</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.land_fillval"><code class="docutils literal notranslate"><span class="pre">Topo.land_fillval</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.masked_depth"><code class="docutils literal notranslate"><span class="pre">Topo.masked_depth</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.max_depth"><code class="docutils literal notranslate"><span class="pre">Topo.max_depth</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.min_depth"><code class="docutils literal notranslate"><span class="pre">Topo.min_depth</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.mpi_set_from_dataset"><code class="docutils literal notranslate"><span class="pre">Topo.mpi_set_from_dataset()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.point_is_ocean"><code class="docutils literal notranslate"><span class="pre">Topo.point_is_ocean()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.qmask"><code class="docutils literal notranslate"><span class="pre">Topo.qmask</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.send_entire_depth_change_to_tcm"><code class="docutils literal notranslate"><span class="pre">Topo.send_entire_depth_change_to_tcm()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.set_bowl"><code class="docutils literal notranslate"><span class="pre">Topo.set_bowl()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.set_depth_via_topog_file"><code class="docutils literal notranslate"><span class="pre">Topo.set_depth_via_topog_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.set_flat"><code class="docutils literal notranslate"><span class="pre">Topo.set_flat()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.set_from_dataset"><code class="docutils literal notranslate"><span class="pre">Topo.set_from_dataset()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.set_spoon"><code class="docutils literal notranslate"><span class="pre">Topo.set_spoon()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.set_src"><code class="docutils literal notranslate"><span class="pre">Topo.set_src()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.src"><code class="docutils literal notranslate"><span class="pre">Topo.src</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.supergridmask"><code class="docutils literal notranslate"><span class="pre">Topo.supergridmask</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.tidy_dataset"><code class="docutils literal notranslate"><span class="pre">Topo.tidy_dataset()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.tmask"><code class="docutils literal notranslate"><span class="pre">Topo.tmask</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.umask"><code class="docutils literal notranslate"><span class="pre">Topo.umask</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.user_mask"><code class="docutils literal notranslate"><span class="pre">Topo.user_mask</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.vmask"><code class="docutils literal notranslate"><span class="pre">Topo.vmask</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.write_cice_grid"><code class="docutils literal notranslate"><span class="pre">Topo.write_cice_grid()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.write_esmf_mesh"><code class="docutils literal notranslate"><span class="pre">Topo.write_esmf_mesh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.write_scrip_grid"><code class="docutils literal notranslate"><span class="pre">Topo.write_scrip_grid()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo.Topo.write_topo"><code class="docutils literal notranslate"><span class="pre">Topo.write_topo()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#module-mom6_forge.topo_editor">mom6_forge.topo_editor module</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo_editor.TopoEditor"><code class="docutils literal notranslate"><span class="pre">TopoEditor</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.topo_editor.TopoEditor.apply_edit"><code class="docutils literal notranslate"><span class="pre">TopoEditor.apply_edit()</span></code></a></li>
