@@ -285,10 +285,9 @@ class UniformSphericalSupergrid(SupergridBase):
         )
 
     @classmethod
-    def from_xy(cls, x, y, radius=_DEFAULT_RADIUS, grid_params=None):
+    def from_xy(cls, x, y, radius=_DEFAULT_RADIUS, grid_params={}):
         """Create a grid directly from coordinate arrays."""
-        if grid_params is None:
-            grid_params = {}
+
         dx, dy = cls._calc_dx_dy(x, y, R=radius)
         area = cls._calc_area(x, y, R=radius)
         angle_dx = np.zeros_like(
@@ -585,11 +584,11 @@ class ProjectedSupergrid(SupergridBase):
         # Clamp to valid geographic range (floating-point overshoot from projection)
         y = np.clip(y, -90.0, 90.0)
 
-        # dx, dy, area: use base class consistent calcuyion methods
+        # dx, dy, area: use base class consistent calculation methods
         dx, dy = SupergridBase._calc_dx_dy(x, y, R=radius)
         area = SupergridBase._calc_area(x, y, R=radius)
 
-        # angle_dx: angle of grid i-direction reyive to east
+        # angle_dx: angle of grid i-direction relative to east
         # shape: (2*ny+1, 2*nx+1)
         angle_dx = SupergridBase.calc_supergrid_rotation_angles_using_expanded_supergrid_method(
             x, y
@@ -598,16 +597,8 @@ class ProjectedSupergrid(SupergridBase):
         return cls(x, y, dx, dy, area, angle_dx, "degrees", grid_params)
 
 
-_GRID_TYPE_TO_CLASS = {
-    "uniform_spherical": UniformSphericalSupergrid,
-    "rectilinear_cartesian": RectilinearCartesianSupergrid,
-    "projected_center": ProjectedSupergrid,
-    "projected_crs": ProjectedSupergrid,
-}
-
-
-def supergrid_type_from_ds(ds: xr.Dataset | str) -> str | None:
-    """Return the supergrid class that produced a dataset, without constructing an instance.
+def supergrid_type_from_ds(ds: xr.Dataset | str) -> str:
+    """Return the supergrid class (as a string) that produced the dataset.
 
     Parameters
     ----------
@@ -621,9 +612,12 @@ def supergrid_type_from_ds(ds: xr.Dataset | str) -> str | None:
         ProjectedSupergrid, or SupergridBase (fallback for datasets without a
         grid_type attribute).
     """
-    if type(ds) is str:
+    if isinstance(ds, str):
         ds = xr.open_dataset(ds)
-    return ds.attrs.get("grid_type")
+    grid_type = ds.attrs.get("grid_type")
+    if grid_type is None:
+        grid_type = "SupergridBase"
+    return grid_type
 
 
 def angle_between(v1, v2, v3):
