@@ -1118,7 +1118,7 @@ nominal resolution (by default) of the actual computational grid.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.grid.Grid.update_supergrid">
-<span class="sig-name descname"><span class="pre">update_supergrid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xdat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ydat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">array</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.update_supergrid" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">update_supergrid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xdat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ydat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grid_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.update_supergrid" title="Link to this definition"></a></dt>
 <dd><p>Update the supergrid x and y coordinates. Running this method
 also updates the nominal grid coordinates and metrics.</p>
 <dl class="field-list simple">
@@ -1126,6 +1126,7 @@ also updates the nominal grid coordinates and metrics.</p>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>xdat</strong> (<em>np.array</em>) – 2-dimensional array of the new x coordinates.</p></li>
 <li><p><strong>ydat</strong> (<em>np.array</em>) – 2-dimensional array of the new y coordinates.</p></li>
+<li><p><strong>grid_type</strong> (<em>str</em>) – The grid type of the passed in x and y arrays</p></li>
 </ul>
 </dd>
 </dl>
