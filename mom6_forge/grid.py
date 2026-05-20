@@ -9,7 +9,6 @@ from mom6_forge._supergrid import (
     RectilinearCartesianSupergrid,
     ProjectedSupergrid,
     SupergridBase,
-    mom6_angle_calculation_method,
 )
 from mom6_forge.utils import normalize_deg
 
@@ -268,7 +267,7 @@ class Grid:
         s_i_low = i_low * srefine
         s_i_high = (i_high) * srefine + 1
 
-        sub_supergrid = UniformSphericalSupergrid.from_xy(
+        sub_supergrid = SuperGridBase._init_from_xy(
             x=self.supergrid.x[s_j_low:s_j_high:j_step, s_i_low:s_i_high:i_step],
             y=self.supergrid.y[s_j_low:s_j_high:j_step, s_i_low:s_i_high:i_step],
         )
@@ -1025,7 +1024,7 @@ class Grid:
             2-dimensional array of the new y coordinates.
         """
 
-        self.supergrid = SupergridBase.from_xy(xdat, ydat)
+        self.supergrid = SupergridBase._init_from_xy(xdat, ydat)
 
     def write_supergrid(
         self, path: Optional[str] = None, author: Optional[str] = None
