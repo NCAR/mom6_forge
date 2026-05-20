@@ -7,7 +7,7 @@ from typing import Optional
 from scipy import interpolate
 from scipy.ndimage import label, binary_fill_holes
 from scipy.spatial import cKDTree
-from mom6_forge.utils import cell_area_rad
+from mom6_forge.utils import cell_area_rad, longitude_slicer
 from mom6_forge.grid import Grid
 from mom6_forge.git_utils import get_domain_dir, get_repo
 from pathlib import Path
