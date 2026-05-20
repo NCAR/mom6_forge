@@ -9,13 +9,17 @@ import numpy as np
         ([0, 10], [0, 10]),
     ],
 )
-def test_even_spacing_hgrid(lat, lon):
+def test_even_spacing_hgrid_init_to_and_from(lat, lon):
+    grid = RectilinearCartesianSupergrid.from_extents(
+        lon[0], lon[1] - lon[0], lat[0], lat[1] - lat[0], 0.05
+    )
     assert isinstance(
-        RectilinearCartesianSupergrid.from_extents(
-            lon[0], lon[1] - lon[0], lat[0], lat[1] - lat[0], 0.05
-        ),
+        grid,
         RectilinearCartesianSupergrid,
     )
+    ds = grid.to_ds()
+    grid2 = SupergridBase.from_ds(ds)
+    assert grid == grid2
 
 
 # --- ProjectedSupergrid tests ---

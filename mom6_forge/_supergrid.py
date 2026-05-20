@@ -69,6 +69,11 @@ class SupergridBase:
         self.grid_type = grid_type
         self.radius = radius
 
+    def __eq__(self, other):
+        if not isinstance(other, SupergridBase):
+            return NotImplemented
+        return (self.x == other.x).all() and (self.y == other.y).all()
+
     @staticmethod
     def _calc_dx_dy(x, y, R=_DEFAULT_RADIUS, type="smallangle"):
         """Compute supergrid dx and dy from coordinate arrays.
@@ -129,7 +134,7 @@ class SupergridBase:
         angles_are_zero=False,
         dx_dy_calc_type="smallangle",
     ):
-        """Build supergrid metrics from y/x node arrays. Should not really be called directly by users (unless experienced); use from* method instead
+        """Build supergrid metrics from y/x arrays. Should not really be called directly by users (unless experienced); use from_* method instead
 
         Parameters
         ----------
@@ -185,7 +190,7 @@ class SupergridBase:
         # ---- Metadata ----
         ds.attrs["type"] = "MOM6 supergrid"
         ds.attrs["grid_type"] = self.grid_type
-        ds.attrs["radius"] = radius
+        ds.attrs["radius"] = self.radius
         if name is not None:
             ds.attrs["name"] = name
         ds.attrs["Created"] = datetime.now().isoformat()
@@ -212,8 +217,7 @@ class SupergridBase:
     def from_ds(cls, ds: xr.Dataset) -> "SupergridBase":
         """Load a supergrid from a Dataset written by to_ds, returning a SupergridBase instance.
 
-        Does not dispatch to subclasses — use supergrid_class_from_ds to identify
-        the originating class if subclass-specific reconstruction is needed.
+        Does not dispatch to subclasses
         """
         return cls(
             ds.x.data,
@@ -223,7 +227,8 @@ class SupergridBase:
             ds.area.data,
             ds.angle_dx.data,
             ds.x.attrs.get("units", "degrees"),
-            dict(ds.attrs),
+            grid_type=ds.attrs["grid_type"],
+            radius=ds.attrs["radius"],
         )
 
     @staticmethod
@@ -511,29 +516,6 @@ class ProjectedSupergrid(SupergridBase):
         lon, lat = transformer.transform(xx_rot, yy_rot)
 
         return cls._init_from_xy(lon, lat, "projected_crs", radius)
-
-
-def supergrid_type_from_ds(ds: xr.Dataset | str) -> str:
-    """Return the supergrid class (as a string) that produced the dataset.
-
-    Parameters
-    ----------
-    ds : xr.Dataset
-        A supergrid dataset written by SupergridBase.to_ds (or Grid.write_supergrid).
-
-    Returns
-    -------
-    type
-        One of UniformSphericalSupergrid, RectilinearCartesianSupergrid,
-        ProjectedSupergrid, or SupergridBase (fallback for datasets without a
-        grid_type attribute).
-    """
-    if isinstance(ds, str):
-        ds = xr.open_dataset(ds)
-    grid_type = ds.attrs.get("grid_type")
-    if grid_type is None:
-        grid_type = "SupergridBase"
-    return grid_type
 
 
 def angle_between(v1, v2, v3):
