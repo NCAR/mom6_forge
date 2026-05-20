@@ -129,7 +129,7 @@ class SupergridBase:
         cls,
         x,
         y,
-        grid_type,
+        grid_type=None,
         R=_DEFAULT_RADIUS,
         angles_are_zero=False,
         dx_dy_calc_type="smallangle",
@@ -189,7 +189,8 @@ class SupergridBase:
 
         # ---- Metadata ----
         ds.attrs["type"] = "MOM6 supergrid"
-        ds.attrs["grid_type"] = self.grid_type
+        if self.grid_type is not None:
+            ds.attrs["grid_type"] = self.grid_type
         ds.attrs["radius"] = self.radius
         if name is not None:
             ds.attrs["name"] = name
@@ -227,7 +228,7 @@ class SupergridBase:
             ds.area.data,
             ds.angle_dx.data,
             ds.x.attrs.get("units", "degrees"),
-            grid_type=ds.attrs["grid_type"],
+            grid_type=ds.attrs.get("grid_type"),
             radius=ds.attrs["radius"],
         )
 

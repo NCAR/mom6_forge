@@ -22,6 +22,22 @@ def test_even_spacing_hgrid_init_to_and_from(lat, lon):
     assert grid == grid2
 
 
+@pytest.mark.parametrize(
+    ("lat", "lon"),
+    [
+        ([0, 10], [0, 10]),
+    ],
+)
+def test_to_and_from_no_grid_type(lat, lon):
+    grid = RectilinearCartesianSupergrid.from_extents(
+        lon[0], lon[1] - lon[0], lat[0], lat[1] - lat[0], 0.05
+    )
+    grid2 = SupergridBase._init_from_xy(grid.x, grid.y)
+    ds = grid2.to_ds()
+    grid2 = SupergridBase.from_ds(ds)
+    assert grid == grid2
+
+
 # --- ProjectedSupergrid tests ---
 
 
