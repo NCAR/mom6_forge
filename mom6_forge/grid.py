@@ -1011,7 +1011,7 @@ class Grid:
         fig.savefig("test.png")
         plt.show()
 
-    def update_supergrid(self, xdat: np.array, ydat: np.array) -> None:
+    def update_supergrid(self, xdat: np.array, ydat: np.array, grid_type=None) -> None:
         """
         Update the supergrid x and y coordinates. Running this method
         also updates the nominal grid coordinates and metrics.
@@ -1022,9 +1022,11 @@ class Grid:
             2-dimensional array of the new x coordinates.
         ydat: np.array
             2-dimensional array of the new y coordinates.
+        grid_type: str
+            The grid type of the passed in x and y arrays
         """
 
-        self.supergrid = SupergridBase._init_from_xy(xdat, ydat)
+        self.supergrid = SupergridBase._init_from_xy(xdat, ydat, grid_type)
 
     def write_supergrid(
         self, path: Optional[str] = None, author: Optional[str] = None
