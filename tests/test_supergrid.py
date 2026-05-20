@@ -11,7 +11,7 @@ import numpy as np
 )
 def test_even_spacing_hgrid(lat, lon):
     assert isinstance(
-        RectilinearCartesianSupergrid(
+        RectilinearCartesianSupergrid.from_extents(
             lon[0], lon[1] - lon[0], lat[0], lat[1] - lat[0], 0.05
         ),
         RectilinearCartesianSupergrid,
@@ -81,20 +81,6 @@ def test_projected_supergrid_from_center_rotated():
     assert abs(cy - center_lat) < 1.0
     assert abs(cx - center_lon) < 1.0
     assert ((sg_45.angle_dx + np.deg2rad(45.0)) < 0.1).all()
-
-
-def test_projected_supergrid_from_latlon():
-    """_from_latlon builds a valid ProjectedSupergrid from synthetic lat/lon arrays."""
-    ny, nx = 4, 6  # logical grid cells → supergrid shape (2*ny+1, 2*nx+1)
-    lon = np.linspace(-10, 10, 2 * nx + 1)
-    lat = np.linspace(30, 40, 2 * ny + 1)
-    lon2d, lat2d = np.meshgrid(lon, lat)
-    sg = ProjectedSupergrid._from_xy(lon2d, lat2d, {"grid_type": "projected_crs"})
-    assert isinstance(sg, ProjectedSupergrid)
-    assert sg.x.shape == (2 * ny + 1, 2 * nx + 1)
-    assert sg.area.shape == (2 * ny, 2 * nx)
-    assert np.all(sg.area > 0)
-    assert sg.axis_units == "degrees"
 
 
 def test_uniform_spherical_supergrid():

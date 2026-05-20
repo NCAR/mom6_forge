@@ -40,7 +40,7 @@ class SupergridBase:
     def leny(self):
         return self.y.max() - self.y.min()
 
-    def __init__(self, x, y, dx, dy, area, angle_dx, axis_units, grid_params):
+    def __init__(self, x, y, dx, dy, area, angle_dx, axis_units, grid_type, radius):
         """
         Initialize a generic supergrid.
 
@@ -56,9 +56,8 @@ class SupergridBase:
             Local grid angle relative to east.
         axis_units : str
             Units of x and y (e.g. "degrees" or "meters").
-        grid_params : dict
-            Construction parameters written as dataset attributes on save.
-            Should include at minimum a "grid_type" key.
+        grid_type : str
+            the type of grid being created
         """
         self.x = x
         self.y = y
@@ -67,8 +66,8 @@ class SupergridBase:
         self.area = area
         self.angle_dx = angle_dx
         self.axis_units = axis_units
-        self.grid_type = grid_params.get("grid_type", "base")
-        self._grid_params = grid_params
+        self.grid_type = grid_type
+        self.radius = radius
 
     @staticmethod
     def _calc_dx_dy(x, y, R=_DEFAULT_RADIUS, type="smallangle"):
@@ -80,6 +79,9 @@ class SupergridBase:
             Supergrid longitude and latitude in degrees, shape (2*ny+1, 2*nx+1).
         R : float, optional
             Sphere radius in metres. Defaults to Earth's IUGG mean radius.
+        type: str, optional
+            The method to use to calculate dx and dy (smallangle or haversine)
+
 
         Returns
         -------
@@ -95,6 +97,8 @@ class SupergridBase:
         elif type == "haversine":
             dx = haversine(y[:, :-1], x[:, :-1], y[:, 1:], x[:, 1:], R)
             dy = haversine(y[:-1, :], x[:-1, :], y[1:, :], x[1:, :], R)
+        else:
+            raise ValueError(f"Unrecognized dx/dy calc type: {type}")
         return dx, dy
 
     @staticmethod
@@ -114,6 +118,50 @@ class SupergridBase:
             Cell areas in square metres.
         """
         return quadrilateral_areas(y, x, R)
+
+    @classmethod
+    def _init_from_xy(
+        cls,
+        x,
+        y,
+        grid_type,
+        R=_DEFAULT_RADIUS,
+        angles_are_zero=False,
+        dx_dy_calc_type="smallangle",
+    ):
+        """Build supergrid metrics from y/x node arrays. Should not really be called directly by users (unless experienced); use from* method instead
+
+        Parameters
+        ----------
+        x, y : np.ndarray, shape (2*ny+1, 2*nx+1)
+            Geographic coordinates of all supergrid nodes in degrees.
+        grid_type : str
+            The type of grid being created
+        radius : float, optional
+            Sphere radius in metres. Defaults to Earth's IUGG mean radius.
+        angles_are_zero: bool, optional
+            Angle calculation is an approximation for regional grids.
+            If angles are known to be zero, we can skip angle calculation (which may be slighly off from zero)
+            and set angles to zero
+        dx_dy_calc_type: str, optional
+            The method to use to calculate dx and dy (smallangle or haversine)
+        """
+        # Clamp to valid geographic range (floating-point overshoot from projection in some cases)
+        y = np.clip(y, -90.0, 90.0)
+
+        # dx, dy, area: use base class consistent calculation methods
+        dx, dy = SupergridBase._calc_dx_dy(x, y, R=R, type=dx_dy_calc_type)
+        area = SupergridBase._calc_area(x, y, R=R)
+
+        if angles_are_zero:
+            angle_dx = np.zeros_like(x)
+        else:
+            angle_dx = SupergridBase.calc_supergrid_rotation_angles_using_expanded_supergrid_method(
+                x, y
+            )
+        return cls(
+            x, y, dx, dy, area, angle_dx, "degrees", grid_type=grid_type, radius=R
+        )
 
     def summary(self):
         """Print a short summary of the grid geometry (shape and dx/dy ranges)."""
@@ -136,12 +184,13 @@ class SupergridBase:
 
         # ---- Metadata ----
         ds.attrs["type"] = "MOM6 supergrid"
+        ds.attrs["grid_type"] = self.grid_type
+        ds.attrs["radius"] = radius
         if name is not None:
             ds.attrs["name"] = name
         ds.attrs["Created"] = datetime.now().isoformat()
         if author:
             ds.attrs["Author"] = author
-        ds.attrs.update(self._grid_params)
 
         # ---- Data variables ----
         ds["y"] = xr.DataArray(
@@ -268,33 +317,9 @@ class UniformSphericalSupergrid(SupergridBase):
     ):
         """Create a grid from domain extents (lon/lat degrees)."""
         x, y = cls._calc_xy_from_extents(lon_min, len_x, lat_min, len_y, nx, ny)
-        return cls.from_xy(
-            x,
-            y,
-            radius=radius,
-            grid_params=dict(
-                grid_type="uniform_spherical",
-                lon_min=lon_min,
-                len_x=len_x,
-                lat_min=lat_min,
-                len_y=len_y,
-                nx=nx,
-                ny=ny,
-                radius=radius,
-            ),
+        return cls._init_from_xy(
+            x, y, "uniform_spherical", radius, angles_are_zero=True
         )
-
-    @classmethod
-    def from_xy(cls, x, y, radius=_DEFAULT_RADIUS, grid_params={}):
-        """Create a grid directly from coordinate arrays."""
-
-        dx, dy = cls._calc_dx_dy(x, y, R=radius)
-        area = cls._calc_area(x, y, R=radius)
-        angle_dx = np.zeros_like(
-            x
-        )  # Uniform spherical grid has no rotation, so angle_dx is zero everywhere
-        axis_units = "degrees"
-        return cls(x, y, dx, dy, area, angle_dx, axis_units, grid_params=grid_params)
 
     @classmethod
     def _calc_xy_from_extents(cls, lon_min, len_x, lat_min, len_y, nx, ny):
@@ -325,33 +350,18 @@ class UniformSphericalSupergrid(SupergridBase):
 class RectilinearCartesianSupergrid(SupergridBase):
     """MOM6-style supergrid with uniform Cartesian spacing (x/y in meters). Originally by Ashley Barnes in regional_mom6"""
 
-    def __init__(
-        self, lon_min, len_x, lat_min, len_y, resolution, radius=_DEFAULT_RADIUS
+    @classmethod
+    def from_extents(
+        cls, lon_min, len_x, lat_min, len_y, resolution, radius=_DEFAULT_RADIUS
     ):
-        x, y, dx, dy, area, angle, axis_units = self._build_grid(
-            lon_min, len_x, lat_min, len_y, resolution, radius
-        )
-        super().__init__(
-            x,
-            y,
-            dx,
-            dy,
-            area,
-            angle,
-            axis_units,
-            dict(
-                grid_type="rectilinear_cartesian",
-                lon_min=lon_min,
-                len_x=len_x,
-                lat_min=lat_min,
-                len_y=len_y,
-                resolution=resolution,
-                radius=radius,
-            ),
+        x, y = cls._build_grid(lon_min, len_x, lat_min, len_y, resolution)
+        return cls._init_from_xy(
+            x, y, "rectilinear_cartesian", radius, angles_are_zero=True
         )
 
-    def _build_grid(self, lon_min, len_x, lat_min, len_y, resolution, radius):
-        """Compute full grid geometry for even physical spacing."""
+    @classmethod
+    def _build_grid(self, lon_min, len_x, lat_min, len_y, resolution):
+        """Compute x,y for even physical spacing."""
         lon_max = lon_min + len_x
         lat_max = lat_min + len_y
 
@@ -386,13 +396,7 @@ class RectilinearCartesianSupergrid(SupergridBase):
 
         lon, lat = np.meshgrid(lons, lats)
 
-        # Calculate dx & dy in meters, accounting for spherical geometry
-        dx, dy = SupergridBase._calc_dx_dy(lon, lat, R=radius)
-        area = SupergridBase._calc_area(lon, lat, R=radius)
-        angle_dx = np.zeros_like(lon)
-        axis_units = "degrees"
-
-        return lon, lat, dx, dy, area, angle_dx, axis_units
+        return lon, lat
 
 
 class ProjectedSupergrid(SupergridBase):
@@ -448,21 +452,7 @@ class ProjectedSupergrid(SupergridBase):
         transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
         lon, lat = transformer.transform(xx, yy)
 
-        return cls._from_xy(
-            lon,
-            lat,
-            dict(
-                grid_type="projected_crs",
-                crs_wkt=crs.to_wkt(),
-                x_min=x_min,
-                x_max=x_max,
-                y_min=y_min,
-                y_max=y_max,
-                resolution_m=resolution_m,
-                radius=radius,
-            ),
-            radius=radius,
-        )
+        return cls._init_from_xy(lon, lat, "projected_crs", radius)
 
     @classmethod
     def from_center(
@@ -520,81 +510,7 @@ class ProjectedSupergrid(SupergridBase):
         transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
         lon, lat = transformer.transform(xx_rot, yy_rot)
 
-        return cls._from_xy(
-            lon,
-            lat,
-            dict(
-                grid_type="projected_center",
-                center_lat=center_lat,
-                center_lon=center_lon,
-                width_m=width_m,
-                height_m=height_m,
-                resolution_m=resolution_m,
-                angle_deg=angle_deg,
-                radius=radius,
-            ),
-            radius=radius,
-        )
-
-    @classmethod
-    def from_ds(cls, ds: xr.Dataset) -> "ProjectedSupergrid":
-        """Reconstruct a ProjectedSupergrid from a Dataset written by to_ds.
-
-        Re-runs the original factory (from_center or from_crs) using the
-        construction parameters stored as dataset attributes, giving an exact
-        reconstruction of the projected grid.
-        """
-        grid_type = ds.attrs.get("grid_type")
-        if grid_type == "projected_center":
-            return cls.from_center(
-                center_lat=ds.attrs["center_lat"],
-                center_lon=ds.attrs["center_lon"],
-                width_m=ds.attrs["width_m"],
-                height_m=ds.attrs["height_m"],
-                resolution_m=ds.attrs["resolution_m"],
-                angle_deg=ds.attrs.get("angle_deg", 0.0),
-            )
-        if grid_type == "projected_crs":
-            return cls.from_crs(
-                crs=ds.attrs["crs_wkt"],
-                x_min=ds.attrs["x_min"],
-                x_max=ds.attrs["x_max"],
-                y_min=ds.attrs["y_min"],
-                y_max=ds.attrs["y_max"],
-                resolution_m=ds.attrs["resolution_m"],
-            )
-        raise ValueError(
-            f"Cannot reconstruct ProjectedSupergrid: unrecognised grid_type {grid_type!r}. "
-            "Use SupergridBase.from_ds to load raw arrays instead."
-        )
-
-    @classmethod
-    def _from_xy(cls, x, y, grid_params, radius=_DEFAULT_RADIUS):
-        """Build supergrid metrics from reprojected y/x node arrays. Should not really be called directly by users (unless experienced); use from_crs or from_center instead.
-
-        Parameters
-        ----------
-        x, y : np.ndarray, shape (2*ny+1, 2*nx+1)
-            Geographic coordinates of all supergrid nodes in degrees.
-        grid_params : dict
-            Construction parameters to store on the instance.
-        radius : float, optional
-            Sphere radius in metres. Defaults to Earth's IUGG mean radius.
-        """
-        # Clamp to valid geographic range (floating-point overshoot from projection)
-        y = np.clip(y, -90.0, 90.0)
-
-        # dx, dy, area: use base class consistent calculation methods
-        dx, dy = SupergridBase._calc_dx_dy(x, y, R=radius)
-        area = SupergridBase._calc_area(x, y, R=radius)
-
-        # angle_dx: angle of grid i-direction relative to east
-        # shape: (2*ny+1, 2*nx+1)
-        angle_dx = SupergridBase.calc_supergrid_rotation_angles_using_expanded_supergrid_method(
-            x, y
-        )
-        grid_params["radius"] = radius
-        return cls(x, y, dx, dy, area, angle_dx, "degrees", grid_params)
+        return cls._init_from_xy(lon, lat, "projected_crs", radius)
 
 
 def supergrid_type_from_ds(ds: xr.Dataset | str) -> str:
