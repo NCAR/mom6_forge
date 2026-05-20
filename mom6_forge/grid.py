@@ -270,6 +270,7 @@ class Grid:
         sub_supergrid = SuperGridBase._init_from_xy(
             x=self.supergrid.x[s_j_low:s_j_high:j_step, s_i_low:s_i_high:i_step],
             y=self.supergrid.y[s_j_low:s_j_high:j_step, s_i_low:s_i_high:i_step],
+            grid_type = self.supergrid.grid_type
         )
 
         # Create a name for the subgrid based on the slices
