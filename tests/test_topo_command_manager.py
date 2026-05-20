@@ -117,7 +117,7 @@ def test_TopoCommandManager_reset(get_rect_topo, gen_MinDepthCommand):
     topo.tcm.execute(gen_MinDepthCommand)
     assert topo.min_depth == 10.0  # Assert Action taken
     topo.tcm.reset()
-    assert (np.isnan(topo.depth)).all()  # Assert reset worked
+    assert (topo.masked_depth == 0).all()  # Assert reset worked
     assert topo.min_depth == 0.0  # Assert min depth reset
 
 
