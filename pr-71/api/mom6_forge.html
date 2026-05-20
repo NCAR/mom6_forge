@@ -126,7 +126,6 @@
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.get_avg_resolution_km"><code class="docutils literal notranslate"><span class="pre">get_avg_resolution_km()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.get_mesh_dimensions"><code class="docutils literal notranslate"><span class="pre">get_mesh_dimensions()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.is_mesh_cyclic_x"><code class="docutils literal notranslate"><span class="pre">is_mesh_cyclic_x()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.longitude_slicer"><code class="docutils literal notranslate"><span class="pre">longitude_slicer()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.normalize_deg"><code class="docutils literal notranslate"><span class="pre">normalize_deg()</span></code></a></li>
 </ul>
 </li>
@@ -2104,47 +2103,6 @@ compute the dimensions of the 2D grid and return them as nx, ny.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>bool</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="mom6_forge.utils.longitude_slicer">
-<span class="sig-prename descclassname"><span class="pre">mom6_forge.utils.</span></span><span class="sig-name descname"><span class="pre">longitude_slicer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_extent</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coords</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.utils.longitude_slicer" title="Link to this definition"></a></dt>
-<dd><p>Slices longitudes while handling periodicity and the ‘seams’, that is the
-longitude values where the data wraps around in a global domain (for example,
-longitudes are defined, usually, within domain [0, 360] or [-180, 180]).</p>
-<p>The algorithm works in five steps:</p>
-<ul class="simple">
-<li><p>Determine whether we need to add or subtract 360 to get the middle of the
-<code class="docutils literal notranslate"><span class="pre">longitude_extent</span></code> to lie within <code class="docutils literal notranslate"><span class="pre">data</span></code>’s longitude range (hereby <code class="docutils literal notranslate"><span class="pre">old_lon</span></code>).</p></li>
-<li><p>Shift the dataset so that its midpoint matches the midpoint of
-<code class="docutils literal notranslate"><span class="pre">longitude_extent</span></code> (up to a multiple of 360). Now, the modified <code class="docutils literal notranslate"><span class="pre">old_lon</span></code>
-does not increase monotonically from West to East since the ‘seam’
-has moved.</p></li>
-<li><p>Fix <code class="docutils literal notranslate"><span class="pre">old_lon</span></code> to make it monotonically increasing again. This uses
-the information we have about the way the dataset was shifted/rolled.</p></li>
-<li><p>Slice the <code class="docutils literal notranslate"><span class="pre">data</span></code> index-wise. We know that <code class="docutils literal notranslate"><span class="pre">|longitude_extent[1]</span> <span class="pre">-</span> <span class="pre">longitude_extent[0]|</span> <span class="pre">/</span> <span class="pre">360</span></code>
-multiplied by the number of discrete longitude points in the global input data gives
-the number of longitude points in our slice, and we’ve already set the midpoint
-to be the middle of the target domain.</p></li>
-<li><p>Add back the correct multiple of 360 so the whole domain matches the target.</p></li>
-</ul>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>data</strong> (<em>xarray.Dataset</em>) – The global data you want to slice in longitude.</p></li>
-<li><p><strong>longitude_extent</strong> (<em>Tuple</em><em>[</em><em>float</em><em>, </em><em>float</em><em>]</em>) – The target longitudes (in degrees)
-we want to slice to. Must be in increasing order.</p></li>
-<li><p><strong>longitude_coords</strong> (<em>Union</em><em>[</em><em>str</em><em>, </em><em>list</em><em>[</em><em>str</em><em>]</em>) – The name or list of names of the
-longitude coordinates(s) in <code class="docutils literal notranslate"><span class="pre">data</span></code>.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The sliced <code class="docutils literal notranslate"><span class="pre">data</span></code>.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>xarray.Dataset</p>
 </dd>
 </dl>
 </dd></dl>
