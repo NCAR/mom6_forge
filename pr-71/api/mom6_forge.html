@@ -1739,8 +1739,7 @@ parameter to “spoon”.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.set_src">
 <span class="sig-name descname"><span class="pre">set_src</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bathymetry_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latitude_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertical_coordinate_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_input_positive_below_msl</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">buf</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.set_src" title="Link to this definition"></a></dt>
-<dd><p>Set a <code class="xref py py-class docutils literal notranslate"><span class="pre">SourceBathy</span></code>, creating and slicing a new one
-only when the path or coordinate names differ from the current cache.</p>
+<dd><p>Set a <code class="xref py py-class docutils literal notranslate"><span class="pre">SourceBathy</span></code> into a class object called src</p>
 </dd></dl>
 
 <dl class="py property">
@@ -1771,8 +1770,8 @@ or fill in some channels, then <a class="reference internal" href="#mom6_forge.t
 <li><p><strong>fill_channels</strong> (<em>Optional</em><em>[</em><em>bool</em><em>]</em>) – Whether to fill in diagonal channels.
 This removes more narrow inlets, but can also connect extra islands to land.
 Default: <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p></li>
-<li><p><strong>is_input_positive_below_msl</strong> (<em>Optional</em><em>[</em><em>bool</em><em>]</em>) – If <code class="docutils literal notranslate"><span class="pre">False</span></code> (default), assume that
-bathymetry vertical coordinate is positive down, as is the case in GEBCO for example.</p></li>
+<li><p><strong>is_input_positive_below_msl</strong> (<em>Optional</em><em>[</em><em>bool</em><em>]</em>) – If <code class="docutils literal notranslate"><span class="pre">True</span></code> (default), assume that
+bathymetry vertical coordinate is positive below sea level, GEBCO is negative below sea level, and would need for this to be False.</p></li>
 <li><p><strong>bathymetry</strong> (<em>Optional</em><em>[</em><em>xr.Dataset</em><em>]</em>) – The bathymetry dataset to tidy up. If not provided,
 it will read the bathymetry from the file <code class="docutils literal notranslate"><span class="pre">bathymetry_unfinished.nc</span></code> in the input directory
 that was created by <code class="xref py py-func docutils literal notranslate"><span class="pre">config/regrid_dataset()</span></code>.</p></li>
