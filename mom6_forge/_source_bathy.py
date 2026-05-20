@@ -283,8 +283,12 @@ def longitude_slicer(data, longitude_extent, longitude_coords):
             np.diff(lons), dlons * np.ones(np.size(lons) - 1)
         ), "provided longitude coordinate must be uniformly spaced"
 
+        is_longitude_extent_in_data = (
+            False  # This boolean checks if the 360 + i adjustment isn't found
+        )
         for i in range(-1, 2, 1):
             if data[lon][0] <= central_longitude + 360 * i <= data[lon][-1]:
+                is_longitude_extent_in_data = True
 
                 ## Shifted version of target midpoint; e.g., could be -90 vs 270
                 ## integer i keeps track of what how many multiples of 360 we need to shift entire
@@ -332,6 +336,11 @@ def longitude_slicer(data, longitude_extent, longitude_coords):
                     int(data[lon].shape[0] * (central_longitude - longitude_extent[0]))
                     // lon_span
                 )
+
+        if not is_longitude_extent_in_data:
+            raise ValueError(
+                "The longitude of the data doesn't seem to include the longitude of the grid."
+            )
 
         data = new_data.isel(
             {

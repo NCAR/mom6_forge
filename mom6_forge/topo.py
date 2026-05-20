@@ -53,7 +53,7 @@ class Topo:
             None  # Binary ocean/land mask (None = no mask applied)
         )
         self._min_depth = min_depth
-        self._src = None  # cached SourceBathy; set by _set_src()
+        self._src = None  # SourceBathy object; set by set_src()
         self.land_fillval = 0.0  # Depth value for land cells
         initial_command = MinDepthEditCommand(
             self, attr="min_depth", new_value=min_depth
@@ -480,8 +480,7 @@ class Topo:
         is_input_positive_below_msl=False,
         buf=0.5,
     ):
-        """Set a :class:`SourceBathy`, creating and slicing a new one
-        only when the path or coordinate names differ from the current cache."""
+        """Set a :class:`SourceBathy` into a class object called src"""
         self.src = SourceBathy(
             self,
             Path(bathymetry_path),
@@ -944,8 +943,8 @@ class Topo:
             fill_channels (Optional[bool]): Whether to fill in diagonal channels.
                 This removes more narrow inlets, but can also connect extra islands to land.
                 Default: ``False``.
-            is_input_positive_below_msl (Optional[bool]): If ``False`` (default), assume that
-                bathymetry vertical coordinate is positive down, as is the case in GEBCO for example.
+            is_input_positive_below_msl (Optional[bool]): If ``True`` (default), assume that
+                bathymetry vertical coordinate is positive below sea level, GEBCO is negative below sea level, and would need for this to be False.
             bathymetry (Optional[xr.Dataset]): The bathymetry dataset to tidy up. If not provided,
                 it will read the bathymetry from the file ``bathymetry_unfinished.nc`` in the input directory
                 that was created by :func:`~config/regrid_dataset`.
