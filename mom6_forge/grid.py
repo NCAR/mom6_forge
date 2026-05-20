@@ -1025,7 +1025,7 @@ class Grid:
             2-dimensional array of the new y coordinates.
         """
 
-        self.supergrid = UniformSphericalSupergrid.from_xy(xdat, ydat)
+        self.supergrid = SupergridBase.from_xy(xdat, ydat)
 
     def write_supergrid(
         self, path: Optional[str] = None, author: Optional[str] = None
