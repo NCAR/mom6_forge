@@ -290,6 +290,13 @@ def test_grid_to_netcdf_and_from_netcdf(tmp_path, simple_2by2_grid):
     assert loaded.name == simple_2by2_grid.name
 
 
+def test_grid_rectilinear_cartesian():
+    grid = Grid(lenx=10.0, leny=10.0, resolution=1.0, type="rectilinear_cartesian")
+    assert isinstance(grid, Grid)
+    assert grid.nx == 10
+    assert grid.ny == 10
+
+
 def test_grid_from_projection():
     grid = Grid.from_projection(
         "EPSG:3995", -500_000, 500_000, -500_000, 500_000, 50_000, name="arctic"

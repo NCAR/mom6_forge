@@ -139,7 +139,7 @@ class Grid:
                 lon_min=xstart, len_x=lenx, lat_min=ystart, len_y=leny, nx=nx, ny=ny
             )
         elif type == "rectilinear_cartesian":
-            self.supergrid = RectilinearCartesianSupergrid(
+            self.supergrid = RectilinearCartesianSupergrid.from_extents(
                 lon_min=xstart,
                 len_x=lenx,
                 lat_min=ystart,
