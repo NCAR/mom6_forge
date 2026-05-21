@@ -56,3 +56,61 @@ def test_serialize_deserialize_DepthEditCommand(gen_DepthEditCommand):
     assert rdc.affected_indices == command.affected_indices
     assert rdc.new_values == command.old_values
     assert rdc.old_values == command.new_values
+
+
+@pytest.fixture
+def gen_MaskEditCommand(get_rect_topo):
+    topo = get_rect_topo
+    ny, nx = topo._grid.ny, topo._grid.nx
+    indices = [(0, 0), (0, 1), (1, 0)]
+    new_values = [1, 1, 0]
+    command = MaskEditCommand(topo, indices, new_values)
+    return command
+
+
+def test_MaskEditCommand_init_and_execute(gen_MaskEditCommand):
+    command = gen_MaskEditCommand
+    command()
+    # Verify user mask was initialized
+    assert command._topo._user_mask is not None
+    # Verify values were set
+    assert command._topo.user_mask[0, 0] == 1
+    assert command._topo.user_mask[0, 1] == 1
+    assert command._topo.user_mask[1, 0] == 0
+
+
+def test_serialize_deserialize_MaskEditCommand(gen_MaskEditCommand):
+    command = gen_MaskEditCommand
+    command()  # Execute to set mask
+    serialized = command.serialize()
+    deserialized_command = MaskEditCommand.deserialize(serialized)(command._topo)
+    rdc = MaskEditCommand.reverse_deserialize(serialized)(command._topo)
+    assert deserialized_command.affected_indices == command.affected_indices
+    assert deserialized_command.new_values == command.new_values
+    assert rdc.affected_indices == command.affected_indices
+    assert rdc.new_values == command.old_values
+
+
+def test_ClearMaskCommand_init_and_execute(get_rect_topo):
+    topo = get_rect_topo
+    ny, nx = topo._grid.ny, topo._grid.nx
+
+    # Set a mask first
+    import numpy as np
+
+    mask = np.ones((ny, nx), dtype=int)
+    topo.user_mask = mask
+    assert topo._user_mask is not None
+
+    # Clear it
+    command = ClearMaskCommand(topo)
+    serialized = command.serialize()
+    reverse_deserialized_command = ClearMaskCommand.reverse_deserialize(serialized)(
+        topo
+    )
+    command()
+    assert topo._user_mask is None
+    # Test reverse_deserialized command also works
+    reverse_deserialized_command()
+    assert topo._user_mask is not None
+    assert (topo._user_mask == 1).all()

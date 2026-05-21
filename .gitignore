@@ -2,10 +2,10 @@
 __pycache__/
 *.py[cod]
 *$py.class
-docs/
+docs/_build/
 # C extensions
 *.so
-
+.vscode/
 # Distribution / packaging
 .Python
 build/
@@ -40,4 +40,10 @@ pip-delete-this-directory.txt
 .ipynb_checkpoints
 
 # netcdf files
+docs/source/notebooks/*.nc
 notebooks/*.nc
+
+# TopoLibrary
+TopoLibrary/
+GridLibrary/
+VGridLibrary/
