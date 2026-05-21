@@ -1,10 +1,4 @@
-import numpy as np
-import pytest
-import tempfile
-from pathlib import Path
-import xarray as xr
 from mom6_forge.topo import *
-from mom6_forge._source_bathy import SourceBathy
 
 
 def test_topo_from_version_control(get_rect_topo):
