@@ -1,5 +1,6 @@
 from mom6_forge.topo import *
 
+
 def test_topo_from_version_control(get_rect_topo):
     topo = get_rect_topo  # this topo has a version control directory
     topo_from_version_control = Topo.from_version_control(topo.domain_dir)

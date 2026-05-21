@@ -321,7 +321,7 @@ def synthetic_bathy_file():
     # Create an island around (280, 8.5)
     lon_2d, lat_2d = np.meshgrid(lon, lat)
     island_mask = (lon_2d - 280) ** 2 + (lat_2d - 8.5) ** 2 < 0.5
-    elevation[island_mask] = -200.0  # Synthetic island
+    elevation[island_mask] = 200.0  # Synthetic island
 
     ds = xr.Dataset(
         {
