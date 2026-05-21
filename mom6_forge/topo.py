@@ -799,18 +799,17 @@ class Topo:
         assert (
             self.src is not None
         ), "Source bathymetry must be loaded to compute topo stats"
-        src = self.src
-        if self.src.stats is not None:
-            if (
-                self.src.stats.attrs.get("nx_sub") == nx_sub
-                and self.src.stats.attrs.get("ny_sub") == ny_sub
-                and self.src.stats.attrs.get("mask_hmin") == mask_hmin
-            ):
-                return self.src.stats
+        if (
+            self.stats is not None
+            and self.stats.attrs.get("nx_sub") == nx_sub
+            and self.stats.attrs.get("ny_sub") == ny_sub
+            and self.stats.attrs.get("mask_hmin") == mask_hmin
+        ):
+            return self.stats
 
         # Compute subsampling factor and generate sub-point grid
         ds = regrid_with_subsampling(
-            input_dataset=src.ds,
+            input_dataset=self.src.ds,
             qlon=self._grid.qlon.values,
             qlat=self._grid.qlat.values,
             nx_sub=nx_sub,
@@ -818,7 +817,7 @@ class Topo:
             regridding_method="nearest_s2d",
         )
 
-        depth_sub = ds[src.depth_name].values  # (ny, nx, ny_sub, nx_sub)
+        depth_sub = ds[self.src.depth_name].values  # (ny, nx, ny_sub, nx_sub)
 
         is_ocean = depth_sub > mask_hmin
         ocn_frac = is_ocean.sum(axis=(-2, -1)) / (nx_sub * ny_sub)
@@ -871,7 +870,7 @@ class Topo:
                 "mask_hmin": mask_hmin,
             },
         )
-        return self.src.stats
+        return self.stats
 
     def set_from_dataset(
         self,
