@@ -502,22 +502,7 @@ class Grid:
         Grid
         """
         sg = ProjectedSupergrid.from_crs(crs, x_min, x_max, y_min, y_max, resolution_m)
-        srefine = 2
-        nx = (sg.x.shape[1] - 1) // srefine
-        ny = (sg.x.shape[0] - 1) // srefine
-        obj = cls(
-            nx=nx,
-            ny=ny,
-            lenx=float(np.max(sg.x) - np.min(sg.x)),
-            leny=float(np.max(sg.y) - np.min(sg.y)),
-            xstart=float(np.min(sg.x)),
-            ystart=float(np.min(sg.y)),
-            name=name,
-        )
-        obj._supergrid = sg
-        obj._compute_MOM6_grid_metrics()
-        obj.grid_type = "projected_crs"
-        return obj
+        return Grid.from_supergrid_ds(sg.to_ds(), name=name)
 
     @classmethod
     def from_center(
@@ -558,22 +543,7 @@ class Grid:
         sg = ProjectedSupergrid.from_center(
             center_lat, center_lon, width_m, height_m, resolution_m, angle_deg
         )
-        srefine = 2
-        nx = (sg.x.shape[1] - 1) // srefine
-        ny = (sg.x.shape[0] - 1) // srefine
-        obj = cls(
-            nx=nx,
-            ny=ny,
-            lenx=float(np.max(sg.x) - np.min(sg.x)),
-            leny=float(np.max(sg.y) - np.min(sg.y)),
-            xstart=float(np.min(sg.x)),
-            ystart=float(np.min(sg.y)),
-            name=name,
-        )
-        obj._supergrid = sg
-        obj._compute_MOM6_grid_metrics()
-        obj.grid_type = "projected_center"
-        return obj
+        return Grid.from_supergrid_ds(sg.to_ds(), name=name)
 
     @classmethod
     def from_supergrid(cls, path: str, name: Optional[str] = None) -> "Grid":
