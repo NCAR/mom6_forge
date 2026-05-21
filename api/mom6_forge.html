@@ -841,6 +841,64 @@ and has consistent units.</p>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.grid.Grid.from_center">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_center</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">center_lat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">center_lon</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width_m</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">height_m</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resolution_m</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">angle_deg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid"><span class="pre">Grid</span></a></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.from_center" title="Link to this definition"></a></dt>
+<dd><p>Create a rotated rectangular grid centred at a geographic point.</p>
+<p>Uses an azimuthal equidistant projection centred at (center_lat, center_lon)
+and rotates the domain by angle_deg clockwise from north. Useful for aligning
+a regional domain with a coastline feature — for example, placing one grid
+boundary perpendicular to an estuary mouth.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>center_lat</strong> (<em>float</em>) – Geographic centre of the domain in degrees.</p></li>
+<li><p><strong>center_lon</strong> (<em>float</em>) – Geographic centre of the domain in degrees.</p></li>
+<li><p><strong>width_m</strong> (<em>float</em>) – Domain width (x) and height (y) in metres.</p></li>
+<li><p><strong>height_m</strong> (<em>float</em>) – Domain width (x) and height (y) in metres.</p></li>
+<li><p><strong>resolution_m</strong> (<em>float</em>) – Grid resolution in metres.</p></li>
+<li><p><strong>angle_deg</strong> (<em>float</em><em>, </em><em>optional</em>) – Clockwise rotation from north in degrees. Default 0 (north-up).
+Example: angle_deg=45 places the x-axis along a NE–SW estuary mouth.</p></li>
+<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of the grid.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid">Grid</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.grid.Grid.from_projection">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_projection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">crs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_min</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_max</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_min</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_max</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resolution_m</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid"><span class="pre">Grid</span></a></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.from_projection" title="Link to this definition"></a></dt>
+<dd><p>Create a Grid from projected coordinate extents.</p>
+<p>Builds a uniform grid in the given pyproj CRS (e.g., polar stereographic,
+Lambert conformal) and reprojects to geographic coordinates. Grid metrics
+are computed using exact great-circle geometry, making this accurate at high
+latitudes where RectilinearCartesianSupergrid degrades.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>crs</strong> (<em>pyproj.CRS</em><em>, </em><em>int</em><em>, or </em><em>str</em>) – <dl class="simple">
+<dt>Map projection. Examples:</dt><dd><p>”EPSG:3995”  — Arctic Polar Stereographic
+“EPSG:3031”  — Antarctic Polar Stereographic</p>
+</dd>
+</dl>
+</p></li>
+<li><p><strong>x_min</strong> (<em>float</em>) – Projected x extent in metres.</p></li>
+<li><p><strong>x_max</strong> (<em>float</em>) – Projected x extent in metres.</p></li>
+<li><p><strong>y_min</strong> (<em>float</em>) – Projected y extent in metres.</p></li>
+<li><p><strong>y_max</strong> (<em>float</em>) – Projected y extent in metres.</p></li>
+<li><p><strong>resolution_m</strong> (<em>float</em>) – Grid resolution in metres.</p></li>
+<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of the grid.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid">Grid</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.grid.Grid.from_supergrid">
 <span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_supergrid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid"><span class="pre">Grid</span></a></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.from_supergrid" title="Link to this definition"></a></dt>
 <dd><p>Create a Grid instance from a supergrid file.</p>
@@ -1065,7 +1123,7 @@ nominal resolution (by default) of the actual computational grid.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.grid.Grid.update_supergrid">
-<span class="sig-name descname"><span class="pre">update_supergrid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xdat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ydat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">array</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.update_supergrid" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">update_supergrid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xdat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ydat</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grid_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.update_supergrid" title="Link to this definition"></a></dt>
 <dd><p>Update the supergrid x and y coordinates. Running this method
 also updates the nominal grid coordinates and metrics.</p>
 <dl class="field-list simple">
@@ -1073,6 +1131,7 @@ also updates the nominal grid coordinates and metrics.</p>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>xdat</strong> (<em>np.array</em>) – 2-dimensional array of the new x coordinates.</p></li>
 <li><p><strong>ydat</strong> (<em>np.array</em>) – 2-dimensional array of the new y coordinates.</p></li>
+<li><p><strong>grid_type</strong> (<em>str</em>) – The grid type of the passed in x and y arrays</p></li>
 </ul>
 </dd>
 </dl>
