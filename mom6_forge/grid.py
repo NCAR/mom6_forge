@@ -9,7 +9,6 @@ from mom6_forge._supergrid import (
     RectilinearCartesianSupergrid,
     ProjectedSupergrid,
     SupergridBase,
-    mom6_angle_calculation_method,
 )
 from mom6_forge.utils import normalize_deg
 
@@ -140,7 +139,7 @@ class Grid:
                 lon_min=xstart, len_x=lenx, lat_min=ystart, len_y=leny, nx=nx, ny=ny
             )
         elif type == "rectilinear_cartesian":
-            self.supergrid = RectilinearCartesianSupergrid(
+            self.supergrid = RectilinearCartesianSupergrid.from_extents(
                 lon_min=xstart,
                 len_x=lenx,
                 lat_min=ystart,
@@ -268,9 +267,10 @@ class Grid:
         s_i_low = i_low * srefine
         s_i_high = (i_high) * srefine + 1
 
-        sub_supergrid = UniformSphericalSupergrid.from_xy(
+        sub_supergrid = SupergridBase._init_from_xy(
             x=self.supergrid.x[s_j_low:s_j_high:j_step, s_i_low:s_i_high:i_step],
             y=self.supergrid.y[s_j_low:s_j_high:j_step, s_i_low:s_i_high:i_step],
+            grid_type=self.supergrid.grid_type,
         )
 
         # Create a name for the subgrid based on the slices
@@ -502,22 +502,7 @@ class Grid:
         Grid
         """
         sg = ProjectedSupergrid.from_crs(crs, x_min, x_max, y_min, y_max, resolution_m)
-        srefine = 2
-        nx = (sg.x.shape[1] - 1) // srefine
-        ny = (sg.x.shape[0] - 1) // srefine
-        obj = cls(
-            nx=nx,
-            ny=ny,
-            lenx=float(np.max(sg.x) - np.min(sg.x)),
-            leny=float(np.max(sg.y) - np.min(sg.y)),
-            xstart=float(np.min(sg.x)),
-            ystart=float(np.min(sg.y)),
-            name=name,
-        )
-        obj._supergrid = sg
-        obj._compute_MOM6_grid_metrics()
-        obj.grid_type = "projected_crs"
-        return obj
+        return Grid.from_supergrid_ds(sg.to_ds(), name=name)
 
     @classmethod
     def from_center(
@@ -558,22 +543,7 @@ class Grid:
         sg = ProjectedSupergrid.from_center(
             center_lat, center_lon, width_m, height_m, resolution_m, angle_deg
         )
-        srefine = 2
-        nx = (sg.x.shape[1] - 1) // srefine
-        ny = (sg.x.shape[0] - 1) // srefine
-        obj = cls(
-            nx=nx,
-            ny=ny,
-            lenx=float(np.max(sg.x) - np.min(sg.x)),
-            leny=float(np.max(sg.y) - np.min(sg.y)),
-            xstart=float(np.min(sg.x)),
-            ystart=float(np.min(sg.y)),
-            name=name,
-        )
-        obj._supergrid = sg
-        obj._compute_MOM6_grid_metrics()
-        obj.grid_type = "projected_center"
-        return obj
+        return Grid.from_supergrid_ds(sg.to_ds(), name=name)
 
     @classmethod
     def from_supergrid(cls, path: str, name: Optional[str] = None) -> "Grid":
@@ -1012,7 +982,7 @@ class Grid:
         fig.savefig("test.png")
         plt.show()
 
-    def update_supergrid(self, xdat: np.array, ydat: np.array) -> None:
+    def update_supergrid(self, xdat: np.array, ydat: np.array, grid_type=None) -> None:
         """
         Update the supergrid x and y coordinates. Running this method
         also updates the nominal grid coordinates and metrics.
@@ -1023,9 +993,11 @@ class Grid:
             2-dimensional array of the new x coordinates.
         ydat: np.array
             2-dimensional array of the new y coordinates.
+        grid_type: str
+            The grid type of the passed in x and y arrays
         """
 
-        self.supergrid = UniformSphericalSupergrid.from_xy(xdat, ydat)
+        self.supergrid = SupergridBase._init_from_xy(xdat, ydat, grid_type)
 
     def write_supergrid(
         self, path: Optional[str] = None, author: Optional[str] = None
