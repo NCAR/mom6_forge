@@ -86,7 +86,10 @@
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.grid.Grid"><code class="docutils literal notranslate"><span class="pre">Grid</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="#mom6-forge-grid-creator-module">mom6_forge.grid_creator module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-mom6_forge.grid_creator">mom6_forge.grid_creator module</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.grid_creator.GridCreator"><code class="docutils literal notranslate"><span class="pre">GridCreator</span></code></a></li>
+</ul>
+</li>
 <li class="toctree-l3"><a class="reference internal" href="#module-mom6_forge.mapping">mom6_forge.mapping module</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.mapping.compute_smoothing_weights"><code class="docutils literal notranslate"><span class="pre">compute_smoothing_weights()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.mapping.extract_coastline_mask"><code class="docutils literal notranslate"><span class="pre">extract_coastline_mask()</span></code></a></li>
@@ -1152,8 +1155,99 @@ during runtime.</p>
 </dd></dl>
 
 </section>
-<section id="mom6-forge-grid-creator-module">
-<h2>mom6_forge.grid_creator module<a class="headerlink" href="#mom6-forge-grid-creator-module" title="Link to this heading"></a></h2>
+<section id="module-mom6_forge.grid_creator">
+<span id="mom6-forge-grid-creator-module"></span><h2>mom6_forge.grid_creator module<a class="headerlink" href="#module-mom6_forge.grid_creator" title="Link to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="mom6_forge.grid_creator.GridCreator">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mom6_forge.grid_creator.</span></span><span class="sig-name descname"><span class="pre">GridCreator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">t.Any</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">t.Any</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.grid_creator.GridCreator" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">HBox</span></code></p>
+<p>Interactive Jupyter widget for creating and saving MOM6 horizontal grids.</p>
+<p>The widget has two modes depending on how it is constructed:</p>
+<section id="create-mode-gridcreator">
+<h3>Create Mode  (<code class="docutils literal notranslate"><span class="pre">GridCreator()</span></code>)<a class="headerlink" href="#create-mode-gridcreator" title="Link to this heading"></a></h3>
+<p>Select a creation method, then press <strong>Select Region</strong> and interact with the map:</p>
+<dl class="simple">
+<dt>Lat/Lon Corners<span class="classifier">drag a rectangle on the PlateCarree map →</span></dt><dd><p>uniform-degree Grid via <code class="docutils literal notranslate"><span class="pre">Grid(lenx,</span> <span class="pre">leny,</span> <span class="pre">...)</span></code></p>
+</dd>
+<dt>From Center<span class="classifier">set width/height/resolution/angle, click once to place the</span></dt><dd><p>domain centre → <code class="docutils literal notranslate"><span class="pre">Grid.from_center(...)</span></code></p>
+</dd>
+<dt>From Projection<span class="classifier">set a CRS + resolution, drag a rectangle on the native</span></dt><dd><p>projection map → <code class="docutils literal notranslate"><span class="pre">Grid.from_projection(...)</span></code></p>
+</dd>
+</dl>
+</section>
+<section id="edit-mode-gridcreator-grid-some-latlon-grid">
+<h3>Edit Mode  (<code class="docutils literal notranslate"><span class="pre">GridCreator(grid=some_latlon_grid)</span></code>)<a class="headerlink" href="#edit-mode-gridcreator-grid-some-latlon-grid" title="Link to this heading"></a></h3>
+<p>Accepts a lat/lon grid only — init args are backed out from the supergrid
+properties and exposed as live sliders.  Passing a <em>projected</em> grid raises
+<code class="docutils literal notranslate"><span class="pre">ValueError</span></code> because the creation parameters are not stored in the supergrid
+file.  Projected grids created <em>within this session</em> can be edited via their
+Recreate panel (the session holds the init args in memory).</p>
+</section>
+<section id="library">
+<h3>Library<a class="headerlink" href="#library" title="Link to this heading"></a></h3>
+<p>Grids are saved as NetCDF supergrids under <code class="docutils literal notranslate"><span class="pre">&lt;working_dir&gt;/GridLibrary/</span></code>.
+The dropdown lists all <code class="docutils literal notranslate"><span class="pre">grid_*.nc</span></code> files there.  Loading a projected grid
+from the library is not supported (parameters cannot be recovered from the file).</p>
+</section>
+<section id="map-projection">
+<h3>Map projection<a class="headerlink" href="#map-projection" title="Link to this heading"></a></h3>
+<p>Entering “From Projection” mode switches the cartopy axes to the native
+projection for the selected CRS (preset EPSG codes only; unknown codes fall
+back to PlateCarree).  All other modes use PlateCarree.</p>
+<p>Public constructor</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.grid_creator.GridCreator.construct_control_panel">
+<span class="sig-name descname"><span class="pre">construct_control_panel</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.grid_creator.GridCreator.construct_control_panel" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.grid_creator.GridCreator.construct_observances">
+<span class="sig-name descname"><span class="pre">construct_observances</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.grid_creator.GridCreator.construct_observances" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.grid_creator.GridCreator.load_grid">
+<span class="sig-name descname"><span class="pre">load_grid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">b</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.grid_creator.GridCreator.load_grid" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.grid_creator.GridCreator.plot_grid">
+<span class="sig-name descname"><span class="pre">plot_grid</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.grid_creator.GridCreator.plot_grid" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.grid_creator.GridCreator.plot_world">
+<span class="sig-name descname"><span class="pre">plot_world</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.grid_creator.GridCreator.plot_world" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.grid_creator.GridCreator.refresh_library_dropdown">
+<span class="sig-name descname"><span class="pre">refresh_library_dropdown</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.grid_creator.GridCreator.refresh_library_dropdown" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.grid_creator.GridCreator.reset_grid">
+<span class="sig-name descname"><span class="pre">reset_grid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">b</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.grid_creator.GridCreator.reset_grid" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.grid_creator.GridCreator.save_grid">
+<span class="sig-name descname"><span class="pre">save_grid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">_btn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.grid_creator.GridCreator.save_grid" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.grid_creator.GridCreator.sync_sliders_to_grid">
+<span class="sig-name descname"><span class="pre">sync_sliders_to_grid</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.grid_creator.GridCreator.sync_sliders_to_grid" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.grid_creator.GridCreator.update_grid_details">
+<span class="sig-name descname"><span class="pre">update_grid_details</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">change</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.grid_creator.GridCreator.update_grid_details" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</section>
+</dd></dl>
+
 </section>
 <section id="module-mom6_forge.mapping">
 <span id="mom6-forge-mapping-module"></span><h2>mom6_forge.mapping module<a class="headerlink" href="#module-mom6_forge.mapping" title="Link to this heading"></a></h2>
