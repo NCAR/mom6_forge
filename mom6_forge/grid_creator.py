@@ -228,6 +228,14 @@ class GridCreator(widgets.HBox):
             button_style="danger",
             layout={"width": "48%"},
         )
+        self._move_center_button = widgets.ToggleButton(
+            value=False,
+            description="Move Center",
+            button_style="info",
+            icon="crosshairs",
+            layout={"width": "90%"},
+        )
+        self._move_center_cid = None
 
         # --- Library ---
         self._grid_name = widgets.Text(
@@ -366,6 +374,7 @@ class GridCreator(widgets.HBox):
                     self._center_height,
                     self._center_resolution,
                     self._center_angle,
+                    self._move_center_button,
                 ]
             )
             self._recreate_button.disabled = self._center_latlon is None
@@ -492,6 +501,9 @@ class GridCreator(widgets.HBox):
                 self._leny_slider,
             ]:
                 slider.observe(self._on_slider_change, names="value")
+
+        if self._grid_mode == "center":
+            self._move_center_button.observe(self._on_move_center_toggle, names="value")
 
     # ------------------------------------------------------------------
     # Mode management (pre-grid)
@@ -705,6 +717,31 @@ class GridCreator(widgets.HBox):
                 print(f"Failed to recreate projected grid: {e}")
                 return
             self.plot_grid()
+
+    def _on_move_center_toggle(self, change):
+        if change["new"]:
+            self._move_center_button.description = "Cancel"
+            self._move_center_button.button_style = "warning"
+            self._move_center_cid = self.fig.canvas.mpl_connect(
+                "button_press_event", self._on_center_edit_click
+            )
+        else:
+            self._move_center_button.description = "Move Center"
+            self._move_center_button.button_style = "info"
+            if self._move_center_cid is not None:
+                self.fig.canvas.mpl_disconnect(self._move_center_cid)
+                self._move_center_cid = None
+
+    def _on_center_edit_click(self, event):
+        if event.inaxes != self.ax or event.xdata is None:
+            return
+        if not self._move_center_button.value:
+            return
+        lon, lat = event.xdata, event.ydata
+        self.ax.plot(lon, lat, "r+", markersize=10, transform=ccrs.PlateCarree())
+        self.fig.canvas.draw_idle()
+        self._move_center_button.value = False  # triggers _on_move_center_toggle OFF
+        self._create_grid_from_center(lon, lat)
 
     # ------------------------------------------------------------------
     # Plotting
