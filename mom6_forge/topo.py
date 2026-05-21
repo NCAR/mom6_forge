@@ -492,6 +492,10 @@ class Topo:
         )
         return self.src
 
+    @property
+    def stats(self):
+        return self.src.stats if self.src is not None else None
+
     def clear_user_mask(self):
         cmd = ClearMaskCommand(
             self, message="Clear manual mask"
@@ -778,7 +782,7 @@ class Topo:
     def _compute_stats(self, nx_sub, ny_sub, mask_hmin):
         """Compute per-cell depth statistics by uniform sub-sampling.
 
-        Results are cached on ``stats`` so a second call with the
+        Results are stored on ``stats`` so a second call with the
         same source file returns immediately without recomputation.
         (Originally created by Frank Bryan in Fortran for NCAR/tx2_3, reimplemented in Python)
 
@@ -796,13 +800,13 @@ class Topo:
             self.src is not None
         ), "Source bathymetry must be loaded to compute topo stats"
         src = self.src
-        if hasattr(self.src, "_stats") and isinstance(self.src._stats, xr.Dataset):
+        if self.src.stats is not None:
             if (
-                self.src._stats.attrs.get("nx_sub") == nx_sub
-                and self.src._stats.attrs.get("ny_sub") == ny_sub
-                and self.src._stats.attrs.get("mask_hmin") == mask_hmin
+                self.src.stats.attrs.get("nx_sub") == nx_sub
+                and self.src.stats.attrs.get("ny_sub") == ny_sub
+                and self.src.stats.attrs.get("mask_hmin") == mask_hmin
             ):
-                return self.src._stats
+                return self.src.stats
 
         # Compute subsampling factor and generate sub-point grid
         ds = regrid_with_subsampling(
@@ -827,7 +831,7 @@ class Topo:
             D2_mean = np.nanmean(depth_ocean**2, axis=(-2, -1))
 
         dims = ["ny", "nx"]
-        self.src._stats = xr.Dataset(
+        self.src.stats = xr.Dataset(
             {
                 "OCN_FRAC": xr.DataArray(
                     ocn_frac,
@@ -867,7 +871,7 @@ class Topo:
                 "mask_hmin": mask_hmin,
             },
         )
-        return self.src._stats
+        return self.src.stats
 
     def set_from_dataset(
         self,
