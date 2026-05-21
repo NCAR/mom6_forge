@@ -75,7 +75,12 @@ def test_regrid_with_subsampling(get_simple_grid):
         },
     )
     ds = regrid_with_subsampling(
-        input_ds, grid.qlon.values, grid.qlat.values, nx_sub, ny_sub
+        input_ds,
+        grid.qlon.values,
+        grid.qlat.values,
+        nx_sub,
+        ny_sub,
+        subsampling_weights_path="test_weights.nc",
     )
     assert ds["data"].shape == (2, 2, 2, 2), "Output shape is incorrect."
     expected_data = np.array(
@@ -84,3 +89,15 @@ def test_regrid_with_subsampling(get_simple_grid):
     assert np.allclose(
         ds["data"].values, expected_data
     ), "Regridded data does not match expected values."
+    ds2 = regrid_with_subsampling(  # Does saving weights work
+        input_ds,
+        grid.qlon.values,
+        grid.qlat.values,
+        nx_sub,
+        ny_sub,
+        "bilinear",
+        "test_weights.nc",
+    )
+    assert (
+        ds2.data == ds.data
+    ).all(), "Regridded data with reused weights does not match expected values."  # Even though we say bilinear the ds2 will use the saved weights, so should be the same

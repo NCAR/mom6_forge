@@ -108,6 +108,8 @@ def interpolate_and_fill_seawifs(
             nx_sub=nx_sub,
             ny_sub=ny_sub,
             regridding_method="bilinear",
+            subsampling_weights_path=output_path
+            / "chl_subsample_weights.nc",  # Will reuse the weights file for each time step, so it only needs to be computed once
         )
         q_int = q_sub["chlor_a"].mean(dim=["ny_sub", "nx_sub"]).values
 
