@@ -1,72 +1,19 @@
 import numpy as np
-import pytest
 from mom6_forge.topo import *
 from mom6_forge._source_bathy import SourceBathy
 
 
-@pytest.fixture
-def small_grid():
-    """Small rectangular grid over a Gulf of Mexico sub-region for fast tests."""
-    return Grid(
-        resolution=0.5,
-        xstart=260.0,
-        lenx=10.0,
-        ystart=18.0,
-        leny=8.0,
-        name="gulf_test",
-    )
-
-
-@pytest.fixture
-def small_topo(small_grid, tmp_path):
-    """Flat 1000 m topo on the small grid with version control."""
-    topo = Topo(small_grid, min_depth=5.0, version_control_dir=tmp_path)
-    topo.set_flat(1000)
-    return topo
-
-
-@pytest.fixture
-def synthetic_gebco(tmp_path):
-    """
-    Write a minimal synthetic GEBCO-style netCDF for testing.
-    Covers the small_grid domain with 0.05-degree resolution.
-    Depths are negative (elevation convention): ocean cells < 0, land >= 0.
-    A strip of land is included to test masking behaviour.
-    """
-    lons = np.arange(259.5, 271.0, 0.05)
-    lats = np.arange(17.5, 27.0, 0.05)
-    lon2d, lat2d = np.meshgrid(lons, lats)
-
-    # Ocean everywhere, with a land strip at lon 265-266
-    elevation = np.where(
-        (lon2d >= 265.0) & (lon2d <= 266.0),
-        100.0,  # land
-        -1000.0,  # ocean
-    ).astype("float32")
-
-    ds = xr.Dataset(
-        {"elevation": (["lat", "lon"], elevation)},
-        coords={"lon": lons, "lat": lats},
-    )
-    ds.elevation.attrs["units"] = "m"
-    path = tmp_path / "synthetic_gebco.nc"
-    ds.to_netcdf(path)
-    return path
-
-
-@pytest.fixture
-def src_bathy(small_topo, synthetic_gebco):
-    """SourceBathy sliced to the small_topo domain."""
-    return SourceBathy(small_topo, synthetic_gebco, depth_name="elevation")
-
-
-def test_generate_mask_ocean_frac_returns_binary_mask(small_topo, src_bathy):
+def test_generate_mask_ocean_frac_returns_binary_mask(
+    get_rect_topo, synthetic_bathy_file
+):
     """Mask values must be 0 (land) or 1 (ocean) only."""
-    small_topo._src = src_bathy  # Set the source bathy for the topo
-    small_topo._compute_stats(
+    get_rect_topo._src = SourceBathy(
+        get_rect_topo, synthetic_bathy_file, depth_name="elevation"
+    )
+    get_rect_topo._compute_stats(
         nx_sub=2, ny_sub=2, mask_hmin=0.0
     )  # Compute stats to populate cache
-    mask = small_topo.generate_mask_from_stats_oceanfrac()
+    mask = get_rect_topo.generate_mask_from_stats_oceanfrac()
     assert set(np.unique(mask.values)).issubset({0, 1})
 
 
