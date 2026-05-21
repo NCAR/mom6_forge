@@ -5,8 +5,8 @@ import ipywidgets as widgets
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
+from matplotlib.widgets import RectangleSelector
 from mom6_forge.grid import Grid
-from mom6_forge._supergrid import ProjectedSupergrid, supergrid_type_from_ds
 from pathlib import Path
 from pyproj import CRS, Transformer
 
@@ -35,35 +35,38 @@ _EPSG_TO_CARTOPY = {
 class GridCreator(widgets.HBox):
     """Interactive Jupyter widget for creating and saving MOM6 horizontal grids.
 
-    The widget is split into two panels:
-      - Left: creator controls (mode selector / sliders / recreate inputs) + library section
-      - Right: cartopy map (matplotlib canvas embedded via ipympl)
+    The widget has two modes depending on how it is constructed:
 
-    Creation modes
-    --------------
-    Lat/Lon Corners   : click two diagonal corners on a PlateCarree map →
-                        uniform-degree Grid via Grid(lenx, leny, ...)
-    From Center       : set width/height/resolution/angle, click domain centre →
-                        rotated projected grid via Grid.from_center(...)
-    From Projection   : set a CRS + resolution, click two corners on the native
-                        projection map → Grid.from_projection(...)
+    Create Mode  (``GridCreator()``)
+    ---------------------------------
+    Select a creation method, then press **Select Region** and interact with the map:
 
-    After creation the creator section switches from click-mode to an edit panel:
-      - Lat/Lon grids  : degree sliders (xstart, ystart, lenx, leny, resolution)
-      - Projected grids: the same parameter inputs + a Recreate button
+    Lat/Lon Corners   : drag a rectangle on the PlateCarree map →
+                        uniform-degree Grid via ``Grid(lenx, leny, ...)``
+    From Center       : set width/height/resolution/angle, click once to place the
+                        domain centre → ``Grid.from_center(...)``
+    From Projection   : set a CRS + resolution, drag a rectangle on the native
+                        projection map → ``Grid.from_projection(...)``
+
+    Edit Mode  (``GridCreator(grid=some_latlon_grid)``)
+    ----------------------------------------------------
+    Accepts a lat/lon grid only — init args are backed out from the supergrid
+    properties and exposed as live sliders.  Passing a *projected* grid raises
+    ``ValueError`` because the creation parameters are not stored in the supergrid
+    file.  Projected grids created *within this session* can be edited via their
+    Recreate panel (the session holds the init args in memory).
 
     Library
     -------
-    Grids are saved as NetCDF supergrids under <working_dir>/GridLibrary/.
-    The dropdown lists all grid_*.nc files there; Load restores the full
-    creation parameters so Recreate still works after loading.
+    Grids are saved as NetCDF supergrids under ``<working_dir>/GridLibrary/``.
+    The dropdown lists all ``grid_*.nc`` files there.  Loading a projected grid
+    from the library is not supported (parameters cannot be recovered from the file).
 
     Map projection
     --------------
     Entering "From Projection" mode switches the cartopy axes to the native
-    projection for the selected CRS (preset EPSG codes only; unknown codes
-    fall back to PlateCarree).  All other modes
-    use PlateCarree.
+    projection for the selected CRS (preset EPSG codes only; unknown codes fall
+    back to PlateCarree).  All other modes use PlateCarree.
     """
 
     def __init__(self, grid=None, working_dir=None):
@@ -74,8 +77,8 @@ class GridCreator(widgets.HBox):
         (self.grids_dir / ".gitignore").write_text("*\n")
 
         # Click-capture state
-        self._click_points = []  # accumulated (x, y) clicks in current map CRS
-        self._click_cid = None  # mpl canvas connection id, or None when inactive
+        self._click_cid = None  # mpl canvas connection id for center-click, or None
+        self._rect_selector = None  # matplotlib RectangleSelector, or None
 
         # Redraw guard — prevents recursive xlim_changed → redraw loops
         self._in_redraw = False
@@ -110,11 +113,15 @@ class GridCreator(widgets.HBox):
 
         self.refresh_library_dropdown()
         if self.grid is not None:
-            if (
-                self.grid.supergrid.grid_type == "projected_crs"
-                or self.grid.supergrid.grid_type == "projected_center"
-            ):
-                self._grid_mode = "projection"
+            grid_type = self.grid.supergrid.grid_type
+            if grid_type in ("projected_crs", "projected_center"):
+                raise ValueError(
+                    "GridCreator cannot accept a projected grid directly — "
+                    "init args (CRS, extents, center) cannot be recovered from the "
+                    "supergrid file. Create the grid interactively via the creator "
+                    "instead, or load it from the GridLibrary after creating it in "
+                    "this session."
+                )
             self.load_grid(grid=self.grid)
         else:
             self.plot_world()
@@ -159,8 +166,7 @@ class GridCreator(widgets.HBox):
         self._latlon_panel = widgets.VBox(
             [
                 widgets.HTML(
-                    "<p><b>1st click:</b> one corner &nbsp;"
-                    "<b>2nd click:</b> opposite corner</p>"
+                    "<p>Drag a rectangle on the map to define the grid extent.</p>"
                 ),
                 self._latlon_grid_type,
             ]
@@ -230,12 +236,6 @@ class GridCreator(widgets.HBox):
             description="Name:",
             layout={"width": "90%"},
         )
-        self._grid_msg = widgets.Text(
-            value="",
-            placeholder="Enter grid message",
-            description="Message:",
-            layout={"width": "90%"},
-        )
         self._library_dropdown = widgets.Dropdown(
             options=[], description="Grids:", layout={"width": "90%"}
         )
@@ -255,7 +255,6 @@ class GridCreator(widgets.HBox):
             [
                 widgets.HTML("<h3>Library</h3>"),
                 self._grid_name,
-                self._grid_msg,
                 self._library_dropdown,
                 self._grid_details,
                 widgets.HBox([self._save_button, self._load_button]),
@@ -286,7 +285,7 @@ class GridCreator(widgets.HBox):
         if self.grid is None:
             return widgets.VBox(
                 [
-                    widgets.HTML("<h3>Grid Creator</h3>"),
+                    widgets.HTML("<h3>Grid Creator &mdash; Create Mode</h3>"),
                     self._mode_selector,
                     self._latlon_panel,
                     self._center_panel,
@@ -298,7 +297,7 @@ class GridCreator(widgets.HBox):
             )
 
         if self._grid_mode == "latlon":
-            # Build sliders from the current grid state
+            # Back out init args from grid properties
             initial_xstart = float(self.grid.supergrid.x[0, 0]) % 360
             slider_window = 30
             slider_min = max(initial_xstart - slider_window, -180.0)
@@ -338,7 +337,7 @@ class GridCreator(widgets.HBox):
 
             return widgets.VBox(
                 [
-                    widgets.HTML("<h3>Grid Creator</h3>"),
+                    widgets.HTML("<h3>Grid Creator &mdash; Edit Mode</h3>"),
                     self._resolution_slider,
                     self._xstart_slider,
                     self._lenx_slider,
@@ -352,13 +351,15 @@ class GridCreator(widgets.HBox):
                 layout=layout,
             )
 
-        # Projected grid (center or projection mode)
+        # Projected grid (center or projection mode) — edit mode, init args held in session
         if self._grid_mode == "center":
             center_info = ""
             if self._center_latlon is not None:
                 lat, lon = self._center_latlon
                 center_info = f"<p><b>Centre:</b> {lat:.3f}°N, {lon:.3f}°E</p>"
-            header = widgets.HTML(f"<h3>Grid Creator</h3>{center_info}")
+            header = widgets.HTML(
+                f"<h3>Grid Creator &mdash; Edit Mode</h3>{center_info}"
+            )
             mode_inputs = widgets.VBox(
                 [
                     self._center_width,
@@ -368,8 +369,8 @@ class GridCreator(widgets.HBox):
                 ]
             )
             self._recreate_button.disabled = self._center_latlon is None
-        else:  # Projection option
-            header = widgets.HTML("<h3>Grid Creator</h3>")
+        else:  # projection mode
+            header = widgets.HTML("<h3>Grid Creator &mdash; Edit Mode</h3>")
             mode_inputs = widgets.VBox(
                 [
                     self._proj_crs_dropdown,
@@ -401,15 +402,18 @@ class GridCreator(widgets.HBox):
     def _update_status_for_mode(self, mode):
         if mode == "Lat/Lon Corners":
             self._status_html.value = (
-                "<p>Zoom/pan to your region, then activate point selection.</p>"
+                "<p>Zoom/pan to your region, then press <b>Select Region</b> "
+                "and drag a rectangle on the map.</p>"
             )
         elif mode == "From Center":
             self._status_html.value = (
-                "<p>Set dimensions, then click to place the domain centre.</p>"
+                "<p>Set dimensions, then press <b>Select Region</b> "
+                "and click to place the domain centre.</p>"
             )
         else:
             self._status_html.value = (
-                "<p>Set CRS and resolution, then click two corners.</p>"
+                "<p>Set CRS and resolution, then press <b>Select Region</b> "
+                "and drag a rectangle on the map.</p>"
             )
 
     def _crs_to_cartopy_proj(self, crs_str):
@@ -450,6 +454,14 @@ class GridCreator(widgets.HBox):
             self.fig.canvas.draw_idle()
         finally:
             self._in_redraw = False
+        # RectangleSelector is bound to a specific Axes — recreate it on the new axes
+        if self.grid is None:
+            was_active = (
+                self._select_button.value and self._mode_selector.value != "From Center"
+            )
+            self._setup_rect_selector()
+            if was_active and self._rect_selector is not None:
+                self._rect_selector.set_active(True)
 
     def construct_observances(self):
         # NOTE: on_click / observe calls accumulate across repeated invocations
@@ -490,7 +502,6 @@ class GridCreator(widgets.HBox):
         self._latlon_panel.layout.display = "" if mode == "Lat/Lon Corners" else "none"
         self._center_panel.layout.display = "" if mode == "From Center" else "none"
         self._proj_panel.layout.display = "" if mode == "From Projection" else "none"
-        self._click_points = []
         if self._select_button.value:
             self._select_button.value = False
         self._update_status_for_mode(mode)
@@ -508,19 +519,45 @@ class GridCreator(widgets.HBox):
                 self._set_map_projection(proj, extent)
 
     # ------------------------------------------------------------------
-    # Click-to-create
+    # Rectangle-select-to-create  (single-click for From Center)
     # ------------------------------------------------------------------
 
+    def _setup_rect_selector(self):
+        """Create a new RectangleSelector on the current axes (starts inactive)."""
+        if self._rect_selector is not None:
+            try:
+                self._rect_selector.set_active(False)
+            except Exception:
+                pass
+        self._rect_selector = RectangleSelector(
+            self.ax,
+            self._on_rect_select,
+            useblit=False,
+            button=[1],
+            interactive=False,
+            props=dict(
+                edgecolor="royalblue", facecolor="lightblue", alpha=0.4, fill=True
+            ),
+        )
+        self._rect_selector.set_active(False)
+
     def _start_click_mode(self):
-        self._click_points = []
         self._select_button.value = False
         self._select_button.observe(self._on_select_toggle, names="value")
+        # Single-click handler (From Center mode only)
         if self._click_cid is None:
             self._click_cid = self.fig.canvas.mpl_connect(
                 "button_press_event", self._on_map_click
             )
+        # Rectangle selector (Lat/Lon and Projection modes)
+        self._setup_rect_selector()
 
     def _stop_click_mode(self):
+        if self._rect_selector is not None:
+            try:
+                self._rect_selector.set_active(False)
+            except Exception:
+                pass
         if self._click_cid is not None:
             self.fig.canvas.mpl_disconnect(self._click_cid)
             self._click_cid = None
@@ -532,59 +569,60 @@ class GridCreator(widgets.HBox):
     def _on_select_toggle(self, change):
         mode = self._mode_selector.value
         if change["new"]:
-            self._click_points = []
             if mode == "From Center":
                 self._status_html.value = (
                     "<p><b>Click the domain centre on the map.</b></p>"
                 )
             else:
-                self._status_html.value = "<p><b>Click corner 1 of 2.</b></p>"
+                self._status_html.value = "<p><b>Drag a rectangle on the map to define the grid extent.</b></p>"
+                if self._rect_selector is not None:
+                    self._rect_selector.set_active(True)
             self._select_button.description = "Cancel"
             self._select_button.button_style = "warning"
         else:
-            self._click_points = []
+            if self._rect_selector is not None:
+                try:
+                    self._rect_selector.set_active(False)
+                except Exception:
+                    pass
             self._select_button.description = "Select Region"
             self._select_button.button_style = "info"
             self._update_status_for_mode(mode)
 
+    def _on_rect_select(self, eclick, erelease):
+        """Called by RectangleSelector when the user finishes drawing a rectangle."""
+        if not self._select_button.value:
+            return
+        x1, y1 = eclick.xdata, eclick.ydata
+        x2, y2 = erelease.xdata, erelease.ydata
+        if None in (x1, y1, x2, y2):
+            return
+        # Deactivate selector and reset the toggle button (triggers _on_select_toggle OFF)
+        if self._rect_selector is not None:
+            self._rect_selector.set_active(False)
+        self._select_button.value = False
+        self._stop_click_mode()
+        mode = self._mode_selector.value
+        if mode == "Lat/Lon Corners":
+            self._create_grid_from_clicks(x1, y1, x2, y2)
+        else:  # From Projection
+            self._create_grid_from_projection(x1, y1, x2, y2)
+
     def _on_map_click(self, event):
+        """Click handler — only used for From Center mode."""
         if event.inaxes != self.ax or event.xdata is None:
             return
         if not self._select_button.value:
             return
-
-        mode = self._mode_selector.value
-        # In PlateCarree: x=lon, y=lat (degrees).
-        # In a native projection: x/y are in that CRS's units (usually metres).
+        if self._mode_selector.value != "From Center":
+            return
         x, y = event.xdata, event.ydata
-
-        # Marker: omit transform when in a native projection so cartopy doesn't
-        # re-interpret the projected metres as geographic degrees.
-        plot_kw = (
-            {}
-            if not isinstance(self._current_map_proj, ccrs.PlateCarree)
-            else {"transform": ccrs.PlateCarree()}
-        )
-        self.ax.plot(x, y, "r+", markersize=10, **plot_kw)
+        # Center mode always uses PlateCarree, so x/y are lon/lat
+        self.ax.plot(x, y, "r+", markersize=10, transform=ccrs.PlateCarree())
         self.fig.canvas.draw_idle()
-
-        if mode == "From Center":
-            # Center mode always uses PlateCarree, so x/y are lon/lat here.
-            self._select_button.value = False
-            self._stop_click_mode()
-            self._create_grid_from_center(x, y)
-        else:
-            self._click_points.append((x, y))
-            if len(self._click_points) == 1:
-                self._status_html.value = "<p><b>Now click corner 2 of 2.</b></p>"
-            elif len(self._click_points) == 2:
-                (x1, y1), (x2, y2) = self._click_points
-                self._select_button.value = False
-                self._stop_click_mode()
-                if mode == "Lat/Lon Corners":
-                    self._create_grid_from_clicks(x1, y1, x2, y2)
-                else:
-                    self._create_grid_from_projection(x1, y1, x2, y2)
+        self._select_button.value = False
+        self._stop_click_mode()
+        self._create_grid_from_center(x, y)
 
     def _create_grid_from_clicks(self, x1, y1, x2, y2):
         xstart = min(x1, x2)
@@ -819,12 +857,8 @@ class GridCreator(widgets.HBox):
 
     def save_grid(self, _btn=None):
         name = self._grid_name.value.strip()
-        msg = self._grid_msg.value.strip()
         if not name:
             print("Enter a grid name!")
-            return
-        if not msg:
-            print("Enter a grid message!")
             return
         if self.grid is None:
             print("No grid to save — define a grid first.")
@@ -840,56 +874,39 @@ class GridCreator(widgets.HBox):
         self.refresh_library_dropdown()
 
     def load_grid(self, b=None, grid=None):
-        if grid is None:
+        loading_from_library = grid is None
+        if loading_from_library:
             val = self._library_dropdown.value
             if not val:
                 return
             nc_path = os.path.join(self.grids_dir, val)
-            self.grid = Grid.from_supergrid(nc_path)
+            candidate = Grid.from_supergrid(nc_path)
         else:
-            self.grid = grid
+            candidate = grid
+
+        grid_type = candidate.supergrid.grid_type
+        if grid_type in ("projected_crs", "projected_center"):
+            # Can only edit a projected grid if this session created it (init args in memory)
+            if loading_from_library or (
+                self._center_latlon is None and self._proj_extents is None
+            ):
+                msg = (
+                    "Cannot load a projected grid from the library for editing — "
+                    "the creation parameters (CRS, extents, center) are not stored "
+                    "in the supergrid file. Load the grid programmatically and "
+                    "visualise it, or recreate it interactively."
+                )
+                self._grid_details.value = f"<span style='color:red'>{msg}</span>"
+                print(msg)
+                return
+
+        self.grid = candidate
         try:
-            grid_type = self.grid.supergrid.grid_type
-
-            self._center_latlon = None
-            self._proj_extents = None
-
-            if grid_type == "projected_center":
-                self._grid_mode = "center"
-                self._center_latlon = (
-                    self.grid.supergrid._grid_params["center_lat"],
-                    self.grid.supergrid._grid_params["center_lon"],
-                )
-                self._center_width.value = (
-                    self.grid.supergrid._grid_params["width_m"] / 1000
-                )
-                self._center_height.value = (
-                    self.grid.supergrid._grid_params["height_m"] / 1000
-                )
-                self._center_resolution.value = (
-                    self.grid.supergrid._grid_params["resolution_m"] / 1000
-                )
-                self._center_angle.value = self.grid.supergrid._grid_params.get(
-                    "angle_deg", 0.0
-                )
-            elif grid_type == "projected_crs":
-                self._grid_mode = "projection"
-                self._proj_extents = (
-                    self.grid.supergrid._grid_params["x_min"],
-                    self.grid.supergrid._grid_params["x_max"],
-                    self.grid.supergrid._grid_params["y_min"],
-                    self.grid.supergrid._grid_params["y_max"],
-                )
-                self._proj_resolution.value = (
-                    self.grid.supergrid._grid_params["resolution_m"] / 1000
-                )
-                epsg = CRS.from_wkt(
-                    self.grid.supergrid._grid_params["crs_wkt"]
-                ).to_epsg()
-                self._proj_crs_text.value = (
-                    f"EPSG:{epsg}"
-                    if epsg
-                    else self.grid.supergrid._grid_params["crs_wkt"]
+            if grid_type in ("projected_crs", "projected_center"):
+                # init args already in memory from this session — just switch to edit
+                # _center_latlon / _proj_extents / widget values remain as set
+                self._grid_mode = (
+                    "center" if self._center_latlon is not None else "projection"
                 )
             else:
                 self._grid_mode = "latlon"
