@@ -2,7 +2,6 @@ import pytest
 from mom6_forge.utils import (
     get_avg_resolution,
     get_avg_resolution_km,
-    longitude_slicer,
 )
 from mom6_forge._supergrid import (
     quadrilateral_area,
@@ -33,37 +32,6 @@ def test_avg_resolution():
     assert (
         40.0 < t232_avg_res_km < 41.0
     ), "Average resolution for tx2_3v2 should be around 40 km"
-
-
-def test_longitude_slicer():
-    with pytest.raises(AssertionError):
-        nx, ny, nt = 4, 14, 5
-
-        latitude_extent = (10, 20)
-        longitude_extent = (12, 18)
-
-        dims = ["random_lat", "random_lon", "time"]
-
-        dlambda = (longitude_extent[1] - longitude_extent[0]) / 2
-
-        data = xr.DataArray(
-            np.random.random((ny, nx, nt)),
-            dims=dims,
-            coords={
-                "random_lat": np.linspace(latitude_extent[0], latitude_extent[1], ny),
-                "random_lon": np.array(
-                    [
-                        longitude_extent[0],
-                        longitude_extent[0] + 1.5 * dlambda,
-                        longitude_extent[0] + 2.6 * dlambda,
-                        longitude_extent[1],
-                    ]
-                ),
-                "time": np.linspace(0, 1000, nt),
-            },
-        )
-
-        longitude_slicer(data, longitude_extent, "random_lon")
 
 
 @pytest.mark.parametrize(
