@@ -878,24 +878,22 @@ class Topo:
         Generate an ocean mask by uniform sub-sampling of the source
         bathymetry. Mirrors the algorithm in tx2_3's create_model_topo.f90.
 
+        _compute_stats must be called first
+
         For each T-cell, distributes nx_sub x ny_sub interior points via
         bilinear interpolation of the Q-point corners and snaps each to the
         nearest source pixel. A cell is ocean if its ocean sub-point fraction
         (OCN_FRAC) meets or exceeds mask_threshold.
 
-        Per-cell depth statistics (D_mean, D_min, D_max, D2_mean) are cached
-        on the source bathymetry object for downstream use by ``write_topo()``.
+        Per-cell depth statistics (D_mean, D_min, D_max, D2_mean) are on
+        on the source bathymetry object for downstream use by this function and others.
 
-        Parameters
-        ----------
-        src : SourceBathy
-            Loaded (sliced) source bathymetry object.
-        nx_sub, ny_sub : int
-            Sub-sampling resolution per cell. Default 5x5.
+        Parameters (on object and function)
+        ----------------------
+        src._stats : SourceBathy stats
+            Computed stats on Loaded (sliced) source bathymetry object.
         mask_threshold : float
             Minimum OCN_FRAC for a cell to be classified as ocean. Default 0.5.
-        mask_hmin : float
-            Minimum depth (m) for a sub-point to count as ocean. Default 0.0.
 
         Returns
         -------
@@ -905,10 +903,10 @@ class Topo:
         """
 
         assert (
-            hasattr(self, "_stats") and self._stats is not None
+            hasattr(self.src, "_stats") and self.src._stats is not None
         ), "Per-cell statistics must be computed before generating mask. Call _compute_stats() first."
 
-        ocean_mask = (self._stats["OCN_FRAC"].values >= mask_threshold).astype(int)
+        ocean_mask = (self.src._stats["OCN_FRAC"].values >= mask_threshold).astype(int)
 
         return xr.DataArray(
             ocean_mask,
