@@ -949,7 +949,6 @@ def regrid_dataset_via_xesmf(
     regridding_method=None,
     write_to_file=True,
     output_path=Path("regridded_dataset.nc"),
-    save_weights_path=None,
 ):
     """
     Regrids the dataset given ``input_dataset`` which contains the original dataset and ``output_dataset`` which is a template for the regridded product.
@@ -959,7 +958,7 @@ def regrid_dataset_via_xesmf(
         input_dataset (Xarray Dataset): original dataset with proper  metadata and structure for ESMF regridding.
         output_dataset (Xarray Dataset): Template for the regridded dataset regridding_method: (Optional[str]) The type of regridding method to use. Defaults to bilinear
         write_to_file (Optional[bool]): Files saved to ``output_dir`` Defaults to ``True``. Must be set to true if using manual regridding methods with ESMF_regrid.
-        save_weights_path (Optional[str]): If provided, saves or (if exists) reuses the xESMF regridding weights at the specified path.
+
     Returns:
         regridded_dataset (Xarray.Dataset):
     """
@@ -975,15 +974,12 @@ def regrid_dataset_via_xesmf(
         + f"Regridded size: {output_dataset.nbytes/1e6:.2f} Mb\n"
     )
 
-    weights_exist = save_weights_path is not None and Path(save_weights_path).is_file()
     regridder = xe.Regridder(
         input_dataset,
         output_dataset,
         method=regridding_method,
         locstream_out=False,
         periodic=False,
-        filename=save_weights_path,
-        reuse_weights=weights_exist,
     )
 
     dataset = regridder(input_dataset)
@@ -1075,7 +1071,6 @@ def regrid_with_subsampling(
     nx_sub,
     ny_sub,
     regridding_method="nearest_s2d",
-    subsampling_weights_path=None,
 ):
     """
     Regrids input_dataset to sub_sampled_grid to
@@ -1088,10 +1083,6 @@ def regrid_with_subsampling(
         Corner coordinates of the destination grid.
     nx_sub, ny_sub : int
         Number of sub-points per cell (typically from compute_subsampling_factor).
-    regridding_method : str
-        Regridding method to use for mapping from input_dataset to sub-sampled points. Should be compatible with xESMF regridding methods, e.g., 'nearest_s2d'
-    subsampling_weights_path : str or Path, optional
-        If provided, saves or (if exists) reuses the xESMF regridding weights for the sub-sampling regridding at the specified path.
     Returns
     -------
     regridded_dataset : xr.Dataset
@@ -1121,7 +1112,6 @@ def regrid_with_subsampling(
         flat_output,
         regridding_method=regridding_method,
         write_to_file=False,
-        save_weights_path=subsampling_weights_path,
     )
 
     # Reshape to 4D, keeping sub-points as their own dimension
