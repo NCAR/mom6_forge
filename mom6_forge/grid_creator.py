@@ -1052,6 +1052,7 @@ class GridCreator(widgets.HBox):
         self._grid_mode = "latlon"
         self._center_latlon = None
         self._proj_extents = None
+        self._proj_crs_dropdown.value = _CRS_PRESETS[0][1]
         self._control_panel.children = [
             self._build_creator_controls(),
             self._control_panel.children[1],
