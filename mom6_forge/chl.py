@@ -86,33 +86,29 @@ def interpolate_and_fill_seawifs(
     )
     chlor_a = chla["CHL_A"]
 
-    # Iterate through time
+    # Regrid all timesteps at once
+    src_ds = xr.Dataset(
+        {
+            "chlor_a": xr.DataArray(
+                src_data[:, ::-1, :].values,
+                dims=["time", "lat", "lon"],
+                coords={"lat": src_lat, "lon": src_lon},
+            )
+        }
+    )
+    q_sub = regrid_with_subsampling(
+        input_dataset=src_ds,
+        qlon=grid.qlon.values,
+        qlat=grid.qlat.values,
+        nx_sub=nx_sub,
+        ny_sub=ny_sub,
+        regridding_method="bilinear",
+    )
+    q_int = q_sub["chlor_a"].mean(dim=["ny_sub", "nx_sub"]).values  # (time, ny, nx)
+
+    # fill_missing_data is 2D-only, so iterate over time for that step
     for t in range(src_data.shape[0]):
-
-        # Build source dataset for this timestep
-        src_ds = xr.Dataset(
-            {
-                "chlor_a": xr.DataArray(
-                    src_data[t, ::-1, :].values,
-                    dims=["lat", "lon"],
-                    coords={"lat": src_lat, "lon": src_lon},
-                )
-            }
-        )
-
-        # Regrid to super-sampled sub-point grid and average back to model grid
-        q_sub = regrid_with_subsampling(
-            input_dataset=src_ds,
-            qlon=grid.qlon.values,
-            qlat=grid.qlat.values,
-            nx_sub=nx_sub,
-            ny_sub=ny_sub,
-            regridding_method="bilinear",
-        )
-        q_int = q_sub["chlor_a"].mean(dim=["ny_sub", "nx_sub"]).values
-
-        # Fill any missing data
-        q = q_int * ocn_mask
+        q = q_int[t] * ocn_mask
         q_nan = np.where((q == 0) | np.isnan(q), np.nan, q)
         chlor_a[t, :] = fill_missing_data(q_nan, ocn_mask)
 

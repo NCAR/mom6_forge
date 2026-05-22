@@ -84,3 +84,44 @@ def test_regrid_with_subsampling(get_simple_grid):
     assert np.allclose(
         ds["data"].values, expected_data
     ), "Regridded data does not match expected values."
+
+
+def test_regrid_with_subsampling_time_dim(get_simple_grid):
+    nx_sub = ny_sub = 2
+    grid = get_simple_grid
+    lon = [4 / 3, 5 / 3, 7 / 3, 8 / 3]
+    lat = [4 / 3, 5 / 3, 7 / 3, 8 / 3]
+    spatial_data = np.array(
+        [
+            np.arange(1, 5, 1),
+            np.arange(1, 5, 1),
+            np.arange(1, 5, 1),
+            np.arange(1, 5, 1),
+        ],
+        dtype=float,
+    )
+    nt = 2
+    input_ds = xr.Dataset(
+        {"data": (["time", "lon", "lat"], np.stack([spatial_data] * nt))},
+        coords={
+            "lon": (["lon"], [x - 0.1 for x in lon]),
+            "lat": (["lat"], [x - 0.1 for x in lat]),
+        },
+    )
+    ds = regrid_with_subsampling(
+        input_ds, grid.qlon.values, grid.qlat.values, nx_sub, ny_sub
+    )
+    assert ds["data"].shape == (
+        nt,
+        2,
+        2,
+        2,
+        2,
+    ), "Output shape with time dim is incorrect."
+    expected_spatial = np.array(
+        [[[[1, 1], [2, 2]], [[1, 1], [2, 2]]], [[[3, 3], [4, 4]], [[3, 3], [4, 4]]]]
+    )
+    for t in range(nt):
+        assert np.allclose(
+            ds["data"].values[t], expected_spatial
+        ), f"Regridded data at t={t} does not match expected values."

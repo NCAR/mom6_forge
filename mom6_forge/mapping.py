@@ -1118,10 +1118,10 @@ def regrid_with_subsampling(
     data_vars = {}
     for var in regridded_flat.data_vars:
         data = regridded_flat[var].values  # (..., ny, nx*ny_sub*nx_sub)
-        reshaped = data.reshape(ny, nx, ny_sub, nx_sub)
+        reshaped = data.reshape(*data.shape[:-2], ny, nx, ny_sub, nx_sub)
 
         original_dims = regridded_flat[var].dims
-        new_dims = (*original_dims, "ny_sub", "nx_sub")
+        new_dims = (*original_dims[:-2], "ny", "nx", "ny_sub", "nx_sub")
 
         data_vars[var] = xr.DataArray(
             reshaped,
