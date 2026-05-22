@@ -61,7 +61,12 @@ def test_direct_stats_depth(get_rect_topo, synthetic_bathy_file):
     topo = get_rect_topo
 
     # Load source bathymetry and slice to topo domain
-    src = SourceBathy(topo, synthetic_bathy_file, depth_name="elevation")
+    src = SourceBathy(
+        topo,
+        synthetic_bathy_file,
+        depth_name="elevation",
+        is_input_positive_below_msl=False,
+    )
     topo.src = src
     topo._compute_stats(nx_sub=2, ny_sub=2, mask_hmin=0.0)
 
@@ -69,4 +74,6 @@ def test_direct_stats_depth(get_rect_topo, synthetic_bathy_file):
     topo.direct_stats_depth("mean")
 
     mask = ~np.isnan(topo.depth.values)
-    assert np.isclose(topo.depth.values[mask], topo._stats["D_mean"].values[mask]).all()
+    assert np.isclose(
+        topo.depth.values[mask], topo.src._stats["D_mean"].values[mask]
+    ).all()

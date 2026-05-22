@@ -54,7 +54,7 @@ class Topo:
             None  # Binary ocean/land mask (None = no mask applied)
         )
         self._min_depth = min_depth
-        self._src = None  # cached SourceBathy; set by _set_src()
+        self._src = None  # SourceBathy object; set by set_src()
         self.land_fillval = 0.0  # Depth value for land cells
         initial_command = MinDepthEditCommand(
             self, attr="min_depth", new_value=min_depth
@@ -63,6 +63,7 @@ class Topo:
 
             # Create a folder to store bathymetry objects in
             self.topos_root = Path(version_control_dir).mkdir(exist_ok=True)
+            (Path(version_control_dir) / ".gitignore").write_text("*")
 
             # Create the subfolder for this specific bathymetry
             self.domain_dir = Path(get_domain_dir(grid, base_dir=version_control_dir))
@@ -478,8 +479,7 @@ class Topo:
         is_input_positive_below_msl=False,
         buf=0.5,
     ):
-        """Set a :class:`SourceBathy`, creating and slicing a new one
-        only when the path or coordinate names differ from the current cache."""
+        """Set a :class:`SourceBathy` into a class object called src"""
         self.src = SourceBathy(
             self,
             Path(bathymetry_path),
@@ -490,6 +490,10 @@ class Topo:
             buf=buf,
         )
         return self.src
+
+    @property
+    def stats(self):
+        return self.src.stats if self.src is not None else None
 
     def clear_user_mask(self):
         cmd = ClearMaskCommand(
@@ -779,7 +783,7 @@ class Topo:
     def _compute_stats(self, nx_sub, ny_sub, mask_hmin):
         """Compute per-cell depth statistics by uniform sub-sampling.
 
-        Results are cached on ``stats`` so a second call with the
+        Results are stored on ``stats`` so a second call with the
         same source file returns immediately without recomputation.
         (Originally created by Frank Bryan in Fortran for NCAR/tx2_3, reimplemented in Python)
 
@@ -796,18 +800,17 @@ class Topo:
         assert (
             self.src is not None
         ), "Source bathymetry must be loaded to compute topo stats"
-        src = self.src
-        if hasattr(self.src, "_stats") and isinstance(self.src._stats, xr.Dataset):
-            if (
-                self.src._stats.attrs.get("nx_sub") == nx_sub
-                and self.src._stats.attrs.get("ny_sub") == ny_sub
-                and self.src._stats.attrs.get("mask_hmin") == mask_hmin
-            ):
-                return self.src._stats
+        if (
+            self.stats is not None
+            and self.stats.attrs.get("nx_sub") == nx_sub
+            and self.stats.attrs.get("ny_sub") == ny_sub
+            and self.stats.attrs.get("mask_hmin") == mask_hmin
+        ):
+            return self.stats
 
         # Compute subsampling factor and generate sub-point grid
-        ds = regrid_with_subsampling(
-            input_dataset=src.ds,
+        ds, _ = regrid_with_subsampling(
+            input_dataset=self.src.ds,
             qlon=self._grid.qlon.values,
             qlat=self._grid.qlat.values,
             nx_sub=nx_sub,
@@ -815,7 +818,7 @@ class Topo:
             regridding_method="nearest_s2d",
         )
 
-        depth_sub = ds[src.depth_name].values  # (ny, nx, ny_sub, nx_sub)
+        depth_sub = ds[self.src.depth_name].values  # (ny, nx, ny_sub, nx_sub)
 
         is_ocean = depth_sub > mask_hmin
         ocn_frac = is_ocean.sum(axis=(-2, -1)) / (nx_sub * ny_sub)
@@ -828,7 +831,7 @@ class Topo:
             D2_mean = np.nanmean(depth_ocean**2, axis=(-2, -1))
 
         dims = ["ny", "nx"]
-        self.src._stats = xr.Dataset(
+        self.src.stats = xr.Dataset(
             {
                 "OCN_FRAC": xr.DataArray(
                     ocn_frac,
@@ -868,7 +871,171 @@ class Topo:
                 "mask_hmin": mask_hmin,
             },
         )
-        return self.src._stats
+        return self.src.stats
+
+    def diagnose_resolution(self, radius=6.371e6):
+        """
+        Print resolution diagnostics comparing the model grid to a source bathymetry
+        dataset, and recommend whether Cressman interpolation / stats-based masking
+        is worthwhile.
+
+        The recommendation threshold is a resolution ratio of 12x (model dx /
+        dataset dx), equivalent to ~0.05° (~5 km) for GEBCO 15-arcsecond source
+        data. This matches the criterion used by the tx2_3 global workflow
+        (interp_smooth.f90) and might be the scale at which ocean-aware Cressman
+        interpolation meaningfully improves coastal depth estimates over standard
+        xesmf conservative regridding.
+
+        Parameters
+        ----------
+        src : SourceBathy (provided internally by the class)
+            Source bathymetry object.
+        radius: float, optional
+            Radius of the Earth in meters, used to convert source dataset lat/lon spacing to approximate physical spacing in meters at the domain's mid-latitude. Default is 6.371e6 m.
+
+        Returns
+        -------
+        bool
+            True if Cressman / stats-based masking is recommended (ratio >= 12x),
+            False otherwise.
+        """
+        CRESSMAN_THRESHOLD = 12.0
+
+        # --- Model T-cell spacing in meters ---
+        # sqrt(tarea) gives the geometric mean cell spacing (equiv. to sqrt(dxt * dyt))
+        cell_dx_m = np.sqrt(self._grid.tarea.values)
+
+        median_dx_m = float(np.median(cell_dx_m))
+        min_dx_m = float(np.min(cell_dx_m))
+        max_dx_m = float(np.max(cell_dx_m))
+
+        # --- Source dataset spacing ---
+        src = self.src
+
+        dlon_deg = float(abs(src.lon[1] - src.lon[0]))
+        dlat_deg = float(abs(src.lat[1] - src.lat[0]))
+        R = radius
+        dataset_dx_m = haversine(src.lat[0], src.lon[0], src.lat[0], src.lon[1], R)
+        dataset_dy_m = haversine(src.lat[0], src.lon[0], src.lat[1], src.lon[0], R)
+
+        ratio_median = median_dx_m / dataset_dx_m
+        ratio_max = max_dx_m / dataset_dx_m
+
+        # --- Print ---
+        sep = "=" * 58
+        print(sep)
+        print("  Resolution Diagnostics")
+        print(sep)
+        print(f"\n  Source dataset ({src.path.name}):")
+        print(f"    dlon = {dlon_deg * 3600:.1f} arcsec  ({dlon_deg:.6f}°)")
+        print(f"    dlat = {dlat_deg * 3600:.1f} arcsec  ({dlat_deg:.6f}°)")
+        print(f"    dx   ~ {dataset_dx_m:.0f} m)")
+        print(f"    dy   ~ {dataset_dy_m:.0f} m")
+        print(f"\n  Model grid (T-cell spacing):")
+        print(f"    median = {median_dx_m / 1000:.2f} km")
+        print(f"    min    = {min_dx_m / 1000:.2f} km")
+        print(f"    max    = {max_dx_m / 1000:.2f} km")
+        print(f"\n  Resolution ratio (model dx / dataset dx):")
+        print(f"    median = {ratio_median:.1f}x")
+        print(f"    max    = {ratio_max:.1f}x")
+        print(f"\n  Cressman / stats-mask threshold: {CRESSMAN_THRESHOLD:.0f}x")
+        if ratio_median >= CRESSMAN_THRESHOLD:
+            print(f"  → RECOMMENDED: high_res_regrid()  (Cressman + stats mask)")
+            print(
+                f"    Each model cell spans ~{ratio_median:.0f} dataset pixels per side."
+            )
+            print(f"    Ocean-aware Cressman interpolation will meaningfully reduce")
+            print(f"    land contamination of coastal depth estimates.")
+        else:
+            print(f"  → RECOMMENDED: direct_xesmf_regrid()  (bilinear / conservative)")
+            print(
+                f"    Ratio {ratio_median:.1f}x is below the threshold where Cressman"
+            )
+            print(f"    likely provides benefit over xesmf regridding.")
+        print(sep)
+        return bool(ratio_median >= CRESSMAN_THRESHOLD)
+
+    def diagnose_resolution(self, radius=6.371e6):
+        """
+        Print resolution diagnostics comparing the model grid to a source bathymetry
+        dataset, and recommend whether Cressman interpolation / stats-based masking
+        is worthwhile.
+
+        The recommendation threshold is a resolution ratio of 12x (model dx /
+        dataset dx), equivalent to ~0.05° (~5 km) for GEBCO 15-arcsecond source
+        data. This matches the criterion used by the tx2_3 global workflow
+        (interp_smooth.f90) and might be the scale at which ocean-aware Cressman
+        interpolation meaningfully improves coastal depth estimates over standard
+        xesmf conservative regridding.
+
+        Parameters
+        ----------
+        src : SourceBathy (provided internally by the class)
+            Source bathymetry object.
+        radius: float, optional
+            Radius of the Earth in meters, used to convert source dataset lat/lon spacing to approximate physical spacing in meters at the domain's mid-latitude. Default is 6.371e6 m.
+
+        Returns
+        -------
+        bool
+            True if Cressman / stats-based masking is recommended (ratio >= 12x),
+            False otherwise.
+        """
+        CRESSMAN_THRESHOLD = 12.0
+
+        # --- Model T-cell spacing in meters ---
+        # sqrt(tarea) gives the geometric mean cell spacing (equiv. to sqrt(dxt * dyt))
+        cell_dx_m = np.sqrt(self._grid.tarea.values)
+
+        median_dx_m = float(np.median(cell_dx_m))
+        min_dx_m = float(np.min(cell_dx_m))
+        max_dx_m = float(np.max(cell_dx_m))
+
+        # --- Source dataset spacing ---
+        src = self.src
+
+        dlon_deg = float(abs(src.lon[1] - src.lon[0]))
+        dlat_deg = float(abs(src.lat[1] - src.lat[0]))
+        R = radius
+        dataset_dx_m = haversine(src.lat[0], src.lon[0], src.lat[0], src.lon[1], R)
+        dataset_dy_m = haversine(src.lat[0], src.lon[0], src.lat[1], src.lon[0], R)
+
+        ratio_median = median_dx_m / dataset_dx_m
+        ratio_max = max_dx_m / dataset_dx_m
+
+        # --- Print ---
+        sep = "=" * 58
+        print(sep)
+        print("  Resolution Diagnostics")
+        print(sep)
+        print(f"\n  Source dataset ({src.path.name}):")
+        print(f"    dlon = {dlon_deg * 3600:.1f} arcsec  ({dlon_deg:.6f}°)")
+        print(f"    dlat = {dlat_deg * 3600:.1f} arcsec  ({dlat_deg:.6f}°)")
+        print(f"    dx   ~ {dataset_dx_m:.0f} m)")
+        print(f"    dy   ~ {dataset_dy_m:.0f} m")
+        print(f"\n  Model grid (T-cell spacing):")
+        print(f"    median = {median_dx_m / 1000:.2f} km")
+        print(f"    min    = {min_dx_m / 1000:.2f} km")
+        print(f"    max    = {max_dx_m / 1000:.2f} km")
+        print(f"\n  Resolution ratio (model dx / dataset dx):")
+        print(f"    median = {ratio_median:.1f}x")
+        print(f"    max    = {ratio_max:.1f}x")
+        print(f"\n  Cressman / stats-mask threshold: {CRESSMAN_THRESHOLD:.0f}x")
+        if ratio_median >= CRESSMAN_THRESHOLD:
+            print(f"  → RECOMMENDED: high_res_regrid()  (Cressman + stats mask)")
+            print(
+                f"    Each model cell spans ~{ratio_median:.0f} dataset pixels per side."
+            )
+            print(f"    Ocean-aware Cressman interpolation will meaningfully reduce")
+            print(f"    land contamination of coastal depth estimates.")
+        else:
+            print(f"  → RECOMMENDED: direct_xesmf_regrid()  (bilinear / conservative)")
+            print(
+                f"    Ratio {ratio_median:.1f}x is below the threshold where Cressman"
+            )
+            print(f"    likely provides benefit over xesmf regridding.")
+        print(sep)
+        return bool(ratio_median >= CRESSMAN_THRESHOLD)
 
     def diagnose_resolution(self, radius=6.371e6):
         """
@@ -1035,20 +1202,20 @@ class Topo:
         return bool(ratio_median >= CRESSMAN_THRESHOLD)
 
     def direct_stats_depth(self, statistic):
-        """Set the topo depth to a statistic from compute_topo_stats"""
+        """Set the topo depth to a statistic from compute_topo_stats (Must be called before this function to compute the stats)."""
 
         assert (
-            self._stats is not None
+            self.src.stats is not None
         ), "Source bathymetry must have topo stats computed, please call _compute_stats first if you have not already"
         approved_list = []
-        for key in self._stats:
+        for key in self.src.stats.data_vars:
             if key.startswith("D_"):
                 approved_list.append(key[2:])
         assert (
             statistic in approved_list
         ), f"Invalid statistic {statistic}, must be one of {approved_list}"
 
-        self.send_entire_depth_change_to_tcm(self._stats[f"D_{statistic}"])
+        self.send_entire_depth_change_to_tcm(self.src.stats[f"D_{statistic}"])
 
     def set_from_dataset(
         self,
