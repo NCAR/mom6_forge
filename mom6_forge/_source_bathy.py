@@ -57,6 +57,7 @@ class SourceBathy:
         buf=0.5,
     ):
         self.path = Path(path)
+        self._computed_stats = None
         self._ds = xr.open_dataset(self.path, chunks="auto")
         self._rename_dims_and_format_ds(
             lon_name=lon_name, lat_name=lat_name, depth_name=depth_name
@@ -214,6 +215,24 @@ class SourceBathy:
         xarray.Dataset
         """
         return self._ds
+
+    @property
+    def stats(self):
+        """Per-cell depth statistics computed by ``Topo._compute_stats``.
+
+        Returns ``None`` until ``_compute_stats`` has been called.
+
+        Returns
+        -------
+        xarray.Dataset or None
+        """
+        return self._computed_stats
+
+    @stats.setter
+    def stats(self, value):
+        if value is not None and not isinstance(value, xr.Dataset):
+            raise TypeError("stats must be an xarray.Dataset or None")
+        self._computed_stats = value
 
     def __repr__(self):
         return (
