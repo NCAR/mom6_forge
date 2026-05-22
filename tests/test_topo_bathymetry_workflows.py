@@ -75,5 +75,5 @@ def test_direct_stats_depth(get_rect_topo, synthetic_bathy_file):
 
     mask = ~np.isnan(topo.depth.values)
     assert np.isclose(
-        topo.depth.values[mask], topo.src._stats["D_mean"].values[mask]
+        topo.depth.values[mask], topo.src.stats["D_mean"].values[mask]
     ).all()
