@@ -12,7 +12,7 @@ from pyproj import CRS, Transformer
 
 # For projection grid creation, offer some convenient CRS presets in a dropdown
 _CRS_PRESETS = [
-    ("Plate Carree / Geographic (EPSG:4326)", "EPSG:4326"),
+    ("Equidistant Cylindrical / PlateCarree (EPSG:4087)", "EPSG:4087"),
     ("Arctic Polar Stereographic (EPSG:3995)", "EPSG:3995"),
     ("Antarctic Polar Stereographic (EPSG:3031)", "EPSG:3031"),
     ("CONUS Albers Equal Area (EPSG:5070)", "EPSG:5070"),
@@ -21,6 +21,7 @@ _CRS_PRESETS = [
 # Preset EPSG → (cartopy_proj, default_extent_in_PlateCarree)
 # extent is [lon_min, lon_max, lat_min, lat_max], or None for set_global()
 _EPSG_TO_CARTOPY = {
+    4087: (ccrs.PlateCarree(), None),
     3995: (ccrs.NorthPolarStereo(), [-180, 180, 45, 90]),
     3031: (ccrs.SouthPolarStereo(), [-180, 180, -90, -45]),
     5070: (
@@ -204,7 +205,7 @@ class GridCreator(widgets.HBox):
             layout=_fw,
         )
         self._proj_crs_text = widgets.Text(
-            value="EPSG:4326",
+            value="EPSG:4087",
             description="Override:",
             placeholder="e.g. EPSG:32617",
             style=_ds,
@@ -1061,7 +1062,6 @@ class GridCreator(widgets.HBox):
         else:
             self.plot_world()
         self._start_click_mode()
-        return
 
     # ------------------------------------------------------------------
     # Library
