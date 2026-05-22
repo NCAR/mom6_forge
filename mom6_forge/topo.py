@@ -62,6 +62,7 @@ class Topo:
 
             # Create a folder to store bathymetry objects in
             self.topos_root = Path(version_control_dir).mkdir(exist_ok=True)
+            (Path(version_control_dir) / ".gitignore").write_text("*")
 
             # Create the subfolder for this specific bathymetry
             self.domain_dir = Path(get_domain_dir(grid, base_dir=version_control_dir))
@@ -876,17 +877,17 @@ class Topo:
         """Set the topo depth to a statistic from compute_topo_stats (Must be called before this function to compute the stats)."""
 
         assert (
-            self.src._stats is not None
+            self.src.stats is not None
         ), "Source bathymetry must have topo stats computed, please call _compute_stats first if you have not already"
         approved_list = []
-        for key in self.src._stats:
+        for key in self.src.stats.data_vars:
             if key.startswith("D_"):
                 approved_list.append(key[2:])
         assert (
             statistic in approved_list
         ), f"Invalid statistic {statistic}, must be one of {approved_list}"
 
-        self.send_entire_depth_change_to_tcm(self.src._stats[f"D_{statistic}"])
+        self.send_entire_depth_change_to_tcm(self.src.stats[f"D_{statistic}"])
 
     def set_from_dataset(
         self,
