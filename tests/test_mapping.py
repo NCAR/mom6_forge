@@ -74,7 +74,7 @@ def test_regrid_with_subsampling(get_simple_grid):
             "lat": (["lat"], [x - 0.1 for x in lat]),
         },
     )
-    ds = regrid_with_subsampling(
+    ds, _ = regrid_with_subsampling(
         input_ds, grid.qlon.values, grid.qlat.values, nx_sub, ny_sub
     )
     assert ds["data"].shape == (2, 2, 2, 2), "Output shape is incorrect."
@@ -108,7 +108,7 @@ def test_regrid_with_subsampling_time_dim(get_simple_grid):
             "lat": (["lat"], [x - 0.1 for x in lat]),
         },
     )
-    ds = regrid_with_subsampling(
+    ds, _ = regrid_with_subsampling(
         input_ds, grid.qlon.values, grid.qlat.values, nx_sub, ny_sub
     )
     assert ds["data"].shape == (

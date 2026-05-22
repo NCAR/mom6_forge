@@ -808,7 +808,7 @@ class Topo:
             return self.stats
 
         # Compute subsampling factor and generate sub-point grid
-        ds = regrid_with_subsampling(
+        ds, _ = regrid_with_subsampling(
             input_dataset=self.src.ds,
             qlon=self._grid.qlon.values,
             qlat=self._grid.qlat.values,
