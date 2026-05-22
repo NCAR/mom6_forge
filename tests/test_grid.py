@@ -288,3 +288,31 @@ def test_grid_to_netcdf_and_from_netcdf(tmp_path, simple_2by2_grid):
     assert loaded.nx == simple_2by2_grid.nx
     assert loaded.ny == simple_2by2_grid.ny
     assert loaded.name == simple_2by2_grid.name
+
+
+def test_grid_rectilinear_cartesian():
+    grid = Grid(lenx=10.0, leny=10.0, resolution=1.0, type="rectilinear_cartesian")
+    assert isinstance(grid, Grid)
+    assert grid.nx == 10
+    assert grid.ny == 10
+
+
+def test_grid_from_projection():
+    grid = Grid.from_projection(
+        "EPSG:3995", -500_000, 500_000, -500_000, 500_000, 50_000, name="arctic"
+    )
+    assert isinstance(grid, Grid)
+    assert grid.nx == 20
+    assert grid.ny == 20
+    assert grid.name == "arctic"
+
+
+def test_grid_from_center():
+    grid = Grid.from_center(40.0, -70.0, 200_000, 200_000, 50_000, name="test")
+    assert isinstance(grid, Grid)
+    assert grid.nx == 4
+    assert grid.ny == 4
+    mid_lat = grid.tlat.values[grid.ny // 2, grid.nx // 2]
+    mid_lon = grid.tlon.values[grid.ny // 2, grid.nx // 2]
+    assert abs(mid_lat - 40.0) < 1.0
+    assert abs(mid_lon - (-70.0)) < 1.0

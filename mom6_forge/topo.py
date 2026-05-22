@@ -62,6 +62,7 @@ class Topo:
 
             # Create a folder to store bathymetry objects in
             self.topos_root = Path(version_control_dir).mkdir(exist_ok=True)
+            (Path(version_control_dir) / ".gitignore").write_text("*")
 
             # Create the subfolder for this specific bathymetry
             self.domain_dir = Path(get_domain_dir(grid, base_dir=version_control_dir))
@@ -905,10 +906,10 @@ class Topo:
         """
 
         assert (
-            hasattr(self.src, "_stats") and self.src._stats is not None
+            self.src.stats is not None
         ), "Per-cell statistics must be computed before generating mask. Call _compute_stats() first."
 
-        ocean_mask = (self.src._stats["OCN_FRAC"].values >= mask_threshold).astype(int)
+        ocean_mask = (self.src.stats["OCN_FRAC"].values >= mask_threshold).astype(int)
 
         return xr.DataArray(
             ocean_mask,
