@@ -1071,6 +1071,7 @@ def regrid_with_subsampling(
     nx_sub,
     ny_sub,
     regridding_method="nearest_s2d",
+    regridder=None,
 ):
     """
     Regrids input_dataset to sub_sampled_grid to
@@ -1107,21 +1108,25 @@ def regrid_with_subsampling(
         }
     )
 
-    regridded_flat = regrid_dataset_via_xesmf(
-        input_dataset,
-        flat_output,
-        regridding_method=regridding_method,
-        write_to_file=False,
-    )
+    if regridder is None:
+        regridder = xe.Regridder(
+            input_dataset,
+            flat_output,
+            method=regridding_method,
+            locstream_out=False,
+            periodic=False,
+        )
+
+    regridded_flat = regridder(input_dataset)
 
     # Reshape to 4D, keeping sub-points as their own dimension
     data_vars = {}
     for var in regridded_flat.data_vars:
         data = regridded_flat[var].values  # (..., ny, nx*ny_sub*nx_sub)
-        reshaped = data.reshape(ny, nx, ny_sub, nx_sub)
+        reshaped = data.reshape(*data.shape[:-2], ny, nx, ny_sub, nx_sub)
 
         original_dims = regridded_flat[var].dims
-        new_dims = (*original_dims, "ny_sub", "nx_sub")
+        new_dims = (*original_dims[:-2], "ny", "nx", "ny_sub", "nx_sub")
 
         data_vars[var] = xr.DataArray(
             reshaped,
@@ -1137,7 +1142,7 @@ def regrid_with_subsampling(
     coords["ny_sub"] = np.arange(ny_sub)
     coords["nx_sub"] = np.arange(nx_sub)
 
-    return xr.Dataset(data_vars, coords=coords, attrs=input_dataset.attrs)
+    return xr.Dataset(data_vars, coords=coords, attrs=input_dataset.attrs), regridder
 
 
 def main(args):
