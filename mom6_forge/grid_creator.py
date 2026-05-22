@@ -85,7 +85,7 @@ class GridCreator(widgets.HBox):
         self._in_redraw = False
 
         # Grid creation mode and associated stored parameters for Recreate
-        self._grid_mode = "latlon"  # "latlon" - default | "center" | "projection"
+        self._edit_mode = "latlon"  # "latlon" - default | "center" | "projection"
         self._center_latlon = None  # (lat, lon) set after a From Center click
         self._proj_extents = None  # (x_min, x_max, y_min, y_max) in projected CRS
         self._current_map_proj = ccrs.PlateCarree()  # active cartopy projection
@@ -238,6 +238,24 @@ class GridCreator(widgets.HBox):
         )
         self._move_center_cid = None
 
+        # --- Lat/lon edit sliders ---
+        _fw = {"width": "90%"}  # already defined above but repeated for clarity
+        self._resolution_slider = widgets.FloatSlider(
+            value=0.5, min=0.01, max=1.0, step=0.01, description="Resolution"
+        )
+        self._xstart_slider = widgets.FloatSlider(
+            value=0, min=-180, max=360, step=0.01, description="xstart"
+        )
+        self._lenx_slider = widgets.FloatSlider(
+            value=10, min=0.01, max=50.0, step=0.01, description="lenx"
+        )
+        self._ystart_slider = widgets.FloatSlider(
+            value=0, min=-90, max=90, step=0.01, description="ystart"
+        )
+        self._leny_slider = widgets.FloatSlider(
+            value=10, min=0.01, max=50.0, step=0.01, description="leny"
+        )
+
         # --- Library ---
         self._grid_name = widgets.Text(
             value="",
@@ -258,7 +276,7 @@ class GridCreator(widgets.HBox):
             description="Load Grid", layout={"width": "44%"}
         )
 
-        creator_controls = self._build_creator_controls()
+        creator_controls = self._build_controls()
 
         library_section = widgets.VBox(
             [
@@ -275,7 +293,7 @@ class GridCreator(widgets.HBox):
             layout={"width": "45%", "height": "100%"},
         )
 
-    def _build_creator_controls(self):
+    def _build_controls(self):
         """Return the top section of the left panel.
 
         Three possible states:
@@ -305,45 +323,7 @@ class GridCreator(widgets.HBox):
                 layout=layout,
             )
 
-        if self._grid_mode == "latlon":
-            # Back out init args from grid properties
-            initial_xstart = float(self.grid.supergrid.x[0, 0]) % 360
-            slider_window = 30
-            slider_min = max(initial_xstart - slider_window, -180.0)
-            slider_max = min(initial_xstart + slider_window, 360.0)
-            if slider_min >= slider_max:
-                slider_min = max(-180.0, initial_xstart - 15)
-                slider_max = min(360.0, initial_xstart + 15)
-
-            self._xstart_slider = widgets.FloatSlider(
-                value=initial_xstart,
-                min=slider_min,
-                max=slider_max,
-                step=0.01,
-                description="xstart",
-            )
-            self._lenx_slider = widgets.FloatSlider(
-                value=self.grid.lenx, min=0.01, max=50.0, step=0.01, description="lenx"
-            )
-            initial_ystart = float(self.grid.supergrid.y[0, 0])
-            self._ystart_slider = widgets.FloatSlider(
-                value=initial_ystart,
-                min=max(initial_ystart - 30, -90),
-                max=min(initial_ystart + 30, 90),
-                step=0.01,
-                description="ystart",
-            )
-            self._leny_slider = widgets.FloatSlider(
-                value=self.grid.leny, min=0.01, max=50.0, step=0.01, description="leny"
-            )
-            self._resolution_slider = widgets.FloatSlider(
-                value=self.grid.lenx / self.grid.nx,
-                min=0.01,
-                max=1.0,
-                step=0.01,
-                description="Resolution",
-            )
-
+        if self._edit_mode == "latlon":
             return widgets.VBox(
                 [
                     widgets.HTML("<h3>Grid Creator &mdash; Edit Mode</h3>"),
@@ -361,7 +341,7 @@ class GridCreator(widgets.HBox):
             )
 
         # Projected grid (center or projection mode) — edit mode, init args held in session
-        if self._grid_mode == "center":
+        if self._edit_mode == "center":
             center_info = ""
             if self._center_latlon is not None:
                 lat, lon = self._center_latlon
@@ -402,12 +382,64 @@ class GridCreator(widgets.HBox):
             layout=layout,
         )
 
-    def _switch_to_grid_mode(self):
+    def _update_slider_ranges(self):
+        # Capture all values before any slider changes fire _on_slider_change
+        initial_xstart = float(self.grid.supergrid.x[0, 0]) % 360
+        initial_ystart = float(self.grid.supergrid.y[0, 0])
+        lenx = float(self.grid.lenx)
+        leny = float(self.grid.leny)
+        resolution = lenx / self.grid.nx
+
+        slider_window = 30
+        xmin = max(initial_xstart - slider_window, -180.0)
+        xmax = min(initial_xstart + slider_window, 360.0)
+        if xmin >= xmax:
+            xmin = max(-180.0, initial_xstart - 15)
+            xmax = min(360.0, initial_xstart + 15)
+
+        ymin = max(initial_ystart - slider_window, -90.0)
+        ymax = min(initial_ystart + slider_window, 90.0)
+        if ymin >= ymax:
+            ymin = max(-90.0, initial_ystart - 15)
+            ymax = min(90.0, initial_ystart + 15)
+
+        sliders = [
+            self._resolution_slider,
+            self._xstart_slider,
+            self._lenx_slider,
+            self._ystart_slider,
+            self._leny_slider,
+        ]
+        for slider in sliders:
+            slider.unobserve(self._on_slider_change, names="value")
+
+        self._xstart_slider.min = -180
+        self._xstart_slider.max = 360
+        self._xstart_slider.value = initial_xstart
+        self._xstart_slider.min = xmin
+        self._xstart_slider.max = xmax
+
+        self._lenx_slider.value = lenx
+
+        self._ystart_slider.min = -90
+        self._ystart_slider.max = 90
+        self._ystart_slider.value = initial_ystart
+        self._ystart_slider.min = ymin
+        self._ystart_slider.max = ymax
+
+        self._leny_slider.value = leny
+        self._resolution_slider.value = resolution
+
+        for slider in sliders:
+            slider.observe(self._on_slider_change, names="value")
+
+    def _switch_to_edit_mode(self):
         """Replace the creator controls panel after a grid is created or loaded."""
-        creator_controls = self._build_creator_controls()
+        if self._edit_mode == "latlon":
+            self._update_slider_ranges()
+        creator_controls = self._build_controls()
         library_section = self._control_panel.children[1]
         self._control_panel.children = [creator_controls, library_section]
-        self.construct_observances()
 
     def _update_status_for_mode(self, mode):
         if mode == "Lat/Lon Corners":
@@ -473,38 +505,60 @@ class GridCreator(widgets.HBox):
             if was_active and self._rect_selector is not None:
                 self._rect_selector.set_active(True)
 
+    def _on_grid_name_change(self, change):
+        self.refresh_library_dropdown()
+
+    def _unregister_observances(self):
+        for btn, handler in [
+            (self._save_button, self.save_grid),
+            (self._load_button, self.load_grid),
+            (self._reset_button, self.reset_grid),
+            (self._recreate_button, self._on_recreate_click),
+        ]:
+            try:
+                btn.on_click(handler, remove=True)
+            except ValueError:
+                pass
+        for widget, handler in [
+            (self._grid_name, self._on_grid_name_change),
+            (self._library_dropdown, self.update_grid_details),
+            (self._mode_selector, self._on_mode_change),
+            (self._proj_crs_dropdown, self._on_proj_crs_preset_change),
+            (self._move_center_button, self._on_move_center_toggle),
+            (self._resolution_slider, self._on_slider_change),
+            (self._xstart_slider, self._on_slider_change),
+            (self._lenx_slider, self._on_slider_change),
+            (self._ystart_slider, self._on_slider_change),
+            (self._leny_slider, self._on_slider_change),
+        ]:
+            try:
+                widget.unobserve(handler, names="value")
+            except ValueError:
+                pass
+
     def construct_observances(self):
-        # NOTE: on_click / observe calls accumulate across repeated invocations
-        # (this method is called every time _switch_to_grid_mode rebuilds the panel).
-        # Handlers are idempotent in practice, but it is a known minor inefficiency.
+        self._unregister_observances()
         self._save_button.on_click(self.save_grid)
         self._load_button.on_click(self.load_grid)
         self._reset_button.on_click(self.reset_grid)
         self._recreate_button.on_click(self._on_recreate_click)
-        self._grid_name.observe(
-            lambda change: self.refresh_library_dropdown(), names="value"
-        )
+        self._grid_name.observe(self._on_grid_name_change, names="value")
         self._library_dropdown.observe(self.update_grid_details, names="value")
+        for slider in [
+            self._resolution_slider,
+            self._xstart_slider,
+            self._lenx_slider,
+            self._ystart_slider,
+            self._leny_slider,
+        ]:
+            slider.observe(self._on_slider_change, names="value")
+        self._move_center_button.observe(self._on_move_center_toggle, names="value")
 
         if self.grid is None:
             self._mode_selector.observe(self._on_mode_change, names="value")
             self._proj_crs_dropdown.observe(
                 self._on_proj_crs_preset_change, names="value"
             )
-            return
-
-        if self._grid_mode == "latlon":
-            for slider in [
-                self._resolution_slider,
-                self._xstart_slider,
-                self._lenx_slider,
-                self._ystart_slider,
-                self._leny_slider,
-            ]:
-                slider.observe(self._on_slider_change, names="value")
-
-        if self._grid_mode == "center":
-            self._move_center_button.observe(self._on_move_center_toggle, names="value")
 
     # ------------------------------------------------------------------
     # Mode management (pre-grid)
@@ -652,8 +706,8 @@ class GridCreator(widgets.HBox):
             ystart=ystart,
             type=self._latlon_grid_type.value,
         )
-        self._grid_mode = "latlon"
-        self._switch_to_grid_mode()
+        self._edit_mode = "latlon"
+        self._switch_to_edit_mode()
         self.plot_grid()
 
     def _create_grid_from_center(self, lon, lat):
@@ -669,8 +723,8 @@ class GridCreator(widgets.HBox):
         except Exception as e:
             print(f"Failed to create grid from centre: {e}")
             return
-        self._grid_mode = "center"
-        self._switch_to_grid_mode()
+        self._edit_mode = "center"
+        self._switch_to_edit_mode()
         self.plot_grid()
 
     def _create_grid_from_projection(self, x1, y1, x2, y2):
@@ -698,15 +752,15 @@ class GridCreator(widgets.HBox):
         except Exception as e:
             print(f"Failed to create projected grid: {e}")
             return
-        self._grid_mode = "projection"
-        self._switch_to_grid_mode()
+        self._edit_mode = "projection"
+        self._switch_to_edit_mode()
         self.plot_grid()
 
     def _on_recreate_click(self, _btn=None):
-        if self._grid_mode == "center" and self._center_latlon is not None:
+        if self._edit_mode == "center" and self._center_latlon is not None:
             lat, lon = self._center_latlon
             self._create_grid_from_center(lon, lat)
-        elif self._grid_mode == "projection" and self._proj_extents is not None:
+        elif self._edit_mode == "projection" and self._proj_extents is not None:
             crs_str = self._proj_crs_text.value.strip()
             resolution_m = self._proj_resolution.value * 1000
             x_min, x_max, y_min, y_max = self._proj_extents
@@ -790,7 +844,7 @@ class GridCreator(widgets.HBox):
                 )
             title = (
                 "Use the sliders to adjust grid parameters."
-                if self._grid_mode == "latlon"
+                if self._edit_mode == "latlon"
                 else "Grid created — adjust parameters in the control panel."
             )
             self.ax.set_title(title)
@@ -943,11 +997,11 @@ class GridCreator(widgets.HBox):
             if grid_type in ("projected_crs", "projected_center"):
                 # init args already in memory from this session — just switch to edit
                 # _center_latlon / _proj_extents / widget values remain as set
-                self._grid_mode = (
+                self._edit_mode = (
                     "center" if self._center_latlon is not None else "projection"
                 )
             else:
-                self._grid_mode = "latlon"
+                self._edit_mode = "latlon"
                 self._latlon_grid_type.value = (
                     "rectilinear_cartesian"
                     if grid_type == "rectilinear_cartesian"
@@ -957,8 +1011,8 @@ class GridCreator(widgets.HBox):
             self._stop_click_mode()
             if not isinstance(self._current_map_proj, ccrs.PlateCarree):
                 self._set_map_projection(ccrs.PlateCarree(), None)
-            self._switch_to_grid_mode()
-            if self._grid_mode == "latlon":
+            self._switch_to_edit_mode()
+            if self._edit_mode == "latlon":
                 self.sync_sliders_to_grid()
             self.plot_grid()
         except Exception as e:
@@ -1049,12 +1103,12 @@ class GridCreator(widgets.HBox):
     def reset_grid(self, b=None):
         # go back to click-to-create mode
         self.grid = None
-        self._grid_mode = "latlon"
+        self._edit_mode = "latlon"
         self._center_latlon = None
         self._proj_extents = None
         self._proj_crs_dropdown.value = _CRS_PRESETS[0][1]
         self._control_panel.children = [
-            self._build_creator_controls(),
+            self._build_controls(),
             self._control_panel.children[1],
         ]
         self.construct_observances()
