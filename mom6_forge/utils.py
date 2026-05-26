@@ -388,6 +388,7 @@ def fill_missing_data(idata, mask, maxiter=0, stabilizer=1.0e-14, tripole=False)
     new_data[missing_j, missing_i] = x
     return new_data
 
+
 def compute_subsampling_factor(src_nj, src_ni, dst_nj, dst_ni):
     """
     Compute the sub-sampling factors needed so that the super-sampled
