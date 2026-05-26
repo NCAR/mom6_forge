@@ -220,6 +220,14 @@ class SupergridBase:
 
         Does not dispatch to subclasses
         """
+        radius = ds.attrs.get("radius")
+        if radius is None:
+            print(
+                "Warning: 'radius' attribute not found in dataset; "
+                "defaulting to Earth's radius (6.378e6 m). "
+                "dx, dy, and area cannot be recalculated exactly without the original radius."
+            )
+            radius = 6.378e6
         return cls(
             ds.x.data,
             ds.y.data,
@@ -229,7 +237,7 @@ class SupergridBase:
             ds.angle_dx.data,
             ds.x.attrs.get("units", "degrees"),
             grid_type=ds.attrs.get("grid_type"),
-            radius=ds.attrs["radius"],
+            radius=radius,
         )
 
     @staticmethod
