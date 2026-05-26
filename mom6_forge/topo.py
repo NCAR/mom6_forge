@@ -40,8 +40,6 @@ class Topo:
             horizontal grid instance for which the bathymetry is to be created.
         min_depth: float
             Minimum water column depth. Columns with shallow depths are to be masked out.
-        version_control_dir: str, optional
-            Directory for version control. Default is "TopoLibrary".
         channel_widths: str | Path | ChannelWidthList, optional
             Channel width constraints. Can be a filepath to load from, a ChannelWidthList object, or None.
         version_control_dir: str, optional
