@@ -1087,7 +1087,7 @@ class Topo:
                     ny_sub=kwargs["ny_sub"],
                     mask_hmin=kwargs["mask_hmin"],
                 )
-                self.user_mask = self.generate_mask_from_stats_oceanfrac()
+                self.user_mask = self.generate_mask_from_stats_ocean_frac()
             elif mask_method == "dataset":
                 self.clear_user_mask()  # ensure no user mask is set so that the mask is derived from the raw depth, which is directly from the dataset
             elif mask_method == "manual":
@@ -1103,7 +1103,12 @@ class Topo:
                 print(
                     "Resolution diagnostics recommend using stats-based masking, which we will set because no mask option was specified"
                 )
-                self.user_mask = self.generate_mask_from_stats_oceanfrac()
+                self._compute_stats(
+                    nx_sub=kwargs["nx_sub"],
+                    ny_sub=kwargs["ny_sub"],
+                    mask_hmin=kwargs["mask_hmin"],
+                )
+                self.user_mask = self.generate_mask_from_stats_ocean_frac()
             else:
                 print(
                     "Resolution diagnostics recommend not using stats-based masking, so we'll use the natural earth mask"
@@ -1121,7 +1126,7 @@ class Topo:
                     ny_sub=kwargs["ny_sub"],
                     mask_hmin=kwargs["mask_hmin"],
                 )
-                self.direct_stats_depth(statistic="mean")
+                self.set_depth_from_stats(statistic="mean")
             elif depth_method == "xesmf":
                 if use_stats_depth:
                     print(
@@ -1157,7 +1162,7 @@ class Topo:
                     ny_sub=kwargs["ny_sub"],
                     mask_hmin=kwargs["mask_hmin"],
                 )
-                self.direct_stats_depth(statistic=kwargs["statistic"])
+                self.set_depth_from_stats(statistic=kwargs["statistic"])
 
         # Tidy the dataset (fill channels, is_input_positive_below_msl, etc...)
         if fill_channels:
@@ -1222,8 +1227,8 @@ class Topo:
             )
 
         self.depth = regrid_dataset_via_xesmf(
-            input_dataset=self.bathymetry_output,
-            output_dataset=self.empty_bathy,
+            input_dataset=self.src_bathymetry_dataset,
+            output_dataset=self.destination_bathymetry,
             regridding_method=regridding_method,
             write_to_file=write_to_file,
             output_path=output_dir / "bathymetry_unfinished.nc",
