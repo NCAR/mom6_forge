@@ -413,4 +413,3 @@ def compute_subsampling_factor(src_nj, src_ni, dst_nj, dst_ni):
         ny_sub += 1
 
     return ny_sub, nx_sub
-

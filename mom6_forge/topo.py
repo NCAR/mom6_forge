@@ -62,6 +62,7 @@ class Topo:
 
             # Create a folder to store bathymetry objects in
             self.topos_root = Path(version_control_dir).mkdir(exist_ok=True)
+            (Path(version_control_dir) / ".gitignore").write_text("*")
 
             # Create the subfolder for this specific bathymetry
             self.domain_dir = Path(get_domain_dir(grid, base_dir=version_control_dir))
@@ -492,6 +493,10 @@ class Topo:
         )
         return self.src
 
+    @property
+    def stats(self):
+        return self.src.stats if self.src is not None else None
+
     def clear_user_mask(self):
         cmd = ClearMaskCommand(
             self, message="Clear manual mask"
@@ -778,7 +783,7 @@ class Topo:
     def _compute_stats(self, nx_sub, ny_sub, mask_hmin):
         """Compute per-cell depth statistics by uniform sub-sampling.
 
-        Results are cached on ``stats`` so a second call with the
+        Results are stored on ``stats`` so a second call with the
         same source file returns immediately without recomputation.
         (Originally created by Frank Bryan in Fortran for NCAR/tx2_3, reimplemented in Python)
 
@@ -795,13 +800,17 @@ class Topo:
         assert (
             self.src is not None
         ), "Source bathymetry must be loaded to compute topo stats"
-        src = self.src
-        if hasattr(self, "_stats") and self._stats is not None:
-            return self._stats
+        if (
+            self.stats is not None
+            and self.stats.attrs.get("nx_sub") == nx_sub
+            and self.stats.attrs.get("ny_sub") == ny_sub
+            and self.stats.attrs.get("mask_hmin") == mask_hmin
+        ):
+            return self.stats
 
         # Compute subsampling factor and generate sub-point grid
-        ds = regrid_with_subsampling(
-            input_dataset=src.ds,
+        ds, _ = regrid_with_subsampling(
+            input_dataset=self.src.ds,
             qlon=self._grid.qlon.values,
             qlat=self._grid.qlat.values,
             nx_sub=nx_sub,
@@ -809,7 +818,7 @@ class Topo:
             regridding_method="nearest_s2d",
         )
 
-        depth_sub = ds[src.elevation_name].values  # (ny, nx, ny_sub, nx_sub)
+        depth_sub = ds[self.src.depth_name].values  # (ny, nx, ny_sub, nx_sub)
 
         is_ocean = depth_sub > mask_hmin
         ocn_frac = is_ocean.sum(axis=(-2, -1)) / (nx_sub * ny_sub)
@@ -822,7 +831,7 @@ class Topo:
             D2_mean = np.nanmean(depth_ocean**2, axis=(-2, -1))
 
         dims = ["ny", "nx"]
-        self._stats = xr.Dataset(
+        self.src.stats = xr.Dataset(
             {
                 "OCN_FRAC": xr.DataArray(
                     ocn_frac,
@@ -855,9 +864,14 @@ class Topo:
                         "units": "m2",
                     },
                 ),
-            }
+            },
+            attrs={
+                "nx_sub": nx_sub,
+                "ny_sub": ny_sub,
+                "mask_hmin": mask_hmin,
+            },
         )
-        return self._stats
+        return self.stats
 
     def set_from_dataset(
         self,

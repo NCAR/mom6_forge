@@ -1010,7 +1010,8 @@ def _make_subgrid_points(qlon, qlat, nx_sub, ny_sub):
     -------
     sub_lon, sub_lat : np.ndarray  shape (ny, nx, ny_sub, nx_sub)
     """
-    assert type(qlon) == type(qlat) == np.ndarray, "qlon and qlat must be numpy arrays"
+    assert isinstance(qlon, np.ndarray), "qlon must be a numpy array"
+    assert isinstance(qlat, np.ndarray), "qlat must be a numpy array"
 
     SW_lon = qlon[:-1, :-1]
     SW_lat = qlat[:-1, :-1]
@@ -1070,6 +1071,7 @@ def regrid_with_subsampling(
     nx_sub,
     ny_sub,
     regridding_method="nearest_s2d",
+    regridder=None,
 ):
     """
     Regrids input_dataset to sub_sampled_grid to
@@ -1077,7 +1079,7 @@ def regrid_with_subsampling(
 
     Parameters
     ----------
-    input_dataset : xr.Dataset
+    input_dataset : xr.Dataset (not curvilinear)
     qlon, qlat : np.ndarray  shape (ny+1, nx+1)
         Corner coordinates of the destination grid.
     nx_sub, ny_sub : int
@@ -1087,6 +1089,9 @@ def regrid_with_subsampling(
     regridded_dataset : xr.Dataset
             Regridded dataset with dimensions (..., ny, nx, ny_sub, nx_sub), where the sub-sampling points are kept as separate dimensions. (User should perform stats calc)
     """
+    assert len(input_dataset.lon.dims) == 1 and input_dataset.lat.dims == (
+        "lat",
+    ), "input_dataset must have 1D 'lon' and 'lat' coordinates"
     ny, nx = qlon.shape[0] - 1, qlon.shape[1] - 1
 
     # Build the (ny, nx, ny_sub, nx_sub) sub-point grid
@@ -1103,21 +1108,25 @@ def regrid_with_subsampling(
         }
     )
 
-    regridded_flat = regrid_dataset_via_xesmf(
-        input_dataset,
-        flat_output,
-        regridding_method=regridding_method,
-        write_to_file=False,
-    )
+    if regridder is None:
+        regridder = xe.Regridder(
+            input_dataset,
+            flat_output,
+            method=regridding_method,
+            locstream_out=False,
+            periodic=False,
+        )
+
+    regridded_flat = regridder(input_dataset)
 
     # Reshape to 4D, keeping sub-points as their own dimension
     data_vars = {}
     for var in regridded_flat.data_vars:
         data = regridded_flat[var].values  # (..., ny, nx*ny_sub*nx_sub)
-        reshaped = data.reshape(ny, nx, ny_sub, nx_sub)
+        reshaped = data.reshape(*data.shape[:-2], ny, nx, ny_sub, nx_sub)
 
         original_dims = regridded_flat[var].dims
-        new_dims = (*original_dims, "ny_sub", "nx_sub")
+        new_dims = (*original_dims[:-2], "ny", "nx", "ny_sub", "nx_sub")
 
         data_vars[var] = xr.DataArray(
             reshaped,
@@ -1133,7 +1142,7 @@ def regrid_with_subsampling(
     coords["ny_sub"] = np.arange(ny_sub)
     coords["nx_sub"] = np.arange(nx_sub)
 
-    return xr.Dataset(data_vars, coords=coords, attrs=input_dataset.attrs)
+    return xr.Dataset(data_vars, coords=coords, attrs=input_dataset.attrs), regridder
 
 
 def main(args):

@@ -86,7 +86,7 @@ def interpolate_and_fill_seawifs(
     )
     chlor_a = chla["CHL_A"]
 
-    # Iterate through time
+    regridder = None
     for t in range(src_data.shape[0]):
 
         # Build source dataset for this timestep
@@ -101,13 +101,14 @@ def interpolate_and_fill_seawifs(
         )
 
         # Regrid to super-sampled sub-point grid and average back to model grid
-        q_sub = regrid_with_subsampling(
+        q_sub, regridder = regrid_with_subsampling(
             input_dataset=src_ds,
             qlon=grid.qlon.values,
             qlat=grid.qlat.values,
             nx_sub=nx_sub,
             ny_sub=ny_sub,
             regridding_method="bilinear",
+            regridder=regridder,
         )
         q_int = q_sub["chlor_a"].mean(dim=["ny_sub", "nx_sub"]).values
 
