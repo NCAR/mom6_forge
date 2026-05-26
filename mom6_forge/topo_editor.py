@@ -130,24 +130,6 @@ class TopoEditor(widgets.HBox):
         self._interactive_plot = widgets.HBox(
             children=(self.fig.canvas,), layout={"border_left": "1px solid grey"}
         )
-        # Stats overlay text box (hidden by default)
-        self._stats_text = self.ax.text(
-            0.02,
-            0.98,
-            "",
-            transform=self.ax.transAxes,
-            fontsize=9,
-            verticalalignment="top",
-            bbox=dict(
-                boxstyle="round,pad=0.4",
-                facecolor="white",
-                alpha=0.82,
-                edgecolor="#888888",
-                linewidth=0.8,
-            ),
-            visible=False,
-            zorder=10,
-        )
 
     def construct_control_panel(self):
         """
@@ -279,10 +261,7 @@ class TopoEditor(widgets.HBox):
         ]
 
         # Only add stats section if statistics are available
-        has_stats = (
-            hasattr(self.topo._src, "_topo_stats")
-            and self.topo._src._topo_stats is not None
-        )
+        has_stats = self.topo.stats is not None
         if has_stats:
             cell_editing_section_children.extend(
                 [
@@ -401,13 +380,10 @@ class TopoEditor(widgets.HBox):
                 t.remove()
         self._cell_stat_texts = []
 
-        if (
-            not hasattr(self.topo._src, "_topo_stats")
-            or self.topo._src._topo_stats is None
-        ):
+        if self.topo.stats is None:
             return
 
-        ds = self.topo._src._topo_stats
+        ds = self.topo.stats
         js, is_ = np.where(visible)
 
         qlon = self.topo._grid.qlon.data
@@ -461,19 +437,32 @@ class TopoEditor(widgets.HBox):
         xlim = ax.get_xlim()
         ylim = ax.get_ylim()
 
-        qlon = self.topo._grid.qlon.data
+        qlon = normalize_deg(self.topo._grid.qlon.data)
         qlat = self.topo._grid.qlat.data
+        xlo = normalize_deg(xlim[0])
+        xhi = normalize_deg(xlim[1])
 
         # Check if all four corners of each cell are within the view limits
+        if xlo <= xhi:
+            lon_visible = (
+                (qlon[:-1, :-1] >= xlo)
+                & (qlon[:-1, :-1] <= xhi)
+                & (qlon[:-1, 1:] >= xlo)
+                & (qlon[:-1, 1:] <= xhi)
+                & (qlon[1:, :-1] >= xlo)
+                & (qlon[1:, :-1] <= xhi)
+                & (qlon[1:, 1:] >= xlo)
+                & (qlon[1:, 1:] <= xhi)
+            )
+        else:  # view crosses the 0/360 boundary after normalization
+            lon_visible = (
+                ((qlon[:-1, :-1] >= xlo) | (qlon[:-1, :-1] <= xhi))
+                & ((qlon[:-1, 1:] >= xlo) | (qlon[:-1, 1:] <= xhi))
+                & ((qlon[1:, :-1] >= xlo) | (qlon[1:, :-1] <= xhi))
+                & ((qlon[1:, 1:] >= xlo) | (qlon[1:, 1:] <= xhi))
+            )
         visible = (
-            (qlon[:-1, :-1] >= normalize_deg(xlim[0]))
-            & (qlon[:-1, :-1] <= normalize_deg(xlim[1]))
-            & (qlon[:-1, 1:] >= normalize_deg(xlim[0]))
-            & (qlon[:-1, 1:] <= normalize_deg(xlim[1]))
-            & (qlon[1:, :-1] >= normalize_deg(xlim[0]))
-            & (qlon[1:, :-1] <= normalize_deg(xlim[1]))
-            & (qlon[1:, 1:] >= normalize_deg(xlim[0]))
-            & (qlon[1:, 1:] <= normalize_deg(xlim[1]))
+            lon_visible
             & (qlat[:-1, :-1] >= ylim[0])
             & (qlat[:-1, :-1] <= ylim[1])
             & (qlat[:-1, 1:] >= ylim[0])
@@ -547,10 +536,7 @@ class TopoEditor(widgets.HBox):
             self._depth_specifier.value = self.topo.masked_depth.data[j, i]
 
         # Enable statistic buttons if statistics are available
-        has_stats = (
-            hasattr(self.topo._src, "_topo_stats")
-            and self.topo._src._topo_stats is not None
-        )
+        has_stats = self.topo.stats is not None
         for btn in [
             self._set_to_mean_button,
             self._set_to_max_button,
@@ -596,11 +582,6 @@ class TopoEditor(widgets.HBox):
         self._depth_specifier.observe(
             self.on_depth_change, names="value", type="change"
         )
-
-        # Statistic buttons
-        self._set_to_mean_button.on_click(self.set_depth_to_mean)
-        self._set_to_max_button.on_click(self.set_depth_to_max)
-        self._set_to_min_button.on_click(self.set_depth_to_min)
 
         # Statistic buttons
         self._set_to_mean_button.on_click(self.set_depth_to_mean)
@@ -686,11 +667,11 @@ class TopoEditor(widgets.HBox):
 
     def _get_statistic_value(self, stat_name):
         """Get a statistic value for the selected cell."""
-        if self._selected_cell is None or not hasattr(self.topo._src, "_topo_stats"):
+        if self._selected_cell is None or self.topo.stats is None:
             return None
 
         i, j, _ = self._selected_cell
-        ds = self.topo._src._topo_stats
+        ds = self.topo.stats
 
         if ds is None or stat_name not in ds.data_vars:
             return None
