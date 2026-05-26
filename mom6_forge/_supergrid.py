@@ -40,7 +40,7 @@ class SupergridBase:
     def leny(self):
         return self.y.max() - self.y.min()
 
-    def __init__(self, x, y, dx, dy, area, angle_dx, axis_units, grid_type, radius):
+    def __init__(self, x, y, dx, dy, area, angle_dx, axis_units, grid_type, radius=None):
         """
         Initialize a generic supergrid.
 
@@ -58,7 +58,19 @@ class SupergridBase:
             Units of x and y (e.g. "degrees" or "meters").
         grid_type : str
             the type of grid being created
+        radius : float, optional
+            Sphere radius in metres. If not provided, dx/dy/area cannot be
+            exactly retraced from the stored supergrid coordinates.
         """
+        if radius is None:
+            import warnings
+
+            warnings.warn(
+                "No radius provided: without a stored radius, dx, dy, and area "
+                "calculations cannot be exactly retraced from the supergrid coordinates.",
+                UserWarning,
+                stacklevel=2,
+            )
         self.x = x
         self.y = y
         self.dx = dx
@@ -191,7 +203,8 @@ class SupergridBase:
         ds.attrs["type"] = "MOM6 supergrid"
         if self.grid_type is not None:
             ds.attrs["grid_type"] = self.grid_type
-        ds.attrs["radius"] = self.radius
+        if self.radius is not None:
+            ds.attrs["radius"] = self.radius
         if name is not None:
             ds.attrs["name"] = name
         ds.attrs["Created"] = datetime.now().isoformat()
@@ -229,7 +242,7 @@ class SupergridBase:
             ds.angle_dx.data,
             ds.x.attrs.get("units", "degrees"),
             grid_type=ds.attrs.get("grid_type"),
-            radius=ds.attrs["radius"],
+            radius=ds.attrs.get("radius"),
         )
 
     @staticmethod
