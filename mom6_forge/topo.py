@@ -873,7 +873,7 @@ class Topo:
         )
         return self.stats
 
-    def generate_mask_from_stats_oceanfrac(
+    def generate_mask_from_stats_ocean_frac(
         self,
         mask_threshold=0.5,
     ):
@@ -889,12 +889,12 @@ class Topo:
         (OCN_FRAC) meets or exceeds mask_threshold.
 
         Per-cell depth statistics (D_mean, D_min, D_max, D2_mean) are on
-        on the source bathymetry object for downstream use by this function and others.
+        the source bathymetry object for downstream use by this function and others.
 
-        Parameters (on object and function)
-        ----------------------
-        src._stats : SourceBathy stats
-            Computed stats on Loaded (sliced) source bathymetry object.
+        Parameters
+        ----------
+        self.src.stats : SourceBathy stats
+            Computed stats on loaded (sliced) source bathymetry object.
         mask_threshold : float
             Minimum OCN_FRAC for a cell to be classified as ocean. Default 0.5.
 
