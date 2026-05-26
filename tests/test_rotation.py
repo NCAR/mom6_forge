@@ -1,7 +1,7 @@
 """Initially setup in regional_mom6"""
 
 from mom6_forge._supergrid import (
-    UniformSphericalSupergrid,
+    SupergridBase,
     mom6_angle_calculation_method,
     modulo_around_point,
 )
@@ -17,7 +17,7 @@ tol_angle_unit_test = 0  # tolerance for angles (in degrees) from unit test gene
 
 def test_expanded_supergrid_generation(get_curvilinear_supergrid):
     supergrid = get_curvilinear_supergrid
-    sg = UniformSphericalSupergrid.from_xy(supergrid.x.values, supergrid.y.values)
+    sg = SupergridBase._init_from_xy(supergrid.x.values, supergrid.y.values)
     expanded_supergrid = sg._create_expanded_supergrid(sg.x, sg.y)
 
     # Check Size
@@ -322,11 +322,9 @@ def test_initialize_grid_rotation_angle(get_curvilinear_supergrid):
     Generate a curvilinear grid and test the grid rotation angle at t_points based on what we pass to generate_curvilinear_grid
     """
     supergrid = get_curvilinear_supergrid
-    sg = UniformSphericalSupergrid.from_xy(supergrid.x.values, supergrid.y.values)
-    sg.angle_dx = (
-        sg.calculate_supergrid_rotation_angles_using_expanded_supergrid_method(
-            sg.x, sg.y
-        )
+    sg = SupergridBase._init_from_xy(supergrid.x.values, supergrid.y.values)
+    sg.angle_dx = sg.calc_supergrid_rotation_angles_using_expanded_supergrid_method(
+        sg.x, sg.y
     )
     angle = xr.DataArray(sg.angle_dx[1::2, 1::2], dims=["nyp", "nxp"])
 
@@ -352,11 +350,9 @@ def test_calculate_grid_rotation_angle_using_expanded_supergrid(
     Generate a curvilinear grid and test the grid rotation angle at t_points based on what we pass to generate_curvilinear_grid
     """
     supergrid = get_curvilinear_supergrid
-    sg = UniformSphericalSupergrid.from_xy(supergrid.x.values, supergrid.y.values)
-    sg.angle_dx = (
-        sg.calculate_supergrid_rotation_angles_using_expanded_supergrid_method(
-            sg.x, sg.y
-        )
+    sg = SupergridBase._init_from_xy(supergrid.x.values, supergrid.y.values)
+    sg.angle_dx = sg.calc_supergrid_rotation_angles_using_expanded_supergrid_method(
+        sg.x, sg.y
     )
     angle = xr.DataArray(sg.angle_dx, dims=["nyp", "nxp"])
 
