@@ -1,7 +1,20 @@
 import numpy as np
-import pytest
 from mom6_forge.topo import *
 from mom6_forge._source_bathy import SourceBathy
+
+
+def test_generate_mask_ocean_frac_returns_binary_mask(
+    get_rect_topo, synthetic_bathy_file
+):
+    """Mask values must be 0 (land) or 1 (ocean) only."""
+    get_rect_topo._src = SourceBathy(
+        get_rect_topo, synthetic_bathy_file, depth_name="elevation"
+    )
+    get_rect_topo._compute_stats(
+        nx_sub=2, ny_sub=2, mask_hmin=0.0
+    )  # Compute stats to populate cache
+    mask = get_rect_topo.generate_mask_from_stats_ocean_frac()
+    assert set(np.unique(mask.values)).issubset({0, 1})
 
 
 def test_compute_topo_stats(get_rect_topo, synthetic_bathy_file):
