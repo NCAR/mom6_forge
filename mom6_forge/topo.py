@@ -955,8 +955,16 @@ class Topo:
         print(sep)
         return bool(ratio_median >= CRESSMAN_THRESHOLD)
 
-    def direct_stats_depth(self, statistic):
-        """Set the topo depth to a statistic from compute_topo_stats (Must be called before this function to compute the stats)."""
+    def set_depth_from_stats(self, statistic):
+        """
+        Set the topo depth to a statistic computed by _compute_stats.
+
+        Parameters
+        ----------
+        statistic : str
+            Which depth statistic to use. Must be one of the "D_*" keys
+            in self.src.stats (e.g. "mean", "min", "max").
+        """
 
         assert (
             self.src.stats is not None
