@@ -1,13 +1,15 @@
 import xarray as xr
 import numpy as np
+import scipy.sparse as sp
+from pathlib import Path
 from mom6_forge.mapping import (
     compute_cressman_weights,
     dst_to_source,
     source_to_dst,
     regrid_dataset_via_cressman,
+    _make_subgrid_points,
+    regrid_with_subsampling,
 )
-from pathlib import Path
-import scipy.sparse as sp
 from mom6_forge._supergrid import haversine
 
 
@@ -230,9 +232,6 @@ def test_smoke_weight_lookups():
         out[dst_mask.ravel()], 1.0, atol=1e-6
     ), f"constant field not reproduced: {out}"
     print(f"  PASS: constant field → {out} (all ~1.0 for ocean cells)")
-from mom6_forge.mapping import _make_subgrid_points, regrid_with_subsampling
-import numpy as np
-import xarray as xr
 
 
 def test_make_subgrid_points(get_simple_grid):

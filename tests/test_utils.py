@@ -2,7 +2,6 @@ import pytest
 from mom6_forge.utils import (
     get_avg_resolution,
     get_avg_resolution_km,
-    longitude_slicer,
     iterative_fill,
 )
 from mom6_forge._supergrid import (

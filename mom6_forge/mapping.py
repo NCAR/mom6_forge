@@ -1424,6 +1424,8 @@ def dst_to_source(ds_weights, dst_idx_2d):
         print(f"  src {np.unravel_index(src, src_shape)} (flat={src})  weight={w:.4f}")
 
     return src_indices, weights
+
+
 def _make_subgrid_points(qlon, qlat, nx_sub, ny_sub):
     """
     Given corner coordinates of a low-res grid (qlon/qlat on the q-point staggering),

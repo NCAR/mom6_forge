@@ -308,17 +308,25 @@ def cell_area_rad(xv_coords, yv_coords):
     return area
 
 
-def iterative_fill(depth, unfilled, mask=None, iter=100):
+def iterative_fill(depth, unfilled, mask=None, max_iter=100):
     """
-    Returns data with masked values iteratively filled except where values exist or is over land. May not work for periodic grids.
+    Iteratively fill unfilled ocean cells from their neighbours. May not work for periodic grids.
 
-    Arguments:
-    depth - depth
-    unfilled = the 2d arr of depth cells that are unfilled
-    mask - np.array of 0 or 1, 0 for land, 1 for ocean. Match it with unfilled to get the true unfilled ocean cells.
-    iter - number of iterations to perform. Default 100.
+    Parameters
+    ----------
+    depth : np.ndarray, shape (ny, nx)
+        Depth field to fill in-place.
+    unfilled : np.ndarray of bool, shape (ny, nx)
+        True for cells that need filling.
+    mask : array-like or xr.DataArray, optional
+        Ocean mask (1 = ocean, 0 = land). If provided, land cells are never filled.
+    max_iter : int
+        Maximum number of neighbour-averaging passes. Default 100.
 
-    Returns an array of depth with the iterative filling
+    Returns
+    -------
+    depth : np.ndarray
+        Depth array with unfilled ocean cells replaced by neighbour averages.
     """
 
     # --- Iterative neighbour fill for cells with no source coverage ---
@@ -328,8 +336,10 @@ def iterative_fill(depth, unfilled, mask=None, iter=100):
         if mask is not None:
             mask_2d = mask.values.astype(bool)
             unfilled_2d = unfilled & mask_2d
+        else:
+            unfilled_2d = unfilled
 
-        for _ in range(iter):
+        for _ in range(max_iter):
             if not unfilled_2d.any():
                 break
             filled_f = (~unfilled_2d).astype(float)
