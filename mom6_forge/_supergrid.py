@@ -40,7 +40,9 @@ class SupergridBase:
     def leny(self):
         return self.y.max() - self.y.min()
 
-    def __init__(self, x, y, dx, dy, area, angle_dx, axis_units, grid_type, radius=None):
+    def __init__(
+        self, x, y, dx, dy, area, angle_dx, axis_units, grid_type, radius=None
+    ):
         """
         Initialize a generic supergrid.
 
