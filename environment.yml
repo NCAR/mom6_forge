@@ -10,4 +10,5 @@ dependencies:
   - pip
   - pip:
     - -e ./ # mom6_forge itself
+    - dask>=2026.3.0,<2026.4.0
 
