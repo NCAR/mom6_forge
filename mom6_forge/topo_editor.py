@@ -536,15 +536,15 @@ class TopoEditor(widgets.HBox):
         lat_min, lat_max = sorted([eclick.ydata, erelease.ydata])
         lon_min = (lon_min + 360) % 360
         lon_max = (lon_max + 360) % 360
-        tlon = self.topo._grid.tlon.data
+        tlon = (self.topo._grid.tlon.data + 360) % 360  # normalize to [0, 360]
         tlat = self.topo._grid.tlat.data
 
-        mask = (
-            (tlon >= lon_min)
-            & (tlon <= lon_max)
-            & (tlat >= lat_min)
-            & (tlat <= lat_max)
-        )
+        if lon_min <= lon_max:
+            lon_mask = (tlon >= lon_min) & (tlon <= lon_max)
+        else:  # selection crosses the 0/360 boundary after normalization
+            lon_mask = (tlon >= lon_min) | (tlon <= lon_max)
+
+        mask = lon_mask & (tlat >= lat_min) & (tlat <= lat_max)
         self._selected_cells = list(zip(*np.where(mask)))
 
         n = len(self._selected_cells)
