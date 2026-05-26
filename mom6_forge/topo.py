@@ -1132,7 +1132,7 @@ class Topo:
                     print(
                         "Resolution diagnostics recommend using stats-based masking, but xesmf-based depth was requested, so we will do a direct xesmf regrid anyway because it was explicitly requested, but be aware that this may lead to significant land contamination of coastal depth estimates"
                     )
-                self.direct_xesmf_depth(
+                self.set_depth_from_xesmf(
                     fill_channels=fill_channels,
                     output_dir=output_dir,
                     write_to_file=write_to_file,
@@ -1147,7 +1147,7 @@ class Topo:
                 print(
                     "Resolution diagnostics recommend not using stats-based depth method, so we'll do a direct xesmf regrid for depth because no depth option was specified"
                 )
-                self.direct_xesmf_depth(
+                self.set_depth_from_xesmf(
                     fill_channels=fill_channels,
                     output_dir=output_dir,
                     write_to_file=write_to_file,
@@ -1172,7 +1172,7 @@ class Topo:
             "Warning! This was an opionated workflow function that ran multiple steps in sequence. Please edit the mask manually if need be (Some depth methods, like cressman, are mask-aware and may need to be rerun)! "
         )
 
-    def direct_xesmf_depth(
+    def set_depth_from_xesmf(
         self,
         output_dir=Path(""),
         write_to_file=False,
@@ -1238,7 +1238,7 @@ class Topo:
                 output_dir / "bathymetry_unfinished.nc"
             )  # This is called unfinished because the regridding is not fully complete until the one-cell channels are filled
 
-    def mpi_direct_xesmf_depth(
+    def mpi_set_depth_from_xesmf(
         self,
         *,
         bathymetry_path,

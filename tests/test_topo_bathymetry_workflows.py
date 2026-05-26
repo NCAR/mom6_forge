@@ -1,6 +1,8 @@
 import numpy as np
+import pytest
 from mom6_forge.topo import *
 from mom6_forge._source_bathy import SourceBathy
+from mom6_forge.grid import Grid
 
 
 def test_generate_mask_ocean_frac_returns_binary_mask(
@@ -89,3 +91,51 @@ def test_set_depth_from_stats(get_rect_topo, synthetic_bathy_file):
     assert np.isclose(
         topo.depth.values[mask], topo.src.stats["D_mean"].values[mask]
     ).all()
+
+
+def test_diagnose_resolution_below_threshold(get_rect_topo, synthetic_bathy_file):
+    """When model and source have similar resolution, diagnose_resolution returns False."""
+    # get_rect_grid is 0.1 deg; synthetic_bathy_file is also ~0.1 deg → ratio ~1x, below 12x
+    get_rect_topo.src = SourceBathy(
+        get_rect_topo, synthetic_bathy_file, depth_name="elevation"
+    )
+    result = get_rect_topo.diagnose_resolution()
+    assert result is False
+
+
+def test_diagnose_resolution_above_threshold(synthetic_bathy_file, tmp_path):
+    """When model cells are much coarser than the source, diagnose_resolution returns True."""
+    # 2-degree model over the Panama region → ~222 km cells vs ~11 km source → ratio ~20x
+    coarse_grid = Grid(
+        resolution=2.0,
+        xstart=278.0,
+        lenx=4.0,
+        ystart=7.0,
+        leny=4.0,
+        name="coarse_test",
+    )
+    coarse_topo = Topo(coarse_grid, min_depth=0, version_control_dir=tmp_path)
+    coarse_topo.set_flat(1000)
+    coarse_topo.src = SourceBathy(
+        coarse_topo, synthetic_bathy_file, depth_name="elevation"
+    )
+    result = coarse_topo.diagnose_resolution()
+    assert result is True
+
+
+def test_set_from_dataset_stats_path(get_rect_topo, synthetic_bathy_file):
+    """set_from_dataset with explicit mask_method='ocean_frac' and depth_method='stats' sets depth from stats."""
+    get_rect_topo.set_from_dataset(
+        bathymetry_path=synthetic_bathy_file,
+        longitude_coordinate_name="lon",
+        latitude_coordinate_name="lat",
+        vertical_coordinate_name="elevation",
+        mask_method="ocean_frac",
+        depth_method="stats",
+        nx_sub=2,
+        ny_sub=2,
+        mask_hmin=0.0,
+    )
+    # Depth should be set (not all NaN) and user_mask should be populated
+    assert get_rect_topo.user_mask is not None
+    assert not np.all(np.isnan(get_rect_topo.depth.values))
