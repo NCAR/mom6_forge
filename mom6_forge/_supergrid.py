@@ -65,13 +65,9 @@ class SupergridBase:
             exactly retraced from the stored supergrid coordinates.
         """
         if radius is None:
-            import warnings
-
-            warnings.warn(
+            print(
                 "No radius provided: without a stored radius, dx, dy, and area "
                 "calculations cannot be exactly retraced from the supergrid coordinates.",
-                UserWarning,
-                stacklevel=2,
             )
         self.x = x
         self.y = y
