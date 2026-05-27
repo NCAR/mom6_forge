@@ -534,7 +534,17 @@ class SupergridBase:
             x, y
         )
 
-        return cls(x, y, dx, dy, area, angle_dx, axis_units)
+        return cls(
+            x,
+            y,
+            dx,
+            dy,
+            area,
+            angle_dx,
+            axis_units,
+            grid_type="from_esmf_mesh",
+            radius=radius,
+        )
 
     @classmethod
     def from_ds(cls, ds: xr.Dataset) -> "SupergridBase":
