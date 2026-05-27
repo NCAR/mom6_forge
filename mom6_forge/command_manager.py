@@ -219,7 +219,7 @@ class TopoCommandManager(CommandManager):
         """Reapply all changes from history to the topo."""
         # Load the original topo file
         branch_topo_path = self.directory / "original_topog.nc"
-        self._topo.set_depth_via_topog_file(branch_topo_path, quietly=True)
+        self._topo.set_depth_via_topog_file(branch_topo_path, skip_version_control=True)
         state = self._history_state()
         for commit in state:
             if isinstance(state[commit], dict) and state[commit]["applied"]:

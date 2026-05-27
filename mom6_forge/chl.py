@@ -6,7 +6,8 @@ import xesmf as xe
 from datetime import datetime
 from pathlib import Path
 from os.path import isfile
-from mom6_forge.utils import fill_missing_data
+from mom6_forge.utils import fill_missing_data, compute_subsampling_factor
+from mom6_forge.mapping import regrid_with_subsampling
 
 
 def interpolate_and_fill_seawifs(
@@ -64,7 +65,7 @@ def interpolate_and_fill_seawifs(
         (np.arange(src_ni) + 0.5) / src_ni
     ) * 360.0 + src_x0  # Recompute as doubles
 
-    spr_lat, spr_lon = grid.tlat.values, grid.tlon.values
+    ny_sub, nx_sub = compute_subsampling_factor(src_nj, src_ni, ocn_nj, ocn_ni)
 
     # Set output path
     if output_path is None:
@@ -85,24 +86,31 @@ def interpolate_and_fill_seawifs(
     )
     chlor_a = chla["CHL_A"]
 
-    # Iterate through time
+    regridder = None
     for t in range(src_data.shape[0]):
 
-        # Bilinearly interpolate the source data onto the super-sampled grid
-        # adj lon to -180 to 180
-        adj_lon = spr_lon - 360
-        data = src_data[t, ::-1, :].values
-
-        src = {"lon": src_lon, "lat": src_lat}
-        dst = {"lon": adj_lon, "lat": spr_lat}
-        regridder = xe.Regridder(
-            src,
-            dst,
-            "bilinear",
-            filename="bilin_weights.nc",
-            reuse_weights=isfile("bilin_weights.nc"),
+        # Build source dataset for this timestep
+        src_ds = xr.Dataset(
+            {
+                "chlor_a": xr.DataArray(
+                    src_data[t, ::-1, :].values,
+                    dims=["lat", "lon"],
+                    coords={"lat": src_lat, "lon": src_lon},
+                )
+            }
         )
-        q_int = regridder(data)
+
+        # Regrid to super-sampled sub-point grid and average back to model grid
+        q_sub, regridder = regrid_with_subsampling(
+            input_dataset=src_ds,
+            qlon=grid.qlon.values,
+            qlat=grid.qlat.values,
+            nx_sub=nx_sub,
+            ny_sub=ny_sub,
+            regridding_method="bilinear",
+            regridder=regridder,
+        )
+        q_int = q_sub["chlor_a"].mean(dim=["ny_sub", "nx_sub"]).values
 
         # Fill any missing data
         q = q_int * ocn_mask
