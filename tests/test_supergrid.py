@@ -351,6 +351,7 @@ def test_roundtrip_axis_units(sg_fixture, label, request, tmp_path):
 _TX2_3V3_HGRID = (
     "/glade/campaign/cesm/cesmdata/inputdata/ocn/mom/tx2_3v3/ocean_hgrid_250930.nc"
 )
+_TX2_3V3_ESMF_MESH = "/glade/campaign/cesm/cesmdata/inputdata/ocn/mom/tx2_3v3/ESMF_mesh_tx2_3v3_260305_cdf5.nc"
 
 
 @pytest.fixture
@@ -397,3 +398,32 @@ def test_tripolar_element_conn_in_bounds(tripolar_mesh):
 
 def test_tripolar_element_area_positive(tripolar_mesh):
     assert (tripolar_mesh["elementArea"].values > 0).all()
+
+
+@pytest.fixture
+def reference_tripolar_mesh():
+    if not on_cisl_machine():
+        pytest.skip("Requires CISL/GLADE access")
+    return xr.open_dataset(_TX2_3V3_ESMF_MESH)
+
+
+def test_tripolar_mesh_matches_reference(tripolar_mesh, reference_tripolar_mesh):
+    """Mesh written from tx2_3v3 supergrid should match the reference ESMF mesh."""
+    assert tripolar_mesh.dims["nodeCount"] == reference_tripolar_mesh.dims["nodeCount"]
+    assert (
+        tripolar_mesh.dims["elementCount"]
+        == reference_tripolar_mesh.dims["elementCount"]
+    )
+
+    # Sort nodes by (lat, lon) for order-independent comparison
+    our_nodes = tripolar_mesh["nodeCoords"].values
+    ref_nodes = reference_tripolar_mesh["nodeCoords"].values
+    our_idx = np.lexsort((our_nodes[:, 0], our_nodes[:, 1]))
+    ref_idx = np.lexsort((ref_nodes[:, 0], ref_nodes[:, 1]))
+    np.testing.assert_allclose(our_nodes[our_idx], ref_nodes[ref_idx], atol=1e-6)
+
+    # Total area should match (per-cell values may differ due to different generation
+    # code, but the global sum should agree to within floating-point tolerance)
+    our_area_sum = tripolar_mesh["elementArea"].values.sum()
+    ref_area_sum = reference_tripolar_mesh["elementArea"].values.sum()
+    np.testing.assert_allclose(our_area_sum, ref_area_sum, rtol=1e-4)

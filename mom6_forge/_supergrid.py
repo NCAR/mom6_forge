@@ -530,10 +530,8 @@ class SupergridBase:
         # --- Recompute metrics ---
         dx, dy = cls._calc_dx_dy(x, y, R=radius)
         area = cls._calc_area(x, y, R=radius)
-        angle_dx = (
-            cls.calculate_supergrid_rotation_angles_using_expanded_supergrid_method(
-                x, y
-            )
+        angle_dx = cls.calc_supergrid_rotation_angles_using_expanded_supergrid_method(
+            x, y
         )
 
         return cls(x, y, dx, dy, area, angle_dx, axis_units)
@@ -553,7 +551,7 @@ class SupergridBase:
             ds.angle_dx.data,
             ds.x.attrs.get("units", "degrees"),
             grid_type=ds.attrs.get("grid_type"),
-            radius=ds.attrs["radius"],
+            radius=ds.attrs.get("radius", _DEFAULT_RADIUS),
         )
 
     @staticmethod
