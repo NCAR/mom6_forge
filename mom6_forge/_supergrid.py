@@ -182,8 +182,7 @@ class SupergridBase:
         file_path : str
             Path to write the ESMF mesh NetCDF file.
         mask : 2D array, optional
-            Element mask in MOM6 convention (1=ocean, 0=land). Will be converted
-            to ESMF convention (0=unmasked, 1=masked) before writing.
+            Element mask in MOM6/ESMF convention (1=ocean/unmasked, 0=land/masked).
         title : str, optional
             Optional title global attribute.
         radius : float, optional
@@ -338,14 +337,21 @@ class SupergridBase:
         ds.to_netcdf(file_path, format="NETCDF3_64BIT")
 
     @classmethod
-    def from_esmf_mesh(cls, file_path, radius=_DEFAULT_RADIUS):
+    def reconstruct_from_esmf_mesh(cls, file_path, radius=_DEFAULT_RADIUS):
         """
-        Reconstruct a SupergridBase from an ESMF mesh file.
+        Approximate a SupergridBase from an ESMF mesh file.
 
-        Corners (q-points) and centers (t-points) are read directly.
-        Edge midpoints (u/v-points) are interpolated from the corners.
-        Metrics (dx, dy, area, angle_dx) are recomputed from the recovered
-        supergrid coordinates.
+        .. warning::
+            This is **not** a lossless round-trip. The ESMF mesh format stores only
+            corner (q) points and cell-center (t) points. Edge midpoints (u/v-points)
+            are re-derived here by linear interpolation of adjacent corners, so the
+            reconstructed supergrid will differ from the original for any non-uniform
+            grid. Metrics (dx, dy, area, angle_dx) are also recomputed from the
+            recovered coordinates rather than read from file. If you need the exact
+            original supergrid, load it from the source supergrid NetCDF file.
+
+        Tripolar grids are not supported — the fold-node truncation applied by
+        ``to_esmf_mesh`` cannot be cleanly reversed. Use the original supergrid file.
 
         Parameters
         ----------
@@ -356,7 +362,9 @@ class SupergridBase:
 
         Returns
         -------
-        SupergridBase instance with all supergrid arrays populated.
+        SupergridBase
+            Approximate supergrid with q-points and t-points recovered exactly,
+            u/v-points linearly interpolated, and metrics recomputed.
         """
 
         ds = xr.open_dataset(file_path)
@@ -364,9 +372,9 @@ class SupergridBase:
         topology = ds.attrs.get("grid_topology", None)
         if topology == "tripolar":
             raise NotImplementedError(
-                "from_esmf_mesh does not support tripolar grids. "
+                "reconstruct_from_esmf_mesh does not support tripolar grids. "
                 "The fold node truncation performed during writing cannot be "
-                "cleanly reversed. Reconstruct from the original supergrid file instead."
+                "cleanly reversed. Load from the original supergrid file instead."
             )
         is_cyclic = topology == "cyclic"
 
@@ -414,9 +422,7 @@ class SupergridBase:
             # nodes stored without wrap column; add it back by repeating column 0
             qlon_inner = node_lon.reshape(ny + 1, nx)
             qlat_inner = node_lat.reshape(ny + 1, nx)
-            qlon = np.hstack(
-                [qlon_inner, 360.0]
-            )  # shape (ny+1, nx+1) TODO: Check if the 360.0 makes sense. Will qlon every be in degrees west?
+            qlon = np.hstack([qlon_inner, qlon_inner[:, :1] + 360.0])
             qlat = np.hstack([qlat_inner, qlat_inner[:, :1]])
         else:
             qlon = node_lon.reshape(ny + 1, nx + 1)

@@ -1731,3 +1731,4 @@ class Topo:
         """
 
         self._grid.supergrid.to_esmf_mesh(file_path, mask=self.tmask.data, title=title)
+        self.mesh_path = file_path

@@ -1,7 +1,9 @@
 import pytest
 from mom6_forge._supergrid import *
+from mom6_forge.grid import Grid
 import numpy as np
 import xarray as xr
+from utils import on_cisl_machine
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -188,7 +190,7 @@ def test_roundtrip_corner_coords(sg_fixture, label, request, tmp_path):
     sg = request.getfixturevalue(sg_fixture)
     path = tmp_path / f"{label}.nc"
     sg.to_esmf_mesh(str(path))
-    sg2 = SupergridBase.from_esmf_mesh(str(path))
+    sg2 = SupergridBase.reconstruct_from_esmf_mesh(str(path))
     np.testing.assert_allclose(sg2.x[::2, ::2], sg.x[::2, ::2], atol=1e-10)
     np.testing.assert_allclose(sg2.y[::2, ::2], sg.y[::2, ::2], atol=1e-10)
 
@@ -204,7 +206,7 @@ def test_roundtrip_center_coords(sg_fixture, label, request, tmp_path):
     sg = request.getfixturevalue(sg_fixture)
     path = tmp_path / f"{label}.nc"
     sg.to_esmf_mesh(str(path))
-    sg2 = SupergridBase.from_esmf_mesh(str(path))
+    sg2 = SupergridBase.reconstruct_from_esmf_mesh(str(path))
     np.testing.assert_allclose(sg2.x[1::2, 1::2], sg.x[1::2, 1::2], atol=1e-10)
     np.testing.assert_allclose(sg2.y[1::2, 1::2], sg.y[1::2, 1::2], atol=1e-10)
 
@@ -220,7 +222,7 @@ def test_roundtrip_supergrid_shape(sg_fixture, label, request, tmp_path):
     sg = request.getfixturevalue(sg_fixture)
     path = tmp_path / f"{label}.nc"
     sg.to_esmf_mesh(str(path))
-    sg2 = SupergridBase.from_esmf_mesh(str(path))
+    sg2 = SupergridBase.reconstruct_from_esmf_mesh(str(path))
     assert sg2.x.shape == sg.x.shape
     assert sg2.y.shape == sg.y.shape
 
@@ -236,7 +238,7 @@ def test_roundtrip_metrics(sg_fixture, label, request, tmp_path):
     sg = request.getfixturevalue(sg_fixture)
     path = tmp_path / f"{label}.nc"
     sg.to_esmf_mesh(str(path))
-    sg2 = SupergridBase.from_esmf_mesh(str(path))
+    sg2 = SupergridBase.reconstruct_from_esmf_mesh(str(path))
     np.testing.assert_allclose(sg2.dx, sg.dx, rtol=1e-6)
     np.testing.assert_allclose(sg2.dy, sg.dy, rtol=1e-6)
     np.testing.assert_allclose(sg2.area, sg.area, rtol=1e-6)
@@ -253,5 +255,60 @@ def test_roundtrip_axis_units(sg_fixture, label, request, tmp_path):
     sg = request.getfixturevalue(sg_fixture)
     path = tmp_path / f"{label}.nc"
     sg.to_esmf_mesh(str(path))
-    sg2 = SupergridBase.from_esmf_mesh(str(path))
+    sg2 = SupergridBase.reconstruct_from_esmf_mesh(str(path))
     assert sg2.axis_units == sg.axis_units
+
+
+# ---------------------------------------------------------------------------
+# Tripolar tests (require CISL / GLADE access)
+# ---------------------------------------------------------------------------
+
+_TX2_3V3_HGRID = (
+    "/glade/campaign/cesm/cesmdata/inputdata/ocn/mom/tx2_3v3/ocean_hgrid_250930.nc"
+)
+
+
+@pytest.fixture
+def tripolar_sg():
+    if not on_cisl_machine():
+        pytest.skip("Requires CISL/GLADE access")
+    return Grid.from_supergrid(_TX2_3V3_HGRID).supergrid
+
+
+@pytest.fixture
+def tripolar_mesh(tripolar_sg, tmp_path):
+    path = tmp_path / "tripolar.nc"
+    tripolar_sg.to_esmf_mesh(str(path))
+    return xr.open_dataset(path)
+
+
+def test_is_tripolar_from_file(tripolar_sg):
+    assert tripolar_sg.is_tripolar is True
+
+
+def test_tripolar_mesh_global_attrs(tripolar_mesh):
+    assert tripolar_mesh.attrs["gridType"] == "unstructured mesh"
+    assert tripolar_mesh.attrs["grid_topology"] == "tripolar"
+
+
+def test_tripolar_node_count(tripolar_sg, tripolar_mesh):
+    ny, nx = tripolar_sg.x[1::2, 1::2].shape
+    expected_nnodes = nx * (ny + 1) - (nx // 2 - 1)
+    assert tripolar_mesh.dims["nodeCount"] == expected_nnodes
+
+
+def test_tripolar_element_count(tripolar_sg, tripolar_mesh):
+    ny, nx = tripolar_sg.x[1::2, 1::2].shape
+    assert tripolar_mesh.dims["elementCount"] == ny * nx
+
+
+def test_tripolar_element_conn_in_bounds(tripolar_mesh):
+    conn = tripolar_mesh["elementConn"].values
+    nnodes = tripolar_mesh.dims["nodeCount"]
+    i0 = int(tripolar_mesh["elementConn"].attrs["start_index"])
+    assert conn.min() >= i0
+    assert conn.max() <= nnodes + i0 - 1
+
+
+def test_tripolar_element_area_positive(tripolar_mesh):
+    assert (tripolar_mesh["elementArea"].values > 0).all()
