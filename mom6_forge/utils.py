@@ -116,9 +116,14 @@ def longitude_slicer(data, longitude_extent, longitude_coords):
 
                 ## Choose the number of lon points to take from the middle, including a buffer.
                 ## Use this to index the new global dataset
-                num_lonpoints = int(
-                    int(data[lon].shape[0] * (central_longitude - longitude_extent[0]))
-                    // lon_span
+                num_lonpoints = abs(
+                    int(
+                        int(
+                            data[lon].shape[0]
+                            * (central_longitude - longitude_extent[0])
+                        )
+                        // lon_span
+                    )
                 )
 
         if not is_longitude_extent_in_data:
