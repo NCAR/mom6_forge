@@ -5,7 +5,8 @@ import pytest
 import tempfile
 from pathlib import Path
 import xarray as xr
-from mom6_forge._source_bathy import SourceBathy, longitude_slicer
+from mom6_forge._source_bathy import SourceBathy
+from mom6_forge.utils import longitude_slicer
 
 
 def test_simple_source_bathy_calls(get_rect_topo, synthetic_bathy_file):
