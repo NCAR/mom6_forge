@@ -240,5 +240,3 @@ class SourceBathy:
             f"SourceBathy({self.path.name!r}, lon={self.lon_name!r}, "
             f"lat={self.lat_name!r}, depth={self.depth_name!r}, shape={self.depth.shape})"
         )
-
-
