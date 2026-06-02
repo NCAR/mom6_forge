@@ -148,7 +148,7 @@ class Topo:
         grid,
         topo_file_path,
         min_depth=0.0,
-        varname="depth",
+        varname="depth_raw",
         version_control_dir="TopoLibrary",
         git=True,
     ):
@@ -585,7 +585,7 @@ class Topo:
         self.send_entire_depth_change_to_tcm(depth)
 
     def set_depth_via_topog_file(
-        self, topog_file_path, varname="depth", skip_version_control=False
+        self, topog_file_path, varname="depth_raw", skip_version_control=False
     ):
         """
         Apply a bathymetry read from an existing topog file
