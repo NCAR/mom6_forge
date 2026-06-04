@@ -16,6 +16,7 @@ from mom6_forge.command_manager import TopoCommandManager, CommandType
 from mom6_forge.mapping import regrid_dataset_via_xesmf, regrid_with_subsampling
 from mom6_forge._source_bathy import SourceBathy
 import regionmask
+from mom6_forge._supergrid import _DEFAULT_RADIUS, SupergridBase
 
 
 class Topo:
@@ -173,6 +174,36 @@ class Topo:
         if topo.tcm is not None:
             topo.tcm.reapply_changes()
         topo.set_depth_via_topog_file(topo_file_path, varname)
+        return topo
+
+    @classmethod
+    def from_esmf_mesh(
+        cls,
+        mesh_path,
+        radius=_DEFAULT_RADIUS,
+        min_depth=0.0,
+        version_control_dir="TopoLibrary",
+        git=True,
+    ):
+        """
+        Construct a topo object from the ESMF mesh + Mask, there is no depth associated with this
+
+        Parameters
+        ----------
+        mesh_path: str or xr.Dataset
+            Path to ESMF mesh file to read, or an already-opened Dataset.
+        radius: float, optional
+            Radius of the Earth (m). Default is _DEFAULT_RADIUS.
+        min_depth: float, optional
+            Minimum water column depth (m). Columns with shallower depths are to be masked out. Default is 0.0.
+        """
+
+        supergrid, mask = SupergridBase.reconstruct_from_esmf_mesh(
+            mesh_path, radius, return_mask=True
+        )
+        grid = Grid.from_supergrid_ds(supergrid.to_ds())
+        topo = cls(grid, min_depth, version_control_dir=version_control_dir, git=git)
+        topo.user_mask = mask
         return topo
 
     @property

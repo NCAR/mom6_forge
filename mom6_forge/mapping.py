@@ -15,64 +15,11 @@ MPI = None
 rank = lambda: MPI.COMM_WORLD.Get_rank() if MPI else 0
 
 from mom6_forge.utils import (
-    get_mesh_dimensions,
     cell_area_rad,
     normalize_deg,
     is_mesh_cyclic_x,
     get_avg_resolution_km,
 )
-
-
-def grid_from_esmf_mesh(mesh: xr.Dataset | str | Path) -> "Grid":
-    """Given an ESMF mesh where the grid metrics are stored in 1D (flattened) arrays,
-    compute the dimensions of the 2D grid and return a 2D horizontal grid dataset
-    containing the longitude, latitude, and mask of the grid points which are all that
-    is needed to create a regridder.
-
-    Parameters
-    ----------
-    mesh : xr.Dataset or str or Path
-        The ESMF mesh dataset or the path to the mesh file.
-
-    Returns
-    -------
-    ds : xr.Dataset
-        A 2D horizontal grid dataset containing the longitude, latitude, and mask of the grid points.
-    """
-
-    if not isinstance(mesh, xr.Dataset):
-        assert (
-            isinstance(mesh, (Path, str)) and Path(mesh).exists()
-        ), "mesh must be a path to an existing file"
-        mesh = xr.open_dataset(mesh)
-
-    nx, ny = get_mesh_dimensions(mesh)
-
-    lon = mesh["centerCoords"][:, 0].values.reshape((ny, nx))
-    lat = mesh["centerCoords"][:, 1].values.reshape((ny, nx))
-    mask = mesh["elementMask"].values.reshape((ny, nx))
-
-    ds = xr.Dataset(
-        data_vars={
-            "mask": (("nlat", "nlon"), mask),
-        },
-        coords={
-            "lon": (
-                ("nlat", "nlon"),
-                lon,
-                {"standard_name": "longitude", "units": "degrees_east"},
-            ),
-            "lat": (
-                ("nlat", "nlon"),
-                lat,
-                {"standard_name": "latitude", "units": "degrees_north"},
-            ),
-            "nlat": np.arange(ny),
-            "nlon": np.arange(nx),
-        },
-    )
-
-    return ds
 
 
 def extract_coastline_mask(horiz_grid):
@@ -82,7 +29,7 @@ def extract_coastline_mask(horiz_grid):
     ----------
     horiz_grid : xr.Dataset
         A 2D horizontal grid dataset containing the longitude, latitude, and mask of the grid points.
-        This dataset may be obtained from the grid_from_esmf_mesh function by passing an ESMF mesh.
+        This dataset may be obtained from the Topo.from_esmf_mesh function by passing an ESMF mesh.
 
     Returns
     -------
@@ -261,8 +208,10 @@ def write_mapping_file(
         ), "weights_coo must be a scipy sparse COO matrix"
 
     # From 1D ESMF mesh to 2D grid
-    src_grid = grid_from_esmf_mesh(src_mesh)
-    dst_grid = grid_from_esmf_mesh(dst_mesh)
+    from mom6_forge.topo import Topo
+
+    src_topo = Topo.from_esmf_mesh(src_mesh)
+    dst_topo = Topo.from_esmf_mesh(dst_mesh)
 
     # 1/3: Source Domain Fields
     # -------------------
@@ -329,7 +278,7 @@ def write_mapping_file(
     )
 
     src_grid_dims = xr.DataArray(
-        np.array(src_grid.mask.shape[::-1]).astype(np.int32),
+        np.array(src_topo.tmask.shape[::-1]).astype(np.int32),
         dims=["src_grid_rank"],
         # attrs={
         #    'long_name': 'dimensions of the source grid',
@@ -337,12 +286,12 @@ def write_mapping_file(
     )
 
     nj_a = xr.DataArray(
-        [i + 1 for i in range(src_grid.mask.shape[0])],
+        [i + 1 for i in range(src_topo.tmask.shape[0])],
         dims=["nj_a"],
     )
 
     ni_a = xr.DataArray(
-        [i + 1 for i in range(src_grid.mask.shape[1])],
+        [i + 1 for i in range(src_topo.tmask.shape[1])],
         dims=["ni_a"],
     )
 
@@ -411,7 +360,7 @@ def write_mapping_file(
     )
 
     dst_grid_dims = xr.DataArray(
-        np.array(dst_grid.mask.shape[::-1]).astype(np.int32),
+        np.array(dst_topo.tmask.shape[::-1]).astype(np.int32),
         dims=["dst_grid_rank"],
         # dst_grid_dimsattrs={
         #    'long_name': 'dimensions of the destination grid',
@@ -419,12 +368,12 @@ def write_mapping_file(
     )
 
     nj_b = xr.DataArray(
-        [i + 1 for i in range(dst_grid.mask.shape[0])],
+        [i + 1 for i in range(dst_topo.tmask.shape[0])],
         dims=["nj_b"],
     )
 
     ni_b = xr.DataArray(
-        [i + 1 for i in range(dst_grid.mask.shape[1])],
+        [i + 1 for i in range(dst_topo.tmask.shape[1])],
         dims=["ni_b"],
     )
 
@@ -553,8 +502,10 @@ def generate_ESMF_map_via_xesmf(
         zero out the mask in the source mesh that falls outside the rectangle defined by the destination mesh.
     """
 
-    src_grid = grid_from_esmf_mesh(src_mesh_path)
-    dst_grid = grid_from_esmf_mesh(dst_mesh_path)
+    from mom6_forge.topo import Topo
+
+    src_topo = Topo.from_esmf_mesh(src_mesh_path)
+    dst_topo = Topo.from_esmf_mesh(dst_mesh_path)
 
     # from dst mesh, find the lower left corner and upper right corner
     # then, in the src mesh, zero out the mask falling outside of this rectangle
@@ -578,25 +529,26 @@ def generate_ESMF_map_via_xesmf(
         lat_min, lat_max = dst_mesh_lat.min(), dst_mesh_lat.max()
 
         # normalize source grid coordinates
-        src_lon = normalize_deg(src_grid["lon"].data)
-        src_lat = normalize_deg(src_grid["lat"].data)
+        src_lon = normalize_deg(src_topo._grid.tlon.data)
+        src_lat = normalize_deg(src_topo._grid.tlat.data)
 
-        src_grid["mask"].data = np.where(
-            (src_lon < lon_min)
-            | (src_lon > lon_max)
-            | (src_lat < lat_min)
-            | (src_lat > lat_max),
-            0,
-            src_grid["mask"].data,
+        src_topo._user_mask = xr.DataArray(
+            np.where(
+                (src_lon < lon_min)
+                | (src_lon > lon_max)
+                | (src_lat < lat_min)
+                | (src_lat > lat_max),
+                0,
+                src_topo.tmask.values,
+            ),
+            dims=["ny", "nx"],
         )
 
     dst_is_cyclic_x = is_mesh_cyclic_x(dst_mesh_path)
 
-    import xesmf as xe
-
     regridder = xe.Regridder(
-        src_grid,
-        dst_grid,
+        src_topo._grid.get_esmf_ready_tracer_ds(),
+        dst_topo._grid.get_esmf_ready_tracer_ds(),
         method=method,
         periodic=dst_is_cyclic_x,
     )

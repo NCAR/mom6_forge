@@ -316,3 +316,36 @@ def test_grid_from_center():
     mid_lon = grid.tlon.values[grid.ny // 2, grid.nx // 2]
     assert abs(mid_lat - 40.0) < 1.0
     assert abs(mid_lon - (-70.0)) < 1.0
+
+
+# ---------------------------------------------------------------------------
+# Grid.from_esmf_mesh tests
+# ---------------------------------------------------------------------------
+
+
+def test_grid_from_esmf_mesh_non_cyclic(tmp_path, get_rect_grid):
+    mesh_path = str(tmp_path / "non_cyclic.nc")
+    get_rect_grid.supergrid.to_esmf_mesh(mesh_path)
+    grid2 = Grid.from_esmf_mesh(mesh_path)
+    assert isinstance(grid2, Grid)
+    assert grid2.nx == get_rect_grid.nx
+    assert grid2.ny == get_rect_grid.ny
+    assert not grid2.cyclic_x
+
+
+def test_grid_from_esmf_mesh_cyclic(tmp_path, get_simple_global_grid):
+    mesh_path = str(tmp_path / "cyclic.nc")
+    get_simple_global_grid.supergrid.to_esmf_mesh(mesh_path)
+    grid2 = Grid.from_esmf_mesh(mesh_path)
+    assert isinstance(grid2, Grid)
+    assert grid2.nx == get_simple_global_grid.nx
+    assert grid2.ny == get_simple_global_grid.ny
+    assert grid2.cyclic_x
+
+
+def test_grid_from_esmf_mesh_coords_preserved(tmp_path, get_rect_grid):
+    mesh_path = str(tmp_path / "coords.nc")
+    get_rect_grid.supergrid.to_esmf_mesh(mesh_path)
+    grid2 = Grid.from_esmf_mesh(mesh_path)
+    np.testing.assert_allclose(grid2.tlon.values, get_rect_grid.tlon.values, atol=1e-6)
+    np.testing.assert_allclose(grid2.tlat.values, get_rect_grid.tlat.values, atol=1e-6)

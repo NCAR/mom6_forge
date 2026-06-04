@@ -1,3 +1,6 @@
+import numpy as np
+import xarray as xr
+import pytest
 from mom6_forge.topo import *
 
 
@@ -95,3 +98,47 @@ def test_topo_no_git(get_rect_topo_without_vc):
     )  # This command should still work even without version control, but it just won't be registered in version control
     topo.apply_edit(command)
     assert topo.depth[j, i] == new_val
+
+
+# ---------------------------------------------------------------------------
+# Topo.from_esmf_mesh tests
+# ---------------------------------------------------------------------------
+
+
+def test_topo_from_esmf_mesh_shape(get_rect_topo, tmp_path):
+    topo = get_rect_topo
+    mesh_path = str(tmp_path / "test.nc")
+    topo.write_esmf_mesh(mesh_path)
+    topo2 = Topo.from_esmf_mesh(mesh_path, git=False)
+    assert topo2.tmask.shape == topo.tmask.shape
+    assert topo2._grid.nx == topo._grid.nx
+    assert topo2._grid.ny == topo._grid.ny
+
+
+def test_topo_from_esmf_mesh_mask_roundtrip(get_rect_topo, tmp_path):
+    topo = get_rect_topo
+    # Stamp some land cells into the mask before writing
+    land_mask = topo.tmask.values.copy()
+    land_mask[:2, :3] = 0
+    topo._user_mask = xr.DataArray(land_mask, dims=["ny", "nx"])
+    mesh_path = str(tmp_path / "masked.nc")
+    topo.write_esmf_mesh(mesh_path)
+    topo2 = Topo.from_esmf_mesh(mesh_path, git=False)
+    np.testing.assert_array_equal(topo2.tmask.values, land_mask)
+
+
+def test_topo_from_esmf_mesh_accepts_dataset(get_rect_topo, tmp_path):
+    topo = get_rect_topo
+    mesh_path = str(tmp_path / "test.nc")
+    topo.write_esmf_mesh(mesh_path)
+    ds = xr.open_dataset(mesh_path)
+    topo2 = Topo.from_esmf_mesh(ds, git=False)
+    assert topo2.tmask.shape == topo.tmask.shape
+
+
+def test_topo_from_esmf_mesh_raises_without_mask(get_rect_topo, tmp_path):
+    topo = get_rect_topo
+    mesh_path = str(tmp_path / "no_mask.nc")
+    topo._grid.supergrid.to_esmf_mesh(mesh_path)  # write without mask
+    with pytest.raises(ValueError, match="elementMask"):
+        Topo.from_esmf_mesh(mesh_path, git=False)

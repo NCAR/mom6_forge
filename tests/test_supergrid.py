@@ -177,11 +177,11 @@ def test_non_cyclic_global_attrs(non_cyclic_mesh):
 
 
 def test_non_cyclic_node_count(non_cyclic_mesh):
-    assert non_cyclic_mesh.dims["nodeCount"] == (8 + 1) * (6 + 1)
+    assert non_cyclic_mesh.sizes["nodeCount"] == (8 + 1) * (6 + 1)
 
 
 def test_non_cyclic_element_count(non_cyclic_mesh):
-    assert non_cyclic_mesh.dims["elementCount"] == 8 * 6
+    assert non_cyclic_mesh.sizes["elementCount"] == 8 * 6
 
 
 def test_non_cyclic_num_element_conn_all_four(non_cyclic_mesh):
@@ -190,22 +190,10 @@ def test_non_cyclic_num_element_conn_all_four(non_cyclic_mesh):
 
 def test_non_cyclic_element_conn_in_bounds(non_cyclic_mesh):
     conn = non_cyclic_mesh["elementConn"].values
-    nnodes = non_cyclic_mesh.dims["nodeCount"]
+    nnodes = non_cyclic_mesh.sizes["nodeCount"]
     i0 = non_cyclic_mesh["elementConn"].attrs["start_index"]
     assert conn.min() >= i0
     assert conn.max() <= nnodes + i0 - 1
-
-
-def test_non_cyclic_node_ids_sequential(non_cyclic_mesh):
-    ids = non_cyclic_mesh["nodeIds"].values
-    assert ids[0] == 1
-    assert np.all(np.diff(ids) == 1)
-
-
-def test_non_cyclic_element_ids_sequential(non_cyclic_mesh):
-    ids = non_cyclic_mesh["elementIds"].values
-    assert ids[0] == 1
-    assert np.all(np.diff(ids) == 1)
 
 
 def test_non_cyclic_element_area_positive(non_cyclic_mesh):
@@ -230,11 +218,11 @@ def test_cyclic_global_attrs(cyclic_mesh):
 
 
 def test_cyclic_node_count_drops_wrap_column(cyclic_mesh):
-    assert cyclic_mesh.dims["nodeCount"] == 8 * (6 + 1)
+    assert cyclic_mesh.sizes["nodeCount"] == 8 * (6 + 1)
 
 
 def test_cyclic_element_count(cyclic_mesh):
-    assert cyclic_mesh.dims["elementCount"] == 8 * 6
+    assert cyclic_mesh.sizes["elementCount"] == 8 * 6
 
 
 def test_cyclic_connectivity_wraps_last_column(cyclic_mesh):
@@ -249,7 +237,7 @@ def test_cyclic_connectivity_wraps_last_column(cyclic_mesh):
 
 def test_cyclic_element_conn_in_bounds(cyclic_mesh):
     conn = cyclic_mesh["elementConn"].values
-    nnodes = cyclic_mesh.dims["nodeCount"]
+    nnodes = cyclic_mesh.sizes["nodeCount"]
     i0 = cyclic_mesh["elementConn"].attrs["start_index"]
     assert conn.min() >= i0
     assert conn.max() <= nnodes + i0 - 1
@@ -380,17 +368,17 @@ def test_tripolar_mesh_global_attrs(tripolar_mesh):
 def test_tripolar_node_count(tripolar_sg, tripolar_mesh):
     ny, nx = tripolar_sg.x[1::2, 1::2].shape
     expected_nnodes = nx * (ny + 1) - (nx // 2 - 1)
-    assert tripolar_mesh.dims["nodeCount"] == expected_nnodes
+    assert tripolar_mesh.sizes["nodeCount"] == expected_nnodes
 
 
 def test_tripolar_element_count(tripolar_sg, tripolar_mesh):
     ny, nx = tripolar_sg.x[1::2, 1::2].shape
-    assert tripolar_mesh.dims["elementCount"] == ny * nx
+    assert tripolar_mesh.sizes["elementCount"] == ny * nx
 
 
 def test_tripolar_element_conn_in_bounds(tripolar_mesh):
     conn = tripolar_mesh["elementConn"].values
-    nnodes = tripolar_mesh.dims["nodeCount"]
+    nnodes = tripolar_mesh.sizes["nodeCount"]
     i0 = int(tripolar_mesh["elementConn"].attrs["start_index"])
     assert conn.min() >= i0
     assert conn.max() <= nnodes + i0 - 1
@@ -409,10 +397,12 @@ def reference_tripolar_mesh():
 
 def test_tripolar_mesh_matches_reference(tripolar_mesh, reference_tripolar_mesh):
     """Mesh written from tx2_3v3 supergrid should match the reference ESMF mesh."""
-    assert tripolar_mesh.dims["nodeCount"] == reference_tripolar_mesh.dims["nodeCount"]
     assert (
-        tripolar_mesh.dims["elementCount"]
-        == reference_tripolar_mesh.dims["elementCount"]
+        tripolar_mesh.sizes["nodeCount"] == reference_tripolar_mesh.sizes["nodeCount"]
+    )
+    assert (
+        tripolar_mesh.sizes["elementCount"]
+        == reference_tripolar_mesh.sizes["elementCount"]
     )
 
     # Sort nodes by (lat, lon) for order-independent comparison

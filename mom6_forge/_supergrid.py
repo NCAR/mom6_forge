@@ -18,7 +18,7 @@ from typing import Optional
 
 _DEFAULT_RADIUS = 6.371e6  # mean radius of the Earth (IUGG), in metres
 from pyproj import CRS, Transformer
-from mom6_forge.utils import normalize_deg
+from mom6_forge.utils import normalize_deg, is_mesh_cyclic_x, get_mesh_dimensions
 
 
 class SupergridBase:
@@ -34,13 +34,8 @@ class SupergridBase:
 
     @property
     def is_tripolar(self):
-        nlines = (
-            0  # number of lines along the top row,
-            # (i.e., 2 or more cells with the same x coordinate)
-        )
-
-        ny, nx = self.x.shape
-
+        nlines = 0
+        _, nx = self.x.shape
         within_line = False
         for i in range(0, nx - 1):
             if not within_line:
@@ -50,9 +45,6 @@ class SupergridBase:
             else:
                 if self.x[-1, i] != self.x[-1, i + 1]:
                     within_line = False
-
-        # If there are 3 lines (i.e., 2 or more cells with the same x coordinate),
-        # the grid is tripolar
         return nlines == 3
 
     @property
@@ -245,13 +237,12 @@ class SupergridBase:
             Element mask in MOM6/ESMF convention (1=ocean/unmasked, 0=land/masked).
         title : str, optional
             Optional title global attribute.
-        radius : float, optional
-            Sphere radius in metres. Used only to compute elementArea.
         """
 
         # --- Pull corner and center points from supergrid ---
         # Supergrid layout: corners at even indices, centers at odd indices
-        qlon = self.x[::2, ::2]  # shape (ny+1, nx)   cyclic, or (ny+1, nx+1) non-cyclic
+        # qlon has shape (ny+1, nx+1); for cyclic grids the last column is the wrap-around
+        qlon = self.x[::2, ::2]
         qlat = self.y[::2, ::2]
         tlon = self.x[1::2, 1::2]  # shape (ny, nx)
         tlat = self.y[1::2, 1::2]
@@ -344,20 +335,10 @@ class SupergridBase:
         if title:
             ds.attrs["title"] = title
 
-        ds["nodeIds"] = xr.DataArray(
-            np.arange(1, nnodes + 1, dtype=np.int32),
-            dims=["nodeCount"],
-        )
-
         ds["nodeCoords"] = xr.DataArray(
             np.column_stack((qlon_flat, qlat_flat)),
             dims=["nodeCount", "coordDim"],
             attrs={"units": self.axis_units},
-        )
-
-        ds["elementIds"] = xr.DataArray(
-            np.arange(1, ncells + 1, dtype=np.int32),
-            dims=["elementCount"],
         )
 
         ds["centerCoords"] = xr.DataArray(
@@ -401,7 +382,9 @@ class SupergridBase:
         ds.to_netcdf(file_path, format="NETCDF3_64BIT", encoding=all_vars_encoding)
 
     @classmethod
-    def reconstruct_from_esmf_mesh(cls, file_path, radius=_DEFAULT_RADIUS):
+    def reconstruct_from_esmf_mesh(
+        cls, file_path, radius=_DEFAULT_RADIUS, return_mask=False
+    ):
         """
         Approximate a SupergridBase from an ESMF mesh file.
 
@@ -419,19 +402,27 @@ class SupergridBase:
 
         Parameters
         ----------
-        file_path : str
-            Path to an ESMF mesh NetCDF file written by to_esmf_mesh().
+        file_path : str or xr.Dataset
+            Path to an ESMF mesh NetCDF file written by to_esmf_mesh(), or an already-opened Dataset.
         radius : float, optional
             Sphere radius in metres used for metric calculations.
+        return_mask : bool, optional
+            If True, also return the element mask as a 2D numpy array in MOM6 convention
+            (1=ocean/unmasked, 0=land/masked). Raises ValueError if the mesh has no elementMask.
+            Default False.
 
         Returns
         -------
-        SupergridBase
+        SupergridBase or tuple(SupergridBase, np.ndarray)
             Approximate supergrid with q-points and t-points recovered exactly,
-            u/v-points linearly interpolated, and metrics recomputed.
+            u/v-points linearly interpolated, and metrics recomputed. If return_mask=True,
+            returns (supergrid, mask).
         """
 
-        ds = xr.open_dataset(file_path)
+        if isinstance(file_path, xr.Dataset):
+            ds = file_path
+        else:
+            ds = xr.open_dataset(file_path)
 
         topology = ds.attrs.get("grid_topology", None)
         if topology == "tripolar":
@@ -440,42 +431,8 @@ class SupergridBase:
                 "The fold node truncation performed during writing cannot be "
                 "cleanly reversed. Load from the original supergrid file instead."
             )
-        is_cyclic = topology == "cyclic"
-
-        # --- Infer grid shape from connectivity ---
-        # elementCount = ny * nx; nodeCount tells us whether cyclic or not
-        ncells = ds.dims["elementCount"]
-        nnodes = ds.dims["nodeCount"]
-        conn = ds["elementConn"].values  # (ncells, 4)
-
-        # Recover nx, ny: elementConn encodes row/col structure.
-        # For cyclic:     nnodes = nx * (ny+1)  →  nx = nnodes / (ncells/nx + 1) ... circular
-        # Simpler: scan first row of connectivity to find where the row wraps.
-        # The lower-left node index increments by 1 each element until the wrap.
-        i0 = int(ds["elementConn"].attrs.get("start_index", 1))
-        if topology == "cyclic" or (
-            topology is None and nnodes < ncells + int(ncells**0.5) + 2
-        ):
-            # cyclic: nx * (ny+1) = nnodes,  nx * ny = ncells  → nx = nnodes - ncells
-            nx = nnodes - ncells
-            ny = ncells // nx
-            is_cyclic = True
-        else:
-            # non-cyclic: (nx+1)*(ny+1) = nnodes,  nx*ny = ncells
-            # find nx as divisor of ncells where (nx+1) divides nnodes
-            nx = None
-            for candidate in range(ncells, 0, -1):  # iterate largest first
-                if ncells % candidate == 0:
-                    ny_candidate = ncells // candidate
-                    if (candidate + 1) * (ny_candidate + 1) == nnodes:
-                        nx = candidate
-                        ny = ny_candidate
-                        break
-            if nx is None:
-                raise ValueError(
-                    f"Could not infer grid shape from elementCount={ncells}, nodeCount={nnodes}"
-                )
-            is_cyclic = False
+        is_cyclic = is_mesh_cyclic_x(ds)
+        nx, ny = get_mesh_dimensions(ds)
 
         # --- Recover corner (q) points from nodeCoords ---
         node_lon = ds["nodeCoords"].values[:, 0]
@@ -491,6 +448,13 @@ class SupergridBase:
         else:
             qlon = node_lon.reshape(ny + 1, nx + 1)
             qlat = node_lat.reshape(ny + 1, nx + 1)
+
+        if return_mask:
+            if "elementMask" not in ds:
+                raise ValueError(
+                    "return_mask=True but no elementMask variable found in dataset"
+                )
+            mask = ds["elementMask"].values.reshape(ny, nx)
 
         # --- Recover center (t) points from centerCoords ---
         tlon = ds["centerCoords"].values[:, 0].reshape(ny, nx)
@@ -534,7 +498,7 @@ class SupergridBase:
             x, y
         )
 
-        return cls(
+        supergrid = cls(
             x,
             y,
             dx,
@@ -544,6 +508,11 @@ class SupergridBase:
             axis_units,
             grid_type="from_esmf_mesh",
         )
+
+        if not return_mask:
+            return supergrid
+        else:
+            return supergrid, mask
 
     @classmethod
     def from_ds(cls, ds: xr.Dataset) -> "SupergridBase":
