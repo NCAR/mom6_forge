@@ -63,7 +63,7 @@ class SupergridBase:
     def leny(self):
         return self.y.max() - self.y.min()
 
-    def __init__(self, x, y, dx, dy, area, angle_dx, axis_units, grid_type, radius):
+    def __init__(self, x, y, dx, dy, area, angle_dx, axis_units, grid_type):
         """
         Initialize a generic supergrid.
 
@@ -90,7 +90,6 @@ class SupergridBase:
         self.angle_dx = angle_dx
         self.axis_units = axis_units
         self.grid_type = grid_type
-        self.radius = radius
 
     def __eq__(self, other):
         if not isinstance(other, SupergridBase):
@@ -187,9 +186,7 @@ class SupergridBase:
             angle_dx = SupergridBase.calc_supergrid_rotation_angles_using_expanded_supergrid_method(
                 x, y
             )
-        return cls(
-            x, y, dx, dy, area, angle_dx, "degrees", grid_type=grid_type, radius=R
-        )
+        return cls(x, y, dx, dy, area, angle_dx, "degrees", grid_type=grid_type)
 
     def summary(self):
         """Print a short summary of the grid geometry (shape and dx/dy ranges)."""
@@ -214,7 +211,6 @@ class SupergridBase:
         ds.attrs["type"] = "MOM6 supergrid"
         if self.grid_type is not None:
             ds.attrs["grid_type"] = self.grid_type
-        ds.attrs["radius"] = self.radius
         if name is not None:
             ds.attrs["name"] = name
         ds.attrs["Created"] = datetime.now().isoformat()
@@ -237,7 +233,7 @@ class SupergridBase:
 
         return ds
 
-    def to_esmf_mesh(self, file_path, mask=None, title=None, radius=_DEFAULT_RADIUS):
+    def to_esmf_mesh(self, file_path, mask=None, title=None):
         """
         Write the supergrid as an ESMF mesh file.
 
@@ -398,7 +394,11 @@ class SupergridBase:
                 dims=["elementCount"],
             )
 
-        ds.to_netcdf(file_path, format="NETCDF3_64BIT")
+        all_vars_encoding = {
+            var: {"_FillValue": None} for var in ds.data_vars
+        }  # disable _FillValue for all variables to avoid issues in ESMF
+
+        ds.to_netcdf(file_path, format="NETCDF3_64BIT", encoding=all_vars_encoding)
 
     @classmethod
     def reconstruct_from_esmf_mesh(cls, file_path, radius=_DEFAULT_RADIUS):
@@ -543,7 +543,6 @@ class SupergridBase:
             angle_dx,
             axis_units,
             grid_type="from_esmf_mesh",
-            radius=radius,
         )
 
     @classmethod
@@ -561,7 +560,6 @@ class SupergridBase:
             ds.angle_dx.data,
             ds.x.attrs.get("units", "degrees"),
             grid_type=ds.attrs.get("grid_type"),
-            radius=ds.attrs.get("radius", _DEFAULT_RADIUS),
         )
 
     @staticmethod
