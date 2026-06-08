@@ -39,6 +39,37 @@ def test_channel_width_validation():
             place="Invalid",
         )
 
+    # Non-numeric coordinate fields
+    with pytest.raises(ValueError, match="must be numeric"):
+        ChannelWidth(
+            component="U_width",
+            lon1="bad",
+            lon2=1.0,
+            lat1=0.0,
+            lat2=1.0,
+            width=1000.0,
+            place="Invalid",
+        )
+
+
+def test_channel_width_from_line():
+    """ChannelWidth.from_line parses a valid ASCII line correctly."""
+    line = "U_width,   -6.50,   -4.75,   35.60,   36.30,     12000.0 ! St. of Gibralter"
+    ch = ChannelWidth.from_line(line)
+    assert ch.component == "U_width"
+    assert ch.lon1 == -6.50
+    assert ch.lon2 == -4.75
+    assert ch.lat1 == 35.60
+    assert ch.lat2 == 36.30
+    assert ch.width == 12000.0
+    assert ch.place == "St. of Gibralter"
+
+
+def test_channel_width_from_line_malformed():
+    """ChannelWidth.from_line raises ValueError on a malformed line."""
+    with pytest.raises(ValueError, match="Malformed channel width line"):
+        ChannelWidth.from_line("U_width, -6.50, -4.75 ! missing fields")
+
 
 def test_channel_width_list_write_load(tmp_path):
     """Test write and load roundtrip for ChannelWidthList"""
@@ -84,3 +115,11 @@ def test_channel_width_list_write_load(tmp_path):
     assert all_channels[1].component == "V_width"
     assert all_channels[1].width == 5000.0
     assert all_channels[1].place == "Bosphorus"
+
+
+def test_channel_width_list_load_malformed_line(tmp_path):
+    """load() raises ValueError on a line with fewer than 6 comma-separated fields."""
+    bad_file = tmp_path / "bad_channels.txt"
+    bad_file.write_text("U_width, -6.50, -4.75 ! missing fields\n")
+    with pytest.raises(ValueError, match="Malformed channel width line"):
+        ChannelWidthList(filepath=bad_file)

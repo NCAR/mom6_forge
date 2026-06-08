@@ -1,4 +1,5 @@
 import os
+import copy
 import numpy as np
 import xarray as xr
 import xesmf as xe
@@ -78,9 +79,6 @@ class Topo:
             # Assume it's a filepath
             self.channel_widths = ChannelWidthList(filepath=channel_widths)
 
-        initial_command = MinDepthEditCommand(
-            self, attr="min_depth", new_value=min_depth
-        )
         if git:
 
             # Create a folder to store bathymetry objects in
@@ -132,7 +130,7 @@ class Topo:
             new_grid,
             self._min_depth,
             git=self.has_version_control,
-            channel_widths=self.channel_widths,
+            channel_widths=copy.deepcopy(self.channel_widths),
         )  # Create new topo with the same version control setting
         if self._depth is not None:
             new_topo._depth = self._depth[slices]

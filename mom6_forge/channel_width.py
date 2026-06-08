@@ -22,11 +22,45 @@ class ChannelWidth:
     place: str  # comment/location name
 
     def __post_init__(self):
-        """Validate component is U_width or V_width"""
         if self.component not in ("U_width", "V_width"):
             raise ValueError(
                 f"component must be 'U_width' or 'V_width', got '{self.component}'"
             )
+        try:
+            self.lon1 = float(self.lon1)
+            self.lon2 = float(self.lon2)
+            self.lat1 = float(self.lat1)
+            self.lat2 = float(self.lat2)
+            self.width = float(self.width)
+        except (ValueError, TypeError) as e:
+            raise ValueError(
+                f"lon1, lon2, lat1, lat2, and width must be numeric: {e}"
+            ) from e
+
+    @classmethod
+    def from_line(cls, line: str) -> "ChannelWidth":
+        """Parse a single ASCII channel width line into a ChannelWidth object.
+
+        Expected format::
+
+            U_width,   -6.50,   -4.75,   35.60,   36.30,     12000.0 ! St. of Gibralter
+        """
+        parts = line.split("!")
+        comment = parts[1].strip() if len(parts) > 1 else ""
+        vals = parts[0].split(",")
+        if len(vals) < 6:
+            raise ValueError(
+                f"Malformed channel width line (expected 6 comma-separated fields before '!'): {line!r}"
+            )
+        return cls(
+            component=vals[0].strip(),
+            lon1=vals[1].strip(),
+            lon2=vals[2].strip(),
+            lat1=vals[3].strip(),
+            lat2=vals[4].strip(),
+            width=vals[5].strip(),
+            place=comment,
+        )
 
 
 class ChannelWidthList:
@@ -72,26 +106,6 @@ class ChannelWidthList:
                     line = line.strip()
                     if not line:
                         continue
-                    # Parse: "U_width,   -6.50,   -4.75,   35.60,   36.30,     12000.0 ! St. of Gibralter"
-                    parts = line.split("!")
-                    comment = parts[1].strip() if len(parts) > 1 else ""
-
-                    vals = parts[0].split(",")
-                    component = vals[0].strip()
-                    lon1 = float(vals[1].strip())
-                    lon2 = float(vals[2].strip())
-                    lat1 = float(vals[3].strip())
-                    lat2 = float(vals[4].strip())
-                    width = float(vals[5].strip())
-
-                    self.channels.append(
-                        ChannelWidth(
-                            component=component,
-                            lon1=lon1,
-                            lon2=lon2,
-                            lat1=lat1,
-                            lat2=lat2,
-                            width=width,
-                            place=comment,
-                        )
-                    )
+                    self.channels.append(ChannelWidth.from_line(line))
+        else:
+            raise FileNotFoundError(f"Channel width file not found at {filepath}")
