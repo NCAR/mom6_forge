@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="mom6_forge",  # Replace with your own username
-    version="0.0.7",
+    version="0.1.0",
     author="Alper Altuntas",
     author_email="altuntas@ucar.edu",
     description="MOM6 simple grid and bathymetry generator",
@@ -23,11 +23,11 @@ setuptools.setup(
         "setuptools>=69.0,<82.1",
         "numpy>=1.26,<2.5.0",
         "xarray>=2023.12,<2026.3.0",
-        "matplotlib>=3.9,<3.11.0",
+        "matplotlib>=3.9,<3.10",
         "scipy>=1.11,<1.18.0",
         "netcdf4>=1.6,<1.8.0",
         "jupyterlab>=4.0,<4.6.0",
-        "ipympl>=0.9.4,<0.11.0",
+        "ipympl>=0.9.4,<0.10.0",
         "ipywidgets>=8.1.1,<8.2.0",
         "sphinx>=8.1,<9.2.0",
         "sphinx_rtd_theme>=3.0,<3.2.0",
@@ -38,6 +38,7 @@ setuptools.setup(
         "gitpython>=3.1,<3.2.0",
         "cartopy>=0.23,<0.30",
         "xesmf>=0.8.10,<1.0.0",
+        "dask>=2026.3.0,<2026.4.0",
         "regionmask>=0.13.0,<0.14.0",
     ],
 )
