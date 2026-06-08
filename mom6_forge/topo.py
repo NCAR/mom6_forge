@@ -904,7 +904,9 @@ class Topo:
         bathymetry object for use by this and other downstream methods.
         """
 
-        assert self.src is not None, "Source bathymetry must be set before generating mask."
+        assert (
+            self.src is not None
+        ), "Source bathymetry must be set before generating mask."
         assert (
             self.src.stats is not None
         ), f"Per-cell statistics must be computed before generating mask. Call _compute_stats() first. src={self.src}"
