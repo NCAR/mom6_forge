@@ -42,7 +42,12 @@ def test_chl_synthetic_source(tmp_path, get_rect_grid, get_rect_topo_without_vc)
     lon = np.linspace(0, 360, 720, endpoint=False)
     lat = np.linspace(-89.75, 89.75, 360)
     src = xr.Dataset(
-        {"chlor_a": (["time", "lat", "lon"], np.full((12, len(lat), len(lon)), 0.3, dtype=np.float32))},
+        {
+            "chlor_a": (
+                ["time", "lat", "lon"],
+                np.full((12, len(lat), len(lon)), 0.3, dtype=np.float32),
+            )
+        },
         coords={"time": np.arange(12, dtype=float), "lat": lat, "lon": lon},
     )
     src_path = tmp_path / "seawifs_src.nc"
