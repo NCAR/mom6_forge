@@ -6,11 +6,7 @@ on:
   workflow_dispatch:      # Manual trigger for PRs
   push:
     branches:
-      - '**'
-env:
-  GLORYS_USERNAME: ${{ secrets.GLORYS_USERNAME }}
-  GLORYS_PASSWORD: ${{ secrets.GLORYS_PASSWORD }}
-  
+      - '**' 
 jobs:
   cesm-integration:
     runs-on: ubuntu-latest
@@ -58,6 +54,8 @@ jobs:
             -e CESMROOT=/workspace/CESM \
             -e DIN_LOC_ROOT=/root/cesm/inputdata \
             -e CIME_MACHINE=ubuntu-latest \
+            -e GLORYS_USERNAME=${{ secrets.GLORYS_USERNAME }} \
+            -e GLORYS_PASSWORD=${{ secrets.GLORYS_PASSWORD }} \
             ghcr.io/crocodile-cesm/crocontainer:latest-amd64 \
             bash -c "
               source /opt/conda/etc/profile.d/conda.sh
