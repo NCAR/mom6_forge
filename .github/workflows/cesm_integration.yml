@@ -54,8 +54,8 @@ jobs:
             -e CESMROOT=/workspace/CESM \
             -e DIN_LOC_ROOT=/root/cesm/inputdata \
             -e CIME_MACHINE=ubuntu-latest \
-            -e GLORYS_USERNAME=${{ secrets.GLORYS_USERNAME }} \
-            -e GLORYS_PASSWORD=${{ secrets.GLORYS_PASSWORD }} \
+            -e COPERNICUSMARINE_SERVICE_USERNAME=${{ secrets.GLORYS_USERNAME }} \
+            -e COPERNICUSMARINE_SERVICE_PASSWORD=${{ secrets.GLORYS_PASSWORD }} \
             ghcr.io/crocodile-cesm/crocontainer:latest-amd64 \
             bash -c "
               source /opt/conda/etc/profile.d/conda.sh
