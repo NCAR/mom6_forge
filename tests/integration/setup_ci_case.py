@@ -76,27 +76,30 @@ if not seawifs_src.exists():
 # configure_forcings activates ChlConfigurator (via chl_processed_filepath) and
 # RunoffConfigurator (via rof_esmf_mesh_filepath; DROF%GLOFAS compset makes it required).
 case.configure_forcings(
-    date_range=["2020-01-01 00:00:00", "2020-01-05 00:00:00"],
+    date_range=["2020-01-01 00:00:00", "2020-01-02 00:00:00"],
     function_name="get_glorys_data_from_cds_api",
     chl_processed_filepath=seawifs_src,
     rof_esmf_mesh_filepath=t62_mesh,
 )
 
-# Download pre-built OBC/IC raw data from AWS instead of calling the Copernicus API
+# Download pre-built OBC/IC raw data from AWS instead of calling the Copernicus API.
+# Files are renamed to match the step=2 filenames configure_forcings expects
+# (date_range Jan1→Jan2 → step=2 → chunks named 20200101_20200102).
 output_dir = case.extract_forcings_path / "raw_data"
 os.makedirs(output_dir, exist_ok=True)
 base_url = (
     "https://crocodile-cesm.s3.us-east-1.amazonaws.com/CrocoDash/data/testing_data"
 )
-files = [
-    "east_unprocessed.20200101_20200105.nc",
-    "ic_unprocessed.nc",
-    "north_unprocessed.20200101_20200105.nc",
-    "south_unprocessed.20200101_20200105.nc",
-    "west_unprocessed.20200101_20200105.nc",
-]
-for f in files:
-    print(f"Downloading {f}...")
-    subprocess.run(["wget", "-q", "-O", str(output_dir / f), f"{base_url}/{f}"], check=True)
+# Map: AWS filename → local filename expected by process_forcings
+files = {
+    "east_unprocessed.20200101_20200105.nc": "east_unprocessed.20200101_20200102.nc",
+    "ic_unprocessed.nc": "ic_unprocessed.nc",
+    "north_unprocessed.20200101_20200105.nc": "north_unprocessed.20200101_20200102.nc",
+    "south_unprocessed.20200101_20200105.nc": "south_unprocessed.20200101_20200102.nc",
+    "west_unprocessed.20200101_20200105.nc": "west_unprocessed.20200101_20200102.nc",
+}
+for src, dst in files.items():
+    print(f"Downloading {src} → {dst}...")
+    subprocess.run(["wget", "-q", "-O", str(output_dir / dst), f"{base_url}/{src}"], check=True)
 
 case.process_forcings()
