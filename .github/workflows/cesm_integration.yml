@@ -8,12 +8,10 @@ on:
     branches:
       - '*'
 
-    
-
 jobs:
   cesm-integration:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+
 
     steps:
       - name: Free disk space
