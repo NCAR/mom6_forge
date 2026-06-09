@@ -44,7 +44,7 @@ case = Case(
     ocn_topo=topo,
     project="PROJ123",
     machine="ubuntu-latest",
-    compset="CR_JRA",
+    compset="CR_JRA_GLOFAS",
     override=True,
 )
 
@@ -100,16 +100,15 @@ interpolate_and_fill_seawifs(
     output_path=INPUTDIR / "ocnice" / f"seawifs-clim-1997-2010-{grid.name}.nc",
 )
 
-# --- Runoff mapping (if a ROF ESMF mesh is available in inputdata) ---
+# --- Runoff mapping (required by CR_JRA_GLOFAS) ---
 rof_meshes = list(DIN_LOC_ROOT.glob("rof/mizuroute/**/mosart_*.nc")) + \
              list(DIN_LOC_ROOT.glob("rof/**/*esmf*.nc"))
-if rof_meshes:
-    gen_rof_maps(
-        rof_mesh_path=rof_meshes[0],
-        ocn_mesh_path=case.esmf_mesh_path,
-        output_dir=INPUTDIR / "ocnice",
-        mapping_file_prefix=f"rof_to_{grid.name}",
-    )
+gen_rof_maps(
+    rof_mesh_path=rof_meshes[0],
+    ocn_mesh_path=case.esmf_mesh_path,
+    output_dir=INPUTDIR / "ocnice",
+    mapping_file_prefix=f"rof_to_{grid.name}",
+)
 
 # --- Bundle ---
 bundler = BundleCrocoDashCase(str(CASEROOT))
