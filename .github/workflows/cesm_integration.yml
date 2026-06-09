@@ -6,11 +6,12 @@ on:
   workflow_dispatch:      # Manual trigger for PRs
   push:
     branches:
-      - '**' 
+      - '**'
+
 jobs:
   cesm-integration:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 240
 
     steps:
       - name: Free disk space
@@ -45,12 +46,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run CrocoDash case setup inside container
+      - name: Setup, build, and run CESM inside container
         run: |
+          mkdir -p ${{ github.workspace }}/case
+          mkdir -p ${{ github.workspace }}/inputdir
           docker run --rm \
             --platform linux/amd64 \
             -v ${{ github.workspace }}/mom6_forge_src:/workspace/mom6_forge_src \
             -v ${{ github.workspace }}/nyf_inputdata:/root/cesm/inputdata \
+            -v ${{ github.workspace }}/case:/workspace/case \
+            -v ${{ github.workspace }}/inputdir:/workspace/inputdir \
             -e CESMROOT=/workspace/CESM \
             -e DIN_LOC_ROOT=/root/cesm/inputdata \
             -e CIME_MACHINE=ubuntu-latest \
@@ -62,4 +67,20 @@ jobs:
               conda activate CrocoDash
               pip install /workspace/mom6_forge_src
               python /workspace/mom6_forge_src/tests/integration/setup_ci_case.py
+              cd /workspace/case
+              ./xmlchange STOP_OPTION=ndays
+              ./xmlchange STOP_N=1
+              ./case.build
+              ./case.submit
             "
+
+      - name: Upload run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cesm-run-output
+          path: |
+            ${{ github.workspace }}/case/run/ocean.log.*
+            ${{ github.workspace }}/case/run/MOM_parameter_doc.all
+            ${{ github.workspace }}/case/run/*.nc
+          if-no-files-found: warn
