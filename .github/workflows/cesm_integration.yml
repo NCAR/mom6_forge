@@ -7,7 +7,10 @@ on:
   push:
     branches:
       - '**'
-
+env:
+  GLORYS_USERNAME: ${{ secrets.GLORYS_USERNAME }}
+  GLORYS_PASSWORD: ${{ secrets.GLORYS_PASSWORD }}
+  
 jobs:
   cesm-integration:
     runs-on: ubuntu-latest
