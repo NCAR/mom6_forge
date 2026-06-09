@@ -35,6 +35,7 @@ topo.set_flat(500.0)
 vgrid = VGrid.hyperbolic(nk=20, depth=500.0, ratio=20.0)
 
 # --- CESM case (writes hgrid, topog, cice_grid, esmf_mesh, scrip_grid, vgrid) ---
+# rof_grid_name="GLOFAS" is required for CR_JRA_GLOFAS (DROF component, not SROF)
 case = Case(
     cesmroot=CESMROOT,
     caseroot=str(CASEROOT),
@@ -45,6 +46,7 @@ case = Case(
     project="PROJ123",
     machine="ubuntu-latest",
     compset="CR_JRA_GLOFAS",
+    rof_grid_name="GLOFAS",
     override=True,
 )
 
@@ -78,6 +80,8 @@ for fname in [
 ]:
     _synthetic_glorys(raw_data / fname)
 
+# ForcingConfigRegistry auto-detects DROF from CR_JRA_GLOFAS and activates
+# RunoffConfigurator; process_forcings() will call process_runoff() accordingly
 case.configure_forcings(
     date_range=["2020-01-01 00:00:00", "2020-02-01 00:00:00"],
     function_name="get_glorys_data_from_cds_api",
@@ -100,11 +104,12 @@ interpolate_and_fill_seawifs(
     output_path=INPUTDIR / "ocnice" / f"seawifs-clim-1997-2010-{grid.name}.nc",
 )
 
-# --- Runoff mapping (required by CR_JRA_GLOFAS) ---
-rof_meshes = list(DIN_LOC_ROOT.glob("rof/mizuroute/**/mosart_*.nc")) + \
-             list(DIN_LOC_ROOT.glob("rof/**/*esmf*.nc"))
+# --- Runoff mapping via mom6_forge.mapping (explicit code-path coverage) ---
+# process_forcings() above also runs gen_rof_maps internally (writes to INPUTDIR/mapping/).
+# This call exercises the same function from a different entry point, writing to ocnice/.
+glofas_mesh = DIN_LOC_ROOT / "ocn/mom/croc/rof/glofas/dis24/GLOFAS_esmf_mesh_v4.nc"
 gen_rof_maps(
-    rof_mesh_path=rof_meshes[0],
+    rof_mesh_path=glofas_mesh,
     ocn_mesh_path=case.esmf_mesh_path,
     output_dir=INPUTDIR / "ocnice",
     mapping_file_prefix=f"rof_to_{grid.name}",

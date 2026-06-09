@@ -7,16 +7,23 @@ on:
 
 jobs:
   cesm-integration:
-    runs-on: self-hosted   # Self-hosted runner with CESM inputdata mounted
+    runs-on: gha-runner-crocodash   # Self-hosted runner with GLADE CESM inputdata access
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
 
     env:
-      CESMROOT: /workspace/CESM
+      CONTAINER_IMG: docker://ghcr.io/crocodile-cesm/crocontainer:latest-amd64
+      CONTAINER_SB: /tmp/crocontainer_sandbox
+      # Host path (GLADE) bound into container as DIN_LOC_ROOT
+      HOST_DIN_LOC_ROOT: /glade/campaign/cesm/cesmdata/inputdata
       DIN_LOC_ROOT: /root/cesm/inputdata
+      # CESM scratch bound to host so verify/upload steps can inspect it
+      HOST_SCRATCH: /tmp/cesm_scratch
+      CIME_OUTPUT_ROOT: /tmp/cesm_scratch
+      CESMROOT: /workspace/CESM
       CIME_MACHINE: ubuntu-latest
-      CIME_OUTPUT_ROOT: /root/cesm/scratch
-      BUNDLE_DIR: /workspace/bundle
       CASEROOT: /workspace/case
       INPUTDIR: /workspace/inputdir
+      BUNDLE_DIR: /workspace/bundle
 
     steps:
       - name: Checkout this mom6_forge commit
@@ -24,58 +31,61 @@ jobs:
         with:
           path: mom6_forge_src
 
-      - name: Pull crocontainer as Apptainer SIF
+      - name: Build Apptainer sandbox from crocontainer image
         run: |
-          apptainer pull --force /tmp/crocontainer.sif \
-            docker://ghcr.io/crocodile-cesm/crocontainer:latest-amd64
+          apptainer build --sandbox ${{ env.CONTAINER_SB }} ${{ env.CONTAINER_IMG }}
 
-      - name: Install this mom6_forge commit into the container's CrocoDash conda env
+      - name: Install this mom6_forge commit into the sandbox's CrocoDash conda env
         run: |
-          apptainer exec \
+          apptainer exec --writable \
             --bind ${{ github.workspace }}/mom6_forge_src:/workspace/mom6_forge_src \
-            /tmp/crocontainer.sif \
-            bash -c "conda run -n CrocoDash pip install /workspace/mom6_forge_src"
+            ${{ env.CONTAINER_SB }} \
+            bash -c "
+              source /opt/conda/etc/profile.d/conda.sh
+              conda activate CrocoDash
+              pip install /workspace/mom6_forge_src
+            "
 
       - name: Generate comprehensive test case (all mom6_forge file types)
         run: |
+          mkdir -p ${{ env.HOST_SCRATCH }}
           apptainer exec \
             --bind ${{ github.workspace }}/mom6_forge_src/tests/integration:/workspace/scripts \
-            --bind ${{ env.DIN_LOC_ROOT }}:${{ env.DIN_LOC_ROOT }} \
-            --env CESMROOT=${{ env.CESMROOT }} \
-            --env DIN_LOC_ROOT=${{ env.DIN_LOC_ROOT }} \
-            --env CIME_MACHINE=${{ env.CIME_MACHINE }} \
-            /tmp/crocontainer.sif \
+            --bind ${{ env.HOST_DIN_LOC_ROOT }}:${{ env.DIN_LOC_ROOT }} \
+            --bind ${{ env.HOST_SCRATCH }}:${{ env.CIME_OUTPUT_ROOT }} \
+            ${{ env.CONTAINER_SB }} \
             bash -c "
-              conda run -n CrocoDash python /workspace/scripts/generate_comprehensive_test_case.py \
-                --caseroot ${{ env.CASEROOT }} \
-                --inputdir ${{ env.INPUTDIR }} \
-                --bundle-dir ${{ env.BUNDLE_DIR }} \
-                --din-loc-root ${{ env.DIN_LOC_ROOT }}
+              source /opt/conda/etc/profile.d/conda.sh
+              conda activate CrocoDash
+              CESMROOT=${{ env.CESMROOT }} \
+              DIN_LOC_ROOT=${{ env.DIN_LOC_ROOT }} \
+              CASEROOT=${{ env.CASEROOT }} \
+              INPUTDIR=${{ env.INPUTDIR }} \
+              BUNDLE_DIR=${{ env.BUNDLE_DIR }} \
+              CIME_MACHINE=${{ env.CIME_MACHINE }} \
+              CIME_OUTPUT_ROOT=${{ env.CIME_OUTPUT_ROOT }} \
+              python /workspace/scripts/generate_comprehensive_test_case.py
             "
 
       - name: Run CESM with the generated files
         run: |
           apptainer exec \
-            --bind ${{ env.DIN_LOC_ROOT }}:${{ env.DIN_LOC_ROOT }} \
-            --env CESMROOT=${{ env.CESMROOT }} \
-            --env DIN_LOC_ROOT=${{ env.DIN_LOC_ROOT }} \
-            --env CIME_OUTPUT_ROOT=${{ env.CIME_OUTPUT_ROOT }} \
+            --bind ${{ env.HOST_DIN_LOC_ROOT }}:${{ env.DIN_LOC_ROOT }} \
+            --bind ${{ env.HOST_SCRATCH }}:${{ env.CIME_OUTPUT_ROOT }} \
             --env USER=root \
-            /tmp/crocontainer.sif \
-            /workspace/run_case.sh
+            ${{ env.CONTAINER_SB }} \
+            /bin/bash /workspace/run_case.sh
 
       - name: Verify CESM completed successfully
         run: |
-          SCRATCH="${{ env.CIME_OUTPUT_ROOT }}"
-          # Find the run directory (case name may vary by session ID)
-          RUN_DIR=$(find "$SCRATCH" -name "MOM_parameter_doc.all" -type f 2>/dev/null | head -1)
+          RUN_DIR=$(find "${{ env.HOST_SCRATCH }}" -name "MOM_parameter_doc.all" -type f 2>/dev/null | head -1)
           if [ -z "$RUN_DIR" ]; then
             echo "FAIL: MOM_parameter_doc.all not found — MOM6 did not initialize"
             exit 1
           fi
           echo "Found MOM_parameter_doc.all at: $RUN_DIR"
 
-          OCEAN_LOG=$(find "$SCRATCH" -name "ocean.log" -type f 2>/dev/null | head -1)
+          OCEAN_LOG=$(find "${{ env.HOST_SCRATCH }}" -name "ocean.log" -type f 2>/dev/null | head -1)
           if [ -n "$OCEAN_LOG" ] && grep -q "ERROR STOP" "$OCEAN_LOG"; then
             echo "FAIL: ocean.log contains ERROR STOP"
             cat "$OCEAN_LOG"
@@ -90,7 +100,7 @@ jobs:
         with:
           name: cesm-integration-logs
           path: |
-            /root/cesm/scratch/**/ocean.log
-            /root/cesm/scratch/**/MOM_parameter_doc.all
-            /root/cesm/scratch/**/cesm.log
+            ${{ env.HOST_SCRATCH }}/**/ocean.log
+            ${{ env.HOST_SCRATCH }}/**/MOM_parameter_doc.all
+            ${{ env.HOST_SCRATCH }}/**/cesm.log
           retention-days: 7
