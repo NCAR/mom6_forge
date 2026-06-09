@@ -1,8 +1,10 @@
 from mom6_forge.grid import Grid
 from mom6_forge.topo import Topo
 from mom6_forge.chl import interpolate_and_fill_seawifs
+import numpy as np
 import pytest
 import os
+import xarray as xr
 from utils import on_cisl_machine
 
 
@@ -28,3 +30,29 @@ def test_chl(tmp_path, get_rect_grid):
     )
 
     assert os.path.exists(tmp_path / "seawifs-clim-1997-2010-pan-xesmf.nc")
+
+
+def test_chl_synthetic_source(tmp_path, get_rect_grid, get_rect_topo_without_vc):
+    """Test interpolate_and_fill_seawifs with synthetic source data (no GLADE needed)."""
+    grid = get_rect_grid
+    grid.name = "ci_chl"
+    topo = get_rect_topo_without_vc
+
+    # Build a minimal synthetic SeaWiFS-format source file
+    lon = np.linspace(0, 360, 720, endpoint=False)
+    lat = np.linspace(-89.75, 89.75, 360)
+    src = xr.Dataset(
+        {"chlor_a": (["time", "lat", "lon"], np.full((12, len(lat), len(lon)), 0.3, dtype=np.float32))},
+        coords={"time": np.arange(12, dtype=float), "lat": lat, "lon": lon},
+    )
+    src_path = tmp_path / "seawifs_src.nc"
+    src.to_netcdf(str(src_path))
+
+    out_path = tmp_path / "seawifs-clim.nc"
+    interpolate_and_fill_seawifs(grid, topo, src_path, output_path=out_path)
+
+    assert out_path.exists()
+    ds = xr.open_dataset(str(out_path))
+    for var in ("CHL_A", "LON", "LAT"):
+        assert var in ds, f"seawifs-clim.nc missing variable: {var}"
+    assert ds.sizes["TIME"] == 12
