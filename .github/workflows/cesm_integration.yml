@@ -48,14 +48,12 @@ jobs:
 
       - name: Setup, build, and run CESM inside container
         run: |
-          mkdir -p ${{ github.workspace }}/case
-          mkdir -p ${{ github.workspace }}/inputdir
+          mkdir -p ${{ github.workspace }}/artifacts
           docker run --rm \
             --platform linux/amd64 \
             -v ${{ github.workspace }}/mom6_forge_src:/workspace/mom6_forge_src \
             -v ${{ github.workspace }}/nyf_inputdata:/root/cesm/inputdata \
-            -v ${{ github.workspace }}/case:/workspace/case \
-            -v ${{ github.workspace }}/inputdir:/workspace/inputdir \
+            -v ${{ github.workspace }}/artifacts:/workspace/artifacts \
             -e CESMROOT=/workspace/CESM \
             -e DIN_LOC_ROOT=/root/cesm/inputdata \
             -e CIME_MACHINE=ubuntu-latest \
@@ -72,6 +70,9 @@ jobs:
               ./xmlchange STOP_N=1
               ./case.build
               ./case.submit
+              cp -r /workspace/case/run/ocean.log.* /workspace/artifacts/ 2>/dev/null || true
+              cp /workspace/case/run/MOM_parameter_doc.all /workspace/artifacts/ 2>/dev/null || true
+              cp /workspace/case/run/*.nc /workspace/artifacts/ 2>/dev/null || true
             "
 
       - name: Upload run artifacts
@@ -79,8 +80,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cesm-run-output
-          path: |
-            ${{ github.workspace }}/case/run/ocean.log.*
-            ${{ github.workspace }}/case/run/MOM_parameter_doc.all
-            ${{ github.workspace }}/case/run/*.nc
+          path: ${{ github.workspace }}/artifacts/
           if-no-files-found: warn
