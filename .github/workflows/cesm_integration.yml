@@ -1,0 +1,96 @@
+name: CESM Integration
+
+on:
+  schedule:
+    - cron: "0 0 * * 1"  # Weekly Monday midnight UTC
+  workflow_dispatch:      # Manual trigger (use on PRs before merging)
+
+jobs:
+  cesm-integration:
+    runs-on: self-hosted   # Self-hosted runner with CESM inputdata mounted
+
+    env:
+      CESMROOT: /workspace/CESM
+      DIN_LOC_ROOT: /root/cesm/inputdata
+      CIME_MACHINE: ubuntu-latest
+      CIME_OUTPUT_ROOT: /root/cesm/scratch
+      BUNDLE_DIR: /workspace/bundle
+      CASEROOT: /workspace/case
+      INPUTDIR: /workspace/inputdir
+
+    steps:
+      - name: Checkout this mom6_forge commit
+        uses: actions/checkout@v4
+        with:
+          path: mom6_forge_src
+
+      - name: Pull crocontainer as Apptainer SIF
+        run: |
+          apptainer pull --force /tmp/crocontainer.sif \
+            docker://ghcr.io/crocodile-cesm/crocontainer:latest-amd64
+
+      - name: Install this mom6_forge commit into the container's CrocoDash conda env
+        run: |
+          apptainer exec \
+            --bind ${{ github.workspace }}/mom6_forge_src:/workspace/mom6_forge_src \
+            /tmp/crocontainer.sif \
+            bash -c "conda run -n CrocoDash pip install /workspace/mom6_forge_src"
+
+      - name: Generate comprehensive test case (all mom6_forge file types)
+        run: |
+          apptainer exec \
+            --bind ${{ github.workspace }}/mom6_forge_src/tests/integration:/workspace/scripts \
+            --bind ${{ env.DIN_LOC_ROOT }}:${{ env.DIN_LOC_ROOT }} \
+            --env CESMROOT=${{ env.CESMROOT }} \
+            --env DIN_LOC_ROOT=${{ env.DIN_LOC_ROOT }} \
+            --env CIME_MACHINE=${{ env.CIME_MACHINE }} \
+            /tmp/crocontainer.sif \
+            bash -c "
+              conda run -n CrocoDash python /workspace/scripts/generate_comprehensive_test_case.py \
+                --caseroot ${{ env.CASEROOT }} \
+                --inputdir ${{ env.INPUTDIR }} \
+                --bundle-dir ${{ env.BUNDLE_DIR }} \
+                --din-loc-root ${{ env.DIN_LOC_ROOT }}
+            "
+
+      - name: Run CESM with the generated files
+        run: |
+          apptainer exec \
+            --bind ${{ env.DIN_LOC_ROOT }}:${{ env.DIN_LOC_ROOT }} \
+            --env CESMROOT=${{ env.CESMROOT }} \
+            --env DIN_LOC_ROOT=${{ env.DIN_LOC_ROOT }} \
+            --env CIME_OUTPUT_ROOT=${{ env.CIME_OUTPUT_ROOT }} \
+            --env USER=root \
+            /tmp/crocontainer.sif \
+            /workspace/run_case.sh
+
+      - name: Verify CESM completed successfully
+        run: |
+          SCRATCH="${{ env.CIME_OUTPUT_ROOT }}"
+          # Find the run directory (case name may vary by session ID)
+          RUN_DIR=$(find "$SCRATCH" -name "MOM_parameter_doc.all" -type f 2>/dev/null | head -1)
+          if [ -z "$RUN_DIR" ]; then
+            echo "FAIL: MOM_parameter_doc.all not found — MOM6 did not initialize"
+            exit 1
+          fi
+          echo "Found MOM_parameter_doc.all at: $RUN_DIR"
+
+          OCEAN_LOG=$(find "$SCRATCH" -name "ocean.log" -type f 2>/dev/null | head -1)
+          if [ -n "$OCEAN_LOG" ] && grep -q "ERROR STOP" "$OCEAN_LOG"; then
+            echo "FAIL: ocean.log contains ERROR STOP"
+            cat "$OCEAN_LOG"
+            exit 1
+          fi
+
+          echo "PASS: CESM completed without MOM6 errors"
+
+      - name: Upload logs and MOM6 output on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cesm-integration-logs
+          path: |
+            /root/cesm/scratch/**/ocean.log
+            /root/cesm/scratch/**/MOM_parameter_doc.all
+            /root/cesm/scratch/**/cesm.log
+          retention-days: 7
