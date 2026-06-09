@@ -6,7 +6,7 @@ on:
   workflow_dispatch:      # Manual trigger for PRs
   push:
     branches:
-      - '*'
+      - '**'
 
 jobs:
   cesm-integration:
