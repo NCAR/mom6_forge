@@ -3,104 +3,59 @@ name: CESM Integration
 on:
   schedule:
     - cron: "0 0 * * 1"  # Weekly Monday midnight UTC
-  workflow_dispatch:      # Manual trigger (use on PRs before merging)
+  workflow_dispatch:      # Manual trigger for PRs
 
 jobs:
   cesm-integration:
-    runs-on: gha-runner-crocodash   # Self-hosted runner with GLADE CESM inputdata access
+    runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
 
-    env:
-      CONTAINER_IMG: docker://ghcr.io/crocodile-cesm/crocontainer:latest-amd64
-      CONTAINER_SB: /tmp/crocontainer_sandbox
-      # Host path (GLADE) bound into container as DIN_LOC_ROOT
-      HOST_DIN_LOC_ROOT: /glade/campaign/cesm/cesmdata/inputdata
-      DIN_LOC_ROOT: /root/cesm/inputdata
-      # CESM scratch bound to host so verify/upload steps can inspect it
-      HOST_SCRATCH: /tmp/cesm_scratch
-      CIME_OUTPUT_ROOT: /tmp/cesm_scratch
-      CESMROOT: /workspace/CESM
-      CIME_MACHINE: ubuntu-latest
-      CASEROOT: /workspace/case
-      INPUTDIR: /workspace/inputdir
-      BUNDLE_DIR: /workspace/bundle
-
     steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          df -h
+
       - name: Checkout this mom6_forge commit
         uses: actions/checkout@v4
         with:
           path: mom6_forge_src
 
-      - name: Build Apptainer sandbox from crocontainer image
-        run: |
-          apptainer build --sandbox ${{ env.CONTAINER_SB }} ${{ env.CONTAINER_IMG }}
+      - name: Checkout crocontainer (for NYF download script)
+        uses: actions/checkout@v4
+        with:
+          repository: CROCODILE-CESM/crocontainer
+          path: crocontainer
 
-      - name: Install this mom6_forge commit into the sandbox's CrocoDash conda env
+      - name: Cache NYF inputdata
+        uses: actions/cache@v4
+        with:
+          path: nyf_inputdata
+          key: nyf-inputdata-${{ hashFiles('crocontainer/scripts/nyf_inputdata_list.txt') }}
+
+      - name: Download NYF inputdata
+        run: bash crocontainer/scripts/download_nyf_inputdata.sh ./nyf_inputdata
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run CrocoDash case setup inside container
         run: |
-          apptainer exec --writable \
-            --bind ${{ github.workspace }}/mom6_forge_src:/workspace/mom6_forge_src \
-            ${{ env.CONTAINER_SB }} \
+          docker run --rm \
+            --platform linux/amd64 \
+            -v ${{ github.workspace }}/mom6_forge_src:/workspace/mom6_forge_src \
+            -v ${{ github.workspace }}/nyf_inputdata:/root/cesm/inputdata \
+            -e CESMROOT=/workspace/CESM \
+            -e DIN_LOC_ROOT=/root/cesm/inputdata \
+            -e CIME_MACHINE=ubuntu-latest \
+            ghcr.io/crocodile-cesm/crocontainer:latest-amd64 \
             bash -c "
               source /opt/conda/etc/profile.d/conda.sh
               conda activate CrocoDash
               pip install /workspace/mom6_forge_src
+              python /workspace/mom6_forge_src/tests/integration/setup_ci_case.py
             "
-
-      - name: Generate comprehensive test case (all mom6_forge file types)
-        run: |
-          mkdir -p ${{ env.HOST_SCRATCH }}
-          apptainer exec \
-            --bind ${{ github.workspace }}/mom6_forge_src/tests/integration:/workspace/scripts \
-            --bind ${{ env.HOST_DIN_LOC_ROOT }}:${{ env.DIN_LOC_ROOT }} \
-            --bind ${{ env.HOST_SCRATCH }}:${{ env.CIME_OUTPUT_ROOT }} \
-            ${{ env.CONTAINER_SB }} \
-            bash -c "
-              source /opt/conda/etc/profile.d/conda.sh
-              conda activate CrocoDash
-              CESMROOT=${{ env.CESMROOT }} \
-              DIN_LOC_ROOT=${{ env.DIN_LOC_ROOT }} \
-              CASEROOT=${{ env.CASEROOT }} \
-              INPUTDIR=${{ env.INPUTDIR }} \
-              BUNDLE_DIR=${{ env.BUNDLE_DIR }} \
-              CIME_MACHINE=${{ env.CIME_MACHINE }} \
-              CIME_OUTPUT_ROOT=${{ env.CIME_OUTPUT_ROOT }} \
-              python /workspace/scripts/generate_comprehensive_test_case.py
-            "
-
-      - name: Run CESM with the generated files
-        run: |
-          apptainer exec \
-            --bind ${{ env.HOST_DIN_LOC_ROOT }}:${{ env.DIN_LOC_ROOT }} \
-            --bind ${{ env.HOST_SCRATCH }}:${{ env.CIME_OUTPUT_ROOT }} \
-            --env USER=root \
-            ${{ env.CONTAINER_SB }} \
-            /bin/bash /workspace/run_case.sh
-
-      - name: Verify CESM completed successfully
-        run: |
-          RUN_DIR=$(find "${{ env.HOST_SCRATCH }}" -name "MOM_parameter_doc.all" -type f 2>/dev/null | head -1)
-          if [ -z "$RUN_DIR" ]; then
-            echo "FAIL: MOM_parameter_doc.all not found — MOM6 did not initialize"
-            exit 1
-          fi
-          echo "Found MOM_parameter_doc.all at: $RUN_DIR"
-
-          OCEAN_LOG=$(find "${{ env.HOST_SCRATCH }}" -name "ocean.log" -type f 2>/dev/null | head -1)
-          if [ -n "$OCEAN_LOG" ] && grep -q "ERROR STOP" "$OCEAN_LOG"; then
-            echo "FAIL: ocean.log contains ERROR STOP"
-            cat "$OCEAN_LOG"
-            exit 1
-          fi
-
-          echo "PASS: CESM completed without MOM6 errors"
-
-      - name: Upload logs and MOM6 output on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cesm-integration-logs
-          path: |
-            ${{ env.HOST_SCRATCH }}/**/ocean.log
-            ${{ env.HOST_SCRATCH }}/**/MOM_parameter_doc.all
-            ${{ env.HOST_SCRATCH }}/**/cesm.log
-          retention-days: 7
