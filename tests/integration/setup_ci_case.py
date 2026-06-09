@@ -7,6 +7,7 @@ Env vars: CESMROOT (required), DIN_LOC_ROOT, CASEROOT, INPUTDIR
 """
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -25,9 +26,9 @@ from mom6_forge.grid import Grid
 from mom6_forge.topo import Topo
 from mom6_forge.vgrid import VGrid
 
-# Flat 3x3 degree box (Panama region, same as tutorial)
+# Panama region — matches the CrocoDash fixture grid the AWS testing data was built for
 grid = Grid(
-    resolution=0.1, xstart=278.0, lenx=3.0, ystart=7.0, leny=3.0, name="ci_flat"
+    resolution=0.1, xstart=278.0, lenx=4.0, ystart=7.0, leny=3.0, name="panama1"
 )
 topo = Topo(grid=grid, min_depth=9.5, git=False)
 topo.set_flat(500.0)
@@ -53,54 +54,6 @@ case = Case(
     override=True,
 )
 
-# Synthetic GLORYS-format OBC/IC data so process_forcings() has something to regrid
-bounds = Grid.get_bounding_boxes_of_rectangular_grid(grid)["ic"]
-raw_data = INPUTDIR / "extract_forcings" / "raw_data"
-raw_data.mkdir(parents=True, exist_ok=True)
-
-
-def _synthetic_glorys(path):
-    lat = np.linspace(bounds["lat_min"], bounds["lat_max"], 20)
-    lon = np.linspace(bounds["lon_min"], bounds["lon_max"], 20)
-    depth = np.array([0, 500, 1000, 2000, 3000, 4000, 5000], dtype=np.float64)
-    xr.Dataset(
-        {
-            "so": (
-                ("time", "depth", "latitude", "longitude"),
-                np.full((32, 7, 20, 20), 35.0),
-            ),
-            "thetao": (
-                ("time", "depth", "latitude", "longitude"),
-                np.full((32, 7, 20, 20), 20.0),
-            ),
-            "uo": (
-                ("time", "depth", "latitude", "longitude"),
-                np.zeros((32, 7, 20, 20)),
-            ),
-            "vo": (
-                ("time", "depth", "latitude", "longitude"),
-                np.zeros((32, 7, 20, 20)),
-            ),
-            "zos": (("time", "latitude", "longitude"), np.zeros((32, 20, 20))),
-        },
-        coords={
-            "depth": depth,
-            "latitude": lat,
-            "longitude": lon,
-            "time": np.arange(32),
-        },
-    ).to_netcdf(str(path))
-
-
-for fname in [
-    "ic_unprocessed.nc",
-    "east_unprocessed.20200101_20200201.nc",
-    "west_unprocessed.20200101_20200201.nc",
-    "north_unprocessed.20200101_20200201.nc",
-    "south_unprocessed.20200101_20200201.nc",
-]:
-    _synthetic_glorys(raw_data / fname)
-
 # Chlorophyll source — use real SeaWiFS if available, otherwise synthetic
 seawifs_src = (
     DIN_LOC_ROOT / "ocn/mom/croc/chl/data/SeaWIFS.L3m.MC.CHL.chlor_a.0.25deg.nc"
@@ -122,11 +75,28 @@ if not seawifs_src.exists():
 
 # configure_forcings activates ChlConfigurator (via chl_processed_filepath) and
 # RunoffConfigurator (via rof_esmf_mesh_filepath; DROF%GLOFAS compset makes it required).
-# process_forcings then handles OBC/IC, chlorophyll, and runoff mapping in one call.
 case.configure_forcings(
-    date_range=["2020-01-01 00:00:00", "2020-02-01 00:00:00"],
+    date_range=["2020-01-01 00:00:00", "2020-01-05 00:00:00"],
     function_name="get_glorys_data_from_cds_api",
     chl_processed_filepath=seawifs_src,
     rof_esmf_mesh_filepath=t62_mesh,
 )
+
+# Download pre-built OBC/IC raw data from AWS instead of calling the Copernicus API
+output_dir = case.extract_forcings_path / "raw_data"
+os.makedirs(output_dir, exist_ok=True)
+base_url = (
+    "https://crocodile-cesm.s3.us-east-1.amazonaws.com/CrocoDash/data/testing_data"
+)
+files = [
+    "east_unprocessed.20200101_20200105.nc",
+    "ic_unprocessed.nc",
+    "north_unprocessed.20200101_20200105.nc",
+    "south_unprocessed.20200101_20200105.nc",
+    "west_unprocessed.20200101_20200105.nc",
+]
+for f in files:
+    print(f"Downloading {f}...")
+    subprocess.run(["wget", "-q", "-O", str(output_dir / f), f"{base_url}/{f}"], check=True)
+
 case.process_forcings()
