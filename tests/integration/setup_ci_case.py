@@ -102,7 +102,7 @@ for src, dst in files.items():
     print(f"Downloading {src} → {dst}...")
     subprocess.run(["wget", "-q", "-O", str(output_dir / dst), f"{base_url}/{src}"], check=True)
 
-case.process_forcings()
+case.process_forcings(get_dataset_piecewise=False)
 
 # Create a synthetic GloFAS_2024.nc so DROF doesn't try to fetch it from SVN.
 # Structure mirrors the real file (365×3000×7200, double, days since 1850-01-01).
