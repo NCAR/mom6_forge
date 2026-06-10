@@ -33,9 +33,13 @@ topo = Topo(grid=grid, min_depth=9.5, git=False)
 topo.set_flat(500.0)
 vgrid = VGrid.hyperbolic(nk=20, depth=500.0, ratio=20.0, name="ci_vgrid")
 
+# T62 ESMF mesh bundled with NYF inputdata; used as the ROF source mesh so
+# configure_forcings triggers RunoffConfigurator and generates the mapping file.
+t62_mesh = DIN_LOC_ROOT / "share/meshes/T62_040121_ESMFmesh.nc"
+
 # Case() writes hgrid, topog, cice_grid, esmf_mesh, scrip_grid, vgrid to inputdir.
-# SROF (stub ROF) avoids the 46-year GloFAS file requirement of DROF%GLOFAS.
-# process_forcings still exercises the OBC/IC and chl paths (the mom6_forge outputs).
+# DROF%NYF uses CORE normal-year runoff data (already in the NYF inputdata bundle),
+# so we get real DROF + runoff mapping file generation without the 46-year GLOFAS requirement.
 case = Case(
     cesmroot=CESMROOT,
     caseroot=str(CASEROOT),
@@ -45,7 +49,7 @@ case = Case(
     ocn_topo=topo,
     project="PROJ123",
     machine="ubuntu-latest",
-    compset="1850_DATM%NYF_SLND_SICE_MOM6%REGIONAL_SROF_SGLC_SWAV",
+    compset="1850_DATM%NYF_SLND_SICE_MOM6_DROF%NYF_SGLC_SWAV",
     atm_grid_name="T62",
     override=True,
 )
@@ -73,7 +77,13 @@ case.configure_forcings(
     date_range=["2020-01-01 00:00:00", "2020-01-02 00:00:00"],
     function_name="get_glorys_data_from_cds_api",
     chl_processed_filepath=seawifs_src,
+    rof_esmf_mesh_filepath=t62_mesh,
 )
+
+# Verify the runoff mapping file was actually generated
+mapping_files = list((INPUTDIR / "mapping").glob("*map*.nc")) if (INPUTDIR / "mapping").exists() else []
+assert mapping_files, f"No runoff mapping file found in {INPUTDIR / 'mapping'} — RunoffConfigurator may not have run"
+print(f"Runoff mapping file generated: {mapping_files[0]}")
 
 # Download pre-built OBC/IC raw data from AWS instead of calling the Copernicus API.
 # Files are renamed to match the step=2 filenames configure_forcings expects

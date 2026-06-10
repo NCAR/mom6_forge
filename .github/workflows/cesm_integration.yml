@@ -120,7 +120,7 @@ jobs:
 
       - name: Fix artifact permissions
         if: always()
-        run: sudo chmod -R a+rX ${{ github.workspace }}/cesm_scratch || true
+        run: sudo chown -R runner:runner ${{ github.workspace }}/cesm_scratch || true
 
       - name: Upload run artifacts
         if: always()
