@@ -70,7 +70,7 @@ jobs:
           podman run --rm --platform linux/amd64 \
             -v "${{ github.workspace }}/nyf_inputdata:/root/cesm/inputdata" \
             -v "${{ github.workspace }}/cesm_scratch:/root/cesm/scratch" \
-            -v "${{ github.workspace }}/mom6_forge_src:/mom6_forge_src:ro" \
+            -v "${{ github.workspace }}/mom6_forge_src:/mom6_forge_src" \
             -e CIME_MACHINE=ubuntu-latest \
             -e CIME_OUTPUT_ROOT=/root/cesm/scratch \
             -e CESMROOT=/workspace/CESM \
