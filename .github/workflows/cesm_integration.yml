@@ -1,4 +1,4 @@
-name: CESM Integration
+name: mom6_forge outputs run in CESM
 
 on:
   schedule:

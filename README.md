@@ -1,5 +1,7 @@
 # mom6_forge
 
+[![mom6_forge outputs run in CESM](https://github.com/NCAR/mom6_forge/actions/workflows/cesm_integration.yml/badge.svg)](https://github.com/NCAR/mom6_forge/actions/workflows/cesm_integration.yml)
+
 `mom6_forge` (formerly `mom6_bathy`) is a Python tool for generating MOM6 horizontal grids, vertical grids, bathymetry files, mapping, and other input files for use within the context of idealized and regional modeling.
 
 **Documentation:** https://ncar.github.io/mom6_forge/
