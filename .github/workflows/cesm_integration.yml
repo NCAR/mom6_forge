@@ -18,14 +18,16 @@ jobs:
     timeout-minutes: 240
 
     steps:
-      - name: Free disk space
+      - name: Free disk space and configure podman storage on /mnt
         run: |
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/share/boost
           sudo apt-get autoremove -y
           docker system prune -af
+          sudo mkdir -p /mnt/podman-storage
+          sudo chown runner:runner /mnt/podman-storage
+          mkdir -p $HOME/.config/containers
+          printf '[storage]\ndriver = "overlay"\ngraphRoot = "/mnt/podman-storage"\n' \
+            > $HOME/.config/containers/storage.conf
           df -h
 
       - name: Checkout mom6_forge
@@ -60,16 +62,14 @@ jobs:
       - name: Pull container image
         run: podman pull --platform linux/amd64 ghcr.io/crocodile-cesm/crocontainer:latest-amd64
 
-      - name: Create output directories
-        run: mkdir -p cesm_scratch cesm_case cesm_inputdir
+      - name: Create scratch directory
+        run: mkdir -p cesm_scratch
 
       - name: Run CESM integration (setup + build + submit)
         run: |
           podman run --rm --platform linux/amd64 \
             -v "${{ github.workspace }}/nyf_inputdata:/root/cesm/inputdata:ro" \
             -v "${{ github.workspace }}/cesm_scratch:/root/cesm/scratch" \
-            -v "${{ github.workspace }}/cesm_case:/workspace/case" \
-            -v "${{ github.workspace }}/cesm_inputdir:/workspace/inputdir" \
             -v "${{ github.workspace }}/mom6_forge_src:/mom6_forge_src:ro" \
             -e CIME_MACHINE=ubuntu-latest \
             -e CIME_OUTPUT_ROOT=/root/cesm/scratch \
@@ -101,6 +101,10 @@ jobs:
               ./xmlchange STOP_N=1
               ./case.build
               ./case.submit --no-batch
+
+              # Copy case logs into scratch so they appear in artifacts
+              cp -r /workspace/case/run/ /root/cesm/scratch/case_run/ 2>/dev/null || true
+              cp -r /workspace/case/bld/ /root/cesm/scratch/case_bld/ 2>/dev/null || true
             "
 
       - name: Check run logs for errors
@@ -113,14 +117,12 @@ jobs:
 
       - name: Fix artifact permissions
         if: always()
-        run: sudo chmod -R a+rX ${{ github.workspace }}/cesm_scratch ${{ github.workspace }}/cesm_case || true
+        run: sudo chmod -R a+rX ${{ github.workspace }}/cesm_scratch || true
 
       - name: Upload run artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: cesm-run-output-${{ github.run_id }}
-          path: |
-            ${{ github.workspace }}/cesm_scratch/
-            ${{ github.workspace }}/cesm_case/run/
+          path: ${{ github.workspace }}/cesm_scratch/
           if-no-files-found: warn
