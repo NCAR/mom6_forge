@@ -12,7 +12,6 @@ import sys
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 import xarray as xr
 from CrocoDash.case import Case
 from mom6_forge.grid import Grid
@@ -32,13 +31,11 @@ grid = Grid(
 )
 topo = Topo(grid=grid, min_depth=9.5, git=False)
 topo.set_flat(500.0)
-vgrid = VGrid.hyperbolic(nk=20, depth=500.0, ratio=20.0)
+vgrid = VGrid.hyperbolic(nk=20, depth=500.0, ratio=20.0, name="ci_vgrid")
 
-# T62 ESMF mesh bundled with NYF inputdata; used as ROF mesh stand-in for gen_rof_maps
-t62_mesh = DIN_LOC_ROOT / "share/meshes/T62_040121_ESMFmesh.nc"
-
-# Case() writes hgrid, topog, cice_grid, esmf_mesh, scrip_grid, vgrid to inputdir
-# NYF atmosphere + GLOFAS runoff so process_forcings exercises both chl and runoff paths
+# Case() writes hgrid, topog, cice_grid, esmf_mesh, scrip_grid, vgrid to inputdir.
+# SROF (stub ROF) avoids the 46-year GloFAS file requirement of DROF%GLOFAS.
+# process_forcings still exercises the OBC/IC and chl paths (the mom6_forge outputs).
 case = Case(
     cesmroot=CESMROOT,
     caseroot=str(CASEROOT),
@@ -48,9 +45,8 @@ case = Case(
     ocn_topo=topo,
     project="PROJ123",
     machine="ubuntu-latest",
-    compset="1850_DATM%NYF_SLND_SICE_MOM6_DROF%GLOFAS_SGLC_SWAV",
+    compset="1850_DATM%NYF_SLND_SICE_MOM6%REGIONAL_SROF_SGLC_SWAV",
     atm_grid_name="T62",
-    rof_grid_name="GLOFAS",
     override=True,
 )
 
@@ -73,13 +69,10 @@ if not seawifs_src.exists():
         coords={"time": np.arange(12, dtype=float), "lat": lat, "lon": lon},
     ).to_netcdf(str(seawifs_src))
 
-# configure_forcings activates ChlConfigurator (via chl_processed_filepath) and
-# RunoffConfigurator (via rof_esmf_mesh_filepath; DROF%GLOFAS compset makes it required).
 case.configure_forcings(
     date_range=["2020-01-01 00:00:00", "2020-01-02 00:00:00"],
     function_name="get_glorys_data_from_cds_api",
     chl_processed_filepath=seawifs_src,
-    rof_esmf_mesh_filepath=t62_mesh,
 )
 
 # Download pre-built OBC/IC raw data from AWS instead of calling the Copernicus API.
@@ -103,32 +96,3 @@ for src, dst in files.items():
     subprocess.run(["wget", "-q", "-O", str(output_dir / dst), f"{base_url}/{src}"], check=True)
 
 case.process_forcings(get_dataset_piecewise=False)
-
-# Create a synthetic GloFAS_2024.nc so DROF doesn't try to fetch it from SVN.
-# Structure mirrors the real file (365×3000×7200, double, days since 1850-01-01).
-# All-zero runoff + zlib compression keeps the file tiny (~KB on disk).
-glofas_dir = DIN_LOC_ROOT / "ocn/mom/croc/rof/glofas/dis24/merged_yearly_nc3_files"
-glofas_dir.mkdir(parents=True, exist_ok=True)
-glofas_path = glofas_dir / "GloFAS_2024.nc"
-if not glofas_path.exists():
-    origin = np.datetime64("1850-01-01")
-    days_2024 = (
-        pd.date_range("2024-01-01", "2024-12-31", freq="D").values - origin
-    ).astype("timedelta64[D]").astype(np.float64)
-    lat = np.linspace(-59.975, 89.975, 3000)
-    lon = np.linspace(0.025, 360.025, 7200)
-    ds_glofas = xr.Dataset(
-        {"runoff": (["time", "latitude", "longitude"],
-                    np.zeros((len(days_2024), 3000, 7200), dtype=np.float64))},
-        coords={"time": days_2024, "latitude": lat, "longitude": lon},
-    )
-    ds_glofas["runoff"].attrs.update({"_FillValue": 100.0, "units": "kg m-2 s-1"})
-    ds_glofas["time"].attrs.update({
-        "standard_name": "time", "long_name": "time", "axis": "T",
-        "units": "days since 1850-01-01 00:00:00", "calendar": "gregorian",
-    })
-    ds_glofas["latitude"].attrs["units"] = "degrees_north"
-    ds_glofas["longitude"].attrs["units"] = "degrees_east"
-    encoding = {"runoff": {"zlib": True, "complevel": 9}}
-    print(f"Writing synthetic {glofas_path} ...")
-    ds_glofas.to_netcdf(str(glofas_path), encoding=encoding)

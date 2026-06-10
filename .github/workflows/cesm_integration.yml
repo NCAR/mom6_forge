@@ -68,7 +68,7 @@ jobs:
       - name: Run CESM integration (setup + build + submit)
         run: |
           podman run --rm --platform linux/amd64 \
-            -v "${{ github.workspace }}/nyf_inputdata:/root/cesm/inputdata:ro" \
+            -v "${{ github.workspace }}/nyf_inputdata:/root/cesm/inputdata" \
             -v "${{ github.workspace }}/cesm_scratch:/root/cesm/scratch" \
             -v "${{ github.workspace }}/mom6_forge_src:/mom6_forge_src:ro" \
             -e CIME_MACHINE=ubuntu-latest \
@@ -78,6 +78,7 @@ jobs:
             -e DIN_LOC_ROOT=/root/cesm/inputdata \
             ghcr.io/crocodile-cesm/crocontainer:latest-amd64 \
             bash -c "
+              set -euo pipefail
               source /opt/conda/etc/profile.d/conda.sh
               conda activate CrocoDash
               unset NCAR_HOST
@@ -87,6 +88,8 @@ jobs:
               pip install /mom6_forge_src
 
               python /mom6_forge_src/tests/integration/setup_ci_case.py
+
+              conda deactivate
 
               export ESMFMKFILE=\$(find \${ESMF_INSTALL_PREFIX}/lib -name 'esmf.mk' | head -1)
               export OMPI_CC=gcc
