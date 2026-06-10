@@ -12,7 +12,12 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import xarray as xr
+from CrocoDash.case import Case
+from mom6_forge.grid import Grid
+from mom6_forge.topo import Topo
+from mom6_forge.vgrid import VGrid
 
 CESMROOT = os.environ.get("CESMROOT") or sys.exit("CESMROOT not set")
 CASEROOT = Path(os.environ.get("CASEROOT", "/workspace/case"))
@@ -20,11 +25,6 @@ INPUTDIR = Path(os.environ.get("INPUTDIR", "/workspace/inputdir"))
 DIN_LOC_ROOT = Path(os.environ.get("DIN_LOC_ROOT", "/root/cesm/inputdata"))
 
 os.environ.setdefault("CIME_MACHINE", "ubuntu-latest")
-
-from CrocoDash.case import Case
-from mom6_forge.grid import Grid
-from mom6_forge.topo import Topo
-from mom6_forge.vgrid import VGrid
 
 # Panama region — matches the CrocoDash fixture grid the AWS testing data was built for
 grid = Grid(
@@ -103,3 +103,32 @@ for src, dst in files.items():
     subprocess.run(["wget", "-q", "-O", str(output_dir / dst), f"{base_url}/{src}"], check=True)
 
 case.process_forcings()
+
+# Create a synthetic GloFAS_2024.nc so DROF doesn't try to fetch it from SVN.
+# Structure mirrors the real file (365×3000×7200, double, days since 1850-01-01).
+# All-zero runoff + zlib compression keeps the file tiny (~KB on disk).
+glofas_dir = DIN_LOC_ROOT / "ocn/mom/croc/rof/glofas/dis24/merged_yearly_nc3_files"
+glofas_dir.mkdir(parents=True, exist_ok=True)
+glofas_path = glofas_dir / "GloFAS_2024.nc"
+if not glofas_path.exists():
+    origin = np.datetime64("1850-01-01")
+    days_2024 = (
+        pd.date_range("2024-01-01", "2024-12-31", freq="D").values - origin
+    ).astype("timedelta64[D]").astype(np.float64)
+    lat = np.linspace(-59.975, 89.975, 3000)
+    lon = np.linspace(0.025, 360.025, 7200)
+    ds_glofas = xr.Dataset(
+        {"runoff": (["time", "latitude", "longitude"],
+                    np.zeros((len(days_2024), 3000, 7200), dtype=np.float64))},
+        coords={"time": days_2024, "latitude": lat, "longitude": lon},
+    )
+    ds_glofas["runoff"].attrs.update({"_FillValue": 100.0, "units": "kg m-2 s-1"})
+    ds_glofas["time"].attrs.update({
+        "standard_name": "time", "long_name": "time", "axis": "T",
+        "units": "days since 1850-01-01 00:00:00", "calendar": "gregorian",
+    })
+    ds_glofas["latitude"].attrs["units"] = "degrees_north"
+    ds_glofas["longitude"].attrs["units"] = "degrees_east"
+    encoding = {"runoff": {"zlib": True, "complevel": 9}}
+    print(f"Writing synthetic {glofas_path} ...")
+    ds_glofas.to_netcdf(str(glofas_path), encoding=encoding)

@@ -31,12 +31,14 @@ jobs:
           path: crocontainer
 
       - name: Cache NYF inputdata
+        id: cache-nyf
         uses: actions/cache@v4
         with:
           path: nyf_inputdata
           key: nyf-inputdata-${{ hashFiles('crocontainer/scripts/nyf_inputdata_list.txt') }}
 
       - name: Download NYF inputdata
+        if: steps.cache-nyf.outputs.cache-hit != 'true'
         run: bash crocontainer/scripts/download_nyf_inputdata.sh ./nyf_inputdata
 
       - name: Log in to GitHub Container Registry
@@ -73,6 +75,11 @@ jobs:
               cp -r /workspace/case/run/ocean.log.* /workspace/artifacts/ 2>/dev/null || true
               cp /workspace/case/run/MOM_parameter_doc.all /workspace/artifacts/ 2>/dev/null || true
               cp /workspace/case/run/*.nc /workspace/artifacts/ 2>/dev/null || true
+              echo '--- checking run logs for errors ---'
+              if grep -rq 'ERROR STOP\|MOM6 has crashed\|FATAL ERROR\|Abort\|cesm.log.*ERROR' /workspace/case/run/ 2>/dev/null; then
+                echo 'CESM run contained errors — see artifacts'
+                exit 1
+              fi
             "
 
       - name: Upload run artifacts
