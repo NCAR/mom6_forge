@@ -12,28 +12,21 @@ permissions:
   contents: read
   packages: read
 
-env:
-  CIME_MACHINE: ubuntu-latest
-  CIME_OUTPUT_ROOT: /root/cesm/scratch
-  CESMROOT: /workspace/CESM
-  USER: root
-  WORKDIR: /workspace
-
 jobs:
   cesm-integration:
     runs-on: ubuntu-latest
     timeout-minutes: 240
-    container:
-      image: ghcr.io/crocodile-cesm/crocontainer:latest-amd64
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
-      - name: Configure Git Identity
+      - name: Free disk space
         run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo apt-get autoremove -y
+          docker system prune -af
+          df -h
 
       - name: Checkout mom6_forge
         uses: actions/checkout@v4
@@ -55,64 +48,79 @@ jobs:
 
       - name: Download NYF inputdata
         if: steps.cache-nyf.outputs.cache-hit != 'true'
-        run: bash $GITHUB_WORKSPACE/crocontainer/scripts/download_nyf_inputdata.sh $GITHUB_WORKSPACE/nyf_inputdata
+        run: bash ${{ github.workspace }}/crocontainer/scripts/download_nyf_inputdata.sh ${{ github.workspace }}/nyf_inputdata
 
-      - name: pip install mom6_forge
-        shell: bash -l {0}
-        run: |
-          source /opt/conda/etc/profile.d/conda.sh
-          conda activate CrocoDash
-          pip install $GITHUB_WORKSPACE/mom6_forge_src
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run setup_ci_case.py
-        shell: bash -l {0}
-        run: |
-          source /opt/conda/etc/profile.d/conda.sh
-          conda activate CrocoDash
-          unset NCAR_HOST
-          python $GITHUB_WORKSPACE/mom6_forge_src/tests/integration/setup_ci_case.py
-        env:
-          DIN_LOC_ROOT: ${{ github.workspace }}/nyf_inputdata
-          COPERNICUSMARINE_SERVICE_USERNAME: ${{ secrets.GLORYS_USERNAME }}
-          COPERNICUSMARINE_SERVICE_PASSWORD: ${{ secrets.GLORYS_PASSWORD }}
+      - name: Pull container image
+        run: podman pull --platform linux/amd64 ghcr.io/crocodile-cesm/crocontainer:latest-amd64
 
-      - name: Build and submit CESM
-        shell: bash -l {0}
+      - name: Create output directories
+        run: mkdir -p cesm_scratch cesm_case cesm_inputdir
+
+      - name: Run CESM integration (setup + build + submit)
         run: |
-          export ESMFMKFILE=$(find ${ESMF_INSTALL_PREFIX}/lib -name "esmf.mk" | head -1)
-          export OMPI_CC=gcc
-          export OMPI_FC=gfortran
-          export OMPI_CXX=g++
-          unset NCAR_HOST
-          cd /workspace/case
-          ./xmlchange NTASKS=1
-          ./case.setup --reset
-          ./xmlchange DOUT_S=False
-          ./xmlchange DIN_LOC_ROOT=$GITHUB_WORKSPACE/nyf_inputdata
-          ./xmlchange STOP_OPTION=ndays
-          ./xmlchange STOP_N=1
-          ./case.build
-          ./case.submit --no-batch
+          podman run --rm --platform linux/amd64 \
+            -v "${{ github.workspace }}/nyf_inputdata:/root/cesm/inputdata:ro" \
+            -v "${{ github.workspace }}/cesm_scratch:/root/cesm/scratch" \
+            -v "${{ github.workspace }}/cesm_case:/workspace/case" \
+            -v "${{ github.workspace }}/cesm_inputdir:/workspace/inputdir" \
+            -v "${{ github.workspace }}/mom6_forge_src:/mom6_forge_src:ro" \
+            -e CIME_MACHINE=ubuntu-latest \
+            -e CIME_OUTPUT_ROOT=/root/cesm/scratch \
+            -e CESMROOT=/workspace/CESM \
+            -e USER=root \
+            -e DIN_LOC_ROOT=/root/cesm/inputdata \
+            ghcr.io/crocodile-cesm/crocontainer:latest-amd64 \
+            bash -c "
+              source /opt/conda/etc/profile.d/conda.sh
+              conda activate CrocoDash
+              unset NCAR_HOST
+              git config --global user.name github-actions
+              git config --global user.email github-actions@github.com
+
+              pip install /mom6_forge_src
+
+              python /mom6_forge_src/tests/integration/setup_ci_case.py
+
+              export ESMFMKFILE=\$(find \${ESMF_INSTALL_PREFIX}/lib -name 'esmf.mk' | head -1)
+              export OMPI_CC=gcc
+              export OMPI_FC=gfortran
+              export OMPI_CXX=g++
+              cd /workspace/case
+              ./xmlchange NTASKS=1
+              ./case.setup --reset
+              ./xmlchange DOUT_S=False
+              ./xmlchange DIN_LOC_ROOT=/root/cesm/inputdata
+              ./xmlchange STOP_OPTION=ndays
+              ./xmlchange STOP_N=1
+              ./case.build
+              ./case.submit --no-batch
+            "
 
       - name: Check run logs for errors
         run: |
           echo '--- checking run logs for errors ---'
-          if grep -rq 'ERROR STOP\|MOM6 has crashed\|FATAL ERROR\|Abort\|cesm.log.*ERROR' /root/cesm/scratch/ 2>/dev/null; then
+          if grep -rq 'ERROR STOP\|MOM6 has crashed\|FATAL ERROR\|Abort\|cesm.log.*ERROR' ${{ github.workspace }}/cesm_scratch/ 2>/dev/null; then
             echo 'CESM run contained errors — see artifacts'
             exit 1
           fi
 
-      - name: Collect CESM output
+      - name: Fix artifact permissions
         if: always()
-        run: |
-          mkdir -p $GITHUB_WORKSPACE/artifacts
-          cp -r /root/cesm/scratch/ $GITHUB_WORKSPACE/artifacts/scratch 2>/dev/null || true
-          cp -r /workspace/case/run/ $GITHUB_WORKSPACE/artifacts/case_run 2>/dev/null || true
+        run: sudo chmod -R a+rX ${{ github.workspace }}/cesm_scratch ${{ github.workspace }}/cesm_case || true
 
       - name: Upload run artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: cesm-run-output-${{ github.run_id }}
-          path: ${{ github.workspace }}/artifacts/
+          path: |
+            ${{ github.workspace }}/cesm_scratch/
+            ${{ github.workspace }}/cesm_case/run/
           if-no-files-found: warn
