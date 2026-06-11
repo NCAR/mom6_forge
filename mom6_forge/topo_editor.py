@@ -374,10 +374,6 @@ class TopoEditor(widgets.HBox):
 
     def _draw_cell_stats(self, visible):
         """Draw per-cell stat annotations directly on each visible cell."""
-        # Clear previous annotations
-        if hasattr(self, "_cell_stat_texts"):
-            for t in self._cell_stat_texts:
-                t.remove()
         self._cell_stat_texts = []
 
         if self.topo.stats is None:
@@ -476,7 +472,11 @@ class TopoEditor(widgets.HBox):
         # Always clear old annotations first
         if hasattr(self, "_cell_stat_texts"):
             for t in self._cell_stat_texts:
-                t.remove()
+                try:
+                    t.remove()
+                except Exception:
+                    pass
+
         self._cell_stat_texts = []
 
         if visible.sum() <= 40:
