@@ -566,9 +566,8 @@ class TopoEditor(widgets.HBox):
 
         # Double click event for cell selection on the plot
         self.fig.canvas.mpl_connect("button_press_event", self.on_double_click)
-        # Zoom-dependent stats overlay
+        # Zoom-dependent stats overlay (would change x and y limits)
         self.ax.callbacks.connect("xlim_changed", self._on_zoom_change)
-        self.ax.callbacks.connect("ylim_changed", self._on_zoom_change)
         # Min depth change observer
         self._min_depth_specifier.observe(
             self.on_min_depth_change, names="value", type="change"
@@ -681,19 +680,19 @@ class TopoEditor(widgets.HBox):
     def set_depth_to_mean(self, b):
         """Set the selected cell's depth to the mean value."""
         val = self._get_statistic_value("D_mean")
-        if val is not None:
+        if val is not None and np.isfinite(val):
             self._depth_specifier.value = val
 
     def set_depth_to_max(self, b):
         """Set the selected cell's depth to the max value."""
         val = self._get_statistic_value("D_max")
-        if val is not None:
+        if val is not None and np.isfinite(val):
             self._depth_specifier.value = val
 
     def set_depth_to_min(self, b):
         """Set the selected cell's depth to the min value."""
         val = self._get_statistic_value("D_min")
-        if val is not None:
+        if val is not None and np.isfinite(val):
             self._depth_specifier.value = val
 
     def on_git_create_branch(self, b):
