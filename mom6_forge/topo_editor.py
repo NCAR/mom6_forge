@@ -192,7 +192,7 @@ class TopoEditor(widgets.HBox):
         )
         self._rect_select_button = widgets.ToggleButton(
             value=False,
-            description="Rectangle Select",
+            description="Mark Rectangular Region",
             button_style="info",
             layout={"width": "80%"},
         )
@@ -520,6 +520,14 @@ class TopoEditor(widgets.HBox):
     # --- UI Callback Methods ---
     def _on_rect_select_toggle(self, change):
         if change["new"]:  # rectangle mode ON
+            # Deactivate matplotlib toolbar zoom mode if it's active
+            toolbar = getattr(self.fig.canvas, "toolbar", None)
+            if (
+                toolbar is not None
+                and hasattr(toolbar, "mode")
+                and "zoom" in str(toolbar.mode).lower()
+            ):
+                toolbar.zoom()
             # Clear the single-cell polygon patch if it exists
             if self._selected_cell is not None and self._selected_cell[2] is not None:
                 try:
@@ -528,13 +536,13 @@ class TopoEditor(widgets.HBox):
                     pass
             self._rect_selector.set_active(True)
             self._rect_select_button.button_style = "info"
-            self._rect_select_button.description = "Rectangle Select ✓"
+            self._rect_select_button.description = "Unmark Region"
         else:  # rectangle mode OFF
             self._rect_selector.set_active(False)
             self._rect_selector.clear()  # removes the drawn box
             self.fig.canvas.draw_idle()  # force redraw
             self._rect_select_button.button_style = ""
-            self._rect_select_button.description = "Rectangle Select"
+            self._rect_select_button.description = "Mark Rectangular Region"
             self._selected_cells = []
             self._selected_cell_label.value = (
                 "Selected cell: None (double click to select a cell)."
