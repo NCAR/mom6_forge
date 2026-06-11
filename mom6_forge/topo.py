@@ -896,6 +896,7 @@ class Topo:
         ), f"Invalid statistic {statistic}, must be one of {approved_list}"
 
         self.send_entire_depth_change_to_tcm(self.src.stats[f"D_{statistic}"])
+
     def generate_mask_from_stats_ocean_frac(
         self,
         mask_threshold=0.5,
