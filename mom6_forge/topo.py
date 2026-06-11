@@ -915,7 +915,7 @@ class Topo:
                 but can also connect extra islands to land. Default: ``False``.
             is_input_positive_below_msl (Optional[bool]): If ``True``, it assumes that the
                 bathymetry vertical coordinate is positive downwards. Default: ``False``.
-            write_to_file (Optional[bool]): Whether to write the bathymetry to a file. Default: ``True``.
+            write_to_file (Optional[bool]): Whether to write the bathymetry to a file. Default: ``False``.
             regridding_method (Optional[str]): The type of regridding method to use. Defaults to self.regridding_method
             run_* (Optional[bool]): Whether to run the respective step in the bathymetry processing. Default: ``True``.
 
@@ -1043,12 +1043,11 @@ class Topo:
         Only source points with positive depth (ocean) contribute, so depth
         estimates are never contaminated by land elevations.
 
-        Weights are computed in :func:`~mom6_forge.mapping.compute_cressman_weights`,
-        saved to an ESMF-compatible netCDF via
-        :func:`~mom6_forge.mapping.write_cressman_weights`, and applied through
-        ``xe.Regridder`` — all orchestrated by
-        :func:`~mom6_forge.mapping.cressman_regrid`. Cells that receive no source
-        coverage are filled by iterative neighbour averaging (up to 100 passes).
+        Weights are computed by :func:`~mom6_forge.mapping.compute_cressman_weights`,
+        saved to an ESMF-compatible netCDF, and applied through ``xe.Regridder`` —
+        all orchestrated by :func:`~mom6_forge.mapping.regrid_dataset_via_cressman`.
+        Cells that receive no source coverage are filled by iterative neighbour
+        averaging (up to 100 passes).
 
         Parameters
         ----------

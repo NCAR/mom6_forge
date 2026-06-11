@@ -1056,17 +1056,18 @@ def compute_cressman_weights(
     radius : float
         Earth radius in metres. Default is 6,371,000 m.
 
-    Returns (xesmf weights Dataset with the following variables)
+    Returns
     -------
-    S : xesmf weights from Cressman interpolation, shape (n_s,)
-        The non-zero interpolation weights in a sparse matrix format.
-    row : np.ndarray of int, shape (n_s,)
-        Row indices corresponding to the destination cell index for each weight (1-based).
-    col : np.ndarray of int, shape (n_s,)
-        Column indices corresponding to the source cell index for each weight (1-based).
-    unfilled : np.ndarray of bool, shape (n_dst,)
-        True for ocean destination cells that had no source ocean point within
-        ``L``. These cells need a fallback (e.g. iterative neighbour fill).
+    xr.Dataset
+        ESMF-compatible weights dataset with the following variables:
+
+        - ``S``: non-zero Cressman weights, shape (n_s,)
+        - ``row``: destination cell index for each weight, 1-based, shape (n_s,)
+        - ``col``: source cell index for each weight, 1-based, shape (n_s,)
+        - ``unfilled``: bool mask, True for ocean destination cells that had no
+          source ocean point within ``L`` and need a fallback fill, shape (n_b,)
+        - source/destination grid metadata variables (``xc_a``, ``yc_a``, ``xc_b``,
+          ``yc_b``, ``mask_a``, ``mask_b``, ``area_b``, etc.)
     """
     for var in ("lon", "lat"):
         assert var in src_ds.coords, f"src_ds missing coordinate: '{var}'"
@@ -1307,7 +1308,7 @@ def regrid_dataset_via_cressman(
     cressman_exp: float = 2.0,
     write_to_file: bool = False,
     output_path: Path = Path("cressman_regridded.nc"),
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[xr.Dataset, np.ndarray]:
     """Compute mask-aware Cressman weights, save to an ESMF weights file, and regrid
     source depths to the destination model grid using ``xe.Regridder``.
 
@@ -1327,13 +1328,13 @@ def regrid_dataset_via_cressman(
     cressman_exp : float
         Cressman weight function exponent. Default ``2.0``.
     write_to_file : bool
-        If True, save the regridded dataset to ``output_path``. Default ``True``.
+        If True, save the regridded dataset to ``output_path``. Default ``False``.
     output_path : Path
         Path for the regridded output netCDF. Default ``cressman_regridded.nc``.
 
     Returns
     -------
-    depth_dst : np.ndarray, shape (ny_dst, nx_dst)
+    depth_dst : xr.Dataset, shape (ny_dst, nx_dst)
         Cressman-interpolated depth field. Unfilled ocean cells are 0.
     unfilled : np.ndarray of bool, shape (ny_dst, nx_dst)
         True for ocean cells that had no source ocean point within radius L
