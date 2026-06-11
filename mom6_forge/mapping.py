@@ -947,9 +947,10 @@ def regrid_dataset_via_xesmf(
     input_dataset,
     output_dataset,
     regridding_method=None,
-    write_to_file=True,
-    weights_path=None,
+    write_to_file=False,
     output_path=Path("regridded_dataset.nc"),
+    weights_path=None,
+    reuse_weights = False,
     locstream_out=False,
     periodic=False,
 ):
@@ -960,8 +961,12 @@ def regrid_dataset_via_xesmf(
     Args:
         input_dataset (Xarray Dataset): original dataset with proper  metadata and structure for ESMF regridding.
         output_dataset (Xarray Dataset): Template for the regridded dataset regridding_method: (Optional[str]) The type of regridding method to use. Defaults to bilinear
-        write_to_file (Optional[bool]): Files saved to ``output_dir`` Defaults to ``True``. Must be set to true if using manual regridding methods with ESMF_regrid.
-
+        write_to_file (Optional[bool]): Files saved to ``output_path`` Defaults to ``False``. Must be set to true if using manual regridding methods with ESMF_regrid.
+        weights_path (Optional[str]): Path to pre-computed regridding weights file.
+        output_path (Optional[str]): Path to save the regridded dataset if ``write_to_file`` is True. Defaults to "regridded_dataset.nc".
+        reuse_weights (Optional[bool]): Whether to reuse the weights from ``weights_path`` if provided. Defaults to False. If False, weights will be recomputed even if ``weights_path`` is provided. If True, weights will be reused from ``weights_path`` if provided, and an error will be raised if ``weights_path`` is not provided.
+        locstream_out (Optional[bool]): Whether the output grid is a location stream. Defaults to False.
+        periodic (Optional[bool]): Whether the grid is periodic in the longitude direction. Defaults to False.
     Returns:
         regridded_dataset (Xarray.Dataset):
     """
@@ -977,7 +982,7 @@ def regrid_dataset_via_xesmf(
         + f"Regridded size: {output_dataset.nbytes/1e6:.2f} Mb\n"
     )
 
-    if weights_path is None:
+    if not reuse_weights:
         print(
             f"Generating regridding weights using xESMF with method '{regridding_method}'..."
         )
@@ -989,6 +994,7 @@ def regrid_dataset_via_xesmf(
             periodic=periodic,
         )
     else:
+        assert weights_path is not None and Path(weights_path).exists(), "weights_path must be provided and exist if reuse_weights is True"
         print(f"Using pre-computed regridding weights from {weights_path}...")
         regridder = xe.Regridder(
             input_dataset,
@@ -997,7 +1003,7 @@ def regrid_dataset_via_xesmf(
             locstream_out=locstream_out,
             periodic=periodic,
             weights=weights_path,
-            reuse_weights=True,
+            reuse_weights=reuse_weights,
         )
 
     dataset = regridder(input_dataset)
@@ -1353,6 +1359,7 @@ def regrid_dataset_via_cressman(
         weights_path=weights_path,
         write_to_file=write_to_file,  # We'll write the final regridded dataset at the end of this function
         output_path=output_path,
+        reuse_weights = True,
     )
 
     unfilled = weights_ds["unfilled"].values.reshape(dst_ds["lon"].shape)

@@ -886,7 +886,7 @@ class Topo:
         fill_channels=False,
         is_input_positive_below_msl=False,
         output_dir=Path(""),
-        write_to_file=True,
+        write_to_file=False,
         regridding_method="bilinear",
         run_regrid_dataset=True,
         run_tidy_dataset=True,
