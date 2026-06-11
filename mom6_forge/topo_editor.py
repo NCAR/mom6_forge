@@ -307,6 +307,7 @@ class TopoEditor(widgets.HBox):
         )
         self.basin_section = widgets.VBox(
             [
+                widgets.HTML("<h3>Basin Selector</h3>"),
                 self._basin_specifier,
                 self._basin_specifier_toggle,
                 self._basin_specifier_delete_selected,
