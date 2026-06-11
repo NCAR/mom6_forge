@@ -1,4 +1,5 @@
 import os
+import copy
 import numpy as np
 import xarray as xr
 import xesmf as xe
@@ -19,6 +20,7 @@ from mom6_forge.mapping import (
     regrid_dataset_via_cressman,
 )
 from mom6_forge._source_bathy import SourceBathy
+from mom6_forge.channel_width import ChannelWidthList
 import regionmask
 
 
@@ -27,7 +29,14 @@ class Topo:
     Bathymetry Generator for MOM6 grids (mom6_forge.grid.Grid).
     """
 
-    def __init__(self, grid, min_depth, version_control_dir="TopoLibrary", git=True):
+    def __init__(
+        self,
+        grid,
+        min_depth,
+        channel_widths=None,
+        version_control_dir="TopoLibrary",
+        git=True,
+    ):
         """
         MOM6 Simpler Models bathymetry constructor.
 
@@ -37,6 +46,8 @@ class Topo:
             horizontal grid instance for which the bathymetry is to be created.
         min_depth: float
             Minimum water column depth. Columns with shallow depths are to be masked out.
+        channel_widths: str | Path | ChannelWidthList, optional
+            Channel width constraints. Can be a filepath to load from, a ChannelWidthList object, or None.
         version_control_dir: str, optional
             Directory in which to store version-controlled bathymetry data. Defaults to
             "TopoLibrary". Ignored if git is False (version control is no longer used)
@@ -62,6 +73,16 @@ class Topo:
         initial_command = MinDepthEditCommand(
             self, attr="min_depth", new_value=min_depth
         )
+
+        # Initialize channel widths
+        if channel_widths is None:
+            self.channel_widths = ChannelWidthList()
+        elif isinstance(channel_widths, ChannelWidthList):
+            self.channel_widths = channel_widths
+        else:
+            # Assume it's a filepath
+            self.channel_widths = ChannelWidthList(filepath=channel_widths)
+
         if git:
 
             # Create a folder to store bathymetry objects in
@@ -110,14 +131,17 @@ class Topo:
 
         new_grid = self._grid[slices]
         new_topo = Topo(
-            new_grid, self._min_depth, git=self.has_version_control
+            new_grid,
+            self._min_depth,
+            git=self.has_version_control,
+            channel_widths=copy.deepcopy(self.channel_widths),
         )  # Create new topo with the same version control setting
         if self._depth is not None:
             new_topo._depth = self._depth[slices]
         return new_topo
 
     @classmethod
-    def from_version_control(cls, folder_path: str | Path):
+    def from_version_control(cls, folder_path: str | Path, channel_widths=None):
         """
         Create a bathymetry object from an existing version-controlled bathymetry folder.
 
@@ -125,6 +149,8 @@ class Topo:
         ----------
         folder_path: str | Path
             Path to an existing bathymetry folder created by mom6_forge with version control enabled.
+        channel_widths: str | Path | ChannelWidthList, optional
+            Channel width constraints. Can be a filepath to load from, a ChannelWidthList object, or None.
         """
 
         folder_path = Path(folder_path)
@@ -137,7 +163,10 @@ class Topo:
 
         # Create the topo object
         topo = Topo(
-            grid, 0.0, version_control_dir=folder_path.parent
+            grid,
+            0.0,
+            version_control_dir=folder_path.parent,
+            channel_widths=channel_widths,
         )  # Because we hash the grid, the correct domain will be selected
 
         # Reapply any changes
@@ -155,6 +184,7 @@ class Topo:
         varname="depth",
         version_control_dir="TopoLibrary",
         git=True,
+        channel_widths=None,
     ):
         """
         Create a bathymetry object from an existing topog file.
@@ -171,9 +201,19 @@ class Topo:
             Name of the variable representing ocean depth in the dataset. Default is "depth".
         git: bool, optional
             Passed through to Topo.__init__. See Topo docstring for details.
+        version_control_dir: str, optional
+            Directory for version control. Default is "TopoLibrary".
+        channel_widths: str | Path | ChannelWidthList, optional
+            Channel width constraints. Can be a filepath to load from, a ChannelWidthList object, or None.
         """
 
-        topo = cls(grid, min_depth, version_control_dir=version_control_dir, git=git)
+        topo = cls(
+            grid,
+            min_depth,
+            version_control_dir=version_control_dir,
+            channel_widths=channel_widths,
+            git=git,
+        )
         if topo.tcm is not None:
             topo.tcm.reapply_changes()
         topo.set_depth_via_topog_file(topo_file_path, varname)
@@ -784,7 +824,7 @@ class Topo:
         # Save to object (Build TCM Object)
         self.send_entire_depth_change_to_tcm(new_values)
 
-    def _compute_stats(self, nx_sub, ny_sub, mask_hmin):
+    def compute_stats(self, nx_sub, ny_sub, mask_hmin):
         """Compute per-cell depth statistics by uniform sub-sampling.
 
         Results are stored on ``stats`` so a second call with the
@@ -876,6 +916,79 @@ class Topo:
             },
         )
         return self.stats
+
+    def set_depth_from_stats(self, statistic):
+        """
+        Set the topo depth to a statistic computed by _compute_stats.
+
+        Parameters
+        ----------
+        statistic : str
+            Which depth statistic to use. Must be one of the "D_*" keys
+            in self.src.stats (e.g. "mean", "min", "max").
+        """
+
+        assert (
+            self.src is not None and self.src.stats is not None
+        ), "Source bathymetry must be provided and must have topo stats computed, please call compute_stats first if you have not already"
+        approved_list = []
+        for key in self.src.stats.data_vars:
+            if key.startswith("D_"):
+                approved_list.append(key[2:])
+        assert (
+            statistic in approved_list
+        ), f"Invalid statistic {statistic}, must be one of {approved_list}"
+
+        self.send_entire_depth_change_to_tcm(self.src.stats[f"D_{statistic}"])
+
+    def generate_mask_from_stats_ocean_frac(
+        self,
+        mask_threshold=0.5,
+    ):
+        """
+        Generate an ocean mask by uniform sub-sampling of the source bathymetry.
+
+        Mirrors the algorithm in tx2_3's create_model_topo.f90. For each T-cell,
+        distributes nx_sub x ny_sub interior points via bilinear interpolation of
+        the Q-point corners and snaps each to the nearest source pixel. A cell is
+        ocean if its ocean sub-point fraction (OCN_FRAC) meets or exceeds
+        ``mask_threshold``.
+
+        Parameters
+        ----------
+        mask_threshold : float, optional
+            Minimum OCN_FRAC for a cell to be classified as ocean. Default 0.5.
+
+        Returns
+        -------
+        xr.DataArray
+            Binary ocean mask on the T-grid (1 = ocean, 0 = land),
+            dims ``["ny", "nx"]``.
+
+        Notes
+        -----
+        ``compute_stats`` must be called before this method. Per-cell depth
+        statistics (D_mean, D_min, D_max, D2_mean) are stored on the source
+        bathymetry object for use by this and other downstream methods.
+        """
+
+        assert (
+            self.src is not None
+        ), "Source bathymetry must be set before generating mask."
+        assert (
+            self.src.stats is not None
+        ), f"Per-cell statistics must be computed before generating mask. Call compute_stats() first. src={self.src}"
+
+        ocean_mask = (self.src.stats["OCN_FRAC"].values >= mask_threshold).astype(int)
+
+        return xr.DataArray(
+            ocean_mask,
+            dims=["ny", "nx"],
+            attrs={
+                "long_name": "ocean mask from sub-sampling",
+                "mask_threshold": mask_threshold,
+            },
+        )
 
     def set_from_dataset(
         self,
@@ -1570,7 +1683,18 @@ class Topo:
             Path to TOPO_FILE to be written.
         title: str, optional
             File title.
+
+        Note
+        ----
+        If channel_widths is not empty, remember to also write those constraints using
+        channel_widths.write(channel_file_path).
         """
+
+        if self.channel_widths.get_all():
+            print(
+                "Note: Channel widths are defined. Remember to write them with "
+                "channel_widths.write(filepath)"
+            )
 
         ds = self.gen_topo_ds(title=title)
         ds.to_netcdf(file_path, format="NETCDF3_64BIT")
