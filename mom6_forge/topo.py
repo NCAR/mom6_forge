@@ -885,8 +885,8 @@ class Topo:
         """
 
         assert (
-            self.src.stats is not None
-        ), "Source bathymetry must have topo stats computed, please call _compute_stats first if you have not already"
+            self.src is not None and self.src.stats is not None
+        ), "Source bathymetry must be provided and must have topo stats computed, please call compute_stats first if you have not already"
         approved_list = []
         for key in self.src.stats.data_vars:
             if key.startswith("D_"):
