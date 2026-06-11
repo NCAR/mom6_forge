@@ -780,7 +780,7 @@ class Topo:
         # Save to object (Build TCM Object)
         self.send_entire_depth_change_to_tcm(new_values)
 
-    def compute_statsself, nx_sub, ny_sub, mask_hmin):
+    def compute_stats(self, nx_sub, ny_sub, mask_hmin):
         """Compute per-cell depth statistics by uniform sub-sampling.
 
         Results are stored on ``stats`` so a second call with the
