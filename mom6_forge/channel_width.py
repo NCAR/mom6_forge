@@ -22,7 +22,11 @@ class ChannelWidth:
     place: str  # comment/location name
 
     def __post_init__(self):
-        if self.component not in ("U_width", "V_width"):
+        if self.component.lower() == "u_width":
+            self.component = "U_width"
+        elif self.component.lower() == "v_width":
+            self.component = "V_width"
+        else:
             raise ValueError(
                 f"component must be 'U_width' or 'V_width', got '{self.component}'"
             )
@@ -105,7 +109,10 @@ class ChannelWidthList:
             with open(filepath) as f:
                 for line in f:
                     line = line.strip()
-                    if not (line.startswith("U_width") or line.startswith("V_width")):
+                    if not (
+                        line.lower().startswith("u_width")
+                        or line.lower().startswith("v_width")
+                    ):
                         continue
                     self.channels.append(ChannelWidth.from_line(line))
         else:
