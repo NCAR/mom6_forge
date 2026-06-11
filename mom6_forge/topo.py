@@ -780,7 +780,7 @@ class Topo:
         # Save to object (Build TCM Object)
         self.send_entire_depth_change_to_tcm(new_values)
 
-    def _compute_stats(self, nx_sub, ny_sub, mask_hmin):
+    def compute_statsself, nx_sub, ny_sub, mask_hmin):
         """Compute per-cell depth statistics by uniform sub-sampling.
 
         Results are stored on ``stats`` so a second call with the
@@ -899,7 +899,7 @@ class Topo:
 
         Notes
         -----
-        ``_compute_stats`` must be called before this method. Per-cell depth
+        ``compute_stats`` must be called before this method. Per-cell depth
         statistics (D_mean, D_min, D_max, D2_mean) are stored on the source
         bathymetry object for use by this and other downstream methods.
         """
@@ -909,7 +909,7 @@ class Topo:
         ), "Source bathymetry must be set before generating mask."
         assert (
             self.src.stats is not None
-        ), f"Per-cell statistics must be computed before generating mask. Call _compute_stats() first. src={self.src}"
+        ), f"Per-cell statistics must be computed before generating mask. Call compute_stats() first. src={self.src}"
 
         ocean_mask = (self.src.stats["OCN_FRAC"].values >= mask_threshold).astype(int)
 

@@ -218,9 +218,9 @@ class SourceBathy:
 
     @property
     def stats(self):
-        """Per-cell depth statistics computed by ``Topo._compute_stats``.
+        """Per-cell depth statistics computed by ``Topo.compute_stats``.
 
-        Returns ``None`` until ``_compute_stats`` has been called.
+        Returns ``None`` until ``compute_stats`` has been called.
 
         Returns
         -------
