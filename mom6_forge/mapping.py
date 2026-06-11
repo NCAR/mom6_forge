@@ -950,7 +950,7 @@ def regrid_dataset_via_xesmf(
     write_to_file=False,
     output_path=Path("regridded_dataset.nc"),
     weights_path=None,
-    reuse_weights = False,
+    reuse_weights=False,
     locstream_out=False,
     periodic=False,
 ):
@@ -994,7 +994,9 @@ def regrid_dataset_via_xesmf(
             periodic=periodic,
         )
     else:
-        assert weights_path is not None and Path(weights_path).exists(), "weights_path must be provided and exist if reuse_weights is True"
+        assert (
+            weights_path is not None and Path(weights_path).exists()
+        ), "weights_path must be provided and exist if reuse_weights is True"
         print(f"Using pre-computed regridding weights from {weights_path}...")
         regridder = xe.Regridder(
             input_dataset,
@@ -1303,7 +1305,7 @@ def regrid_dataset_via_cressman(
     weights_path: Path,
     smooth_scl: float = 2.0,
     cressman_exp: float = 2.0,
-    write_to_file: bool = True,
+    write_to_file: bool = False,
     output_path: Path = Path("cressman_regridded.nc"),
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute mask-aware Cressman weights, save to an ESMF weights file, and regrid
@@ -1359,7 +1361,7 @@ def regrid_dataset_via_cressman(
         weights_path=weights_path,
         write_to_file=write_to_file,  # We'll write the final regridded dataset at the end of this function
         output_path=output_path,
-        reuse_weights = True,
+        reuse_weights=True,
     )
 
     unfilled = weights_ds["unfilled"].values.reshape(dst_ds["lon"].shape)

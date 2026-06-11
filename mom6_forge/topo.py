@@ -1064,34 +1064,24 @@ class Topo:
             weights_path = self.src.path.parent / "cressman_weights.nc"
 
         # --- Regrid via mapping module (weights → file → cressman Regridder) ---
-        src_ds = xr.Dataset(
-            {
-                "lon": (["x"], self.src.lon),
-                "lat": (["y"], self.src.lat),
-                "depth": (["y", "x"], self._da.values),
-            }
-        )
-        dst_ds = xr.Dataset(
-            {
-                "lon": self._grid.tlon,
-                "lat": self._grid.tlat,
-                "area": self._grid.tarea,
-                "mask": self.tmask,
-            }
-        )
+
+        dst_ds = self._grid.get_esmf_ready_tracer_ds()
+        dst_ds["area"] = self._grid.tarea
+        dst_ds["mask"] = self.tmask
+
         depth_dst, unfilled = regrid_dataset_via_cressman(
-            src_ds,
+            self.src.ds,
             dst_ds,
             smooth_scl=smooth_scl,
             cressman_exp=cressman_exp,
             weights_path=weights_path,
         )
 
-        depth_dst = iterative_fill(depth_dst, unfilled, self.tmask)
+        depth_arr = iterative_fill(depth_dst["depth"].values, unfilled, self.tmask)
 
         self.send_entire_depth_change_to_tcm(
             xr.DataArray(
-                depth_dst.astype(float), dims=["ny", "nx"], attrs={"units": "m"}
+                depth_arr.astype(float), dims=["ny", "nx"], attrs={"units": "m"}
             )
         )
 
