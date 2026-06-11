@@ -10,13 +10,6 @@ from mom6_forge._source_bathy import SourceBathy
 
 
 @pytest.fixture
-def get_rect_topo(tmp_path, get_rect_grid):
-    topo = Topo(get_rect_grid, min_depth=0, version_control_dir=tmp_path)
-    topo.set_flat(1000)
-    return topo
-
-
-@pytest.fixture
 def get_editor(get_rect_topo):
     return TopoEditor(get_rect_topo, build_ui=False)
 

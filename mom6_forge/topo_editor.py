@@ -9,7 +9,6 @@ from matplotlib.ticker import MaxNLocator
 from mom6_forge.edit_command import *
 from mom6_forge.git_utils import *
 from matplotlib.widgets import RectangleSelector
-from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 
 class TopoEditor(widgets.HBox):
@@ -500,10 +499,6 @@ class TopoEditor(widgets.HBox):
         self._depth_specifier.observe(
             self.on_depth_change, names="value", type="change"
         )
-
-        # Mask change observer for selected cell
-        self._mask_specifier.observe(self.on_mask_change, names="value", type="change")
-        self._clear_user_mask_button.on_click(self.clear_user_mask)
 
         # Mask change observer for selected cell
         self._mask_specifier.observe(self.on_mask_change, names="value", type="change")
