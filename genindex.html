@@ -156,9 +156,15 @@
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.command_manager.CommandManager.commit">commit() (mom6_forge.command_manager.CommandManager method)</a>
 </li>
+      <li><a href="api/mom6_forge.html#mom6_forge.mapping.compute_cressman_weights">compute_cressman_weights() (in module mom6_forge.mapping)</a>
+</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.mapping.compute_smoothing_weights">compute_smoothing_weights() (in module mom6_forge.mapping)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.compute_stats">compute_stats() (mom6_forge.topo.Topo method)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.utils.compute_subsampling_factor">compute_subsampling_factor() (in module mom6_forge.utils)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid_creator.GridCreator.construct_control_panel">construct_control_panel() (mom6_forge.grid_creator.GridCreator method)</a>
 
@@ -210,6 +216,10 @@
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.direct_cressman_interp">direct_cressman_interp() (mom6_forge.topo.Topo method)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.mapping.dst_to_source">dst_to_source() (in module mom6_forge.mapping)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.dxCu">dxCu (mom6_forge.grid.Grid attribute)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.dxCv">dxCv (mom6_forge.grid.Grid attribute)</a>
@@ -300,6 +310,8 @@
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.generate_mask_from_naturalearth">generate_mask_from_naturalearth() (mom6_forge.topo.Topo method)</a>
 </li>
+      <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.generate_mask_from_stats_ocean_frac">generate_mask_from_stats_ocean_frac() (mom6_forge.topo.Topo method)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.utils.get_avg_resolution">get_avg_resolution() (in module mom6_forge.utils)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.utils.get_avg_resolution_km">get_avg_resolution_km() (in module mom6_forge.utils)</a>
@@ -362,15 +374,17 @@
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.chl.interpolate_and_fill_seawifs">interpolate_and_fill_seawifs() (in module mom6_forge.chl)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.is_cyclic_x">is_cyclic_x() (mom6_forge.grid.Grid static method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.utils.is_mesh_cyclic_x">is_mesh_cyclic_x() (in module mom6_forge.utils)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.is_rectangular">is_rectangular() (mom6_forge.grid.Grid method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.is_tripolar">is_tripolar() (mom6_forge.grid.Grid static method)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.utils.iterative_fill">iterative_fill() (in module mom6_forge.utils)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -609,13 +623,15 @@
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.plot_cross_section">plot_cross_section() (mom6_forge.grid.Grid method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.plotting.plot_esmf_mesh">plot_esmf_mesh() (in module mom6_forge.plotting)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.grid_creator.GridCreator.plot_grid">plot_grid() (mom6_forge.grid_creator.GridCreator method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.vgrid_creator.VGridCreator.plot_vgrid">plot_vgrid() (mom6_forge.vgrid_creator.VGridCreator method)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.grid_creator.GridCreator.plot_world">plot_world() (mom6_forge.grid_creator.GridCreator method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.point_is_ocean">point_is_ocean() (mom6_forge.topo.Topo method)</a>
 </li>
@@ -653,19 +669,21 @@
       </ul></li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo_editor.TopoEditor.redo_last_edit">redo_last_edit() (mom6_forge.topo_editor.TopoEditor method)</a>
 </li>
-      <li><a href="api/mom6_forge.html#mom6_forge.grid_creator.GridCreator.refresh_commit_dropdown">refresh_commit_dropdown() (mom6_forge.grid_creator.GridCreator method)</a>
-
-      <ul>
-        <li><a href="api/mom6_forge.html#mom6_forge.vgrid_creator.VGridCreator.refresh_commit_dropdown">(mom6_forge.vgrid_creator.VGridCreator method)</a>
+      <li><a href="api/mom6_forge.html#mom6_forge.vgrid_creator.VGridCreator.refresh_commit_dropdown">refresh_commit_dropdown() (mom6_forge.vgrid_creator.VGridCreator method)</a>
 </li>
-      </ul></li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo_editor.TopoEditor.refresh_display_mode">refresh_display_mode() (mom6_forge.topo_editor.TopoEditor method)</a>
 </li>
+      <li><a href="api/mom6_forge.html#mom6_forge.grid_creator.GridCreator.refresh_library_dropdown">refresh_library_dropdown() (mom6_forge.grid_creator.GridCreator method)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.edit_command.register_command">register_command() (in module mom6_forge.edit_command)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.mapping.regrid_dataset_via_cressman">regrid_dataset_via_cressman() (in module mom6_forge.mapping)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.mapping.regrid_dataset_via_xesmf">regrid_dataset_via_xesmf() (in module mom6_forge.mapping)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.mapping.regrid_with_subsampling">regrid_with_subsampling() (in module mom6_forge.mapping)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.command_manager.TopoCommandManager.reset">reset() (mom6_forge.command_manager.TopoCommandManager method)</a>
 
@@ -717,6 +735,8 @@
       </ul></li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.set_bowl">set_bowl() (mom6_forge.topo.Topo method)</a>
 </li>
+      <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.set_depth_from_stats">set_depth_from_stats() (mom6_forge.topo.Topo method)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.set_depth_via_topog_file">set_depth_via_topog_file() (mom6_forge.topo.Topo method)</a>
 </li>
   </ul></td>
@@ -729,7 +749,11 @@
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.set_src">set_src() (mom6_forge.topo.Topo method)</a>
 </li>
+      <li><a href="api/mom6_forge.html#mom6_forge.mapping.source_to_dst">source_to_dst() (in module mom6_forge.mapping)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.src">src (mom6_forge.topo.Topo property)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.stats">stats (mom6_forge.topo.Topo property)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.subgrid_from_supergrid">subgrid_from_supergrid() (mom6_forge.grid.Grid class method)</a>
 </li>
@@ -805,12 +829,10 @@
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.vgrid.VGrid.uniform">uniform() (mom6_forge.vgrid.VGrid class method)</a>
 </li>
-      <li><a href="api/mom6_forge.html#mom6_forge.grid_creator.GridCreator.update_commit_details">update_commit_details() (mom6_forge.grid_creator.GridCreator method)</a>
-
-      <ul>
-        <li><a href="api/mom6_forge.html#mom6_forge.vgrid_creator.VGridCreator.update_commit_details">(mom6_forge.vgrid_creator.VGridCreator method)</a>
+      <li><a href="api/mom6_forge.html#mom6_forge.vgrid_creator.VGridCreator.update_commit_details">update_commit_details() (mom6_forge.vgrid_creator.VGridCreator method)</a>
 </li>
-      </ul></li>
+      <li><a href="api/mom6_forge.html#mom6_forge.grid_creator.GridCreator.update_grid_details">update_grid_details() (mom6_forge.grid_creator.GridCreator method)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.update_supergrid">update_supergrid() (mom6_forge.grid.Grid method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo_editor.TopoEditor.update_undo_redo_buttons">update_undo_redo_buttons() (mom6_forge.topo_editor.TopoEditor method)</a>
