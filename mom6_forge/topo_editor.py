@@ -361,9 +361,7 @@ class TopoEditor(widgets.HBox):
             if current_branch in self._git_branch_dropdown.options:
                 self._git_branch_dropdown.value
         self._control_panel = widgets.VBox(
-            [
-                cp,
-            ],
+            cp,
             layout={"width": "30%", "height": "100%", "overflow_y": "auto"},
         )
 
