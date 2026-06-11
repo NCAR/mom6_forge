@@ -88,7 +88,7 @@ def test_compute_topo_stats(get_rect_topo, synthetic_bathy_file):
 
 
 def test_set_depth_from_stats(get_rect_topo, synthetic_bathy_file):
-    """Test set_depth_from_stats sets topo depth to the chosen statistic from _compute_stats."""
+    """Test set_depth_from_stats sets topo depth to the chosen statistic from compute_stats."""
     topo = get_rect_topo
 
     # Load source bathymetry and slice to topo domain
@@ -99,7 +99,7 @@ def test_set_depth_from_stats(get_rect_topo, synthetic_bathy_file):
         is_input_positive_below_msl=False,
     )
     topo.src = src
-    topo._compute_stats(nx_sub=2, ny_sub=2, mask_hmin=0.0)
+    topo.compute_stats(nx_sub=2, ny_sub=2, mask_hmin=0.0)
 
     topo.set_depth_from_stats("mean")
 
