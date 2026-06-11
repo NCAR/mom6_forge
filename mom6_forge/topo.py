@@ -780,7 +780,7 @@ class Topo:
         # Save to object (Build TCM Object)
         self.send_entire_depth_change_to_tcm(new_values)
 
-    def _compute_stats(self, nx_sub, ny_sub, mask_hmin):
+    def compute_stats(self, nx_sub, ny_sub, mask_hmin):
         """Compute per-cell depth statistics by uniform sub-sampling.
 
         Results are stored on ``stats`` so a second call with the
@@ -896,6 +896,54 @@ class Topo:
         ), f"Invalid statistic {statistic}, must be one of {approved_list}"
 
         self.send_entire_depth_change_to_tcm(self.src.stats[f"D_{statistic}"])
+    def generate_mask_from_stats_ocean_frac(
+        self,
+        mask_threshold=0.5,
+    ):
+        """
+        Generate an ocean mask by uniform sub-sampling of the source bathymetry.
+
+        Mirrors the algorithm in tx2_3's create_model_topo.f90. For each T-cell,
+        distributes nx_sub x ny_sub interior points via bilinear interpolation of
+        the Q-point corners and snaps each to the nearest source pixel. A cell is
+        ocean if its ocean sub-point fraction (OCN_FRAC) meets or exceeds
+        ``mask_threshold``.
+
+        Parameters
+        ----------
+        mask_threshold : float, optional
+            Minimum OCN_FRAC for a cell to be classified as ocean. Default 0.5.
+
+        Returns
+        -------
+        xr.DataArray
+            Binary ocean mask on the T-grid (1 = ocean, 0 = land),
+            dims ``["ny", "nx"]``.
+
+        Notes
+        -----
+        ``compute_stats`` must be called before this method. Per-cell depth
+        statistics (D_mean, D_min, D_max, D2_mean) are stored on the source
+        bathymetry object for use by this and other downstream methods.
+        """
+
+        assert (
+            self.src is not None
+        ), "Source bathymetry must be set before generating mask."
+        assert (
+            self.src.stats is not None
+        ), f"Per-cell statistics must be computed before generating mask. Call compute_stats() first. src={self.src}"
+
+        ocean_mask = (self.src.stats["OCN_FRAC"].values >= mask_threshold).astype(int)
+
+        return xr.DataArray(
+            ocean_mask,
+            dims=["ny", "nx"],
+            attrs={
+                "long_name": "ocean mask from sub-sampling",
+                "mask_threshold": mask_threshold,
+            },
+        )
 
     def set_from_dataset(
         self,
