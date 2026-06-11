@@ -15,15 +15,16 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 class TopoEditor(widgets.HBox):
     def __init__(self, topo, build_ui=True):
         self.topo = topo
-        self.ny = self.topo.depth.data.shape[0]
-        self.nx = self.topo.depth.data.shape[1]
+        self.ny = self.topo.masked_depth.data.shape[0]
+        self.nx = self.topo.masked_depth.data.shape[1]
+        self._selected_cell = None
         self.build_ui = build_ui
 
         # --- Command Manager ---
-        self.current_branch = self.topo.tcm.get_current_branch()
-        self._selected_cell = None
-        self._original_depth = np.array(self.topo.depth.data)
-        self._original_min_depth = self.topo.min_depth
+        if self.has_version_control:
+            self.current_branch = self.topo.tcm.get_current_branch()
+            self._original_depth = np.array(self.topo.masked_depth.data)
+            self._original_min_depth = self.topo.min_depth
         self._selected_cells = []
 
         # --- Build UI controls, plot, and observers ---
@@ -37,6 +38,11 @@ class TopoEditor(widgets.HBox):
         super().__init__([self._control_panel, self._interactive_plot])
 
     @property
+    def has_version_control(self):
+        """Check if the topo's has version control."""
+        return self.topo.has_version_control
+
+    @property
     def active_cells(self):
         if hasattr(self, "_selected_cells") and self._selected_cells:
             return list(self._selected_cells)
@@ -47,7 +53,7 @@ class TopoEditor(widgets.HBox):
 
     def apply_edit(self, cmd):
         """Apply an edit command, update the UI, and autosave the working state."""
-        self.topo.tcm.execute(cmd)
+        self.topo.apply_edit(cmd)
         self.trigger_refresh()
 
     def undo_last_edit(self, b=None):
@@ -67,6 +73,8 @@ class TopoEditor(widgets.HBox):
 
     def update_undo_redo_buttons(self):
         """Enable or disable the undo/redo buttons based on command history."""
+        if not self.has_version_control:
+            return
         if hasattr(self, "_undo_button"):
             self._undo_button.disabled = not self.topo.tcm.undo(check_only=True)
         if hasattr(self, "_redo_button"):
@@ -95,7 +103,7 @@ class TopoEditor(widgets.HBox):
         # Custom coordinate formatter for mouse hover
         def format_coord(x, y):
             j, i = self.topo._grid.get_indices(y, x)
-            return f"x={x:.2f}, y={y:.2f}, i={i}, j={j} depth={self.topo.depth.data[j, i]:.2f}"
+            return f"x={x:.2f}, y={y:.2f}, i={i}, j={j} depth={self.topo.masked_depth.data[j, i]:.2f}"
 
         self.ax.format_coord = format_coord
 
@@ -105,7 +113,7 @@ class TopoEditor(widgets.HBox):
         self.im = self.ax.pcolormesh(
             self.topo._grid.qlon.data,
             self.topo._grid.qlat.data,
-            self.topo.depth.data,
+            self.topo.masked_depth.data,
             vmin=self.topo.min_depth,
             cmap=self.cmap,
             transform=ccrs.PlateCarree(),
@@ -124,7 +132,7 @@ class TopoEditor(widgets.HBox):
         self.cbar = self.fig.colorbar(
             self.im, ax=self.ax, orientation="vertical", pad=0.02
         )
-        self.cbar.set_label(f"Depth ({self.topo.depth.units})")
+        self.cbar.set_label(f"Depth ({self.topo.masked_depth.units})")
         self.cbar.set_ticks(MaxNLocator(integer=True))
 
         # Enable toolbar and layout
@@ -163,7 +171,7 @@ class TopoEditor(widgets.HBox):
         self._min_depth_specifier = widgets.BoundedFloatText(
             value=self.topo.min_depth,
             min=-1000.0,
-            max=float(np.nanmax(self.topo.depth.data)),
+            max=float(np.nanmax(self.topo.masked_depth.data)),
             step=10.0,
             description="Min depth (m):",
             disabled=False,
@@ -245,34 +253,35 @@ class TopoEditor(widgets.HBox):
             description="Reset", layout={"width": "44%"}, button_style="danger"
         )
 
-        # --- Snapshot controls ---
-        self._tag_name = widgets.Text(
-            value="",
-            placeholder="Enter tag name",
-            description="Name:",
-            layout={"width": "90%"},
-        )
-        self._save_button = widgets.Button(
-            description="Save Tag", layout={"width": "44%"}
-        )
+        if self.has_version_control:
+            # --- Snapshot controls ---
+            self._tag_name = widgets.Text(
+                value="",
+                placeholder="Enter tag name",
+                description="Name:",
+                layout={"width": "90%"},
+            )
+            self._save_button = widgets.Button(
+                description="Save Tag", layout={"width": "44%"}
+            )
 
-        self._git_branch_name = widgets.Text(
-            value="",
-            placeholder="New branch name",
-            description="Branch:",
-            layout={"width": "90%"},
-        )
-        self._git_create_branch_button = widgets.Button(
-            description="Create Branch", layout={"width": "44%"}
-        )
-        self._git_branch_dropdown = widgets.Dropdown(
-            options=self.topo.tcm.list_branches(),
-            description="Checkout:",
-            layout={"width": "90%"},
-        )
-        self._git_checkout_button = widgets.Button(
-            description="Checkout", layout={"width": "44%"}
-        )
+            self._git_branch_name = widgets.Text(
+                value="",
+                placeholder="New branch name",
+                description="Branch:",
+                layout={"width": "90%"},
+            )
+            self._git_create_branch_button = widgets.Button(
+                description="Create Branch", layout={"width": "44%"}
+            )
+            self._git_branch_dropdown = widgets.Dropdown(
+                options=self.topo.tcm.list_branches(),
+                description="Checkout:",
+                layout={"width": "90%"},
+            )
+            self._git_checkout_button = widgets.Button(
+                description="Checkout", layout={"width": "44%"}
+            )
         # --- Group controls into logical sections ---
         self.display_section = widgets.VBox(
             [
@@ -311,50 +320,51 @@ class TopoEditor(widgets.HBox):
                 ),
             ]
         )
-        self.git_section = widgets.VBox(
-            [
-                # Domain controls
-                widgets.HTML("<hr>"),
-                # Snapshot controls
-                self._tag_name,
-                widgets.HBox([self._save_button]),
-                widgets.HTML("<hr>"),
-                # Git controls
-                self._git_branch_name,
-                widgets.HBox([self._git_create_branch_button]),
-                self._git_branch_dropdown,
-                self._git_checkout_button,
-            ]
-        )
+        if self.has_version_control:
+            self.git_section = widgets.VBox(
+                [
+                    # Domain controls
+                    widgets.HTML("<hr>"),
+                    # Snapshot controls
+                    self._tag_name,
+                    widgets.HBox([self._save_button]),
+                    widgets.HTML("<hr>"),
+                    # Git controls
+                    self._git_branch_name,
+                    widgets.HBox([self._git_create_branch_button]),
+                    self._git_branch_dropdown,
+                    self._git_checkout_button,
+                ]
+            )
 
         # --- Layout: always-visible controls and advanced accordions ---
-        self.main_controls = widgets.VBox(
-            [
-                self.display_section,
-                self.global_settings_section,
-                self.cell_editing_section,
-                self.basin_section,
-                self.history_section,
-            ]
-        )
-        self.git_accordion = widgets.Accordion(children=[self.git_section])
-        self.git_accordion.set_title(0, "Git Version Control")
-        self.git_accordion.selected_index = None  # collapsed by default
+        main_panel = [
+            self.display_section,
+            self.global_settings_section,
+            self.cell_editing_section,
+            self.basin_section,
+        ]
+        if self.has_version_control:
+            main_panel.append(self.history_section)
+        self.main_controls = widgets.VBox(main_panel)
 
         # --- Combine everything into the control panel ---
+        cp = [widgets.HTML("<h2>Topo Editor</h2>"), self.main_controls]
+        if self.has_version_control:
+            git_accordion = widgets.Accordion(children=[self.git_section])
+            git_accordion.set_title(0, "Git Version Control")
+            git_accordion.selected_index = None  # collapsed by default
+            cp.append(git_accordion)
+            # Set the current branch in the dropdown if available
+            current_branch = self.topo.tcm.get_current_branch()
+            if current_branch in self._git_branch_dropdown.options:
+                self._git_branch_dropdown.value
         self._control_panel = widgets.VBox(
             [
-                widgets.HTML("<h2>Topo Editor</h2>"),
-                self.main_controls,
-                self.git_accordion,
+                cp,
             ],
             layout={"width": "30%", "height": "100%", "overflow_y": "auto"},
         )
-
-        # Set the current branch in the dropdown if available
-        current_branch = self.topo.tcm.get_current_branch()
-        if current_branch in self._git_branch_dropdown.options:
-            self._git_branch_dropdown.value
 
     def refresh_display_mode(self, change):
         """Refresh the display mode of the topography plot based on the selected mode."""
@@ -367,13 +377,15 @@ class TopoEditor(widgets.HBox):
         self.basin_section.layout.display = "flex" if mode == "basinmask" else "none"
         if mode == "depth":
             self.im.set_clim(
-                vmin=self.topo.min_depth, vmax=float(np.nanmax(self.topo.depth.data))
+                vmin=self.topo.min_depth,
+                vmax=float(np.nanmax(self.topo.masked_depth.data)),
             )
-            self.im.set_array(self.topo.depth.data)
+            self.im.set_array(self.topo.masked_depth.data)
             self.im.set_clim(
-                vmin=self.topo.min_depth, vmax=float(np.nanmax(self.topo.depth.data))
+                vmin=self.topo.min_depth,
+                vmax=float(np.nanmax(self.topo.masked_depth.data)),
             )  # For some reason, this needs to be set twice to get the correct minimum bound
-            self.cbar.set_label(f"Depth ({self.topo.depth.units})")
+            self.cbar.set_label(f"Depth ({self.topo.masked_depth.units})")
         elif mode == "mask":
             self.im.set_array(self.topo.tmask.data)
             self.im.set_clim((0, 1))
@@ -441,7 +453,7 @@ class TopoEditor(widgets.HBox):
             self._selected_cell_label.value = f"Selected cell: {i}, {j}"
         if hasattr(self, "_depth_specifier"):
             self._depth_specifier.disabled = False
-            self._depth_specifier.value = self.topo.depth.data[j, i]
+            self._depth_specifier.value = self.topo.masked_depth.data[j, i]
         if hasattr(self, "_mask_specifier"):
             self._mask_specifier.disabled = False
             self._mask_specifier.value = (
@@ -494,17 +506,22 @@ class TopoEditor(widgets.HBox):
         self._mask_specifier.observe(self.on_mask_change, names="value", type="change")
         self._clear_user_mask_button.on_click(self.clear_user_mask)
 
-        # Undo/Redo/Reset buttons
-        self._undo_button.on_click(self.undo_last_edit)
-        self._redo_button.on_click(self.redo_last_edit)
-        self._reset_button.on_click(self.reset)
+        # Mask change observer for selected cell
+        self._mask_specifier.observe(self.on_mask_change, names="value", type="change")
+        self._clear_user_mask_button.on_click(self.clear_user_mask)
 
-        # Snapshot controls
-        self._save_button.on_click(self.on_tag)
+        if self.has_version_control:
+            # Undo/Redo/Reset buttons
+            self._undo_button.on_click(self.undo_last_edit)
+            self._redo_button.on_click(self.redo_last_edit)
+            self._reset_button.on_click(self.reset)
 
-        # Git/domain controls
-        self._git_create_branch_button.on_click(self.on_git_create_branch)
-        self._git_checkout_button.on_click(self.on_git_checkout)
+            # Snapshot controls
+            self._save_button.on_click(self.on_tag)
+
+            # Git/domain controls
+            self._git_create_branch_button.on_click(self.on_git_create_branch)
+            self._git_checkout_button.on_click(self.on_git_checkout)
 
     # --- UI Callback Methods ---
     def _on_rect_select_toggle(self, change):

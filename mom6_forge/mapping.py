@@ -994,6 +994,157 @@ def regrid_dataset_via_xesmf(
     return dataset
 
 
+def _make_subgrid_points(qlon, qlat, nx_sub, ny_sub):
+    """
+    Given corner coordinates of a low-res grid (qlon/qlat on the q-point staggering),
+    return sub-sampled lon/lat arrays of shape (ny, nx, ny_sub, nx_sub). (Originally created by Frank Bryan in Fortran for NCAR/tx2_3, reimplemented in Python)
+
+    Parameters
+    ----------
+    qlon, qlat : np.ndarray  shape (ny+1, nx+1)
+        Corner (q-point) coordinates of the low-res grid.
+    nx_sub, ny_sub : int
+        Number of sub-points per cell in each direction.
+
+    Returns
+    -------
+    sub_lon, sub_lat : np.ndarray  shape (ny, nx, ny_sub, nx_sub)
+    """
+    assert isinstance(qlon, np.ndarray), "qlon must be a numpy array"
+    assert isinstance(qlat, np.ndarray), "qlat must be a numpy array"
+
+    SW_lon = qlon[:-1, :-1]
+    SW_lat = qlat[:-1, :-1]
+    SE_lon = qlon[:-1, 1:]
+    SE_lat = qlat[:-1, 1:]
+    NE_lon = qlon[1:, 1:]
+    NE_lat = qlat[1:, 1:]
+    NW_lon = qlon[1:, :-1]
+    NW_lat = qlat[1:, :-1]
+
+    # Fix antimeridian-straddling cells
+    def _fix_period(lon, ref):
+        lon = np.where(lon - ref > 270, lon - 360, lon)
+        lon = np.where(lon - ref < -270, lon + 360, lon)
+        return lon
+
+    SW_lon = _fix_period(SW_lon, NE_lon)
+    SE_lon = _fix_period(SE_lon, NE_lon)
+    NW_lon = _fix_period(NW_lon, NE_lon)
+
+    ifrac = (np.arange(1, nx_sub + 1) / (nx_sub + 1)).astype(float)
+    jfrac = (np.arange(1, ny_sub + 1) / (ny_sub + 1)).astype(float)
+
+    i_ = ifrac[np.newaxis, np.newaxis, np.newaxis, :]  # (1,1,1,nx_sub)
+    j_ = jfrac[np.newaxis, np.newaxis, :, np.newaxis]  # (1,1,ny_sub,1)
+
+    # Broadcast all corners to (ny, nx, 1, 1),
+    SW_lon = SW_lon[:, :, np.newaxis, np.newaxis]
+    SE_lon = SE_lon[:, :, np.newaxis, np.newaxis]
+    NE_lon = NE_lon[:, :, np.newaxis, np.newaxis]
+    NW_lon = NW_lon[:, :, np.newaxis, np.newaxis]
+    SW_lat = SW_lat[:, :, np.newaxis, np.newaxis]
+    SE_lat = SE_lat[:, :, np.newaxis, np.newaxis]
+    NE_lat = NE_lat[:, :, np.newaxis, np.newaxis]
+    NW_lat = NW_lat[:, :, np.newaxis, np.newaxis]
+
+    sub_lon = (
+        (1 - i_) * (1 - j_) * SW_lon
+        + i_ * (1 - j_) * SE_lon
+        + i_ * j_ * NE_lon
+        + (1 - i_) * j_ * NW_lon
+    )
+    sub_lat = (
+        (1 - i_) * (1 - j_) * SW_lat
+        + i_ * (1 - j_) * SE_lat
+        + i_ * j_ * NE_lat
+        + (1 - i_) * j_ * NW_lat
+    )
+
+    return sub_lon, sub_lat
+
+
+def regrid_with_subsampling(
+    input_dataset,
+    qlon,
+    qlat,
+    nx_sub,
+    ny_sub,
+    regridding_method="nearest_s2d",
+    regridder=None,
+):
+    """
+    Regrids input_dataset to sub_sampled_grid to
+    properly analyze high-res source data into each coarse cell.  (Originally created by Frank Bryan in Fortran for NCAR/tx2_3, reimplemented in Python)
+
+    Parameters
+    ----------
+    input_dataset : xr.Dataset (not curvilinear)
+    qlon, qlat : np.ndarray  shape (ny+1, nx+1)
+        Corner coordinates of the destination grid.
+    nx_sub, ny_sub : int
+        Number of sub-points per cell (typically from compute_subsampling_factor).
+    Returns
+    -------
+    regridded_dataset : xr.Dataset
+            Regridded dataset with dimensions (..., ny, nx, ny_sub, nx_sub), where the sub-sampling points are kept as separate dimensions. (User should perform stats calc)
+    """
+    assert len(input_dataset.lon.dims) == 1 and input_dataset.lat.dims == (
+        "lat",
+    ), "input_dataset must have 1D 'lon' and 'lat' coordinates"
+    ny, nx = qlon.shape[0] - 1, qlon.shape[1] - 1
+
+    # Build the (ny, nx, ny_sub, nx_sub) sub-point grid
+    sub_lon, sub_lat = _make_subgrid_points(qlon, qlat, nx_sub, ny_sub)
+
+    # Flatten to (ny, nx*ny_sub*nx_sub) so xesmf sees a 2D destination
+    flat_lon = sub_lon.reshape(ny, nx * ny_sub * nx_sub)
+    flat_lat = sub_lat.reshape(ny, nx * ny_sub * nx_sub)
+
+    flat_output = xr.Dataset(
+        {
+            "lon": xr.DataArray(flat_lon, dims=["ny", "nx"]),
+            "lat": xr.DataArray(flat_lat, dims=["ny", "nx"]),
+        }
+    )
+
+    if regridder is None:
+        regridder = xe.Regridder(
+            input_dataset,
+            flat_output,
+            method=regridding_method,
+            locstream_out=False,
+            periodic=False,
+        )
+
+    regridded_flat = regridder(input_dataset)
+
+    # Reshape to 4D, keeping sub-points as their own dimension
+    data_vars = {}
+    for var in regridded_flat.data_vars:
+        data = regridded_flat[var].values  # (..., ny, nx*ny_sub*nx_sub)
+        reshaped = data.reshape(*data.shape[:-2], ny, nx, ny_sub, nx_sub)
+
+        original_dims = regridded_flat[var].dims
+        new_dims = (*original_dims[:-2], "ny", "nx", "ny_sub", "nx_sub")
+
+        data_vars[var] = xr.DataArray(
+            reshaped,
+            dims=new_dims,
+            attrs=regridded_flat[var].attrs,
+        )
+
+    coords = {
+        k: v
+        for k, v in regridded_flat.coords.items()
+        if "ny" not in v.dims and "nx" not in v.dims
+    }
+    coords["ny_sub"] = np.arange(ny_sub)
+    coords["nx_sub"] = np.arange(nx_sub)
+
+    return xr.Dataset(data_vars, coords=coords, attrs=input_dataset.attrs), regridder
+
+
 def main(args):
 
     if args.parallel:
