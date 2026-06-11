@@ -98,13 +98,14 @@ class ChannelWidthList:
                 f.write(line)
 
     def load(self, filepath: str | Path):
-        """Load from ASCII file"""
+        """Load from ASCII file, skipping comment/header lines (any line that
+        does not begin with U_width or V_width), matching MOM6 behaviour."""
         filepath = Path(filepath)
         if filepath.exists():
             with open(filepath) as f:
                 for line in f:
                     line = line.strip()
-                    if not line:
+                    if not (line.startswith("U_width") or line.startswith("V_width")):
                         continue
                     self.channels.append(ChannelWidth.from_line(line))
         else:
