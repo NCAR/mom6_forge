@@ -114,7 +114,15 @@ jobs:
       - name: Check run logs for errors
         run: |
           echo '--- checking run logs for errors ---'
-          if grep -rq 'ERROR|FATAL|Abort' ${{ github.workspace }}/cesm_scratch/case/run 2>/dev/null; then
+          RUNDIR=/home/runner/work/mom6_forge/mom6_forge/cesm_scratch/case/run
+
+          errors_found=0
+          # plain-text files
+          grep -rqE 'ERROR|FATAL|Abort' "$RUNDIR" 2>/dev/null && errors_found=1
+          # gzipped files
+          find "$RUNDIR" -name '*.gz' -print0 | xargs -0 -r zgrep -qE 'ERROR|FATAL|Abort' 2>/dev/null && errors_found=1
+
+          if [ "$errors_found" -eq 1 ]; then
             echo 'CESM run contained errors — see artifacts'
             exit 1
           fi
