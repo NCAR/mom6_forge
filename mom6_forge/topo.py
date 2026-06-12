@@ -1767,6 +1767,7 @@ class Topo:
         ds["elementMask"] = xr.DataArray(
             self.tmask.data.astype(np.int32).flatten(), dims=["elementCount"]
         )
+        ds["elementMask"] = ds.elementMask * 0
 
         i0 = 1  # start index for node id's
 
@@ -1855,4 +1856,4 @@ class Topo:
             var: {"_FillValue": None} for var in ds.data_vars
         }  # disable _FillValue for all variables to avoid issues in ESMF
         self.mesh_path = file_path
-        ds.to_netcdf(self.mesh_path, format="NETCDF4", encoding=all_vars_encoding)
+        ds.to_netcdf(self.mesh_path, format="NETCDF3_64BIT", encoding=all_vars_encoding)
