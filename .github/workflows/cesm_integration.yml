@@ -115,17 +115,21 @@ jobs:
         run: |
           echo '--- checking run logs for errors ---'
           RUNDIR=/home/runner/work/mom6_forge/mom6_forge/cesm_scratch/case/run
+          PATTERN='FATAL|ERROR:|MPI_Abort|BAD TERMINATION|abort'
 
-          errors_found=0
-          # plain-text files
-          grep -rqE 'ERROR|FATAL|Abort' "$RUNDIR" 2>/dev/null && errors_found=1
-          # gzipped files
-          find "$RUNDIR" -name '*.gz' -print0 | xargs -0 -r zgrep -qE 'ERROR|FATAL|Abort' 2>/dev/null && errors_found=1
+          matches=$(
+            find "$RUNDIR" -type f -name '*log*' ! -name '*.gz' -print0 \
+              | xargs -0 -r grep -nHIE "$PATTERN" 2>/dev/null
+            find "$RUNDIR" -type f -name '*log*.gz' -print0 \
+              | xargs -0 -r zgrep -nHE "$PATTERN" 2>/dev/null
+          )
 
-          if [ "$errors_found" -eq 1 ]; then
-            echo 'CESM run contained errors — see artifacts'
+          if [ -n "$matches" ]; then
+            echo 'CESM run contained errors:'
+            echo "$matches" | head -20
             exit 1
           fi
+          echo 'No errors found'
 
       - name: Upload run artifacts
         if: always()
