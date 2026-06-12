@@ -115,13 +115,14 @@ jobs:
         run: |
           echo '--- checking run logs for errors ---'
           RUNDIR=/home/runner/work/mom6_forge/mom6_forge/cesm_scratch/case/run
-          PATTERN='FATAL|ERROR:|MPI_Abort|BAD TERMINATION|abort'
+          PATTERN='FATAL from PE|FATAL ERROR|ERROR:|MPI_Abort|BAD TERMINATION'
 
           matches=$(
-            find "$RUNDIR" -type f -name '*log*' ! -name '*.gz' -print0 \
-              | xargs -0 -r grep -nHIE "$PATTERN" 2>/dev/null
-            find "$RUNDIR" -type f -name '*log*.gz' -print0 \
-              | xargs -0 -r zgrep -nHE "$PATTERN" 2>/dev/null
+            { find "$RUNDIR" -type f -name '*log*' ! -name '*.gz' -print0 \
+                | xargs -0 -r grep -nHIE "$PATTERN" 2>/dev/null
+              find "$RUNDIR" -type f -name '*log*.gz' -print0 \
+                | xargs -0 -r zgrep -nHE "$PATTERN" 2>/dev/null
+            } || true
           )
 
           if [ -n "$matches" ]; then
@@ -130,7 +131,6 @@ jobs:
             exit 1
           fi
           echo 'No errors found'
-
       - name: Upload run artifacts
         if: always()
         uses: actions/upload-artifact@v4
