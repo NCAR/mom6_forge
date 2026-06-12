@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: "0 0 * * 1"  # Weekly Monday midnight UTC
   workflow_dispatch:      # Manual trigger for PRs
+  push:
+    branches:
+      - '**'
 
 
 permissions:
