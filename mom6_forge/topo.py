@@ -1856,4 +1856,4 @@ class Topo:
         }  # disable _FillValue for all variables to avoid issues in ESMF
         self.mesh_path = file_path
         ds = xr.Dataset()
-        ds.to_netcdf(self.mesh_path, format="NETCDF3_64BIT", encoding=all_vars_encoding)
+        ds.to_netcdf(self.mesh_path, format="NETCDF3_64BIT")
