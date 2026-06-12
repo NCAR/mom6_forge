@@ -1767,7 +1767,6 @@ class Topo:
         ds["elementMask"] = xr.DataArray(
             self.tmask.data.astype(np.int32).flatten(), dims=["elementCount"]
         )
-        ds["elementMask"] = ds.elementMask * 0
 
         i0 = 1  # start index for node id's
 
