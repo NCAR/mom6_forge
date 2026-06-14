@@ -308,6 +308,62 @@ def cell_area_rad(xv_coords, yv_coords):
     return area
 
 
+def iterative_fill(depth, unfilled, mask=None, max_iter=100):
+    """
+    Iteratively fill unfilled ocean cells from their neighbours. May not work for periodic grids.
+
+    Parameters
+    ----------
+    depth : np.ndarray, shape (ny, nx)
+        Depth field to fill in-place.
+    unfilled : np.ndarray of bool, shape (ny, nx)
+        True for cells that need filling.
+    mask : array-like or xr.DataArray, optional
+        Ocean mask (1 = ocean, 0 = land). If provided, land cells are never filled.
+    max_iter : int
+        Maximum number of neighbour-averaging passes. Default 100.
+
+    Returns
+    -------
+    depth : np.ndarray
+        Depth array with unfilled ocean cells replaced by neighbour averages.
+    """
+
+    # --- Iterative neighbour fill for cells with no source coverage ---
+    if unfilled.any():
+        n_miss = int(unfilled.sum())
+        print(f"Filling {n_miss} cells by iterative neighbour averaging…")
+        if mask is not None:
+            mask_2d = mask.values.astype(bool)
+            unfilled_2d = unfilled & mask_2d
+        else:
+            unfilled_2d = unfilled
+
+        for _ in range(max_iter):
+            if not unfilled_2d.any():
+                break
+            filled_f = (~unfilled_2d).astype(float)
+            d_pad = np.pad(depth, 1, mode="edge")  # pad 1 cell with edge values
+            f_pad = np.pad(
+                filled_f, 1, mode="constant", constant_values=0
+            )  # pad 1 mask cell with land (unfilled)
+            d_nbr = (
+                d_pad[:-2, 1:-1] + d_pad[2:, 1:-1] + d_pad[1:-1, :-2] + d_pad[1:-1, 2:]
+            )
+            f_nbr = (
+                f_pad[:-2, 1:-1] + f_pad[2:, 1:-1] + f_pad[1:-1, :-2] + f_pad[1:-1, 2:]
+            )
+            can_fill = unfilled_2d & (
+                f_nbr > 0
+            )  # only fill if there is at least one filled neighbor, which is done by adding all the neighboring cells
+            depth = np.where(
+                can_fill, d_nbr / np.maximum(f_nbr, 1), depth
+            )  # Takes the average of the neighboring cells to fill, only where can_fill is True
+            unfilled_2d = unfilled_2d & ~can_fill
+
+    return depth
+
+
 def fill_missing_data(idata, mask, maxiter=0, stabilizer=1.0e-14, tripole=False):
     """
     Returns data with masked values "objectively interpolated" except where values exist or is over land. Does not work for periodic grids.
@@ -389,115 +445,28 @@ def fill_missing_data(idata, mask, maxiter=0, stabilizer=1.0e-14, tripole=False)
     return new_data
 
 
-def longitude_slicer(data, longitude_extent, longitude_coords):
+def compute_subsampling_factor(src_nj, src_ni, dst_nj, dst_ni):
     """
-    Slices longitudes while handling periodicity and the 'seams', that is the
-    longitude values where the data wraps around in a global domain (for example,
-    longitudes are defined, usually, within domain [0, 360] or [-180, 180]).
+    Compute the sub-sampling factors needed so that the super-sampled
+    destination grid has at least as many points as the source grid.
 
-    The algorithm works in five steps:
+    Parameters
+    ----------
+    src_nj, src_ni : int
+        Source grid dimensions.
+    dst_nj, dst_ni : int
+        Destination grid dimensions.
 
-    - Determine whether we need to add or subtract 360 to get the middle of the
-      ``longitude_extent`` to lie within ``data``'s longitude range (hereby ``old_lon``).
-
-    - Shift the dataset so that its midpoint matches the midpoint of
-      ``longitude_extent`` (up to a multiple of 360). Now, the modified ``old_lon``
-      does not increase monotonically from West to East since the 'seam'
-      has moved.
-
-    - Fix ``old_lon`` to make it monotonically increasing again. This uses
-      the information we have about the way the dataset was shifted/rolled.
-
-    - Slice the ``data`` index-wise. We know that ``|longitude_extent[1] - longitude_extent[0]| / 360``
-      multiplied by the number of discrete longitude points in the global input data gives
-      the number of longitude points in our slice, and we've already set the midpoint
-      to be the middle of the target domain.
-
-    - Add back the correct multiple of 360 so the whole domain matches the target.
-
-    Arguments:
-        data (xarray.Dataset): The global data you want to slice in longitude.
-        longitude_extent (Tuple[float, float]): The target longitudes (in degrees)
-            we want to slice to. Must be in increasing order.
-        longitude_coords (Union[str, list[str]): The name or list of names of the
-            longitude coordinates(s) in ``data``.
-
-    Returns:
-        xarray.Dataset: The sliced ``data``.
+    Returns
+    -------
+    ny_sub, nx_sub : int
     """
+    nx_sub = 1
+    while nx_sub * dst_ni < src_ni:
+        nx_sub += 1
 
-    if isinstance(longitude_coords, str):
-        longitude_coords = [longitude_coords]
+    ny_sub = 1
+    while ny_sub * dst_nj < src_nj:
+        ny_sub += 1
 
-    for lon in longitude_coords:
-        central_longitude = np.mean(longitude_extent)  ## Midpoint of target domain
-
-        ## Find a corresponding value for the intended domain midpoint in our data.
-        ## It's assumed that data has equally-spaced longitude values.
-
-        lons = data[lon].data
-        dlons = lons[1] - lons[0]
-
-        assert np.allclose(
-            np.diff(lons), dlons * np.ones(np.size(lons) - 1)
-        ), "provided longitude coordinate must be uniformly spaced"
-
-        for i in range(-1, 2, 1):
-            if data[lon][0] <= central_longitude + 360 * i <= data[lon][-1]:
-
-                ## Shifted version of target midpoint; e.g., could be -90 vs 270
-                ## integer i keeps track of what how many multiples of 360 we need to shift entire
-                ## grid by to match central_longitude
-                _central_longitude = central_longitude + 360 * i
-
-                ## Midpoint of the data
-                central_data = data[lon][data[lon].shape[0] // 2].values
-
-                ## Number of indices between the data midpoint and the target midpoint.
-                ## Sign indicates direction needed to shift.
-                shift = int(
-                    -(data[lon].shape[0] * (_central_longitude - central_data)) // 360
-                )
-
-                ## Shift data so that the midpoint of the target domain is the middle of
-                ## the data for easy slicing.
-                new_data = data.roll({lon: 1 * shift}, roll_coords=True)
-
-                ## Create a new longitude coordinate.
-                ## We'll modify this to remove any seams (i.e., jumps like -270 -> 90)
-                new_lon = new_data[lon].values.copy()
-
-                ## Take the 'seam' of the data, and either backfill or forward fill based on
-                ## whether the data was shifted F or west
-                if shift > 0:
-                    new_seam_index = shift
-
-                    new_lon[0:new_seam_index] -= 360
-
-                if shift < 0:
-                    new_seam_index = data[lon].shape[0] + shift
-
-                    new_lon[new_seam_index:] += 360
-
-                ## new_lon is used to re-centre the midpoint to match that of target domain
-                new_lon -= i * 360
-
-                new_data = new_data.assign_coords({lon: new_lon})
-
-                ## Choose the number of lon points to take from the middle, including a buffer.
-                ## Use this to index the new global dataset
-                num_lonpoints = (
-                    int(data[lon].shape[0] * (central_longitude - longitude_extent[0]))
-                    // 360
-                )
-
-        data = new_data.isel(
-            {
-                lon: slice(
-                    data[lon].shape[0] // 2 - num_lonpoints,
-                    data[lon].shape[0] // 2 + num_lonpoints,
-                )
-            }
-        )
-
-    return data
+    return ny_sub, nx_sub

@@ -1,17 +1,27 @@
 import os
+import copy
 import numpy as np
 import xarray as xr
+import xesmf as xe
 from datetime import datetime
+from typing import Optional
 from scipy import interpolate
 from scipy.ndimage import label, binary_fill_holes
 from scipy.spatial import cKDTree
-from mom6_forge.utils import cell_area_rad, longitude_slicer
+from mom6_forge.utils import cell_area_rad, iterative_fill
 from mom6_forge.grid import Grid
 from mom6_forge.git_utils import get_domain_dir, get_repo
 from pathlib import Path
 from mom6_forge.edit_command import *
 from mom6_forge.command_manager import TopoCommandManager, CommandType
-from mom6_forge.mapping import regrid_dataset_via_xesmf
+from mom6_forge.mapping import (
+    regrid_dataset_via_xesmf,
+    regrid_with_subsampling,
+    regrid_dataset_via_cressman,
+)
+from mom6_forge._source_bathy import SourceBathy
+from mom6_forge.channel_width import ChannelWidthList
+import regionmask
 
 
 class Topo:
@@ -19,7 +29,14 @@ class Topo:
     Bathymetry Generator for MOM6 grids (mom6_forge.grid.Grid).
     """
 
-    def __init__(self, grid, min_depth, version_control_dir="TopoLibrary"):
+    def __init__(
+        self,
+        grid,
+        min_depth,
+        channel_widths=None,
+        version_control_dir="TopoLibrary",
+        git=True,
+    ):
         """
         MOM6 Simpler Models bathymetry constructor.
 
@@ -29,6 +46,16 @@ class Topo:
             horizontal grid instance for which the bathymetry is to be created.
         min_depth: float
             Minimum water column depth. Columns with shallow depths are to be masked out.
+        channel_widths: str | Path | ChannelWidthList, optional
+            Channel width constraints. Can be a filepath to load from, a ChannelWidthList object, or None.
+        version_control_dir: str, optional
+            Directory in which to store version-controlled bathymetry data. Defaults to
+            "TopoLibrary". Ignored if git is False (version control is no longer used)
+        git: bool, optional
+            If True (default), initialize a git repository for version control and
+            undo/redo support. If False, skip all git and filesystem side-effects;
+            note that undo(), redo(), branch, and tag operations will be
+            unavailable. TopoEditor also requires git=True.
         """
 
         self._grid = grid
@@ -36,37 +63,53 @@ class Topo:
             np.full((grid.ny, grid.nx), np.nan, dtype=float),
             dims=["ny", "nx"],
             attrs={"units": "m"},
-        )  # Initialize depth with NaNs
+        )  # Initialize raw depth with NaNs
+        self._user_mask: Optional[xr.DataArray] = (
+            None  # Binary ocean/land mask (None = no mask applied)
+        )
         self._min_depth = min_depth
-
-        if version_control_dir is None:
-            raise ValueError(
-                "version_control_dir cannot be None. Version control is required for Topo objects. Old Topo Files can be added through from_topo_file() or from_topo_version_control() classmethods."
-            )
-
-        self.version_control = True
-
-        # Create a folder to store bathymetry objects in
-        self.topos_root = Path(version_control_dir).mkdir(exist_ok=True)
-
-        # Create the subfolder for this specific bathymetry
-        self.domain_dir = Path(get_domain_dir(grid, base_dir=version_control_dir))
-        self.domain_dir.mkdir(exist_ok=True)  # This folder should not already exist.
-
-        # Save the grid info there (there can only be 1 grid per bathymetry)
-        self.grid_file_path = self.domain_dir / "grid.nc"
-        grid.write_supergrid(self.grid_file_path)
-
+        self._src = None  # SourceBathy object; set by set_src()
+        self.land_fillval = 0.0  # Depth value for land cells
         initial_command = MinDepthEditCommand(
             self, attr="min_depth", new_value=min_depth
         )
 
-        # Initialize the git repo
-        self.repo = get_repo(self.domain_dir)
+        # Initialize channel widths
+        if channel_widths is None:
+            self.channel_widths = ChannelWidthList()
+        elif isinstance(channel_widths, ChannelWidthList):
+            self.channel_widths = channel_widths
+        else:
+            # Assume it's a filepath
+            self.channel_widths = ChannelWidthList(filepath=channel_widths)
 
-        # Set up TCM (requires that self.domain_dir exists)
-        self.tcm = TopoCommandManager(self, command_registry=COMMAND_REGISTRY)
-        self.tcm.execute(initial_command, cmd_type=CommandType.COMMAND)
+        if git:
+
+            # Create a folder to store bathymetry objects in
+            self.topos_root = Path(version_control_dir).mkdir(exist_ok=True)
+            (Path(version_control_dir) / ".gitignore").write_text("*")
+
+            # Create the subfolder for this specific bathymetry
+            self.domain_dir = Path(get_domain_dir(grid, base_dir=version_control_dir))
+            self.domain_dir.mkdir(
+                exist_ok=True
+            )  # This folder should not already exist.
+
+            # Save the grid info there (there can only be 1 grid per bathymetry)
+            self.grid_file_path = self.domain_dir / "grid.nc"
+            grid.write_supergrid(self.grid_file_path)
+
+            # Initialize the git repo
+            self.repo = get_repo(self.domain_dir)
+
+            # Set up TCM (requires that self.domain_dir exists)
+            self.tcm = TopoCommandManager(self, command_registry=COMMAND_REGISTRY)
+            self.apply_edit(initial_command)
+
+        else:
+            self.tcm = None
+            # Apply the initial min_depth command directly without git recording
+            initial_command()
 
     def __getitem__(self, slices):
         """
@@ -87,13 +130,18 @@ class Topo:
         """
 
         new_grid = self._grid[slices]
-        new_topo = Topo(new_grid, self._min_depth)
+        new_topo = Topo(
+            new_grid,
+            self._min_depth,
+            git=self.has_version_control,
+            channel_widths=copy.deepcopy(self.channel_widths),
+        )  # Create new topo with the same version control setting
         if self._depth is not None:
             new_topo._depth = self._depth[slices]
         return new_topo
 
     @classmethod
-    def from_version_control(cls, folder_path: str | Path):
+    def from_version_control(cls, folder_path: str | Path, channel_widths=None):
         """
         Create a bathymetry object from an existing version-controlled bathymetry folder.
 
@@ -101,6 +149,8 @@ class Topo:
         ----------
         folder_path: str | Path
             Path to an existing bathymetry folder created by mom6_forge with version control enabled.
+        channel_widths: str | Path | ChannelWidthList, optional
+            Channel width constraints. Can be a filepath to load from, a ChannelWidthList object, or None.
         """
 
         folder_path = Path(folder_path)
@@ -113,7 +163,10 @@ class Topo:
 
         # Create the topo object
         topo = Topo(
-            grid, 0.0, version_control_dir=folder_path.parent
+            grid,
+            0.0,
+            version_control_dir=folder_path.parent,
+            channel_widths=channel_widths,
         )  # Because we hash the grid, the correct domain will be selected
 
         # Reapply any changes
@@ -130,6 +183,8 @@ class Topo:
         min_depth=0.0,
         varname="depth",
         version_control_dir="TopoLibrary",
+        git=True,
+        channel_widths=None,
     ):
         """
         Create a bathymetry object from an existing topog file.
@@ -144,46 +199,91 @@ class Topo:
             Minimum water column depth (m). Columns with shallower depths are to be masked out.
         varname : str, optional
             Name of the variable representing ocean depth in the dataset. Default is "depth".
+        git: bool, optional
+            Passed through to Topo.__init__. See Topo docstring for details.
+        version_control_dir: str, optional
+            Directory for version control. Default is "TopoLibrary".
+        channel_widths: str | Path | ChannelWidthList, optional
+            Channel width constraints. Can be a filepath to load from, a ChannelWidthList object, or None.
         """
 
-        topo = cls(grid, min_depth, version_control_dir=version_control_dir)
-        topo.tcm.reapply_changes()
+        topo = cls(
+            grid,
+            min_depth,
+            version_control_dir=version_control_dir,
+            channel_widths=channel_widths,
+            git=git,
+        )
+        if topo.tcm is not None:
+            topo.tcm.reapply_changes()
         topo.set_depth_via_topog_file(topo_file_path, varname)
         return topo
 
     @property
+    def masked_depth(self):
+        """
+        Computed depth array with masking applied (m). Positive below MSL.
+
+        This is a computed property that applies land/ocean masking on-the-fly. When a user mask is set,
+        returns masked depth: ocean cells enforced to at least min_depth+0.1, land cells set to _land_fillval.
+        When mask is None, derives mask from raw depth (cells > min_depth are ocean).
+
+        Note: Index-based assignment like `topo.masked_depth[j, i] = value` will not persist because
+        this property is computed on-the-fly. To modify depth, use `topo.depth = new_array` or `topo.edit_depth()`.
+        """
+
+        # Enforce minimum depth criteria for ocean cells: if depth ≤ min_depth and mask is ocean, set to min_depth + 0.1 to ensure they are still treated as ocean. If mask is land and depth > min_depth, set to _land_fillval to ensure they are treated as land.
+        masked_depth = xr.where(
+            self.tmask,
+            xr.where(
+                self._depth > self._min_depth,
+                self._depth,
+                self._min_depth + 0.1,
+            ),
+            self._land_fillval,  # Land cells to _land_fillval
+        )
+        return masked_depth
+
+    @property
+    def src(self):
+        """
+        SourceBathy object representing the source bathymetry dataset sliced to the topo grid extent. This is set by set_src() when a new source bathymetry is specified, and can be accessed for any source dataset.
+        """
+        return self._src
+
+    @src.setter
+    def src(self, new_src):
+        self._src = new_src
+
+    @property
     def depth(self):
-        """
-        MOM6 grid depth array (m). Positive below MSL.
-        """
         return self._depth
+
+    @property
+    def has_version_control(self):
+        return self.tcm is not None
 
     @depth.setter
     def depth(self, depth):
         """
-        Apply a custom bathymetry via a user-defined depth array.
+        Set raw depth array. Preserves existing mask.
 
         Parameters
         ----------
-        depth: np.array
+        depth: np.array or xr.DataArray
             2-D Array of ocean depth (m).
         """
-
-        if np.isscalar(depth):
-            self.set_flat(depth)
-            return
-
-        assert depth.shape == (
-            self._grid.ny,
-            self._grid.nx,
-        ), "Incompatible depth array shape"
-
         if isinstance(depth, xr.DataArray):
             depth = depth.data
         else:
             assert isinstance(
                 depth, np.ndarray
-            ), "depth must be a numpy array or xarray DataArray"
+            ), "depth_raw must be a numpy array or xarray DataArray"
+
+        assert depth.shape == (
+            self._grid.ny,
+            self._grid.nx,
+        ), "Incompatible depth array shape"
 
         self._depth = xr.DataArray(
             depth,
@@ -210,9 +310,92 @@ class Topo:
         self._min_depth = new_min_depth
 
     @property
+    def land_fillval(self):
+        """
+        Depth value assigned to land cells when mask is applied. Default is 0.0 (dry).
+        """
+        return self._land_fillval
+
+    @land_fillval.setter
+    def land_fillval(self, new_land_fillval):
+        assert isinstance(
+            new_land_fillval, (int, float)
+        ), "land_fillval must be a number"
+        assert (
+            new_land_fillval <= self._min_depth
+        ), "land_fillval should be less than or equal to min_depth to ensure land cells are not mistakenly treated as ocean"
+        self._land_fillval = float(new_land_fillval)
+
+    @property
+    def user_mask(self):
+        """
+        Optional binary ocean/land mask. 1 if ocean, 0 if land.
+        When set, the depth property applies masking: ocean cells enforced greater than min_depth+0.1, land cells set to _land_fillval.
+        """
+        return self._user_mask
+
+    @user_mask.setter
+    def user_mask(self, new_mask):
+        """
+        Set the binary ocean/land mask.
+
+        Parameters
+        ----------
+        new_mask: xr.DataArray or np.ndarray or None
+            Binary mask (1=ocean, 0=land) with shape (ny, nx), or None to disable masking.
+        """
+        if new_mask is None:
+            self.clear_user_mask()  # Clear the manual mask if None is passed
+            return
+
+        if isinstance(new_mask, xr.DataArray):
+            new_mask = new_mask.data
+        else:
+            assert isinstance(
+                new_mask, np.ndarray
+            ), "mask must be a numpy array, xarray DataArray, or None"
+
+        assert new_mask.shape == (
+            self._grid.ny,
+            self._grid.nx,
+        ), "Incompatible mask shape"
+
+        all_indices = list(np.ndindex(new_mask.shape))
+        new_values = new_mask.ravel().tolist()
+        old_values = (
+            self.tmask.values.ravel().tolist()
+        )  # effective mask (manual or raw depth mask)
+
+        cmd = MaskEditCommand(
+            self, all_indices, new_values, old_values=old_values, message="Set mask"
+        )
+        self.apply_edit(cmd)
+
+    @property
     def tmask(self):
         """
         Ocean domain mask at T grid. 1 if ocean, 0 if land.
+
+        This is a derived mask computed from the depth property. The computation depends on whether
+        a user mask has been set:
+
+        - If _user_mask is None: Returns a mask derived from raw depth (_depth).
+          Cells with depth > min_depth are marked as ocean (1), otherwise land (0).
+        - If _user_mask is set: Returns a mask set by the user. The depth property will apply this mask to the raw depth, ensuring that ocean cells are at least min_depth+0.1 and land cells are set to 0.
+
+        This design means tmask is always consistent with the current depth state, whether
+        driven by raw bathymetry or by a manually applied mask.
+        """
+
+        if self._user_mask is None:
+            return self._compute_tmask_from_raw_depth()
+        else:
+            return self.user_mask
+
+    def _compute_tmask_from_raw_depth(self):
+        """
+        If no user_mask is calculated, tmask is derived directly from raw depth: ocean (1) where depth > min_depth, else land (0).
+        This is a separate helper to keep the logic clear and maintainable, it is only used if the user mask is not set (which may be the case for many users who just want to set depth and have the mask be automatically derived from it).
         """
         tmask_da = xr.DataArray(
             np.where(self._depth > self._min_depth, 1, 0),
@@ -220,26 +403,6 @@ class Topo:
             attrs={"name": "T mask"},
         )
         return tmask_da
-
-    @property
-    def umask(self):
-        """
-        Ocean domain mask on U grid. 1 if ocean, 0 if land.
-        """
-        tmask = self.tmask
-
-        # Create empty mask DataArray for umask
-        umask = xr.DataArray(
-            np.ones(self._grid.ulat.shape, dtype=int),
-            dims=["yh", "xq"],
-            attrs={"name": "U mask"},
-        )
-
-        # Fill umask with mask values
-        umask[:, :-1] &= tmask.values  # h-point translates to the left u-point
-        umask[:, 1:] &= tmask.values  # h-point translates to the right u-point
-
-        return umask
 
     @property
     def umask(self):
@@ -335,6 +498,55 @@ class Topo:
         supergridmask[1::2, 1::2] = self.tmask.values
         return supergridmask
 
+    def apply_edit(self, cmd, skip_version_control=False, cmd_type=CommandType.COMMAND):
+        """Apply an edit command aware of version control. If version control is enabled, the command is executed through the TopoCommandManager (TCM) to ensure it is recorded in the version history and can be undone/redone.
+        If version control is disabled, the command is executed directly without recording.
+
+        Parameters
+        -----------
+        cmd: Command
+            The command to be applied.
+        skip_version_control: bool
+            If True, the command will be executed without recording in version control even if version control is enabled. This can be useful for programmatic changes that should not be part of the user-facing version history.
+        cmd_type: CommandType
+            The type of the command, used for version control categorization. Ignored if skip_version_control is True or if version control is disabled.
+        """
+        if skip_version_control or not self.has_version_control:
+            cmd()
+        else:
+            self.tcm.execute(cmd, cmd_type=cmd_type)
+
+    def set_src(
+        self,
+        bathymetry_path,
+        longitude_coordinate_name,
+        latitude_coordinate_name,
+        vertical_coordinate_name,
+        is_input_positive_below_msl=False,
+        buf=0.5,
+    ):
+        """Set a :class:`SourceBathy` into a class object called src"""
+        self.src = SourceBathy(
+            self,
+            Path(bathymetry_path),
+            longitude_coordinate_name,
+            latitude_coordinate_name,
+            vertical_coordinate_name,
+            is_input_positive_below_msl=is_input_positive_below_msl,
+            buf=buf,
+        )
+        return self.src
+
+    @property
+    def stats(self):
+        return self.src.stats if self.src is not None else None
+
+    def clear_user_mask(self):
+        cmd = ClearMaskCommand(
+            self, message="Clear manual mask"
+        )  # Resets back to reading from depth
+        self.apply_edit(cmd)
+
     def point_is_ocean(self, lons, lats):
         """
         Given a list of coordinates, return a list of booleans indicating if the coordinates are in the ocean (True) or land (False)
@@ -352,19 +564,20 @@ class Topo:
             is_ocean.append(self.supergridmask[match[0], match[1]].item())
         return is_ocean
 
-    def send_entire_depth_change_to_tcm(self, depth, quietly=False):
+    def send_entire_depth_change_to_tcm(self, depth, skip_version_control=False):
         """
-        This function takes an entire depth change and adds it through the TopoCommandManager (TCM) or directly if quietly is enabled.
+        This function takes an entire depth change and adds it through the TopoCommandManager (TCM) or directly if skip_version_control is enabled.
+        Modifies _depth, preserves mask.
         """
         # 1. Generate all affected indices (row-major order)
-        all_indices = list(np.ndindex(self.depth.shape))  # list of (j, i) tuples
+        all_indices = list(np.ndindex(self._depth.shape))  # list of (j, i) tuples
 
         # 2. Flatten the new values to match the indices
         new_values = depth.values.ravel().tolist()
 
-        # 3. Flatten old values if depth exists
+        # 3. Flatten old values from raw depth
         old_values = (
-            self.depth.values.ravel().tolist() if self.depth is not None else None
+            self._depth.values.ravel().tolist() if self._depth is not None else None
         )
 
         # 4. Build command
@@ -372,10 +585,29 @@ class Topo:
             self, all_indices, new_values, old_values=old_values
         )
 
-        if not quietly:
-            self.tcm.execute(depth_edit_command, cmd_type=CommandType.COMMAND)
-        else:
-            depth_edit_command()
+        self.apply_edit(depth_edit_command, skip_version_control=skip_version_control)
+
+    def edit_depth(self, indices, values):
+        """
+        Edit depth at specific indices with version control.
+
+        Parameters
+        ----------
+        indices : list of tuples
+            List of (j, i) indices to modify.
+        values : list or array-like
+            New depth values for each index.
+        """
+        # Convert single index to list of indices
+        if isinstance(indices, tuple):
+            indices = [indices]
+
+        # Get old values
+        old_values = [self._depth.values[j, i] for j, i in indices]
+
+        # Create and execute command
+        cmd = DepthEditCommand(self, indices, values, old_values=old_values)
+        self.apply_edit(cmd)
 
     def set_flat(self, D):
         """
@@ -396,7 +628,9 @@ class Topo:
         # Save to object
         self.send_entire_depth_change_to_tcm(depth)
 
-    def set_depth_via_topog_file(self, topog_file_path, varname="depth", quietly=False):
+    def set_depth_via_topog_file(
+        self, topog_file_path, varname="depth", skip_version_control=False
+    ):
         """
         Apply a bathymetry read from an existing topog file
 
@@ -487,7 +721,9 @@ class Topo:
         depth = depth.fillna(0)
 
         # Save to object (Build TCM Object)
-        self.send_entire_depth_change_to_tcm(depth, quietly=quietly)
+        self.send_entire_depth_change_to_tcm(
+            depth, skip_version_control=skip_version_control
+        )
 
     def set_spoon(self, max_depth, dedge, rad_earth=6.378e6, expdecay=400000.0):
         """
@@ -588,6 +824,172 @@ class Topo:
         # Save to object (Build TCM Object)
         self.send_entire_depth_change_to_tcm(new_values)
 
+    def compute_stats(self, nx_sub, ny_sub, mask_hmin):
+        """Compute per-cell depth statistics by uniform sub-sampling.
+
+        Results are stored on ``stats`` so a second call with the
+        same source file returns immediately without recomputation.
+        (Originally created by Frank Bryan in Fortran for NCAR/tx2_3, reimplemented in Python)
+
+        Parameters
+        ----------
+        src : SourceBathy (part of class)
+        nx_sub, ny_sub : int
+        mask_hmin : float
+
+        Returns
+        -------
+        xr.Dataset  —  ``OCN_FRAC``, ``D_mean``, ``D_min``, ``D_max``, ``D2_mean``.
+        """
+        assert (
+            self.src is not None
+        ), "Source bathymetry must be loaded to compute topo stats"
+        if (
+            self.stats is not None
+            and self.stats.attrs.get("nx_sub") == nx_sub
+            and self.stats.attrs.get("ny_sub") == ny_sub
+            and self.stats.attrs.get("mask_hmin") == mask_hmin
+        ):
+            return self.stats
+
+        # Compute subsampling factor and generate sub-point grid
+        ds, _ = regrid_with_subsampling(
+            input_dataset=self.src.ds,
+            qlon=self._grid.qlon.values,
+            qlat=self._grid.qlat.values,
+            nx_sub=nx_sub,
+            ny_sub=ny_sub,
+            regridding_method="nearest_s2d",
+        )
+
+        depth_sub = ds[self.src.depth_name].values  # (ny, nx, ny_sub, nx_sub)
+
+        is_ocean = depth_sub > mask_hmin
+        ocn_frac = is_ocean.sum(axis=(-2, -1)) / (nx_sub * ny_sub)
+
+        depth_ocean = np.where(is_ocean, depth_sub, np.nan)
+        with np.errstate(all="ignore"):
+            D_mean = np.nanmean(depth_ocean, axis=(-2, -1))
+            D_min = np.nanmin(depth_ocean, axis=(-2, -1))
+            D_max = np.nanmax(depth_ocean, axis=(-2, -1))
+            D2_mean = np.nanmean(depth_ocean**2, axis=(-2, -1))
+
+        dims = ["ny", "nx"]
+        self.src.stats = xr.Dataset(
+            {
+                "OCN_FRAC": xr.DataArray(
+                    ocn_frac,
+                    dims=dims,
+                    attrs={
+                        "long_name": "ocean fraction from sub-sampling",
+                        "units": "1",
+                    },
+                ),
+                "D_mean": xr.DataArray(
+                    D_mean,
+                    dims=dims,
+                    attrs={"long_name": "mean ocean depth in cell", "units": "m"},
+                ),
+                "D_min": xr.DataArray(
+                    D_min,
+                    dims=dims,
+                    attrs={"long_name": "minimum ocean depth in cell", "units": "m"},
+                ),
+                "D_max": xr.DataArray(
+                    D_max,
+                    dims=dims,
+                    attrs={"long_name": "maximum ocean depth in cell", "units": "m"},
+                ),
+                "D2_mean": xr.DataArray(
+                    D2_mean,
+                    dims=dims,
+                    attrs={
+                        "long_name": "mean squared ocean depth in cell",
+                        "units": "m2",
+                    },
+                ),
+            },
+            attrs={
+                "nx_sub": nx_sub,
+                "ny_sub": ny_sub,
+                "mask_hmin": mask_hmin,
+            },
+        )
+        return self.stats
+
+    def set_depth_from_stats(self, statistic):
+        """
+        Set the topo depth to a statistic computed by _compute_stats.
+
+        Parameters
+        ----------
+        statistic : str
+            Which depth statistic to use. Must be one of the "D_*" keys
+            in self.src.stats (e.g. "mean", "min", "max").
+        """
+
+        assert (
+            self.src is not None and self.src.stats is not None
+        ), "Source bathymetry must be provided and must have topo stats computed, please call compute_stats first if you have not already"
+        approved_list = []
+        for key in self.src.stats.data_vars:
+            if key.startswith("D_"):
+                approved_list.append(key[2:])
+        assert (
+            statistic in approved_list
+        ), f"Invalid statistic {statistic}, must be one of {approved_list}"
+
+        self.send_entire_depth_change_to_tcm(self.src.stats[f"D_{statistic}"])
+
+    def generate_mask_from_stats_ocean_frac(
+        self,
+        mask_threshold=0.5,
+    ):
+        """
+        Generate an ocean mask by uniform sub-sampling of the source bathymetry.
+
+        Mirrors the algorithm in tx2_3's create_model_topo.f90. For each T-cell,
+        distributes nx_sub x ny_sub interior points via bilinear interpolation of
+        the Q-point corners and snaps each to the nearest source pixel. A cell is
+        ocean if its ocean sub-point fraction (OCN_FRAC) meets or exceeds
+        ``mask_threshold``.
+
+        Parameters
+        ----------
+        mask_threshold : float, optional
+            Minimum OCN_FRAC for a cell to be classified as ocean. Default 0.5.
+
+        Returns
+        -------
+        xr.DataArray
+            Binary ocean mask on the T-grid (1 = ocean, 0 = land),
+            dims ``["ny", "nx"]``.
+
+        Notes
+        -----
+        ``compute_stats`` must be called before this method. Per-cell depth
+        statistics (D_mean, D_min, D_max, D2_mean) are stored on the source
+        bathymetry object for use by this and other downstream methods.
+        """
+
+        assert (
+            self.src is not None
+        ), "Source bathymetry must be set before generating mask."
+        assert (
+            self.src.stats is not None
+        ), f"Per-cell statistics must be computed before generating mask. Call compute_stats() first. src={self.src}"
+
+        ocean_mask = (self.src.stats["OCN_FRAC"].values >= mask_threshold).astype(int)
+
+        return xr.DataArray(
+            ocean_mask,
+            dims=["ny", "nx"],
+            attrs={
+                "long_name": "ocean mask from sub-sampling",
+                "mask_threshold": mask_threshold,
+            },
+        )
+
     def set_from_dataset(
         self,
         bathymetry_path,
@@ -595,11 +997,10 @@ class Topo:
         latitude_coordinate_name,
         vertical_coordinate_name,
         fill_channels=False,
-        positive_down=False,
+        is_input_positive_below_msl=False,
         output_dir=Path(""),
-        write_to_file=True,
+        write_to_file=False,
         regridding_method="bilinear",
-        run_config_dataset=True,
         run_regrid_dataset=True,
         run_tidy_dataset=True,
     ):
@@ -625,9 +1026,9 @@ class Topo:
             fill_channels (Optional[bool]): Whether or not to fill in
                 diagonal channels. This removes more narrow inlets,
                 but can also connect extra islands to land. Default: ``False``.
-            positive_down (Optional[bool]): If ``True``, it assumes that the
+            is_input_positive_below_msl (Optional[bool]): If ``True``, it assumes that the
                 bathymetry vertical coordinate is positive downwards. Default: ``False``.
-            write_to_file (Optional[bool]): Whether to write the bathymetry to a file. Default: ``True``.
+            write_to_file (Optional[bool]): Whether to write the bathymetry to a file. Default: ``False``.
             regridding_method (Optional[str]): The type of regridding method to use. Defaults to self.regridding_method
             run_* (Optional[bool]): Whether to run the respective step in the bathymetry processing. Default: ``True``.
 
@@ -637,22 +1038,31 @@ class Topo:
             Call ``[topo_object_name].mpi_set_from_dataset()`` instead. Follow the given instructions for using mpi
             and ESMF_Regrid outside of a python environment. This breaks up the process, so be sure to call
             ``[topo_object_name].tidy_dataset() after regridding with mpi.""")
-        if run_config_dataset:
-            self.bathymetry_output, self.empty_bathy = self.config_dataset(
-                bathymetry_path=bathymetry_path,
-                longitude_coordinate_name=longitude_coordinate_name,
-                latitude_coordinate_name=latitude_coordinate_name,
-                vertical_coordinate_name=vertical_coordinate_name,
-                fill_channels=fill_channels,
-                positive_down=positive_down,
-                output_dir=output_dir,
-                write_to_file=write_to_file,
+        output_dir = Path(output_dir)
+        self.set_src(
+            bathymetry_path=bathymetry_path,
+            longitude_coordinate_name=longitude_coordinate_name,
+            latitude_coordinate_name=latitude_coordinate_name,
+            vertical_coordinate_name=vertical_coordinate_name,
+            is_input_positive_below_msl=is_input_positive_below_msl,
+        )
+        self.src_bathymetry_dataset = self.src.ds
+        self.destination_bathymetry = self._grid.get_esmf_ready_tracer_ds()
+        self.destination_bathymetry["depth"] = xr.zeros_like(
+            self.destination_bathymetry.tarea
+        )
+        self.destination_bathymetry.depth.attrs["units"] = "meters"
+        self.destination_bathymetry.depth.attrs["coordinates"] = "lon lat"
+        if write_to_file:
+            self.src_bathymetry_dataset.to_netcdf(output_dir / "bathymetry_original.nc")
+            self.destination_bathymetry.to_netcdf(
+                output_dir / "bathymetry_unfinished.nc"
             )
 
         if run_regrid_dataset:
             self.regridded_bathy = regrid_dataset_via_xesmf(
-                input_dataset=self.bathymetry_output,
-                output_dataset=self.empty_bathy,
+                input_dataset=self.src_bathymetry_dataset,
+                output_dataset=self.destination_bathymetry,
                 regridding_method=regridding_method,
                 write_to_file=write_to_file,
                 output_path=output_dir / "bathymetry_unfinished.nc",
@@ -662,11 +1072,9 @@ class Topo:
             # Set directly into self.depth in this function
             self.tidy_dataset(
                 fill_channels=fill_channels,
-                positive_down=positive_down,
                 vertical_coordinate_name="depth",
                 bathymetry=self.regridded_bathy,
                 output_dir=output_dir,
-                write_to_file=write_to_file,
                 longitude_coordinate_name="lon",
                 latitude_coordinate_name="lat",
             )
@@ -678,10 +1086,8 @@ class Topo:
         longitude_coordinate_name,
         latitude_coordinate_name,
         vertical_coordinate_name,
-        fill_channels=False,
-        positive_down=False,
+        is_input_positive_below_msl=False,
         output_dir=Path(""),
-        write_to_file=True,
         verbose=True,
     ):
         if verbose:
@@ -707,168 +1113,96 @@ class Topo:
             For additional details see: https://xesmf.readthedocs.io/en/latest/large_problems_on_HPC.html
             """)
 
-        self.bathymetry_output, self.empty_bathy = self.config_dataset(
+        output_dir = Path(output_dir)
+        self.set_src(
             bathymetry_path=bathymetry_path,
             longitude_coordinate_name=longitude_coordinate_name,
             latitude_coordinate_name=latitude_coordinate_name,
             vertical_coordinate_name=vertical_coordinate_name,
-            fill_channels=fill_channels,
-            positive_down=positive_down,
-            output_dir=output_dir,
-            write_to_file=write_to_file,
+            is_input_positive_below_msl=is_input_positive_below_msl,
         )
+        self.src_bathymetry_dataset = self.src.ds
+        self.destination_bathymetry = self._grid.get_esmf_ready_tracer_ds()
+        self.destination_bathymetry["depth"] = xr.zeros_like(
+            self.destination_bathymetry.tarea
+        )
+        self.destination_bathymetry.depth.attrs["units"] = "meters"
+        self.destination_bathymetry.depth.attrs["coordinates"] = "lon lat"
+        self.src_bathymetry_dataset.to_netcdf(output_dir / "bathymetry_original.nc")
+        self.destination_bathymetry.to_netcdf(output_dir / "bathymetry_unfinished.nc")
 
         print(
             "Configuration complete. Ready for regridding with MPI. See documentation for more details."
         )
 
-    def config_dataset(
+    def direct_cressman_interp(
         self,
-        bathymetry_path,
-        longitude_coordinate_name,
-        latitude_coordinate_name,
-        vertical_coordinate_name,
-        fill_channels=False,
-        positive_down=False,
-        output_dir=Path(""),
-        write_to_file=True,
+        smooth_scl=2.0,
+        cressman_exp=2.0,
+        weights_path=None,
     ):
         """
-        Sets up necessary objects/files for regridding bathymetry. Can be flexibly used with
-        mapping.regrid_bathy_dataset() or user can manually regrid with ESMF_regrid.
+        Assign ocean depths using Cressman distance-weighted interpolation.
+        Mirrors ``interp_smooth.f90`` from the tx2_3 topography workflow.
 
-        If manual regridding is necessary, write_to_file must be set to True.
+        For each ocean T-cell a smoothing radius ``L = smooth_scl * sqrt(cell_area)``
+        is computed. Source ocean points within ``L`` are averaged with weights
 
-        Arguments:
-            bathymetry_path (str): Path to netCDF file with bathymetry data.
-            longitude_coordinate_name (Optional[str]): The name of the longitude coordinate in the bathymetry
-                dataset at ``bathymetry_path``. For example, for GEBCO bathymetry: ``'lon'`` (default).
-            latitude_coordinate_name (Optional[str]): The name of the latitude coordinate in the bathymetry
-                dataset at ``bathymetry_path``. For example, for GEBCO bathymetry: ``'lat'`` (default).
-            vertical_coordinate_name (Optional[str]): The name of the vertical coordinate in the bathymetry
-                dataset at ``bathymetry_path``. For example, for GEBCO bathymetry: ``'elevation'`` (default).
-            output_dir: str | Path
-                The str or Path the write to file should write to. Defaults to the directory the script is running in.
-            write_to_file (Optional[bool]): Files saved to ``output_dir``. Defaults to ``True``. Must be set to true if using manual regridding methods with ESMF_regrid.
+        .. math::
 
-        Returns:
-            (``bathymetry_output``,``empty_bathy``) (tuple of Datasets): where ``bathymetry_output`` is the original bathymetry data with proper metadata and attributes and ``empty_bathy`` is a template for the regridder.
+            w = \\left(\\frac{L^2 - r^2}{L^2 + r^2}\\right)^{c}
+
+        where ``r`` is the great-circle arc distance and ``c = cressman_exp``.
+        Only source points with positive depth (ocean) contribute, so depth
+        estimates are never contaminated by land elevations.
+
+        Weights are computed by :func:`~mom6_forge.mapping.compute_cressman_weights`,
+        saved to an ESMF-compatible netCDF, and applied through ``xe.Regridder`` —
+        all orchestrated by :func:`~mom6_forge.mapping.regrid_dataset_via_cressman`.
+        Cells that receive no source coverage are filled by iterative neighbour
+        averaging (up to 100 passes).
+
+        Parameters
+        ----------
+        smooth_scl : float
+            Smoothing scale multiplier for the Cressman radius. Default ``2.0``.
+        cressman_exp : float
+            Exponent for the Cressman weight function. Default ``2.0``.
+        weights_path : str or Path or None
+            Where to save the ESMF weights netCDF. If ``None``, a file named
+            ``cressman_weights.nc`` is written next to the bathymetry file.
         """
-        coordinate_names = {
-            "xh": longitude_coordinate_name,
-            "yh": latitude_coordinate_name,
-            "depth": vertical_coordinate_name,
-        }
-        longitude_extent = (
-            float(self._grid.qlon.min()),
-            float(self._grid.qlon.max()),
-        )
-        latitude_extent = (
-            float(self._grid.qlat.min()),
-            float(self._grid.qlat.max()),
-        )
+        if weights_path is None:
+            weights_path = self.src.path.parent / "cressman_weights.nc"
 
-        bathymetry = xr.open_dataset(bathymetry_path, chunks="auto")[
-            coordinate_names["depth"]
-        ]
+        # --- Regrid via mapping module (weights → file → cressman Regridder) ---
 
-        bathymetry = bathymetry.sel(
-            {
-                coordinate_names["yh"]: slice(
-                    latitude_extent[0] - 0.5, latitude_extent[1] + 0.5
-                )
-            }  # 0.5 degree latitude buffer (hardcoded) for regridding
-        ).astype("float")
+        dst_ds = self._grid.get_esmf_ready_tracer_ds()
+        dst_ds["area"] = self._grid.tarea
+        dst_ds["mask"] = self.tmask
 
-        ## Check if the original bathymetry provided has a longitude extent that goes around the globe
-        ## to take care of the longitude seam when we slice out the regional domain.
-
-        horizontal_resolution = (
-            bathymetry[coordinate_names["xh"]][1]
-            - bathymetry[coordinate_names["xh"]][0]
+        depth_dst, unfilled = regrid_dataset_via_cressman(
+            self.src.ds,
+            dst_ds,
+            smooth_scl=smooth_scl,
+            cressman_exp=cressman_exp,
+            weights_path=weights_path,
         )
 
-        horizontal_extent = (
-            bathymetry[coordinate_names["xh"]][-1]
-            - bathymetry[coordinate_names["xh"]][0]
-            + horizontal_resolution
-        )
+        depth_arr = iterative_fill(depth_dst["depth"].values, unfilled, self.tmask)
 
-        longitude_buffer = 0.5  # 0.5 degree longitude buffer (hardcoded) for regridding
-
-        if np.isclose(horizontal_extent, 360):
-            ## longitude extent that goes around the globe -- use longitude_slicer
-            bathymetry = longitude_slicer(
-                bathymetry,
-                np.array(longitude_extent)
-                + np.array([-longitude_buffer, longitude_buffer]),
-                coordinate_names["xh"],
+        self.send_entire_depth_change_to_tcm(
+            xr.DataArray(
+                depth_arr.astype(float), dims=["ny", "nx"], attrs={"units": "m"}
             )
-        else:
-            ## otherwise, slice normally
-            bathymetry = bathymetry.sel(
-                {
-                    coordinate_names["xh"]: slice(
-                        longitude_extent[0] - longitude_buffer,
-                        longitude_extent[1] + longitude_buffer,
-                    )
-                }
-            )
-
-        bathymetry.attrs["missing_value"] = -1e20  # missing value expected by FRE tools
-        bathymetry_output = xr.Dataset({"depth": bathymetry})
-        bathymetry.close()
-
-        bathymetry_output = bathymetry_output.rename(
-            {coordinate_names["xh"]: "lon", coordinate_names["yh"]: "lat"}
         )
-
-        bathymetry_output.depth.attrs["_FillValue"] = -1e20
-        bathymetry_output.depth.attrs["units"] = "meters"
-        bathymetry_output.depth.attrs["standard_name"] = (
-            "height_above_reference_ellipsoid"
-        )
-        bathymetry_output.depth.attrs["long_name"] = "Elevation relative to sea level"
-        bathymetry_output.depth.attrs["coordinates"] = "lon lat"
-        if write_to_file:
-            bathymetry_output.to_netcdf(
-                output_dir / "bathymetry_original.nc",
-                mode="w",
-                engine="netcdf4",
-            )
-
-        empty_bathy = xr.Dataset(
-            {
-                "lon": self._grid.tlon,
-                "lat": self._grid.tlat,
-            }
-        )
-
-        empty_bathy = empty_bathy.set_coords(("lon", "lat"))
-        empty_bathy["depth"] = xr.zeros_like(empty_bathy["lon"])
-        empty_bathy.lon.attrs["units"] = "degrees_east"
-        empty_bathy.lon.attrs["_FillValue"] = 1e20
-        empty_bathy.lat.attrs["units"] = "degrees_north"
-        empty_bathy.lat.attrs["_FillValue"] = 1e20
-        empty_bathy.depth.attrs["units"] = "meters"
-        empty_bathy.depth.attrs["coordinates"] = "lon lat"
-        if write_to_file:
-            empty_bathy.to_netcdf(
-                output_dir / "bathymetry_unfinished.nc",
-                mode="w",
-                engine="netcdf4",
-            )
-            empty_bathy.close()
-        return bathymetry_output, empty_bathy
 
     def tidy_dataset(
         self,
         fill_channels=False,
-        positive_down=False,
         vertical_coordinate_name="depth",
         bathymetry=None,
         output_dir=Path(""),
-        write_to_file=True,
         longitude_coordinate_name="lon",
         latitude_coordinate_name="lat",
     ):
@@ -886,8 +1220,8 @@ class Topo:
             fill_channels (Optional[bool]): Whether to fill in diagonal channels.
                 This removes more narrow inlets, but can also connect extra islands to land.
                 Default: ``False``.
-            positive_down (Optional[bool]): If ``False`` (default), assume that
-                bathymetry vertical coordinate is positive down, as is the case in GEBCO for example.
+            is_input_positive_below_msl (Optional[bool]): If ``True`` (default), assume that
+                bathymetry vertical coordinate is positive below sea level, GEBCO is negative below sea level, and would need for this to be False.
             bathymetry (Optional[xr.Dataset]): The bathymetry dataset to tidy up. If not provided,
                 it will read the bathymetry from the file ``bathymetry_unfinished.nc`` in the input directory
                 that was created by :func:`~config/regrid_dataset`.
@@ -915,10 +1249,6 @@ class Topo:
         bathymetry.attrs["coordinates"] = "zi"
 
         bathymetry.expand_dims("tiles", 0)
-
-        if not positive_down:
-            ## Ensure that coordinate is positive down!
-            bathymetry["depth"] *= -1
 
         ## Make a land mask based on the bathymetry
         ocean_mask = xr.where(bathymetry.depth <= 0, 0, 1)
@@ -1080,10 +1410,10 @@ class Topo:
         indices = list(zip(affected[0], affected[1]))
         if not indices:
             return
-        old_values = [self.depth.data[jj, ii] for jj, ii in indices]
+        old_values = [self.tmask.data[jj, ii] for jj, ii in indices]
         new_values = [0] * len(indices)
-        cmd = DepthEditCommand(self, indices, new_values, old_values=old_values)
-        self.tcm.execute(cmd)
+        cmd = MaskEditCommand(self, indices, new_values, old_values=old_values)
+        self.apply_edit(cmd)
 
     def erase_disconnected_basin(self, i, j):
         label = self.basintmask.data[j, i]
@@ -1091,10 +1421,10 @@ class Topo:
         indices = list(zip(affected[0], affected[1]))
         if not indices:
             return
-        old_values = [self.depth.data[jj, ii] for jj, ii in indices]
+        old_values = [self.tmask.data[jj, ii] for jj, ii in indices]
         new_values = [0] * len(indices)
-        cmd = DepthEditCommand(self, indices, new_values, old_values=old_values)
-        self.tcm.execute(cmd)
+        cmd = MaskEditCommand(self, indices, new_values, old_values=old_values)
+        self.apply_edit(cmd)
 
     def apply_ridge(self, height, width, lon, ilat):
         """
@@ -1130,20 +1460,19 @@ class Topo:
         new_vals = []
         for j in range(ilat[0], ilat[1]):
             affected_indices.extend([(j, i) for i in range(self._grid.nx)])
-            old_vals.extend(self._depth[j, :].values)
-            new_vals.extend((self._depth[j, :] + ridge_height_mapped).values)
+            old_vals.extend(self.depth[j, :].values)
+            new_vals.extend((self.depth[j, :] + ridge_height_mapped).values)
         depth_edit_command = DepthEditCommand(
             self, affected_indices, new_vals, old_values=old_vals
         )
-        self.tcm.execute(depth_edit_command)
+        self.apply_edit(depth_edit_command)
 
-    def apply_land_frac(
+    def generate_mask_from_landfrac_file(
         self,
         landfrac_filepath,
         landfrac_name,
         xcoord_name,
         ycoord_name,
-        depth_fillval=0.0,
         cutoff_frac=0.5,
         method="bilinear",
     ):
@@ -1160,15 +1489,11 @@ class Topo:
             The name of the x coordinate of the landfrac dataset (e.g., "lon").
         ycoord_name : str
             The name of the y coordinate of the landfrac dataset (e.g., "lat").
-        depth_fillval : float
-            The depth value for dry cells.
         cutoff_frac : float
             Cells with landfrac > cutoff_frac are deemed land cells.
         method : str
             Mapping method for determining the ocean mask (lnd -> ocn)
         """
-
-        import xesmf as xe
 
         assert isinstance(landfrac_filepath, str), "landfrac_filepath must be a string"
         assert landfrac_filepath.endswith(
@@ -1189,17 +1514,11 @@ class Topo:
             landfrac_name in ds
         ), f"Couldn't find {ycoord_name} in {landfrac_filepath}"
         assert isinstance(
-            depth_fillval, float
-        ), f"depth_fillval={depth_fillval} must be a float"
-        assert (
-            depth_fillval < self._min_depth
-        ), f"depth_fillval (the depth of dry cells) must be smaller than the minimum depth {self._min_depth}"
-        assert isinstance(
             cutoff_frac, float
         ), f"cutoff_frac={cutoff_frac} must be a float"
         assert (
             0.0 <= cutoff_frac <= 1.0
-        ), f"cutoff_frac={cutoff_frac} must be 0<= and <=1"
+        ), f"cutoff_frac={cutoff_frac} must be between 0 and 1"
 
         valid_methods = [
             "bilinear",
@@ -1220,26 +1539,72 @@ class Topo:
         regridder = xe.Regridder(ds, ds_mapped, method, periodic=self._grid._supergrid.is_cyclic_x)
         mask_mapped = regridder(ds.landfrac)
 
-        # Build TCM Object - This is not the entire depth change, just the cells to be filled
-        mask = mask_mapped > cutoff_frac  # boolean mask
-        ny, nx = self._depth.shape
+        # Convert land fraction to binary mask (1=ocean, 0=land)
+        binary_mask = (mask_mapped <= cutoff_frac).astype(int)
 
-        affected_indices = []
-        old_vals = []
-        new_vals = []
+        # Use MaskEditCommand for version-controlled mask application
+        # Generate all affected indices
+        all_indices = list(np.ndindex(binary_mask.shape))  # list of (j, i) tuples
+        new_values = binary_mask.values.ravel().tolist()
 
-        for j in range(ny):
-            for i in range(nx):
-
-                if mask[j, i]:
-                    affected_indices.append((j, i))
-                    old_vals.append(float(self._depth[j, i]))  # extract scalar here
-                    new_vals.append(float(depth_fillval))  # and here
-
-        depth_edit_command = DepthEditCommand(
-            self, affected_indices, new_vals, old_values=old_vals
+        # Get old values (current mask or 0 if no mask set)
+        old_mask = self.mask
+        old_values = (
+            old_mask.values.ravel().tolist()
+            if isinstance(old_mask, xr.DataArray)
+            else old_mask.ravel().tolist()
         )
-        self.tcm.execute(depth_edit_command)
+
+        # Build and execute command
+        mask_edit_command = MaskEditCommand(
+            self,
+            all_indices,
+            new_values,
+            old_values=old_values,
+            message="Apply Land Fraction Mask",
+        )
+
+        self.apply_edit(mask_edit_command)
+
+        # legacy code set the depth of land cells to depth_fillval, but now that is handled in the depth property.
+
+    def generate_mask_from_naturalearth(
+        self,
+        resolution="10",
+        version="v5_1_2",
+    ):
+        """
+        Generate and apply a land mask using regionmask's Natural Earth dataset. (Recommended by Fred Castruccio)
+
+        Parameters
+        ----------
+        resolution : str
+            Resolution of the Natural Earth land dataset. One of "10", "50", "110" (minutes).
+        version : str
+            Version of the Natural Earth dataset in regionmask. e.g. "v5_1_2".
+        """
+
+        region_attr = f"natural_earth_{version}"
+        land_attr = f"land_{resolution}"
+
+        assert hasattr(
+            regionmask.defined_regions, region_attr
+        ), f"regionmask has no Natural Earth version '{version}'. Available: {dir(regionmask.defined_regions)}"
+
+        ne = getattr(regionmask.defined_regions, region_attr)
+
+        assert hasattr(
+            ne, land_attr
+        ), f"Natural Earth '{version}' has no resolution '{resolution}'. Available: {dir(ne)}"
+
+        land = getattr(ne, land_attr)
+
+        raw_mask = land.mask(self._grid.tlon.values, self._grid.tlat.values)
+
+        # NaN = ocean (not masked by any land region), non-NaN = land
+        binary_mask = raw_mask.isnull().astype(int)  # 1 = ocean, 0 = land
+
+        return binary_mask.values
 
     def gen_topo_ds(self, title=None):
         """
@@ -1288,20 +1653,24 @@ class Topo:
             },
         )
 
-        ds["depth"] = xr.DataArray(
-            self._depth.data,
+        # Write raw depth to file
+        ds["depth_raw"] = xr.DataArray(
+            self.depth.data,
             dims=["ny", "nx"],
-            attrs={"long_name": "t-grid cell depth", "units": "m"},
+            attrs={
+                "long_name": "t-grid cell depth (raw, before masking)",
+                "units": "m",
+            },
+        )
+
+        # Write masked depth (from property) to file
+        ds["depth"] = xr.DataArray(
+            self.masked_depth.data,
+            dims=["ny", "nx"],
+            attrs={"long_name": "t-grid cell masked depth", "units": "m"},
         )
 
         return ds
-
-    def save(self):
-        """
-        Save the TOPO_FILE (bathymetry file) in netcdf format to version control
-        """
-
-        self.tcm.save()
 
     def write_topo(self, file_path, title=None):
         """
@@ -1314,7 +1683,18 @@ class Topo:
             Path to TOPO_FILE to be written.
         title: str, optional
             File title.
+
+        Note
+        ----
+        If channel_widths is not empty, remember to also write those constraints using
+        channel_widths.write(channel_file_path).
         """
+
+        if self.channel_widths.get_all():
+            print(
+                "Note: Channel widths are defined. Remember to write them with "
+                "channel_widths.write(filepath)"
+            )
 
         ds = self.gen_topo_ds(title=title)
         ds.to_netcdf(file_path, format="NETCDF3_64BIT")
@@ -1792,6 +2172,8 @@ class Topo:
                 "start_index": np.int32(i0),
             },
         )
-
+        all_vars_encoding = {
+            var: {"_FillValue": None} for var in ds.data_vars
+        }  # disable _FillValue for all variables to avoid issues in ESMF
         self.mesh_path = file_path
-        ds.to_netcdf(self.mesh_path, format="NETCDF3_64BIT")
+        ds.to_netcdf(self.mesh_path, format="NETCDF3_64BIT", encoding=all_vars_encoding)
