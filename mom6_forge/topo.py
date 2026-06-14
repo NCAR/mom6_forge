@@ -1536,7 +1536,7 @@ class Topo:
             data_vars={}, coords={"lat": self._grid.tlat, "lon": self._grid.tlon}
         )
 
-        regridder = xe.Regridder(ds, ds_mapped, method, periodic=self._grid._supergrid.is_cyclic_x)
+        regridder = xe.Regridder(ds, ds_mapped, method, periodic=self._grid.supergrid.is_cyclic_x)
         mask_mapped = regridder(ds.landfrac)
 
         # Convert land fraction to binary mask (1=ocean, 0=land)
@@ -1935,7 +1935,7 @@ class Topo:
                 "$ Define grid -------------------------------------------------------- $\n"
                 "$\n"
             )
-            closure = 'SMPL' if self._grid._supergrid.is_cyclic_x else 'NONE'
+            closure = 'SMPL' if self._grid.supergrid.is_cyclic_x else 'NONE'
             f.write(f"  'CURV'  T  '{closure}'\n")
             f.write(f"  {nx}  {ny}\n")
             f.write(f"  21 1.0 0.0 1 1 '(....)' 'NAME' '{x_file}'\n")
@@ -2125,7 +2125,7 @@ class Topo:
 
                 return [ll, lr, ur, ul]
 
-        elif self._grid._supergrid.is_cyclic_x == True:
+        elif self._grid.supergrid.is_cyclic_x == True:
 
             nx, ny = self._grid.nx, self._grid.ny
             qlon_flat = self._grid.qlon.data[:, :-1].flatten()
