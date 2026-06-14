@@ -13,22 +13,6 @@ permissions:
   pull-requests: write
 
 jobs:
-<<<<<<< HEAD:.github/workflows/build-test-docs.yml
-  # --------------------------------
-  # 1️⃣ Build & test the environment
-  # --------------------------------
-  build-test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.11","3.12","3.13"]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-=======
->>>>>>> main:.github/workflows/docs.yml
 
   docs:
     runs-on: ubuntu-latest
