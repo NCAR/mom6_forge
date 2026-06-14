@@ -1542,7 +1542,7 @@ class Topo:
                 "$     maximum global time step, maximum CFL time step for x-y and\n"
                 "$     k-theta, minimum source term time step (all in seconds).\n"
                 "$\n"
-                "  1800.00  1800.00  1800.00   300.00\n"
+                "  600.00  300.00  300.00   30.00\n"
                 "$\n"
                 "$ Start of namelist input section ------------------------------------ $\n"
                 "$\n"
