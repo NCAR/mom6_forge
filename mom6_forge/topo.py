@@ -919,7 +919,7 @@ class Topo:
 
     def set_depth_from_stats(self, statistic):
         """
-        Set the topo depth to a statistic computed by _compute_stats.
+        Set the topo depth to a statistic computed by compute_stats.
 
         Parameters
         ----------
@@ -1157,7 +1157,7 @@ class Topo:
             if mask_method == "naturalearth":
                 self.user_mask = self.generate_mask_from_naturalearth()
             elif mask_method == "ocean_frac":
-                self._compute_stats(
+                self.compute_stats(
                     nx_sub=nx_sub,
                     ny_sub=ny_sub,
                     mask_hmin=mask_hmin,
@@ -1178,7 +1178,7 @@ class Topo:
                 print(
                     "Resolution diagnostics recommend using stats-based masking, which we will set because no mask option was specified"
                 )
-                self._compute_stats(
+                self.compute_stats(
                     nx_sub=nx_sub,
                     ny_sub=ny_sub,
                     mask_hmin=mask_hmin,
@@ -1196,7 +1196,7 @@ class Topo:
                     print(
                         "Resolution diagnostics recommend not using stats-based masking, but stats-based depth was requested"
                     )
-                self._compute_stats(
+                self.compute_stats(
                     nx_sub=nx_sub,
                     ny_sub=ny_sub,
                     mask_hmin=mask_hmin,
@@ -1232,7 +1232,7 @@ class Topo:
                 print(
                     "Resolution diagnostics recommend using stats-based depth method, which we will set for depth because no depth option was specified"
                 )
-                self._compute_stats(
+                self.compute_stats(
                     nx_sub=nx_sub,
                     ny_sub=ny_sub,
                     mask_hmin=mask_hmin,
