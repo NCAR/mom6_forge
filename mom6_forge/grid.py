@@ -382,18 +382,25 @@ class Grid:
         # the grid is tripolar
         return nlines == 3
 
-    def is_rectangular(self, rtol=1e-3) -> bool:
+    def is_rectangular(self, atol=1e-3) -> bool:
         """Check if the grid is a rectangular lat-lon grid by comparing the
-        first and last rows and columns of the tlon and tlat arrays."""
+        first and last rows and columns of the tlon and tlat arrays.
 
-        if (
-            np.allclose(self.tlon[:, 0], self.tlon[0, 0], rtol=rtol)
-            and np.allclose(self.tlon[:, -1], self.tlon[0, -1], rtol=rtol)
-            and np.allclose(self.tlat[0, :], self.tlat[0, 0], rtol=rtol)
-            and np.allclose(self.tlat[-1, :], self.tlat[-1, 0], rtol=rtol)
-        ):
-            return True
-        return False
+        Parameters
+        ----------
+        atol : float, optional
+            Absolute tolerance in degrees for the lat/lon comparisons. An
+            absolute (rather than relative) tolerance is used because the
+            coordinates are angles: the acceptable deviation must not scale
+            with longitude/latitude magnitude.
+        """
+
+        return (
+            np.allclose(self.tlon[:, 0], self.tlon[0, 0], atol=atol, rtol=0)
+            and np.allclose(self.tlon[:, -1], self.tlon[0, -1], atol=atol, rtol=0)
+            and np.allclose(self.tlat[0, :], self.tlat[0, 0], atol=atol, rtol=0)
+            and np.allclose(self.tlat[-1, :], self.tlat[-1, 0], atol=atol, rtol=0)
+        )
 
     @classmethod
     def get_bounding_boxes_of_rectangular_grid(cls, hgrid):

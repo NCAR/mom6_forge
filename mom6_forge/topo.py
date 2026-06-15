@@ -1548,7 +1548,7 @@ class Topo:
         new_values = binary_mask.values.ravel().tolist()
 
         # Get old values (current mask or 0 if no mask set)
-        old_mask = self.mask
+        old_mask = self.tmask
         old_values = (
             old_mask.values.ravel().tolist()
             if isinstance(old_mask, xr.DataArray)
