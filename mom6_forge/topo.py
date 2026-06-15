@@ -1097,7 +1097,7 @@ class Topo:
                 print(
                     "Sub-sampling factors (nx_sub, ny_sub) not provided in kwargs, computing based on source dataset and model grid resolution"
                 )
-                src_ni, src_nj = self.src.depth.shape
+                src_nj, src_ni = self.src.depth.shape
                 ocn_ni, ocn_nj = self._grid.nx, self._grid.ny
                 ny_sub, nx_sub = compute_subsampling_factor(
                     src_nj, src_ni, ocn_nj, ocn_ni
