@@ -1507,11 +1507,11 @@ class Topo:
         ), f"Couldn't find {landfrac_name} in {landfrac_filepath}"
         assert isinstance(xcoord_name, str), "xcoord_name must be a string"
         assert (
-            landfrac_name in ds
+            xcoord_name in ds
         ), f"Couldn't find {xcoord_name} in {landfrac_filepath}"
         assert isinstance(ycoord_name, str), "ycoord_name must be a string"
         assert (
-            landfrac_name in ds
+            ycoord_name in ds
         ), f"Couldn't find {ycoord_name} in {landfrac_filepath}"
         assert isinstance(
             cutoff_frac, float
@@ -1845,43 +1845,42 @@ class Topo:
         nx = self._grid.nx
         ny = self._grid.ny
 
-        # --- Write x-coordinate file (longitudes in degrees) ---
-        x_file = f"{grid_alias}_x.inp"
+        def _write_rows(filename, fmt_cell, sep):
+            """Write the nx*ny grid values to a WW3 text input file, southernmost
+            row (j=0) first to match IDLA=1 in ww3_grid.inp."""
+            with open(file_dir / filename, "w") as f:
+                for j in range(ny):
+                    f.write(sep.join(fmt_cell(j, i) for i in range(nx)) + "\n")
+
         tlon = self._grid.tlon.data  # (ny, nx), degrees
-        with open(file_dir / x_file, "w") as f:
-            for j in range(ny):
-                f.write("".join(f"{tlon[j, i]:15.8f}" for i in range(nx)) + "\n")
-
-        # --- Write y-coordinate file (latitudes in degrees) ---
-        y_file = f"{grid_alias}_y.inp"
         tlat = self._grid.tlat.data  # (ny, nx), degrees
-        with open(file_dir / y_file, "w") as f:
-            for j in range(ny):
-                f.write("".join(f"{tlat[j, i]:15.8f}" for i in range(nx)) + "\n")
+        # Define ocean cells from the land/sea mask so the depth and status files
+        # stay consistent even if the mask has been edited.
+        tmask = self.tmask.data  # (ny, nx), 1=ocean, 0=land
+        depth_m = np.where(tmask > 0, self._depth.data, 0.0)
 
-        # --- Write bottom depth file (positive depth in meters for ocean) ---
+        x_file = f"{grid_alias}_x.inp"
+        y_file = f"{grid_alias}_y.inp"
+        bottom_file = f"{grid_alias}_bottom.inp"
+        mapsta_file = f"{grid_alias}_mapsta.inp"
+
+        # --- x/y coordinate files (longitudes/latitudes in degrees) ---
+        _write_rows(x_file, lambda j, i: f"{tlon[j, i]:15.8f}", sep="")
+        _write_rows(y_file, lambda j, i: f"{tlat[j, i]:15.8f}", sep="")
+
+        # --- bottom depth file (positive depth in meters for ocean) ---
         # WW3 stores seabed as elevation ZB (negative-down); DW = WLV - ZB.
         # The preprocessor computes ZBIN = SBF * file_values, then flags a
         # cell as sea when ZBIN <= ZLIM. We write positive depths in meters
         # and set SBF=-1.0 in ww3_grid.inp so ZBIN comes out as the correct
         # negative-down elevation. Matches the convention in WW3 regtest
         # ww3_tp2.5 (regtests/ww3_tp2.5/input/depth.361x361.IDLA1.dat).
-        bottom_file = f"{grid_alias}_bottom.inp"
-        depth_m = np.where(
-            self._depth.data > self._min_depth, self._depth.data, 0.0
-        )
-        with open(file_dir / bottom_file, "w") as f:
-            for j in range(ny):
-                f.write(" ".join(f"{depth_m[j, i]:.8f}" for i in range(nx)) + "\n")
+        _write_rows(bottom_file, lambda j, i: f"{depth_m[j, i]:.8f}", sep=" ")
 
-        # --- Write map status file (1=ocean, 0=land) ---
+        # --- map status file (1=ocean, 0=land) ---
         # TODO: WW3 also supports mapsta codes 2 (active boundary), 3 (excluded),
         # and negative values (ice). Extend when nested/boundary-forced runs are needed.
-        mapsta_file = f"{grid_alias}_mapsta.inp"
-        mapsta = self.tmask.data  # (ny, nx), 1=ocean, 0=land
-        with open(file_dir / mapsta_file, "w") as f:
-            for j in range(ny):
-                f.write(" ".join(str(int(mapsta[j, i])) for i in range(nx)) + "\n")
+        _write_rows(mapsta_file, lambda j, i: str(int(tmask[j, i])), sep=" ")
 
         # --- Write ww3_grid.inp ---
         # Use IDLA=1 (bottom-to-top) and IDFM=1 (free format) to match the
@@ -1895,7 +1894,7 @@ class Topo:
                 "$ Grid name (C*30, in quotes)\n"
                 "$\n"
             )
-            grid_name = f"{grid_alias}".ljust(30)[:30]
+            grid_name = grid_alias.ljust(30)[:30]
             f.write(f"  '{grid_name}'\n")
             # TODO: frequency/direction counts, model flags, and timesteps below
             # are copied from the ww3a reference grid. Parameterize when this
