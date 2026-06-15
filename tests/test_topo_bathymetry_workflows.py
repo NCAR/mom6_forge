@@ -1,4 +1,5 @@
 import pytest
+import xarray as xr
 import numpy as np
 from mom6_forge.topo import *
 from mom6_forge._source_bathy import SourceBathy
@@ -102,8 +103,43 @@ def test_compute_topo_stats(get_rect_topo, synthetic_bathy_file):
         assert stats2 is stats
 
 
+def test_direct_cressman_interp(get_rect_topo, synthetic_bathy_file, tmp_path):
+    """Smoke test: direct_cressman_interp runs end-to-end and updates topo depth."""
+    topo = get_rect_topo  # flat 1000 m depth, all ocean
+
+    # synthetic_bathy_file stores elevation positive-upward (ocean = -500 m);
+    # is_input_positive_below_msl=False flips sign so ocean cells have depth +500 m,
+    # which is what Cressman requires (source ocean = depth > 0).
+    src = SourceBathy(
+        topo,
+        synthetic_bathy_file,
+        depth_name="elevation",
+        is_input_positive_below_msl=False,
+    )
+    topo._src = src
+
+    old_depth = topo.depth.copy()
+    weights_path = tmp_path / "weights.nc"
+
+    topo.direct_cressman_interp(weights_path=weights_path)
+
+    # weights file was written
+    assert weights_path.exists()
+
+    # depth was modified from the initial flat 1000 m
+    assert not topo.depth.equals(old_depth)
+
+    # output depth is a DataArray with the correct shape
+    assert isinstance(topo.depth, xr.DataArray)
+    assert topo.depth.shape == old_depth.shape
+
+    # Depth values are dominated by the ~500 m source ocean; the mean should
+    # be close to 500 m (the synthetic ocean floor depth).
+    assert np.nanmean(topo.depth.values) == pytest.approx(500.0, abs=100.0)
+
+
 def test_set_depth_from_stats(get_rect_topo, synthetic_bathy_file):
-    """Test set_depth_from_stats sets topo depth to the chosen statistic from _compute_stats."""
+    """Test set_depth_from_stats sets topo depth to the chosen statistic from compute_stats."""
     topo = get_rect_topo
 
     # Load source bathymetry and slice to topo domain
@@ -114,7 +150,7 @@ def test_set_depth_from_stats(get_rect_topo, synthetic_bathy_file):
         is_input_positive_below_msl=False,
     )
     topo.src = src
-    topo._compute_stats(nx_sub=2, ny_sub=2, mask_hmin=0.0)
+    topo.compute_stats(nx_sub=2, ny_sub=2, mask_hmin=0.0)
 
     topo.set_depth_from_stats("mean")
 
