@@ -7,7 +7,7 @@ from typing import Optional
 from scipy import interpolate
 from scipy.ndimage import label, binary_fill_holes
 from scipy.spatial import cKDTree
-from mom6_forge.utils import cell_area_rad
+from mom6_forge.utils import cell_area_rad, compute_subsampling_factor
 from mom6_forge.grid import Grid
 from mom6_forge.git_utils import get_domain_dir, get_repo
 from pathlib import Path
@@ -1077,15 +1077,44 @@ class Topo:
         # Diagnose wether to use stats-based masking and Cressman interpolation based on resolution comparison between the source dataset and the model grid
         use_stats_depth = self.diagnose_resolution()
 
+        # Check necessary attributes for different conditions.
+        # Note ocean_frac, stats-based masking, and stats-based depth all rely on the same sub-sampling stats, so we check for those together.
+        if (
+            (mask_method == "ocean_frac")
+            or (mask_method is None and use_stats_depth)
+            or (depth_method == "stats")
+            or (depth_method is None and use_stats_depth)
+        ):
+            if kwargs.get("mask_hmin") is None:
+                print(
+                    "Masking depth threshold (mask_hmin) not provided in kwargs, defaulting to 0 m"
+                )
+                mask_hmin = 0.0
+            else:
+                mask_hmin = kwargs["mask_hmin"]
+
+            if kwargs.get("nx_sub") is None or kwargs.get("ny_sub") is None:
+                print(
+                    "Sub-sampling factors (nx_sub, ny_sub) not provided in kwargs, computing based on source dataset and model grid resolution"
+                )
+                src_ni, src_nj = self.src.depth.shape
+                ocn_ni, ocn_nj = self._grid.nx, self._grid.ny
+                ny_sub, nx_sub = compute_subsampling_factor(
+                    src_nj, src_ni, ocn_nj, ocn_ni
+                )
+            else:
+                ny_sub = kwargs["ny_sub"]
+                nx_sub = kwargs["nx_sub"]
+
         # Apply a mask if specified
         if mask_method is not None:
             if mask_method == "naturalearth":
                 self.user_mask = self.generate_mask_from_naturalearth()
             elif mask_method == "ocean_frac":
                 self._compute_stats(
-                    nx_sub=kwargs["nx_sub"],
-                    ny_sub=kwargs["ny_sub"],
-                    mask_hmin=kwargs["mask_hmin"],
+                    nx_sub=nx_sub,
+                    ny_sub=ny_sub,
+                    mask_hmin=mask_hmin,
                 )
                 self.user_mask = self.generate_mask_from_stats_ocean_frac()
             elif mask_method == "dataset":
@@ -1104,9 +1133,9 @@ class Topo:
                     "Resolution diagnostics recommend using stats-based masking, which we will set because no mask option was specified"
                 )
                 self._compute_stats(
-                    nx_sub=kwargs["nx_sub"],
-                    ny_sub=kwargs["ny_sub"],
-                    mask_hmin=kwargs["mask_hmin"],
+                    nx_sub=nx_sub,
+                    ny_sub=ny_sub,
+                    mask_hmin=mask_hmin,
                 )
                 self.user_mask = self.generate_mask_from_stats_ocean_frac()
             else:
@@ -1122,9 +1151,9 @@ class Topo:
                         "Resolution diagnostics recommend not using stats-based masking, but stats-based depth was requested"
                     )
                 self._compute_stats(
-                    nx_sub=kwargs["nx_sub"],
-                    ny_sub=kwargs["ny_sub"],
-                    mask_hmin=kwargs["mask_hmin"],
+                    nx_sub=nx_sub,
+                    ny_sub=ny_sub,
+                    mask_hmin=mask_hmin,
                 )
                 self.set_depth_from_stats(statistic="mean")
             elif depth_method == "xesmf":
@@ -1158,9 +1187,9 @@ class Topo:
                     "Resolution diagnostics recommend using stats-based depth method, which we will set for depth because no depth option was specified"
                 )
                 self._compute_stats(
-                    nx_sub=kwargs["nx_sub"],
-                    ny_sub=kwargs["ny_sub"],
-                    mask_hmin=kwargs["mask_hmin"],
+                    nx_sub=nx_sub,
+                    ny_sub=ny_sub,
+                    mask_hmin=mask_hmin,
                 )
                 self.set_depth_from_stats(statistic=kwargs["statistic"])
 
