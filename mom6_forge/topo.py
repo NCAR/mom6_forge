@@ -1202,6 +1202,8 @@ class Topo:
                     mask_hmin=mask_hmin,
                 )
                 self.set_depth_from_stats(statistic="mean")
+            elif depth_method == "cressman":
+                self.direct_cressman_interp()
             elif depth_method == "xesmf":
                 if use_stats_depth:
                     print(
@@ -1230,18 +1232,13 @@ class Topo:
                 )
             else:
                 print(
-                    "Resolution diagnostics recommend using stats-based depth method, which we will set for depth because no depth option was specified"
+                    "Resolution diagnostics recommend using stats-based method, which we will set for depth as cressman method because no depth option was specified"
                 )
-                self.compute_stats(
-                    nx_sub=nx_sub,
-                    ny_sub=ny_sub,
-                    mask_hmin=mask_hmin,
-                )
-                self.set_depth_from_stats(statistic=kwargs["statistic"])
+                self.direct_cressman_interp()
 
         # Tidy the dataset (fill channels, is_input_positive_below_msl, etc...)
         if fill_channels:
-            self.fill_channels()
+            self.fill_inland_lakes_and_channels()
 
         print(
             "Warning! This was an opionated workflow function that ran multiple steps in sequence. Please edit the mask manually if need be (Some depth methods, like cressman, are mask-aware and may need to be rerun)! "
@@ -1431,9 +1428,9 @@ class Topo:
             )
         )
 
-    def fill_channels(self):
+    def fill_inland_lakes_and_channels(self):
         """
-        Fill in one-cell-wide channels. This removes more narrow inlets, but can also connect extra islands to land.
+        Fill in one-cell-wide channels and inland lakes. This removes more narrow inlets, but can also connect extra islands to land.
         """
         changed = True  ## keeps track of whether solution has converged or not
 
