@@ -1203,7 +1203,9 @@ class Topo:
                 )
                 self.set_depth_from_stats(statistic="mean")
             elif depth_method == "cressman":
-                self.direct_cressman_interp()
+                self.direct_cressman_interp(
+                    weights_path=Path(output_dir) / "cressman_weights.nc"
+                )
             elif depth_method == "xesmf":
                 if use_stats_depth:
                     print(
@@ -1234,7 +1236,9 @@ class Topo:
                 print(
                     "Resolution diagnostics recommend using stats-based method, which we will set for depth as cressman method because no depth option was specified"
                 )
-                self.direct_cressman_interp()
+                self.direct_cressman_interp(
+                    weights_path=Path(output_dir) / "cressman_weights.nc"
+                )
 
         # Tidy the dataset (fill channels, is_input_positive_below_msl, etc...)
         if fill_channels:
