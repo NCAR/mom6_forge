@@ -1,3 +1,9 @@
 [build-system]
 requires = ["setuptools >= 77.0.3"]
 build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: tests that are slow due to heavy imports (e.g. xesmf/ESMF) — excluded from CI by default",
+]
+addopts = "-m 'not slow'"

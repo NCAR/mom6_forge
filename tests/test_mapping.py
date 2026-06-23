@@ -1,3 +1,4 @@
+import pytest
 import xarray as xr
 import numpy as np
 import scipy.sparse as sp
@@ -114,6 +115,7 @@ def test_compute_cressman_weights_correctness():
     ), f"Weights not monotonically decreasing with distance:\n  distances={sorted_distances}\n  weights={sorted_weights}"
 
 
+@pytest.mark.slow
 def test_regrid_dataset_via_cressman_smoke(tmp_path):
     src_ds, dst_ds = make_synthetic_grids()
 
