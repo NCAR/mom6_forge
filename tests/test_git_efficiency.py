@@ -12,7 +12,7 @@ import time
 import numpy as np
 import pytest
 
-from mom6_forge.edit_command import SIZE_THRESHOLD
+from mom6_forge.edit_command import MaskEditCommand, SIZE_THRESHOLD
 from mom6_forge.grid import Grid
 from mom6_forge.topo import Topo
 
@@ -91,7 +91,8 @@ def test_large_mask_edit_uses_nc(tx2_3v3_grid, tmp_path):
     topo.set_flat(1000.0)
 
     large_indices = list(np.ndindex(topo._depth.shape))[: SIZE_THRESHOLD + 1]
-    topo.edit_mask(large_indices, [0] * len(large_indices))
+    cmd = MaskEditCommand(topo, large_indices, [0] * len(large_indices))
+    topo.apply_edit(cmd)
 
     head_entry = json.loads(json.loads(topo.tcm.history_file_path.read_text())["head"])
     assert "nc_path" in head_entry, "Expected nc_path key for large mask edit"
