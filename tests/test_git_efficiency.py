@@ -141,7 +141,9 @@ def test_git_repo_size_over_multiple_commits(tx2_3v3_grid, tmp_path):
     grows ~5 MB/commit and commit time creeps up.  With the optimization, git
     only ever commits a tiny JSON path reference, so .git stays negligible.
     """
-    print(f"\n{'commit':>7}  {'commit_s':>9}  {'git_log_s':>10}  {'git_MB':>7}  {'nc_MB':>7}")
+    print(
+        f"\n{'commit':>7}  {'commit_s':>9}  {'git_log_s':>10}  {'git_MB':>7}  {'nc_MB':>7}"
+    )
 
     orig_threshold = ec.SIZE_THRESHOLD
     try:
@@ -179,8 +181,12 @@ def test_git_repo_size_over_multiple_commits(tx2_3v3_grid, tmp_path):
 
             # Assert git repo stays small with the optimization
             if threshold == 10_000:
-                assert git_mb < 1.0, f".git dir should stay < 1 MB with opt, got {git_mb:.1f} MB"
+                assert (
+                    git_mb < 1.0
+                ), f".git dir should stay < 1 MB with opt, got {git_mb:.1f} MB"
             else:
-                assert git_mb > 10.0, f".git dir should grow without opt, got {git_mb:.1f} MB"
+                assert (
+                    git_mb > 10.0
+                ), f".git dir should grow without opt, got {git_mb:.1f} MB"
     finally:
         ec.SIZE_THRESHOLD = orig_threshold
