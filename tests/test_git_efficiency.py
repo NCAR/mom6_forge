@@ -26,6 +26,8 @@ N_COMMITS = 10
 
 @pytest.fixture(scope="module")
 def tx2_3v3_grid():
+    if not os.path.exists(TX2_3V3_HGRID):
+        pytest.skip(f"GLADE data not available: {TX2_3V3_HGRID}")
     return Grid.from_supergrid(TX2_3V3_HGRID)
 
 
