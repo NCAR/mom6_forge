@@ -3,7 +3,6 @@
 import numpy as np
 import pytest
 
-
 WW3_FILE_SUFFIXES = ("_x.inp", "_y.inp", "_bottom.inp", "_mapsta.inp")
 
 
@@ -78,7 +77,7 @@ def test_write_ww3_input_masked_cells_are_land(get_rect_topo, tmp_path):
     bottom = np.loadtxt(tmp_path / f"{alias}_bottom.inp")
     mapsta = np.loadtxt(tmp_path / f"{alias}_mapsta.inp")
 
-    for (j, i) in [(0, 0), (1, 2)]:
+    for j, i in [(0, 0), (1, 2)]:
         assert mapsta[j, i] == 0
         assert bottom[j, i] == 0.0
 

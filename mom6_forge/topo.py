@@ -1506,13 +1506,9 @@ class Topo:
             landfrac_name in ds
         ), f"Couldn't find {landfrac_name} in {landfrac_filepath}"
         assert isinstance(xcoord_name, str), "xcoord_name must be a string"
-        assert (
-            xcoord_name in ds
-        ), f"Couldn't find {xcoord_name} in {landfrac_filepath}"
+        assert xcoord_name in ds, f"Couldn't find {xcoord_name} in {landfrac_filepath}"
         assert isinstance(ycoord_name, str), "ycoord_name must be a string"
-        assert (
-            ycoord_name in ds
-        ), f"Couldn't find {ycoord_name} in {landfrac_filepath}"
+        assert ycoord_name in ds, f"Couldn't find {ycoord_name} in {landfrac_filepath}"
         assert isinstance(
             cutoff_frac, float
         ), f"cutoff_frac={cutoff_frac} must be a float"
@@ -1536,7 +1532,9 @@ class Topo:
             data_vars={}, coords={"lat": self._grid.tlat, "lon": self._grid.tlon}
         )
 
-        regridder = xe.Regridder(ds, ds_mapped, method, periodic=self._grid.supergrid.is_cyclic_x)
+        regridder = xe.Regridder(
+            ds, ds_mapped, method, periodic=self._grid.supergrid.is_cyclic_x
+        )
         mask_mapped = regridder(ds.landfrac)
 
         # Convert land fraction to binary mask (1=ocean, 0=land)
@@ -1825,7 +1823,7 @@ class Topo:
         """
         Write the text-based WW3 input files ww3_grid.inp, [grid_alias]_x.inp, [grid_alias]_y.inp,
         [grid_alias]_mapsta.inp, [grid_alias]_bottom.inp, which are to be read by the WW3
-        mod_def creator before runtime to generate the WW3 grid files. 
+        mod_def creator before runtime to generate the WW3 grid files.
 
         Parameters
         ----------
@@ -1934,12 +1932,14 @@ class Topo:
                 "$ Define grid -------------------------------------------------------- $\n"
                 "$\n"
             )
-            closure = 'SMPL' if self._grid.supergrid.is_cyclic_x else 'NONE'
+            closure = "SMPL" if self._grid.supergrid.is_cyclic_x else "NONE"
             f.write(f"  'CURV'  T  '{closure}'\n")
             f.write(f"  {nx}  {ny}\n")
             f.write(f"  21 1.0 0.0 1 1 '(....)' 'NAME' '{x_file}'\n")
             f.write(f"  22 1.0 0.0 1 1 '(....)' 'NAME' '{y_file}'\n")
-            f.write(f"  -0.1 {self._min_depth:.2f} 23 -1. 1 1 '(....)' 'NAME' '{bottom_file}'\n")
+            f.write(
+                f"  -0.1 {self._min_depth:.2f} 23 -1. 1 1 '(....)' 'NAME' '{bottom_file}'\n"
+            )
             f.write(f"  24 1 1 '(....)' 'NAME' '{mapsta_file}'\n")
             f.write(
                 "$\n"

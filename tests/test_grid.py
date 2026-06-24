@@ -17,7 +17,9 @@ from utils import on_cisl_machine
 import os
 
 
-def _rotated_supergrid_grid(rotation_deg, name="curv", nx=10, ny=10, d=0.1, center=10.0):
+def _rotated_supergrid_grid(
+    rotation_deg, name="curv", nx=10, ny=10, d=0.1, center=10.0
+):
     """Build a Grid whose supergrid is uniformly rotated, i.e. curvilinear."""
     theta = np.deg2rad(rotation_deg)
     nxp, nyp = 2 * nx + 1, 2 * ny + 1
@@ -28,7 +30,9 @@ def _rotated_supergrid_grid(rotation_deg, name="curv", nx=10, ny=10, d=0.1, cent
     return Grid.from_supergrid_ds(sg.to_ds(), name=name)
 
 
-def _sheared_supergrid_grid(shear, name="sheared", nx=10, ny=10, d=0.1, x0=280.0, y0=10.0):
+def _sheared_supergrid_grid(
+    shear, name="sheared", nx=10, ny=10, d=0.1, x0=280.0, y0=10.0
+):
     """Build a Grid where each column's longitude drifts by ``shear`` deg per
     supergrid row, i.e. nearly- but not-quite rectangular."""
     nxp, nyp = 2 * nx + 1, 2 * ny + 1
@@ -301,8 +305,8 @@ def test_grid_is_rectangular_uses_absolute_tolerance():
     # tolerance this drift would be swamped by the large longitude magnitude and
     # the grid wrongly judged rectangular; an absolute tolerance catches it.
     grid = _sheared_supergrid_grid(shear=0.02)
-    assert grid.is_rectangular(atol=1.0)        # loose absolute tol -> accepted
-    assert not grid.is_rectangular(atol=1e-3)   # tight absolute tol -> rejected
+    assert grid.is_rectangular(atol=1.0)  # loose absolute tol -> accepted
+    assert not grid.is_rectangular(atol=1e-3)  # tight absolute tol -> rejected
 
 
 def test_grid_slice(simple_2by2_grid):
