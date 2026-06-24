@@ -1022,9 +1022,17 @@ down to the lat/lon ranges required for efficient regridding:</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.grid.Grid.is_rectangular">
-<span class="sig-name descname"><span class="pre">is_rectangular</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rtol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.001</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.is_rectangular" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">is_rectangular</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">atol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.001</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.is_rectangular" title="Link to this definition"></a></dt>
 <dd><p>Check if the grid is a rectangular lat-lon grid by comparing the
 first and last rows and columns of the tlon and tlat arrays.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>atol</strong> (<em>float</em><em>, </em><em>optional</em>) – Absolute tolerance in degrees for the lat/lon comparisons. An
+absolute (rather than relative) tolerance is used because the
+coordinates are angles: the acceptable deviation must not scale
+with longitude/latitude magnitude.</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
@@ -2217,6 +2225,22 @@ to be read in by MOM6 during runtime.</p>
 <p>If channel_widths is not empty, remember to also write those constraints using
 channel_widths.write(channel_file_path).</p>
 </div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.write_ww3_input">
+<span class="sig-name descname"><span class="pre">write_ww3_input</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grid_alias</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.write_ww3_input" title="Link to this definition"></a></dt>
+<dd><p>Write the text-based WW3 input files ww3_grid.inp, [grid_alias]_x.inp, [grid_alias]_y.inp,
+[grid_alias]_mapsta.inp, [grid_alias]_bottom.inp, which are to be read by the WW3
+mod_def creator before runtime to generate the WW3 grid files.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>file_dir</strong> (<em>str</em>) – Directory to write the WW3 input files to.</p></li>
+<li><p><strong>grid_alias</strong> (<em>str</em>) – The alias for the grid, which will be used in the file names of the WW3 input files.</p></li>
+</ul>
+</dd>
+</dl>
 </dd></dl>
 
 </dd></dl>
