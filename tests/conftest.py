@@ -341,6 +341,39 @@ def synthetic_bathy_file():
 
 
 @pytest.fixture
+def tiny_bathy_file():
+    """Minimal synthetic bathymetry for fast set_from_dataset tests.
+
+    17×17 points at 0.25° spacing covering 169.5-173.5°E, -3.5-0.5°N
+    (equatorial Pacific, all ocean at 1000 m depth).  Designed to pair
+    with the tiny_topo fixture whose 1° grid spans 170-173°E, -3-0°N.
+    """
+    with tempfile.NamedTemporaryFile(suffix=".nc", delete=False) as tmp:
+        path = tmp.name
+
+    lon = np.linspace(169.5, 173.5, 17)
+    lat = np.linspace(-3.5, 0.5, 17)
+    elevation = np.full((17, 17), -1000.0)  # all ocean, positive-up (GEBCO style)
+
+    ds = xr.Dataset(
+        {"elevation": (["lat", "lon"], elevation)},
+        coords={"lon": lon, "lat": lat},
+    )
+    ds.to_netcdf(path)
+    yield path
+    Path(path).unlink()
+
+
+@pytest.fixture
+def tiny_topo():
+    """3×3 cell, 1° resolution Topo over open equatorial Pacific (no git)."""
+    grid = Grid(resolution=1.0, xstart=170.0, lenx=3.0, ystart=-3.0, leny=3.0, name="tiny")
+    topo = Topo(grid, min_depth=0, git=False)
+    topo.set_flat(1000)
+    return topo
+
+
+@pytest.fixture
 def get_simple_grid():
     grid = Grid(
         resolution=1,  # in degrees
