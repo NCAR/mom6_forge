@@ -21,7 +21,7 @@ from mom6_forge.mapping import (
 )
 from mom6_forge._source_bathy import SourceBathy
 from mom6_forge.channel_width import ChannelWidthList
-from mom6_forge._supergrid import haversine
+from mom6_forge._supergrid import haversine, _DEFAULT_RADIUS
 import regionmask
 
 
@@ -941,7 +941,7 @@ class Topo:
 
         self.send_entire_depth_change_to_tcm(self.src.stats[f"D_{statistic}"])
 
-    def diagnose_resolution(self, radius=6.371e6):
+    def diagnose_resolution(self, radius=_DEFAULT_RADIUS):
         """
         Print resolution diagnostics comparing the model grid to a source bathymetry
         dataset, and recommend whether Cressman interpolation / stats-based masking
