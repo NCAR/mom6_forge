@@ -1857,7 +1857,7 @@ class Topo:
         # Define ocean cells from the land/sea mask so the depth and status files
         # stay consistent even if the mask has been edited.
         tmask = self.tmask.data  # (ny, nx), 1=ocean, 0=land
-        depth_m = np.where(tmask > 0, self._depth.data, 0.0)
+        depth_m = self.masked_depth.data
 
         x_file = f"{grid_alias}_x.inp"
         y_file = f"{grid_alias}_y.inp"
