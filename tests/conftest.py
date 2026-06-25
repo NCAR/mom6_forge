@@ -367,7 +367,9 @@ def tiny_bathy_file():
 @pytest.fixture
 def tiny_topo():
     """3×3 cell, 1° resolution Topo over open equatorial Pacific (no git)."""
-    grid = Grid(resolution=1.0, xstart=170.0, lenx=3.0, ystart=-3.0, leny=3.0, name="tiny")
+    grid = Grid(
+        resolution=1.0, xstart=170.0, lenx=3.0, ystart=-3.0, leny=3.0, name="tiny"
+    )
     topo = Topo(grid, min_depth=0, git=False)
     topo.set_flat(1000)
     return topo
