@@ -24,6 +24,9 @@ from mom6_forge.channel_width import ChannelWidthList
 from mom6_forge._supergrid import haversine, _DEFAULT_RADIUS
 import regionmask
 
+VALID_MASK_METHODS = ("naturalearth", "ocean_frac", "dataset", "manual")
+VALID_DEPTH_METHODS = ("stats", "cressman", "xesmf")
+
 
 class Topo:
     """
@@ -1171,7 +1174,7 @@ class Topo:
                 ), "Mask method set to 'manual' but no user mask has been set. Please set the user mask before calling set_from_dataset with mask_method='manual'"
             else:
                 raise ValueError(
-                    f"Invalid mask option {mask_method}, must be one of 'naturalearth', 'ocean_frac', 'dataset', or None"
+                    f"Invalid mask option {mask_method!r}, must be one of {VALID_MASK_METHODS}"
                 )
         else:
             if use_stats_depth:
@@ -1218,7 +1221,7 @@ class Topo:
                 )
             else:
                 raise ValueError(
-                    f"Invalid depth option {depth_method}, must be one of 'stats', 'xesmf', or None"
+                    f"Invalid depth option {depth_method!r}, must be one of {VALID_DEPTH_METHODS}"
                 )
         else:
             if not use_stats_depth:
