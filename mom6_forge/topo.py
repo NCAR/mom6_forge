@@ -1212,7 +1212,6 @@ class Topo:
                         "Resolution diagnostics recommend using stats-based masking, but xesmf-based depth was requested, so we will do a direct xesmf regrid anyway because it was explicitly requested, but be aware that this may lead to significant land contamination of coastal depth estimates"
                     )
                 self.set_depth_from_xesmf(
-                    fill_channels=fill_channels,
                     output_dir=output_dir,
                     write_to_file=write_to_file,
                     regridding_method=kwargs["regridding_method"],
@@ -1227,7 +1226,6 @@ class Topo:
                     "Resolution diagnostics recommend not using stats-based depth method, so we'll do a direct xesmf regrid for depth because no depth option was specified"
                 )
                 self.set_depth_from_xesmf(
-                    fill_channels=fill_channels,
                     output_dir=output_dir,
                     write_to_file=write_to_file,
                     regridding_method=kwargs["regridding_method"],
