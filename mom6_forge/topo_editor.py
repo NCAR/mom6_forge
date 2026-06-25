@@ -568,6 +568,7 @@ class TopoEditor(widgets.HBox):
         self.fig.canvas.mpl_connect("button_press_event", self.on_double_click)
         # Zoom-dependent stats overlay (would change x and y limits)
         self.ax.callbacks.connect("xlim_changed", self._on_zoom_change)
+        self.ax.callbacks.connect("ylim_changed", self._on_zoom_change)
         # Min depth change observer
         self._min_depth_specifier.observe(
             self.on_min_depth_change, names="value", type="change"
