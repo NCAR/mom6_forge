@@ -6,7 +6,6 @@ from mom6_forge.grid import Grid
 from mom6_forge.topo import Topo
 from mom6_forge._source_bathy import SourceBathy
 
-
 # ---------------------------------------------------------------------------
 # Vertical grid (vgrid)
 # ---------------------------------------------------------------------------
