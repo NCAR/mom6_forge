@@ -1437,7 +1437,7 @@ class Topo:
         changed = True  ## keeps track of whether solution has converged or not
 
         forward = True  ## only useful for iterating through diagonal channel removal. Means iteration goes SW -> NE
-        ocean_mask = self.tmask.values
+        ocean_mask = self.tmask
         land_mask = np.abs(ocean_mask - 1)
 
         while changed == True:
