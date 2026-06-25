@@ -1306,7 +1306,7 @@ class Topo:
             regridding_method=regridding_method,
             write_to_file=write_to_file,
             output_path=output_dir / "bathymetry_unfinished.nc",
-        )
+        )["depth"]
         if write_to_file:
             self.write_topo(
                 output_dir / "bathymetry_unfinished.nc"
