@@ -2,6 +2,7 @@ import pytest
 from mom6_forge.utils import (
     get_avg_resolution,
     get_avg_resolution_km,
+    iterative_fill,
 )
 from mom6_forge._supergrid import (
     quadrilateral_area,
@@ -99,3 +100,63 @@ def test_quadrilateral_area_exception():
         quadrilateral_area(v1, v2, v3, v4)
 
     assert str(excinfo.value) == "vectors provided must have the same length"
+
+
+def test_iterative_fill():
+    """
+    Simple 3x3 grid with one unfilled ocean cell surrounded by known values.
+    The fill should average the neighbours and converge in 1 iteration.
+    """
+    # known depth everywhere except centre cell
+    depth = np.array(
+        [
+            [100.0, 200.0, 100.0],
+            [200.0, np.nan, 200.0],
+            [100.0, 200.0, 100.0],
+        ]
+    )
+    unfilled = np.array(
+        [
+            [False, False, False],
+            [False, True, False],
+            [False, False, False],
+        ]
+    )
+    mask = np.ones((3, 3), dtype=bool)
+
+    result = iterative_fill(depth.copy(), unfilled, mask=xr.DataArray(mask))
+
+    # centre cell should be filled with mean of 4 direct neighbours = 200
+    assert result[1, 1] == pytest.approx(200.0), f"Expected 200, got {result[1,1]}"
+
+    # all other cells unchanged
+    depth[1, 1] = 200.0
+    assert np.allclose(result, depth), "Non-unfilled cells were modified"
+
+    # --- land cell should never be filled ---
+    depth2 = np.array(
+        [
+            [100.0, 200.0, 100.0],
+            [200.0, 0.0, 0.0],  # two unfilled: one ocean, one land
+            [100.0, 200.0, 100.0],
+        ]
+    )
+    unfilled2 = np.array(
+        [
+            [False, False, False],
+            [False, True, True],
+            [False, False, False],
+        ]
+    )
+    mask2 = np.array(
+        [
+            [1, 1, 1],
+            [1, 1, 0],  # right cell is land
+            [1, 1, 1],
+        ],
+        dtype=bool,
+    )
+
+    result2 = iterative_fill(depth2.copy(), unfilled2, mask=xr.DataArray(mask2))
+    assert result2[1, 1] != 0, "Ocean unfilled cell was not filled"
+    assert result2[1, 2] == 0, "Land cell should not be filled"
