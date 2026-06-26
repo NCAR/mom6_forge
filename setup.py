@@ -35,6 +35,7 @@ setuptools.setup(
         "black>=24.1,<26.4.0",
         "pytest>=8.0,<9.1.0",
         "pytest-cov>=7.0,<7.2.0",
+        "pytest-benchmark>=4.0,<5.0",
         "gitpython>=3.1,<3.2.0",
         "cartopy>=0.23,<0.30",
         "xesmf>=0.8.10,<1.0.0",

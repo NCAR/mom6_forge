@@ -10,4 +10,5 @@ dependencies:
   - pip
   - pip:
     - -e ./ # mom6_forge itself
+    - pytest-benchmark>=4.0,<5.0
 

@@ -316,3 +316,13 @@ def test_grid_from_center():
     mid_lon = grid.tlon.values[grid.ny // 2, grid.nx // 2]
     assert abs(mid_lat - 40.0) < 1.0
     assert abs(mid_lon - (-70.0)) < 1.0
+
+
+# ---------------------------------------------------------------------------
+# Benchmarks — run with: pytest tests/ --benchmark-only
+# Normal CI passes --benchmark-disable so these are zero-overhead no-ops.
+# ---------------------------------------------------------------------------
+
+def test_bench_grid_construction(benchmark):
+    """Regression gate: supergrid construction for a 40×40 cell regional domain."""
+    benchmark(Grid, resolution=0.25, xstart=0.0, lenx=10.0, ystart=0.0, leny=10.0, name="bench")
