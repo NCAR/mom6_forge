@@ -403,9 +403,9 @@ class Grid:
         )
 
     @classmethod
-    def get_bounding_boxes_of_rectangular_grid(cls, hgrid):
+    def get_bounding_boxes(cls, hgrid):
         """
-        Extract lat/lon bounding boxes for each edge of a rectangular regional MOM6 grid.
+        Extract lat/lon bounding boxes for each edge of a regional MOM6 grid.
         This function is used when subsetting global datasets (e.g. GLORYS)
         down to the lat/lon ranges required for efficient regridding:
             • north, south, east, west boundaries
@@ -425,13 +425,8 @@ class Grid:
                 • "ic" (full domain for initial conditions)
         """
         if type(hgrid) == Grid:
-            assert hgrid.is_rectangular()
             hgrid = hgrid._supergrid.to_ds()
-            assert not Grid.is_cyclic_x(hgrid)
-        else:
-            grid_check = Grid.from_supergrid_ds(hgrid)
-            assert grid_check.is_rectangular()
-            assert not Grid.is_cyclic_x(hgrid)
+        assert not Grid.is_cyclic_x(hgrid), "Cannot compute bounding boxes for cyclic grids"
 
         init_result = {
             "lon_min": float(hgrid.x.min()),

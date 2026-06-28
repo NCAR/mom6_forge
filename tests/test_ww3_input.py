@@ -84,3 +84,44 @@ def test_write_ww3_input_masked_cells_are_land(get_rect_topo, tmp_path):
     # mapsta is exactly the land/sea mask, and depth is zero wherever land.
     assert np.array_equal(mapsta, topo.tmask.data)
     assert (bottom[mapsta == 0] == 0.0).all()
+
+
+def test_write_ww3_input_after_reconstruction_from_files(get_rect_topo, tmp_path):
+    """visualCaseGen's WW3 input generator reconstructs the Grid/Topo from the saved ocean grid
+    files (ocean_hgrid + ocean_topog) before writing the *.inp files. Exercise that exact
+    sequence: save the grid/topo, reload via Grid.from_supergrid + Topo.from_topo_file, then
+    write the WW3 inputs and confirm they are produced and consistent with the grid."""
+    import xarray as xr
+    from mom6_forge.grid import Grid
+    from mom6_forge.topo import Topo
+
+    topo = get_rect_topo  # flat 1000 m depth, all ocean
+    alias = topo._grid.name
+
+    # Save the ocean grid files, as the mom6_forge notebook would.
+    supergrid_file = tmp_path / "ocean_hgrid.nc"
+    topo_file = tmp_path / "ocean_topog.nc"
+    topo._grid.write_supergrid(supergrid_file.as_posix())
+    topo.write_topo(topo_file.as_posix())
+
+    # Reconstruct from the saved files (mirrors WW3InputGenerator): read min_depth from the
+    # topog attribute so the WW3 land/sea mask matches the ocean mask. This also confirms
+    # write_topo persists the min_depth attribute.
+    with xr.open_dataset(topo_file) as ds_topo:
+        min_depth = float(ds_topo.attrs["min_depth"])
+    grid = Grid.from_supergrid(supergrid_file.as_posix())
+    reloaded = Topo.from_topo_file(grid, topo_file.as_posix(), min_depth=min_depth)
+
+    out_dir = tmp_path / "ocnice"
+    out_dir.mkdir()
+    reloaded.write_ww3_input(out_dir.as_posix(), grid_alias=alias)
+
+    for suffix in WW3_FILE_SUFFIXES:
+        assert (out_dir / f"{alias}{suffix}").exists()
+    assert (out_dir / "ww3_grid.inp").exists()
+
+    # Coordinates from the reconstructed grid still match the original t-points.
+    xcoord = np.loadtxt(out_dir / f"{alias}_x.inp")
+    ycoord = np.loadtxt(out_dir / f"{alias}_y.inp")
+    assert np.allclose(xcoord, topo._grid.tlon.data)
+    assert np.allclose(ycoord, topo._grid.tlat.data)

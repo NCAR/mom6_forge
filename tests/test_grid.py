@@ -240,7 +240,7 @@ if __name__ == "__main__":
 
 def test_get_rectangular_segment_info(get_rect_grid):
     grid = get_rect_grid
-    res = Grid.get_bounding_boxes_of_rectangular_grid(grid)
+    res = Grid.get_bounding_boxes(grid)
     assert "east" in res.keys()
     assert "west" in res.keys()
     assert "north" in res.keys()
