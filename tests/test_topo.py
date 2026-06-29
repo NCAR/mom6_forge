@@ -2,8 +2,8 @@ from mom6_forge.topo import *
 from mom6_forge.channel_width import ChannelWidth, ChannelWidthList
 
 
-def test_topo_from_version_control(get_rect_topo):
-    topo = get_rect_topo  # this topo has a version control directory
+def test_topo_from_version_control(get_rect_topo_with_vc):
+    topo = get_rect_topo_with_vc  # this topo has a version control directory
     topo_from_version_control = Topo.from_version_control(topo.domain_dir)
     assert topo_from_version_control.min_depth == topo.min_depth
     assert topo_from_version_control.depth.equals(topo.depth)
