@@ -88,7 +88,9 @@ def test_compute_topo_stats(get_rect_topo_without_vc, synthetic_bathy_file):
         assert stats2 is stats
 
 
-def test_direct_cressman_interp(get_rect_topo_without_vc, synthetic_bathy_file, tmp_path):
+def test_direct_cressman_interp(
+    get_rect_topo_without_vc, synthetic_bathy_file, tmp_path
+):
     """Smoke test: direct_cressman_interp runs end-to-end and updates topo depth."""
     topo = get_rect_topo_without_vc  # flat 1000 m depth, all ocean
 

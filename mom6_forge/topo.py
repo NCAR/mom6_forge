@@ -167,7 +167,7 @@ class Topo:
             0.0,
             version_control_dir=folder_path.parent,
             channel_widths=channel_widths,
-            git = True
+            git=True,
         )  # Because we hash the grid, the correct domain will be selected
 
         # Reapply any changes

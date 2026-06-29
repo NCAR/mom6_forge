@@ -100,9 +100,7 @@ def test_TopoCommandManager_redo(get_rect_topo_with_vc, gen_MinDepthCommand):
     assert not topo.tcm.redo(check_only=True)  # No more commands to redo
 
 
-def test_TopoCommandManager_reapply_changes(
-    get_rect_topo_with_vc, gen_MinDepthCommand
-):
+def test_TopoCommandManager_reapply_changes(get_rect_topo_with_vc, gen_MinDepthCommand):
     topo = get_rect_topo_with_vc
     topo.tcm.execute(gen_MinDepthCommand)
     assert topo.min_depth == 10.0  # Assert Action taken
