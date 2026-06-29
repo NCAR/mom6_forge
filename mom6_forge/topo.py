@@ -1,4 +1,5 @@
 import os
+import copy
 import numpy as np
 import xarray as xr
 import xesmf as xe
@@ -7,14 +8,19 @@ from typing import Optional
 from scipy import interpolate
 from scipy.ndimage import label, binary_fill_holes
 from scipy.spatial import cKDTree
-from mom6_forge.utils import cell_area_rad
+from mom6_forge.utils import cell_area_rad, iterative_fill
 from mom6_forge.grid import Grid
 from mom6_forge.git_utils import get_domain_dir, get_repo
 from pathlib import Path
 from mom6_forge.edit_command import *
 from mom6_forge.command_manager import TopoCommandManager, CommandType
-from mom6_forge.mapping import regrid_dataset_via_xesmf, regrid_with_subsampling
+from mom6_forge.mapping import (
+    regrid_dataset_via_xesmf,
+    regrid_with_subsampling,
+    regrid_dataset_via_cressman,
+)
 from mom6_forge._source_bathy import SourceBathy
+from mom6_forge.channel_width import ChannelWidthList
 import regionmask
 
 
@@ -23,7 +29,14 @@ class Topo:
     Bathymetry Generator for MOM6 grids (mom6_forge.grid.Grid).
     """
 
-    def __init__(self, grid, min_depth, version_control_dir="TopoLibrary", git=True):
+    def __init__(
+        self,
+        grid,
+        min_depth,
+        channel_widths=None,
+        version_control_dir="TopoLibrary",
+        git=True,
+    ):
         """
         MOM6 Simpler Models bathymetry constructor.
 
@@ -33,6 +46,8 @@ class Topo:
             horizontal grid instance for which the bathymetry is to be created.
         min_depth: float
             Minimum water column depth. Columns with shallow depths are to be masked out.
+        channel_widths: str | Path | ChannelWidthList, optional
+            Channel width constraints. Can be a filepath to load from, a ChannelWidthList object, or None.
         version_control_dir: str, optional
             Directory in which to store version-controlled bathymetry data. Defaults to
             "TopoLibrary". Ignored if git is False (version control is no longer used)
@@ -58,6 +73,16 @@ class Topo:
         initial_command = MinDepthEditCommand(
             self, attr="min_depth", new_value=min_depth
         )
+
+        # Initialize channel widths
+        if channel_widths is None:
+            self.channel_widths = ChannelWidthList()
+        elif isinstance(channel_widths, ChannelWidthList):
+            self.channel_widths = channel_widths
+        else:
+            # Assume it's a filepath
+            self.channel_widths = ChannelWidthList(filepath=channel_widths)
+
         if git:
 
             # Create a folder to store bathymetry objects in
@@ -106,14 +131,17 @@ class Topo:
 
         new_grid = self._grid[slices]
         new_topo = Topo(
-            new_grid, self._min_depth, git=self.has_version_control
+            new_grid,
+            self._min_depth,
+            git=self.has_version_control,
+            channel_widths=copy.deepcopy(self.channel_widths),
         )  # Create new topo with the same version control setting
         if self._depth is not None:
             new_topo._depth = self._depth[slices]
         return new_topo
 
     @classmethod
-    def from_version_control(cls, folder_path: str | Path):
+    def from_version_control(cls, folder_path: str | Path, channel_widths=None):
         """
         Create a bathymetry object from an existing version-controlled bathymetry folder.
 
@@ -121,6 +149,8 @@ class Topo:
         ----------
         folder_path: str | Path
             Path to an existing bathymetry folder created by mom6_forge with version control enabled.
+        channel_widths: str | Path | ChannelWidthList, optional
+            Channel width constraints. Can be a filepath to load from, a ChannelWidthList object, or None.
         """
 
         folder_path = Path(folder_path)
@@ -133,7 +163,10 @@ class Topo:
 
         # Create the topo object
         topo = Topo(
-            grid, 0.0, version_control_dir=folder_path.parent
+            grid,
+            0.0,
+            version_control_dir=folder_path.parent,
+            channel_widths=channel_widths,
         )  # Because we hash the grid, the correct domain will be selected
 
         # Reapply any changes
@@ -151,6 +184,7 @@ class Topo:
         varname="depth",
         version_control_dir="TopoLibrary",
         git=True,
+        channel_widths=None,
     ):
         """
         Create a bathymetry object from an existing topog file.
@@ -167,9 +201,19 @@ class Topo:
             Name of the variable representing ocean depth in the dataset. Default is "depth".
         git: bool, optional
             Passed through to Topo.__init__. See Topo docstring for details.
+        version_control_dir: str, optional
+            Directory for version control. Default is "TopoLibrary".
+        channel_widths: str | Path | ChannelWidthList, optional
+            Channel width constraints. Can be a filepath to load from, a ChannelWidthList object, or None.
         """
 
-        topo = cls(grid, min_depth, version_control_dir=version_control_dir, git=git)
+        topo = cls(
+            grid,
+            min_depth,
+            version_control_dir=version_control_dir,
+            channel_widths=channel_widths,
+            git=git,
+        )
         if topo.tcm is not None:
             topo.tcm.reapply_changes()
         topo.set_depth_via_topog_file(topo_file_path, varname)
@@ -780,7 +824,7 @@ class Topo:
         # Save to object (Build TCM Object)
         self.send_entire_depth_change_to_tcm(new_values)
 
-    def _compute_stats(self, nx_sub, ny_sub, mask_hmin):
+    def compute_stats(self, nx_sub, ny_sub, mask_hmin):
         """Compute per-cell depth statistics by uniform sub-sampling.
 
         Results are stored on ``stats`` so a second call with the
@@ -873,6 +917,79 @@ class Topo:
         )
         return self.stats
 
+    def set_depth_from_stats(self, statistic):
+        """
+        Set the topo depth to a statistic computed by _compute_stats.
+
+        Parameters
+        ----------
+        statistic : str
+            Which depth statistic to use. Must be one of the "D_*" keys
+            in self.src.stats (e.g. "mean", "min", "max").
+        """
+
+        assert (
+            self.src is not None and self.src.stats is not None
+        ), "Source bathymetry must be provided and must have topo stats computed, please call compute_stats first if you have not already"
+        approved_list = []
+        for key in self.src.stats.data_vars:
+            if key.startswith("D_"):
+                approved_list.append(key[2:])
+        assert (
+            statistic in approved_list
+        ), f"Invalid statistic {statistic}, must be one of {approved_list}"
+
+        self.send_entire_depth_change_to_tcm(self.src.stats[f"D_{statistic}"])
+
+    def generate_mask_from_stats_ocean_frac(
+        self,
+        mask_threshold=0.5,
+    ):
+        """
+        Generate an ocean mask by uniform sub-sampling of the source bathymetry.
+
+        Mirrors the algorithm in tx2_3's create_model_topo.f90. For each T-cell,
+        distributes nx_sub x ny_sub interior points via bilinear interpolation of
+        the Q-point corners and snaps each to the nearest source pixel. A cell is
+        ocean if its ocean sub-point fraction (OCN_FRAC) meets or exceeds
+        ``mask_threshold``.
+
+        Parameters
+        ----------
+        mask_threshold : float, optional
+            Minimum OCN_FRAC for a cell to be classified as ocean. Default 0.5.
+
+        Returns
+        -------
+        xr.DataArray
+            Binary ocean mask on the T-grid (1 = ocean, 0 = land),
+            dims ``["ny", "nx"]``.
+
+        Notes
+        -----
+        ``compute_stats`` must be called before this method. Per-cell depth
+        statistics (D_mean, D_min, D_max, D2_mean) are stored on the source
+        bathymetry object for use by this and other downstream methods.
+        """
+
+        assert (
+            self.src is not None
+        ), "Source bathymetry must be set before generating mask."
+        assert (
+            self.src.stats is not None
+        ), f"Per-cell statistics must be computed before generating mask. Call compute_stats() first. src={self.src}"
+
+        ocean_mask = (self.src.stats["OCN_FRAC"].values >= mask_threshold).astype(int)
+
+        return xr.DataArray(
+            ocean_mask,
+            dims=["ny", "nx"],
+            attrs={
+                "long_name": "ocean mask from sub-sampling",
+                "mask_threshold": mask_threshold,
+            },
+        )
+
     def set_from_dataset(
         self,
         bathymetry_path,
@@ -882,7 +999,7 @@ class Topo:
         fill_channels=False,
         is_input_positive_below_msl=False,
         output_dir=Path(""),
-        write_to_file=True,
+        write_to_file=False,
         regridding_method="bilinear",
         run_regrid_dataset=True,
         run_tidy_dataset=True,
@@ -911,7 +1028,7 @@ class Topo:
                 but can also connect extra islands to land. Default: ``False``.
             is_input_positive_below_msl (Optional[bool]): If ``True``, it assumes that the
                 bathymetry vertical coordinate is positive downwards. Default: ``False``.
-            write_to_file (Optional[bool]): Whether to write the bathymetry to a file. Default: ``True``.
+            write_to_file (Optional[bool]): Whether to write the bathymetry to a file. Default: ``False``.
             regridding_method (Optional[str]): The type of regridding method to use. Defaults to self.regridding_method
             run_* (Optional[bool]): Whether to run the respective step in the bathymetry processing. Default: ``True``.
 
@@ -1016,6 +1133,68 @@ class Topo:
 
         print(
             "Configuration complete. Ready for regridding with MPI. See documentation for more details."
+        )
+
+    def direct_cressman_interp(
+        self,
+        smooth_scl=2.0,
+        cressman_exp=2.0,
+        weights_path=None,
+    ):
+        """
+        Assign ocean depths using Cressman distance-weighted interpolation.
+        Mirrors ``interp_smooth.f90`` from the tx2_3 topography workflow.
+
+        For each ocean T-cell a smoothing radius ``L = smooth_scl * sqrt(cell_area)``
+        is computed. Source ocean points within ``L`` are averaged with weights
+
+        .. math::
+
+            w = \\left(\\frac{L^2 - r^2}{L^2 + r^2}\\right)^{c}
+
+        where ``r`` is the great-circle arc distance and ``c = cressman_exp``.
+        Only source points with positive depth (ocean) contribute, so depth
+        estimates are never contaminated by land elevations.
+
+        Weights are computed by :func:`~mom6_forge.mapping.compute_cressman_weights`,
+        saved to an ESMF-compatible netCDF, and applied through ``xe.Regridder`` —
+        all orchestrated by :func:`~mom6_forge.mapping.regrid_dataset_via_cressman`.
+        Cells that receive no source coverage are filled by iterative neighbour
+        averaging (up to 100 passes).
+
+        Parameters
+        ----------
+        smooth_scl : float
+            Smoothing scale multiplier for the Cressman radius. Default ``2.0``.
+        cressman_exp : float
+            Exponent for the Cressman weight function. Default ``2.0``.
+        weights_path : str or Path or None
+            Where to save the ESMF weights netCDF. If ``None``, a file named
+            ``cressman_weights.nc`` is written next to the bathymetry file.
+        """
+        if weights_path is None:
+            weights_path = self.src.path.parent / "cressman_weights.nc"
+
+        # --- Regrid via mapping module (weights → file → cressman Regridder) ---
+
+        dst_ds = self._grid.get_esmf_ready_tracer_ds()
+        dst_ds["area"] = self._grid.tarea
+        dst_ds["mask"] = self.tmask
+
+        depth_dst, unfilled = regrid_dataset_via_cressman(
+            self.src.ds,
+            dst_ds,
+            smooth_scl=smooth_scl,
+            cressman_exp=cressman_exp,
+            weights_path=weights_path,
+        )
+
+        depth_arr = iterative_fill(depth_dst["depth"].values, unfilled, self.tmask)
+
+        self.send_entire_depth_change_to_tcm(
+            xr.DataArray(
+                depth_arr.astype(float), dims=["ny", "nx"], attrs={"units": "m"}
+            )
         )
 
     def tidy_dataset(
@@ -1327,13 +1506,9 @@ class Topo:
             landfrac_name in ds
         ), f"Couldn't find {landfrac_name} in {landfrac_filepath}"
         assert isinstance(xcoord_name, str), "xcoord_name must be a string"
-        assert (
-            landfrac_name in ds
-        ), f"Couldn't find {xcoord_name} in {landfrac_filepath}"
+        assert xcoord_name in ds, f"Couldn't find {xcoord_name} in {landfrac_filepath}"
         assert isinstance(ycoord_name, str), "ycoord_name must be a string"
-        assert (
-            landfrac_name in ds
-        ), f"Couldn't find {ycoord_name} in {landfrac_filepath}"
+        assert ycoord_name in ds, f"Couldn't find {ycoord_name} in {landfrac_filepath}"
         assert isinstance(
             cutoff_frac, float
         ), f"cutoff_frac={cutoff_frac} must be a float"
@@ -1357,7 +1532,9 @@ class Topo:
             data_vars={}, coords={"lat": self._grid.tlat, "lon": self._grid.tlon}
         )
 
-        regridder = xe.Regridder(ds, ds_mapped, method, periodic=self._grid.is_cyclic_x)
+        regridder = xe.Regridder(
+            ds, ds_mapped, method, periodic=self._grid.supergrid.is_cyclic_x
+        )
         mask_mapped = regridder(ds.landfrac)
 
         # Convert land fraction to binary mask (1=ocean, 0=land)
@@ -1369,7 +1546,7 @@ class Topo:
         new_values = binary_mask.values.ravel().tolist()
 
         # Get old values (current mask or 0 if no mask set)
-        old_mask = self.mask
+        old_mask = self.tmask
         old_values = (
             old_mask.values.ravel().tolist()
             if isinstance(old_mask, xr.DataArray)
@@ -1504,7 +1681,18 @@ class Topo:
             Path to TOPO_FILE to be written.
         title: str, optional
             File title.
+
+        Note
+        ----
+        If channel_widths is not empty, remember to also write those constraints using
+        channel_widths.write(channel_file_path).
         """
+
+        if self.channel_widths.get_all():
+            print(
+                "Note: Channel widths are defined. Remember to write them with "
+                "channel_widths.write(filepath)"
+            )
 
         ds = self.gen_topo_ds(title=title)
         ds.to_netcdf(file_path, format="NETCDF3_64BIT")
@@ -1630,6 +1818,138 @@ class Topo:
             file_path,
             format="NETCDF3_64BIT",
         )
+
+    def write_ww3_input(self, file_dir, grid_alias):
+        """
+        Write the text-based WW3 input files ww3_grid.inp, [grid_alias]_x.inp, [grid_alias]_y.inp,
+        [grid_alias]_mapsta.inp, [grid_alias]_bottom.inp, which are to be read by the WW3
+        mod_def creator before runtime to generate the WW3 grid files.
+
+        Parameters
+        ----------
+        file_dir: str
+            Directory to write the WW3 input files to.
+        grid_alias: str
+            The alias for the grid, which will be used in the file names of the WW3 input files.
+        """
+
+        assert (
+            "degrees" in self._grid.tlat.units and "degrees" in self._grid.tlon.units
+        ), "Unsupported coord"
+
+        file_dir = Path(file_dir)
+        file_dir.mkdir(parents=True, exist_ok=True)
+
+        nx = self._grid.nx
+        ny = self._grid.ny
+
+        def _write_rows(filename, fmt_cell, sep):
+            """Write the nx*ny grid values to a WW3 text input file, southernmost
+            row (j=0) first to match IDLA=1 in ww3_grid.inp."""
+            with open(file_dir / filename, "w") as f:
+                for j in range(ny):
+                    f.write(sep.join(fmt_cell(j, i) for i in range(nx)) + "\n")
+
+        tlon = self._grid.tlon.data  # (ny, nx), degrees
+        tlat = self._grid.tlat.data  # (ny, nx), degrees
+        # Define ocean cells from the land/sea mask so the depth and status files
+        # stay consistent even if the mask has been edited.
+        tmask = self.tmask.data  # (ny, nx), 1=ocean, 0=land
+        depth_m = self.masked_depth.data
+
+        x_file = f"{grid_alias}_x.inp"
+        y_file = f"{grid_alias}_y.inp"
+        bottom_file = f"{grid_alias}_bottom.inp"
+        mapsta_file = f"{grid_alias}_mapsta.inp"
+
+        # --- x/y coordinate files (longitudes/latitudes in degrees) ---
+        _write_rows(x_file, lambda j, i: f"{tlon[j, i]:15.8f}", sep="")
+        _write_rows(y_file, lambda j, i: f"{tlat[j, i]:15.8f}", sep="")
+
+        # --- bottom depth file (positive depth in meters for ocean) ---
+        # WW3 stores seabed as elevation ZB (negative-down); DW = WLV - ZB.
+        # The preprocessor computes ZBIN = SBF * file_values, then flags a
+        # cell as sea when ZBIN <= ZLIM. We write positive depths in meters
+        # and set SBF=-1.0 in ww3_grid.inp so ZBIN comes out as the correct
+        # negative-down elevation. Matches the convention in WW3 regtest
+        # ww3_tp2.5 (regtests/ww3_tp2.5/input/depth.361x361.IDLA1.dat).
+        _write_rows(bottom_file, lambda j, i: f"{depth_m[j, i]:.8f}", sep=" ")
+
+        # --- map status file (1=ocean, 0=land) ---
+        # TODO: WW3 also supports mapsta codes 2 (active boundary), 3 (excluded),
+        # and negative values (ice). Extend when nested/boundary-forced runs are needed.
+        _write_rows(mapsta_file, lambda j, i: str(int(tmask[j, i])), sep=" ")
+
+        # --- Write ww3_grid.inp ---
+        # Use IDLA=1 (bottom-to-top) and IDFM=1 (free format) to match the
+        # row ordering used above (j=0 is the southernmost row).
+        with open(file_dir / "ww3_grid.inp", "w") as f:
+            f.write(
+                "$ -------------------------------------------------------------------- $\n"
+                "$ WAVEWATCH III Grid preprocessor input file                           $\n"
+                "$ -------------------------------------------------------------------- $\n"
+                "$\n"
+                "$ Grid name (C*30, in quotes)\n"
+                "$\n"
+            )
+            grid_name = grid_alias.ljust(30)[:30]
+            f.write(f"  '{grid_name}'\n")
+            # TODO: frequency/direction counts, model flags, and timesteps below
+            # are copied from the ww3a reference grid. Parameterize when this
+            # method is used for grids with different resolution or physics.
+            nk = 25  # number of frequencies (wavenumbers)
+            nth = 24  # number of directions
+            f.write(
+                "$\n"
+                "$ Frequency increment factor and first frequency (Hz) ---------------- $\n"
+                "$ number of frequencies (wavenumbers) and directions, relative offset\n"
+                "$ of first direction in terms of the directional increment [-0.5,0.5].\n"
+                "$\n"
+                f"  1.1  0.04118  {nk}  {nth}  0.0\n"
+                "$\n"
+                "$ Set model flags ---------------------------------------------------- $\n"
+                "$  - FLDRY         Dry run (input/output only, no calculation).\n"
+                "$  - FLCX, FLCY    Activate X and Y component of propagation.\n"
+                "$  - FLCTH, FLCK   Activate direction and wavenumber shifts.\n"
+                "$  - FLSOU         Activate source terms.\n"
+                "  F  T  T  T  F  T \n"
+                "$\n"
+                "$ Set time steps ----------------------------------------------------- $\n"
+                "$ - Time step information (this information is always read)\n"
+                "$     maximum global time step, maximum CFL time step for x-y and\n"
+                "$     k-theta, minimum source term time step (all in seconds).\n"
+                "$\n"
+                "  600.00  300.00  300.00   30.00\n"
+                "$\n"
+                "$ Start of namelist input section ------------------------------------ $\n"
+                "$\n"
+                "&OUTS\n"
+                f"  E3D = 1, I1E3D = 1, I2E3D = {nk}\n"
+                "/\n"
+                "\n"
+                "END OF NAMELISTS\n"
+                "$\n"
+                "$ Define grid -------------------------------------------------------- $\n"
+                "$\n"
+            )
+            closure = "SMPL" if self._grid.supergrid.is_cyclic_x else "NONE"
+            f.write(f"  'CURV'  T  '{closure}'\n")
+            f.write(f"  {nx}  {ny}\n")
+            f.write(f"  21 1.0 0.0 1 1 '(....)' 'NAME' '{x_file}'\n")
+            f.write(f"  22 1.0 0.0 1 1 '(....)' 'NAME' '{y_file}'\n")
+            f.write(
+                f"  -0.1 {self._min_depth:.2f} 23 -1. 1 1 '(....)' 'NAME' '{bottom_file}'\n"
+            )
+            f.write(f"  24 1 1 '(....)' 'NAME' '{mapsta_file}'\n")
+            f.write(
+                "$\n"
+                "$  Close list by defining line with 0 points (mandatory)\n"
+                "$\n"
+                "    0.  0.  0.  0.  0  \n"
+                "$ -------------------------------------------------------------------- $\n"
+                "$ End of input file                                                    $\n"
+                "$ -------------------------------------------------------------------- $\n"
+            )
 
     def write_scrip_grid(self, file_path, title=None):
         """
@@ -1804,7 +2124,7 @@ class Topo:
 
                 return [ll, lr, ur, ul]
 
-        elif self._grid.is_cyclic_x == True:
+        elif self._grid.supergrid.is_cyclic_x == True:
 
             nx, ny = self._grid.nx, self._grid.ny
             qlon_flat = self._grid.qlon.data[:, :-1].flatten()

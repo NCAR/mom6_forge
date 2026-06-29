@@ -1,4 +1,5 @@
 from mom6_forge.topo import *
+from mom6_forge.channel_width import ChannelWidth, ChannelWidthList
 
 
 def test_topo_from_version_control(get_rect_topo):
@@ -95,3 +96,53 @@ def test_topo_no_git(get_rect_topo_without_vc):
     )  # This command should still work even without version control, but it just won't be registered in version control
     topo.apply_edit(command)
     assert topo.depth[j, i] == new_val
+
+
+def test_topo_channel_widths_none(get_rect_grid):
+    """channel_widths=None creates an empty ChannelWidthList."""
+    topo = Topo(get_rect_grid, min_depth=0, git=False)
+    assert isinstance(topo.channel_widths, ChannelWidthList)
+    assert len(topo.channel_widths.get_all()) == 0
+
+
+def test_topo_channel_widths_object(get_rect_grid):
+    """Passing a ChannelWidthList object attaches it directly."""
+    cwl = ChannelWidthList()
+    cwl.add(
+        ChannelWidth(
+            component="U_width",
+            lon1=-6.5,
+            lon2=-4.75,
+            lat1=35.6,
+            lat2=36.3,
+            width=12000.0,
+            place="St. of Gibralter",
+        )
+    )
+    topo = Topo(get_rect_grid, min_depth=0, git=False, channel_widths=cwl)
+    assert topo.channel_widths is cwl
+    assert len(topo.channel_widths.get_all()) == 1
+
+
+def test_topo_channel_widths_filepath(get_rect_grid, tmp_path):
+    """Passing a filepath loads ChannelWidthList from disk."""
+    cwl = ChannelWidthList()
+    cwl.add(
+        ChannelWidth(
+            component="U_width",
+            lon1=-6.5,
+            lon2=-4.75,
+            lat1=35.6,
+            lat2=36.3,
+            width=12000.0,
+            place="St. of Gibralter",
+        )
+    )
+    filepath = tmp_path / "channels.txt"
+    cwl.write(filepath)
+
+    topo = Topo(get_rect_grid, min_depth=0, git=False, channel_widths=filepath)
+    loaded = topo.channel_widths.get_all()
+    assert len(loaded) == 1
+    assert loaded[0].component == "U_width"
+    assert loaded[0].place == "St. of Gibralter"

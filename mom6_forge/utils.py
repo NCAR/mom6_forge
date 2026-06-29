@@ -308,6 +308,62 @@ def cell_area_rad(xv_coords, yv_coords):
     return area
 
 
+def iterative_fill(depth, unfilled, mask=None, max_iter=100):
+    """
+    Iteratively fill unfilled ocean cells from their neighbours. May not work for periodic grids.
+
+    Parameters
+    ----------
+    depth : np.ndarray, shape (ny, nx)
+        Depth field to fill in-place.
+    unfilled : np.ndarray of bool, shape (ny, nx)
+        True for cells that need filling.
+    mask : array-like or xr.DataArray, optional
+        Ocean mask (1 = ocean, 0 = land). If provided, land cells are never filled.
+    max_iter : int
+        Maximum number of neighbour-averaging passes. Default 100.
+
+    Returns
+    -------
+    depth : np.ndarray
+        Depth array with unfilled ocean cells replaced by neighbour averages.
+    """
+
+    # --- Iterative neighbour fill for cells with no source coverage ---
+    if unfilled.any():
+        n_miss = int(unfilled.sum())
+        print(f"Filling {n_miss} cells by iterative neighbour averaging…")
+        if mask is not None:
+            mask_2d = mask.values.astype(bool)
+            unfilled_2d = unfilled & mask_2d
+        else:
+            unfilled_2d = unfilled
+
+        for _ in range(max_iter):
+            if not unfilled_2d.any():
+                break
+            filled_f = (~unfilled_2d).astype(float)
+            d_pad = np.pad(depth, 1, mode="edge")  # pad 1 cell with edge values
+            f_pad = np.pad(
+                filled_f, 1, mode="constant", constant_values=0
+            )  # pad 1 mask cell with land (unfilled)
+            d_nbr = (
+                d_pad[:-2, 1:-1] + d_pad[2:, 1:-1] + d_pad[1:-1, :-2] + d_pad[1:-1, 2:]
+            )
+            f_nbr = (
+                f_pad[:-2, 1:-1] + f_pad[2:, 1:-1] + f_pad[1:-1, :-2] + f_pad[1:-1, 2:]
+            )
+            can_fill = unfilled_2d & (
+                f_nbr > 0
+            )  # only fill if there is at least one filled neighbor, which is done by adding all the neighboring cells
+            depth = np.where(
+                can_fill, d_nbr / np.maximum(f_nbr, 1), depth
+            )  # Takes the average of the neighboring cells to fill, only where can_fill is True
+            unfilled_2d = unfilled_2d & ~can_fill
+
+    return depth
+
+
 def fill_missing_data(idata, mask, maxiter=0, stabilizer=1.0e-14, tripole=False):
     """
     Returns data with masked values "objectively interpolated" except where values exist or is over land. Does not work for periodic grids.

@@ -205,6 +205,15 @@ class TopoEditor(widgets.HBox):
             layout={"width": "80%"},
             style={"description_width": "auto"},
         )
+        self._set_to_mean_button = widgets.Button(
+            description="Mean", disabled=True, layout={"width": "30%"}
+        )
+        self._set_to_max_button = widgets.Button(
+            description="Max", disabled=True, layout={"width": "30%"}
+        )
+        self._set_to_min_button = widgets.Button(
+            description="Min", disabled=True, layout={"width": "30%"}
+        )
 
         self._mask_specifier = widgets.ToggleButtons(
             value=None,
@@ -294,16 +303,35 @@ class TopoEditor(widgets.HBox):
                 self._min_depth_specifier,
             ]
         )
-        self.cell_editing_section = widgets.VBox(
-            [
-                widgets.HTML("<h3>Cell Editing</h3>"),
-                self._rect_select_button,
-                self._selected_cell_label,
-                self._depth_specifier,
-                self._mask_specifier,
-                self._clear_user_mask_button,
-            ]
-        )
+        cell_editing_section_children = [
+            widgets.HTML("<h3>Cell Editing</h3>"),
+            self._rect_select_button,
+            self._selected_cell_label,
+            self._depth_specifier,
+            self._mask_specifier,
+            self._clear_user_mask_button,
+        ]
+
+        # Only add stats section if statistics are available
+        has_stats = self.topo.stats is not None
+        if has_stats:
+            cell_editing_section_children.extend(
+                [
+                    widgets.HTML(
+                        "<p style='margin: 5px 0; font-size: 12px;'>Set to statistic:</p>"
+                    ),
+                    widgets.HBox(
+                        [
+                            self._set_to_mean_button,
+                            self._set_to_max_button,
+                            self._set_to_min_button,
+                        ],
+                        layout={"justify_content": "space-between"},
+                    ),
+                ]
+            )
+
+        self.cell_editing_section = widgets.VBox(cell_editing_section_children)
         self.basin_section = widgets.VBox(
             [
                 widgets.HTML("<h3>Basin Selector</h3>"),
@@ -462,6 +490,25 @@ class TopoEditor(widgets.HBox):
                 self._clear_user_mask_button.disabled = False
             else:
                 self._clear_user_mask_button.disabled = True
+
+        # Enable statistic buttons and show values if statistics are available
+        has_stats = self.topo.stats is not None
+        for btn, stat_name, label in [
+            (self._set_to_mean_button, "D_mean", "Mean"),
+            (self._set_to_max_button, "D_max", "Max"),
+            (self._set_to_min_button, "D_min", "Min"),
+        ]:
+            btn.disabled = not has_stats
+            if has_stats:
+                val = self._get_statistic_value(stat_name)
+                btn.description = (
+                    f"{label}: {val:.1f}m"
+                    if val is not None and np.isfinite(val)
+                    else label
+                )
+            else:
+                btn.description = label
+
         if hasattr(self, "_basin_specifier"):
             label = self.topo.basintmask.data[j, i]
             self._basin_specifier.value = f"Basin Label Number: {str(label)}"
@@ -503,6 +550,10 @@ class TopoEditor(widgets.HBox):
         # Mask change observer for selected cell
         self._mask_specifier.observe(self.on_mask_change, names="value", type="change")
         self._clear_user_mask_button.on_click(self.clear_user_mask)
+        # Statistic buttons
+        self._set_to_mean_button.on_click(self.set_depth_to_mean)
+        self._set_to_max_button.on_click(self.set_depth_to_max)
+        self._set_to_min_button.on_click(self.set_depth_to_min)
 
         if self.has_version_control:
             # Undo/Redo/Reset buttons
@@ -666,6 +717,37 @@ class TopoEditor(widgets.HBox):
         )
         self.apply_edit(cmd)
         self.update_undo_redo_buttons()
+
+    def _get_statistic_value(self, stat_name):
+        """Get a statistic value for the selected cell."""
+        if self._selected_cell is None or self.topo.stats is None:
+            return None
+
+        i, j, _ = self._selected_cell
+        ds = self.topo.stats
+
+        if ds is None or stat_name not in ds.data_vars:
+            return None
+
+        return float(ds[stat_name].data[j, i])
+
+    def set_depth_to_mean(self, b):
+        """Set the selected cell's depth to the mean value."""
+        val = self._get_statistic_value("D_mean")
+        if val is not None and np.isfinite(val):
+            self._depth_specifier.value = val
+
+    def set_depth_to_max(self, b):
+        """Set the selected cell's depth to the max value."""
+        val = self._get_statistic_value("D_max")
+        if val is not None and np.isfinite(val):
+            self._depth_specifier.value = val
+
+    def set_depth_to_min(self, b):
+        """Set the selected cell's depth to the min value."""
+        val = self._get_statistic_value("D_min")
+        if val is not None and np.isfinite(val):
+            self._depth_specifier.value = val
 
     def on_git_create_branch(self, b):
         """Create a new git branch"""
