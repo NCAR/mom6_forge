@@ -53,7 +53,7 @@ jobs:
               print("Baseline is empty — skipping regression check. Run locally and commit tests/benchmark_baseline.json.")
               sys.exit(0)
 
-          THRESHOLD = 1.30
+          THRESHOLD = 1.10
           by_name = {b["name"]: b["stats"]["mean"] for b in baseline["benchmarks"]}
           regressions = []
 

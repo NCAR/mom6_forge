@@ -37,7 +37,7 @@ pytest-benchmark compare baseline.json my_results.json
 
 ## Updating the baseline
 
-`tests/benchmark_baseline.json` is the committed reference. CI fails if any benchmark mean exceeds 130% of its baseline value.
+`tests/benchmark_baseline.json` is the committed reference. CI fails if any benchmark mean exceeds 110% of its baseline value.
 
 ```bash
 pytest tests/ --benchmark-only \
