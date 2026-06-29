@@ -1,19 +1,23 @@
 from mom6_forge.command_manager import *
 from mom6_forge.edit_command import *
-from test_edit_commands import gen_MinDepthCommand
 import pytest
 import xarray as xr
 import json
 
 
-def test_TopoCommandManager_init(get_rect_topo_without_vc):
-    topo = get_rect_topo_without_vc  # TCM is generated in the topo object
+@pytest.fixture
+def gen_MinDepthCommand(get_rect_topo_with_vc):
+    return MinDepthEditCommand(get_rect_topo_with_vc, "min_depth", 10.0, 0.0)
+
+
+def test_TopoCommandManager_init(get_rect_topo_with_vc):
+    topo = get_rect_topo_with_vc  # TCM is generated in the topo object
     assert topo.tcm is not None
     assert isinstance(topo.tcm, TopoCommandManager)
 
 
-def test_TopoCommandManager_execute(get_rect_topo_without_vc, gen_MinDepthCommand):
-    topo = get_rect_topo_without_vc
+def test_TopoCommandManager_execute(get_rect_topo_with_vc, gen_MinDepthCommand):
+    topo = get_rect_topo_with_vc
     assert topo.min_depth == 0.0
     command = gen_MinDepthCommand
     command.message = "BLEEP"
@@ -30,8 +34,8 @@ def test_TopoCommandManager_execute(get_rect_topo_without_vc, gen_MinDepthComman
         topo.tcm.execute("NotACommand")
 
 
-def test_TopoCommandManager_undo(get_rect_topo_without_vc, gen_MinDepthCommand):
-    topo = get_rect_topo_without_vc
+def test_TopoCommandManager_undo(get_rect_topo_with_vc, gen_MinDepthCommand):
+    topo = get_rect_topo_with_vc
     command = gen_MinDepthCommand
 
     topo.tcm.execute(gen_MinDepthCommand)
@@ -56,8 +60,8 @@ def test_TopoCommandManager_undo(get_rect_topo_without_vc, gen_MinDepthCommand):
     assert not topo.tcm.undo(check_only=True)  # No more commands to undo
 
 
-def test_TopoCommandManager_redo(get_rect_topo_without_vc, gen_MinDepthCommand):
-    topo = get_rect_topo_without_vc
+def test_TopoCommandManager_redo(get_rect_topo_with_vc, gen_MinDepthCommand):
+    topo = get_rect_topo_with_vc
     command = gen_MinDepthCommand
     topo.tcm.execute(gen_MinDepthCommand)
     assert topo.min_depth == 10.0  # Assert Action taken
@@ -97,9 +101,9 @@ def test_TopoCommandManager_redo(get_rect_topo_without_vc, gen_MinDepthCommand):
 
 
 def test_TopoCommandManager_reapply_changes(
-    get_rect_topo_without_vc, gen_MinDepthCommand
+    get_rect_topo_with_vc, gen_MinDepthCommand
 ):
-    topo = get_rect_topo_without_vc
+    topo = get_rect_topo_with_vc
     topo.tcm.execute(gen_MinDepthCommand)
     assert topo.min_depth == 10.0  # Assert Action taken
     prev_hist = sum(1 for _ in topo.tcm.repo.iter_commits())
@@ -114,8 +118,8 @@ def test_TopoCommandManager_reapply_changes(
     )  # Assert history only has the executed commits (reapply is quiet)
 
 
-def test_TopoCommandManager_reset(get_rect_topo_without_vc, gen_MinDepthCommand):
-    topo = get_rect_topo_without_vc
+def test_TopoCommandManager_reset(get_rect_topo_with_vc, gen_MinDepthCommand):
+    topo = get_rect_topo_with_vc
     topo.tcm.execute(gen_MinDepthCommand)
     assert topo.min_depth == 10.0  # Assert Action taken
     topo.tcm.reset()
@@ -123,8 +127,8 @@ def test_TopoCommandManager_reset(get_rect_topo_without_vc, gen_MinDepthCommand)
     assert topo.min_depth == 0.0  # Assert min depth reset
 
 
-def test_tcm_checkout(get_rect_topo_without_vc, gen_MinDepthCommand):
-    topo = get_rect_topo_without_vc
+def test_tcm_checkout(get_rect_topo_with_vc, gen_MinDepthCommand):
+    topo = get_rect_topo_with_vc
     current_branch = topo.tcm.repo.active_branch.name
     topo.tcm.create_branch("test_branch")
     topo.tcm.checkout("test_branch")
@@ -134,8 +138,8 @@ def test_tcm_checkout(get_rect_topo_without_vc, gen_MinDepthCommand):
     assert topo.min_depth == 0.0  # Assert back to main branch state
 
 
-def test_tcm_parse_commit_message(get_rect_topo_without_vc, gen_MinDepthCommand):
-    topo = get_rect_topo_without_vc
+def test_tcm_parse_commit_message(get_rect_topo_with_vc, gen_MinDepthCommand):
+    topo = get_rect_topo_with_vc
 
     # Build some history
     topo.tcm.execute(gen_MinDepthCommand)
@@ -171,13 +175,13 @@ def test_tcm_parse_commit_message(get_rect_topo_without_vc, gen_MinDepthCommand)
             break
 
 
-def test_tcm_history_init(get_rect_topo_without_vc):
-    topo = get_rect_topo_without_vc
+def test_tcm_history_init(get_rect_topo_with_vc):
+    topo = get_rect_topo_with_vc
     assert topo.tcm.history_file_path.exists()
 
 
-def test_tcm_add_to_history(get_rect_topo_without_vc, gen_MinDepthCommand):
-    topo = get_rect_topo_without_vc
+def test_tcm_add_to_history(get_rect_topo_with_vc, gen_MinDepthCommand):
+    topo = get_rect_topo_with_vc
     topo.tcm.execute(gen_MinDepthCommand)
     history = topo.tcm.history_dict
     assert "head" in history  # head should be in history
@@ -189,8 +193,8 @@ def test_tcm_add_to_history(get_rect_topo_without_vc, gen_MinDepthCommand):
     assert current_sha in history  # current head sha should be in history
 
 
-def test_tcm_commit(get_rect_topo_without_vc, gen_MinDepthCommand):
-    topo = get_rect_topo_without_vc
+def test_tcm_commit(get_rect_topo_with_vc, gen_MinDepthCommand):
+    topo = get_rect_topo_with_vc
     topo.tcm.commit(gen_MinDepthCommand, CommandType.COMMAND)
     history = topo.tcm.history_dict
     assert "head" in history  # head should be in history

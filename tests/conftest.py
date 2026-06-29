@@ -10,8 +10,8 @@ from mom6_forge._source_bathy import SourceBathy
 
 
 @pytest.fixture
-def get_editor(get_rect_topo):
-    return TopoEditor(get_rect_topo, build_ui=False)
+def get_editor(get_rect_topo_with_vc):
+    return TopoEditor(get_rect_topo_with_vc, build_ui=False)
 
 
 @pytest.fixture

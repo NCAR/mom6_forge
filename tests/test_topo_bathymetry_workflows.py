@@ -5,38 +5,38 @@ from mom6_forge.topo import *
 from mom6_forge._source_bathy import SourceBathy
 
 
-def test_generate_mask_ocean_frac_raises_without_src(get_rect_topo):
+def test_generate_mask_ocean_frac_raises_without_src(get_rect_topo_without_vc):
     """generate_mask_from_stats_ocean_frac must raise if src has not been set."""
     with pytest.raises(AssertionError, match="Source bathymetry"):
-        get_rect_topo.generate_mask_from_stats_ocean_frac()
+        get_rect_topo_without_vc.generate_mask_from_stats_ocean_frac()
 
 
 def test_generate_mask_ocean_frac_raises_without_stats(
-    get_rect_topo, synthetic_bathy_file
+    get_rect_topo_without_vc, synthetic_bathy_file
 ):
     """generate_mask_from_stats_ocean_frac must raise if compute_stats has not been called."""
-    get_rect_topo._src = SourceBathy(
-        get_rect_topo, synthetic_bathy_file, depth_name="elevation"
+    get_rect_topo_without_vc._src = SourceBathy(
+        get_rect_topo_without_vc, synthetic_bathy_file, depth_name="elevation"
     )
     with pytest.raises(AssertionError, match="compute_stats"):
-        get_rect_topo.generate_mask_from_stats_ocean_frac()
+        get_rect_topo_without_vc.generate_mask_from_stats_ocean_frac()
 
 
 def test_generate_mask_ocean_frac_returns_binary_mask(
-    get_rect_topo, synthetic_bathy_file
+    get_rect_topo_without_vc, synthetic_bathy_file
 ):
     """Mask values must be 0 (land) or 1 (ocean) only."""
-    get_rect_topo._src = SourceBathy(
-        get_rect_topo, synthetic_bathy_file, depth_name="elevation"
+    get_rect_topo_without_vc._src = SourceBathy(
+        get_rect_topo_without_vc, synthetic_bathy_file, depth_name="elevation"
     )
-    get_rect_topo.compute_stats(
+    get_rect_topo_without_vc.compute_stats(
         nx_sub=2, ny_sub=2, mask_hmin=0.0
     )  # Compute stats to populate cache
-    mask = get_rect_topo.generate_mask_from_stats_ocean_frac()
+    mask = get_rect_topo_without_vc.generate_mask_from_stats_ocean_frac()
     assert set(np.unique(mask.values)).issubset({0, 1})
 
 
-def test_compute_topo_stats(get_rect_topo, synthetic_bathy_file):
+def test_compute_topo_stats(get_rect_topo_without_vc, synthetic_bathy_file):
     """Test _compute_topo_stats: per-cell depth statistics via xesmf nearest neighbor regridding.
 
     This test validates the refactored _compute_topo_stats method which:
@@ -44,7 +44,7 @@ def test_compute_topo_stats(get_rect_topo, synthetic_bathy_file):
     - Uses xesmf nearest_s2d regridding to snap sub-points to nearest source data
     - Computes per-cell statistics (OCN_FRAC, D_mean, D_min, D_max, D2_mean)
     """
-    topo = get_rect_topo
+    topo = get_rect_topo_without_vc
 
     # Load source bathymetry and slice to topo domain
     src = SourceBathy(topo, synthetic_bathy_file, depth_name="elevation")
@@ -88,9 +88,9 @@ def test_compute_topo_stats(get_rect_topo, synthetic_bathy_file):
         assert stats2 is stats
 
 
-def test_direct_cressman_interp(get_rect_topo, synthetic_bathy_file, tmp_path):
+def test_direct_cressman_interp(get_rect_topo_without_vc, synthetic_bathy_file, tmp_path):
     """Smoke test: direct_cressman_interp runs end-to-end and updates topo depth."""
-    topo = get_rect_topo  # flat 1000 m depth, all ocean
+    topo = get_rect_topo_without_vc  # flat 1000 m depth, all ocean
 
     # synthetic_bathy_file stores elevation positive-upward (ocean = -500 m);
     # is_input_positive_below_msl=False flips sign so ocean cells have depth +500 m,
@@ -123,9 +123,9 @@ def test_direct_cressman_interp(get_rect_topo, synthetic_bathy_file, tmp_path):
     assert np.nanmean(topo.depth.values) == pytest.approx(500.0, abs=100.0)
 
 
-def test_set_depth_from_stats(get_rect_topo, synthetic_bathy_file):
+def test_set_depth_from_stats(get_rect_topo_without_vc, synthetic_bathy_file):
     """Test set_depth_from_stats sets topo depth to the chosen statistic from compute_stats."""
-    topo = get_rect_topo
+    topo = get_rect_topo_without_vc
 
     # Load source bathymetry and slice to topo domain
     src = SourceBathy(
