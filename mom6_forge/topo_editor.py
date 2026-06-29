@@ -422,14 +422,23 @@ class TopoEditor(widgets.HBox):
             self._depth_specifier.disabled = False
             self._depth_specifier.value = self.topo.masked_depth.data[j, i]
 
-        # Enable statistic buttons if statistics are available
+        # Enable statistic buttons and show values if statistics are available
         has_stats = self.topo.stats is not None
-        for btn in [
-            self._set_to_mean_button,
-            self._set_to_max_button,
-            self._set_to_min_button,
+        for btn, stat_name, label in [
+            (self._set_to_mean_button, "D_mean", "Mean"),
+            (self._set_to_max_button, "D_max", "Max"),
+            (self._set_to_min_button, "D_min", "Min"),
         ]:
             btn.disabled = not has_stats
+            if has_stats:
+                val = self._get_statistic_value(stat_name)
+                btn.description = (
+                    f"{label}: {val:.1f}m"
+                    if val is not None and np.isfinite(val)
+                    else label
+                )
+            else:
+                btn.description = label
 
         if hasattr(self, "_basin_specifier"):
             label = self.topo.basintmask.data[j, i]
