@@ -151,7 +151,7 @@ def test_set_depth_from_stats(get_rect_topo, synthetic_bathy_file):
 # ---------------------------------------------------------------------------
 
 def test_bench_set_from_dataset(benchmark, tmp_path):
-    """Regression gate: ocean_frac+stats pipeline on a 3×3 synthetic grid.
+    """Regression gate: set_from_dataset on a synthetic grid.
 
     Uses pedantic mode with per-round setup so stats caching never inflates
     subsequent rounds.
@@ -179,11 +179,6 @@ def test_bench_set_from_dataset(benchmark, tmp_path):
             longitude_coordinate_name="lon",
             latitude_coordinate_name="lat",
             vertical_coordinate_name="elevation",
-            mask_method="ocean_frac",
-            depth_method="stats",
-            nx_sub=2,
-            ny_sub=2,
-            mask_hmin=0.0,
         )
 
     benchmark.pedantic(run, setup=setup, rounds=5, warmup_rounds=1)
