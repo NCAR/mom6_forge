@@ -143,7 +143,7 @@ class DepthEditCommand(EditCommand):
         ov_arr = np.array(
             self.old_values if self.old_values is not None else [], dtype=np.float64
         )
-        h = hashlib.sha256(idx_arr.tobytes() + nv_arr.tobytes()).hexdigest()[:16]
+        h = hashlib.sha256(idx_arr.tobytes() + nv_arr.tobytes() + ov_arr.tobytes()).hexdigest()[:16]
         nc_path = large_edits_dir / f"edit_{h}.nc"
 
         if not nc_path.exists():
@@ -155,22 +155,23 @@ class DepthEditCommand(EditCommand):
                 }
             ).to_netcdf(nc_path)
 
-        return {"type": self.__class__.__name__, "nc_path": str(nc_path)}
+        return {"type": self.__class__.__name__, "nc_filename": nc_path.name}
 
     @classmethod
     def deserialize(cls, data):
-        if "nc_path" in data:
+        if "nc_filename" in data:
 
             def factory(topo):
-                ds = xr.open_dataset(data["nc_path"])
-                return cls(
-                    topo,
-                    affected_indices=[
-                        tuple(row) for row in ds["indices"].values.tolist()
-                    ],
-                    new_values=ds["new_values"].values.tolist(),
-                    old_values=ds["old_values"].values.tolist(),
-                )
+                nc_path = topo.domain_dir / LARGE_EDITS_DIR / data["nc_filename"]
+                with xr.open_dataset(nc_path) as ds:
+                    return cls(
+                        topo,
+                        affected_indices=[
+                            tuple(row) for row in ds["indices"].values.tolist()
+                        ],
+                        new_values=ds["new_values"].values.tolist(),
+                        old_values=ds["old_values"].values.tolist(),
+                    )
 
             return factory
         return lambda topo: cls(
@@ -182,18 +183,19 @@ class DepthEditCommand(EditCommand):
 
     @classmethod
     def reverse_deserialize(cls, data):
-        if "nc_path" in data:
+        if "nc_filename" in data:
 
             def factory(topo):
-                ds = xr.open_dataset(data["nc_path"])
-                return cls(
-                    topo,
-                    affected_indices=[
-                        tuple(row) for row in ds["indices"].values.tolist()
-                    ],
-                    new_values=ds["old_values"].values.tolist(),  # swapped
-                    old_values=ds["new_values"].values.tolist(),  # swapped
-                )
+                nc_path = topo.domain_dir / LARGE_EDITS_DIR / data["nc_filename"]
+                with xr.open_dataset(nc_path) as ds:
+                    return cls(
+                        topo,
+                        affected_indices=[
+                            tuple(row) for row in ds["indices"].values.tolist()
+                        ],
+                        new_values=ds["old_values"].values.tolist(),  # swapped
+                        old_values=ds["new_values"].values.tolist(),  # swapped
+                    )
 
             return factory
         return lambda topo: cls(
@@ -288,7 +290,7 @@ class MaskEditCommand(EditCommand):
         ov_arr = np.array(
             self.old_values if self.old_values is not None else [], dtype=np.int8
         )
-        h = hashlib.sha256(idx_arr.tobytes() + nv_arr.tobytes()).hexdigest()[:16]
+        h = hashlib.sha256(idx_arr.tobytes() + nv_arr.tobytes() + ov_arr.tobytes()).hexdigest()[:16]
         nc_path = large_edits_dir / f"edit_{h}.nc"
 
         if not nc_path.exists():
@@ -300,22 +302,23 @@ class MaskEditCommand(EditCommand):
                 }
             ).to_netcdf(nc_path)
 
-        return {"type": self.__class__.__name__, "nc_path": str(nc_path)}
+        return {"type": self.__class__.__name__, "nc_filename": nc_path.name}
 
     @classmethod
     def deserialize(cls, data):
-        if "nc_path" in data:
+        if "nc_filename" in data:
 
             def factory(topo):
-                ds = xr.open_dataset(data["nc_path"])
-                return cls(
-                    topo,
-                    affected_indices=[
-                        tuple(row) for row in ds["indices"].values.tolist()
-                    ],
-                    new_values=ds["new_values"].values.tolist(),
-                    old_values=ds["old_values"].values.tolist(),
-                )
+                nc_path = topo.domain_dir / LARGE_EDITS_DIR / data["nc_filename"]
+                with xr.open_dataset(nc_path) as ds:
+                    return cls(
+                        topo,
+                        affected_indices=[
+                            tuple(row) for row in ds["indices"].values.tolist()
+                        ],
+                        new_values=ds["new_values"].values.tolist(),
+                        old_values=ds["old_values"].values.tolist(),
+                    )
 
             return factory
         return lambda topo: cls(
@@ -327,18 +330,19 @@ class MaskEditCommand(EditCommand):
 
     @classmethod
     def reverse_deserialize(cls, data):
-        if "nc_path" in data:
+        if "nc_filename" in data:
 
             def factory(topo):
-                ds = xr.open_dataset(data["nc_path"])
-                return cls(
-                    topo,
-                    affected_indices=[
-                        tuple(row) for row in ds["indices"].values.tolist()
-                    ],
-                    new_values=ds["old_values"].values.tolist(),  # swapped
-                    old_values=ds["new_values"].values.tolist(),  # swapped
-                )
+                nc_path = topo.domain_dir / LARGE_EDITS_DIR / data["nc_filename"]
+                with xr.open_dataset(nc_path) as ds:
+                    return cls(
+                        topo,
+                        affected_indices=[
+                            tuple(row) for row in ds["indices"].values.tolist()
+                        ],
+                        new_values=ds["old_values"].values.tolist(),  # swapped
+                        old_values=ds["new_values"].values.tolist(),  # swapped
+                    )
 
             return factory
         return lambda topo: cls(

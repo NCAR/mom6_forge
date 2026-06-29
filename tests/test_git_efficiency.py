@@ -58,7 +58,7 @@ def test_large_domain_depth_commit_is_fast(tx2_3v3_grid, tmp_path):
     history_size = os.path.getsize(history_file)
     head_entry = json.loads(json.loads(history_file.read_text())["head"])
 
-    assert "nc_path" in head_entry, "Expected nc_path key for large-domain depth edit"
+    assert "nc_filename" in head_entry, "Expected nc_filename key for large-domain depth edit"
     assert (
         "affected_indices" not in head_entry
     ), "Should not store inline indices for large edit"
@@ -66,7 +66,8 @@ def test_large_domain_depth_commit_is_fast(tx2_3v3_grid, tmp_path):
         history_size < 2_000
     ), f"command_history.json too large: {history_size} bytes (expected < 2 KB)"
 
-    nc_path = head_entry["nc_path"]
+    nc_filename = head_entry["nc_filename"]
+    nc_path = history_file.parent / ec.LARGE_EDITS_DIR / nc_filename
     assert os.path.exists(nc_path), f"Large-edit .nc file not found: {nc_path}"
 
     print(
@@ -109,7 +110,7 @@ def test_large_mask_edit_uses_nc(tx2_3v3_grid, tmp_path):
     topo.apply_edit(cmd)
 
     head_entry = json.loads(json.loads(topo.tcm.history_file_path.read_text())["head"])
-    assert "nc_path" in head_entry, "Expected nc_path key for large mask edit"
+    assert "nc_filename" in head_entry, "Expected nc_filename key for large mask edit"
     assert "affected_indices" not in head_entry
 
 
