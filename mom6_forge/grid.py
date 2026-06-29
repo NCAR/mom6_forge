@@ -426,7 +426,9 @@ class Grid:
         """
         if type(hgrid) == Grid:
             hgrid = hgrid._supergrid.to_ds()
-        assert not Grid.is_cyclic_x(hgrid), "Cannot compute bounding boxes for cyclic grids"
+        assert not Grid.is_cyclic_x(
+            hgrid
+        ), "Cannot compute bounding boxes for cyclic grids"
 
         init_result = {
             "lon_min": float(hgrid.x.min()),
