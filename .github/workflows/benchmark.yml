@@ -34,6 +34,12 @@ jobs:
             --benchmark-warmup=on \
             -v
 
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ github.sha }}
+          path: benchmark_results.json
+
       - name: Check for regressions
         shell: bash -l {0}
         run: |
@@ -67,9 +73,3 @@ jobs:
 
           print("No regressions detected.")
           EOF
-
-      - name: Upload benchmark results
-        uses: actions/upload-artifact@v4
-        with:
-          name: benchmark-results-${{ github.sha }}
-          path: benchmark_results.json
