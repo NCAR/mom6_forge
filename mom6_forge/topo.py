@@ -1087,6 +1087,7 @@ class Topo:
         write_to_file=False,
         mask_method=None,
         depth_method=None,
+        regridding_method="bilinear",
         **kwargs,
     ):
         """
@@ -1111,6 +1112,7 @@ class Topo:
         write_to_file (bool, optional): Whether to write intermediate files to disk (e.g. for Cressman interpolation). Default is False.
         mask_method (str or None, optional): Method to use for masking land vs ocean. Options are 'naturalearth' (use natural earth land polygons), 'ocean_frac' (use ocean fraction from sub-sampling stats), 'dataset' (derive mask directly from raw depth from dataset), 'manual' (use a user-provided mask set via the user_mask property), or None to automatically choose based on resolution diagnostics. Default is None.
         depth_method (str or None, optional): Method to use for setting depth. Options are 'stats' (use a statistic from the sub-sampling stats), 'xesmf' (do a direct xesmf regrid of the source dataset depth), or None to automatically choose based on resolution diagnostics. Default is None.
+        regridding_method (str, optional): The xESMF regridding method to use when depth_method is 'xesmf' (or when xesmf is chosen automatically). Default is 'bilinear'.
         **kwargs: Additional keyword arguments needed for specific mask or depth methods. For example, if mask_method is 'ocean_frac', then kwargs should include 'nx_sub', 'ny_sub', and 'mask_hmin' for the sub-sampling stats calculation.
 
         """
@@ -1217,7 +1219,7 @@ class Topo:
                 self.set_depth_from_xesmf(
                     output_dir=output_dir,
                     write_to_file=write_to_file,
-                    regridding_method=kwargs["regridding_method"],
+                    regridding_method=regridding_method,
                 )
             else:
                 raise ValueError(
@@ -1231,7 +1233,7 @@ class Topo:
                 self.set_depth_from_xesmf(
                     output_dir=output_dir,
                     write_to_file=write_to_file,
-                    regridding_method=kwargs["regridding_method"],
+                    regridding_method=regridding_method,
                 )
             else:
                 print(
@@ -1256,32 +1258,21 @@ class Topo:
         regridding_method="bilinear",
     ):
         """
-        This code was originally written by Ashley Barnes in regional_mom6(https://github.com/COSIMA/regional-mom6) and adapted for this package.
+        Regrid the source bathymetry onto the model grid using xESMF.
 
-        Cut out and interpolate the chosen bathymetry and then fill inland lakes.
+        This code was originally written by Ashley Barnes in regional_mom6
+        (https://github.com/COSIMA/regional-mom6) and adapted for this package.
 
-        Users can optionally fill narrow channels (see ``fill_channels`` keyword argument
-        below). Note, however, that narrow channels are less of an issue for models that
-        are discretized on an Arakawa C grid, like MOM6.
-
-        Output is saved in the output_dir.
+        Requires that ``set_src`` has been called first (or that the source dataset
+        has been set via ``set_from_dataset``).
 
         Arguments:
-            bathymetry_path (str): Path to the netCDF file with the bathymetry.
-            longitude_coordinate_name (Optional[str]): The name of the longitude coordinate in the bathymetry
-                dataset at ``bathymetry_path``. For example, for GEBCO bathymetry: ``'lon'`` (default).
-            latitude_coordinate_name (Optional[str]): The name of the latitude coordinate in the bathymetry
-                dataset at ``bathymetry_path``. For example, for GEBCO bathymetry: ``'lat'`` (default).
-            vertical_coordinate_name (Optional[str]): The name of the vertical coordinate in the bathymetry
-                dataset at ``bathymetry_path``. For example, for GEBCO bathymetry: ``'elevation'`` (default).
-            fill_channels (Optional[bool]): Whether or not to fill in
-                diagonal channels. This removes more narrow inlets,
-                but can also connect extra islands to land. Default: ``False``.
-            is_input_positive_below_msl (Optional[bool]): If ``True``, it assumes that the
-                bathymetry vertical coordinate is positive downwards. Default: ``False``.
-            write_to_file (Optional[bool]): Whether to write the bathymetry to a file. Default: ``False``.
-            regridding_method (Optional[str]): The type of regridding method to use. Defaults to self.regridding_method
-            run_* (Optional[bool]): Whether to run the respective step in the bathymetry processing. Default: ``True``.
+            output_dir (str or Path, optional): Directory where intermediate files are
+                written when ``write_to_file=True``. Default: current directory.
+            write_to_file (Optional[bool]): Whether to write the source and unfinished
+                destination grids to netCDF before regridding. Default: ``False``.
+            regridding_method (Optional[str]): The xESMF regridding method to use.
+                Default: ``'bilinear'``.
 
         """
         print("""**NOTE**
@@ -1326,6 +1317,31 @@ class Topo:
         output_dir=Path(""),
         verbose=True,
     ):
+        """
+        Prepare input files for MPI-parallel bathymetry regridding with ESMF_Regrid.
+
+        Writes ``bathymetry_original.nc`` (source) and ``bathymetry_unfinished.nc``
+        (destination grid shell) to ``output_dir``. The user then runs ``ESMF_Regrid``
+        externally with MPI, and finally calls ``fill_inland_lakes_and_channels()`` to
+        complete post-processing. Use this instead of ``set_depth_from_xesmf`` when the
+        domain is too large to regrid within a single Python process.
+
+        Arguments:
+            bathymetry_path (str): Path to the netCDF file with the source bathymetry.
+            longitude_coordinate_name (str): Name of the longitude coordinate in the
+                source dataset (e.g. ``'lon'`` for GEBCO).
+            latitude_coordinate_name (str): Name of the latitude coordinate in the
+                source dataset (e.g. ``'lat'`` for GEBCO).
+            vertical_coordinate_name (str): Name of the vertical/elevation coordinate in
+                the source dataset (e.g. ``'elevation'`` for GEBCO).
+            is_input_positive_below_msl (bool, optional): Set ``True`` if the source
+                vertical coordinate is positive downwards (depth convention). Default: ``False``.
+            output_dir (str or Path, optional): Directory where the two netCDF files are
+                written. Default: current directory.
+            verbose (bool, optional): Print step-by-step MPI regridding instructions.
+                Default: ``True``.
+
+        """
         if verbose:
             print(f"""
             *MANUAL REGRIDDING INSTRUCTIONS*

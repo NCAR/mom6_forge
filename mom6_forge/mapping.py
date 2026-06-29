@@ -975,7 +975,7 @@ def _print_regrid_info(
     if not src_spatial_dims:
         src_spatial_dims = set(input_dataset.dims)
     src_spatial = {
-        k: input_dataset.dims[k] for k in input_dataset.dims if k in src_spatial_dims
+        k: input_dataset.sizes[k] for k in input_dataset.dims if k in src_spatial_dims
     }
     src_dims_str = ", ".join(f"{k}={v}" for k, v in src_spatial.items())
     src_total = 1
@@ -992,7 +992,7 @@ def _print_regrid_info(
     if not dst_spatial_dims:
         dst_spatial_dims = set(output_dataset.dims)
     dst_spatial = {
-        k: output_dataset.dims[k] for k in output_dataset.dims if k in dst_spatial_dims
+        k: output_dataset.sizes[k] for k in output_dataset.dims if k in dst_spatial_dims
     }
     dst_dims_str = ", ".join(f"{k}={v}" for k, v in dst_spatial.items())
     dst_total = 1
