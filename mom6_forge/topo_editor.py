@@ -6,7 +6,6 @@ import cartopy.crs as ccrs
 from matplotlib.ticker import MaxNLocator
 from mom6_forge.edit_command import *
 from mom6_forge.git_utils import *
-from mom6_forge.utils import normalize_deg
 
 
 class TopoEditor(widgets.HBox):
@@ -372,118 +371,6 @@ class TopoEditor(widgets.HBox):
         self._min_depth_specifier.value = self.topo.min_depth
         self.update_undo_redo_buttons()
 
-    def _draw_cell_stats(self, visible):
-        """Draw per-cell stat annotations directly on each visible cell."""
-        self._cell_stat_texts = []
-
-        if self.topo.stats is None:
-            return
-
-        ds = self.topo.stats
-        js, is_ = np.where(visible)
-
-        qlon = self.topo._grid.qlon.data
-        qlat = self.topo._grid.qlat.data
-
-        for idx in range(len(js)):
-            j, i = js[idx], is_[idx]
-
-            # Cell centre
-            cx = 0.25 * (
-                qlon[j, i] + qlon[j, i + 1] + qlon[j + 1, i] + qlon[j + 1, i + 1]
-            )
-            cy = 0.25 * (
-                qlat[j, i] + qlat[j, i + 1] + qlat[j + 1, i] + qlat[j + 1, i + 1]
-            )
-
-            lines = []
-            for var in ds.data_vars:
-                if var == "D2_mean":
-                    continue  # Skip this variable for now since it's not super informative
-                label = var
-                if var.startswith("D_"):
-                    label = var[2:]  # Get rid of the "D_" prefix for display purposes
-                val = ds[var].data[j, i]
-                units = ds[var].attrs.get("units", "")
-                if units == "1":  # Unitless
-                    units = ""
-                lines.append(f"{label}: {val:.2f} {units}")
-
-            t = self.ax.text(
-                cx,
-                cy,
-                "\n".join(lines),
-                fontsize=7,
-                ha="center",
-                va="center",
-                transform=ccrs.PlateCarree(),
-                bbox=dict(
-                    boxstyle="round,pad=0.2",
-                    facecolor="none",
-                    alpha=0.7,
-                    edgecolor="none",
-                ),
-                zorder=11,
-            )
-            self._cell_stat_texts.append(t)
-
-        self.fig.canvas.draw_idle()
-
-    def _on_zoom_change(self, ax):
-        xlim = ax.get_xlim()
-        ylim = ax.get_ylim()
-
-        qlon = normalize_deg(self.topo._grid.qlon.data)
-        qlat = self.topo._grid.qlat.data
-        xlo = normalize_deg(xlim[0])
-        xhi = normalize_deg(xlim[1])
-
-        # Check if all four corners of each cell are within the view limits
-        if xlo <= xhi:
-            lon_visible = (
-                (qlon[:-1, :-1] >= xlo)
-                & (qlon[:-1, :-1] <= xhi)
-                & (qlon[:-1, 1:] >= xlo)
-                & (qlon[:-1, 1:] <= xhi)
-                & (qlon[1:, :-1] >= xlo)
-                & (qlon[1:, :-1] <= xhi)
-                & (qlon[1:, 1:] >= xlo)
-                & (qlon[1:, 1:] <= xhi)
-            )
-        else:  # view crosses the 0/360 boundary after normalization
-            lon_visible = (
-                ((qlon[:-1, :-1] >= xlo) | (qlon[:-1, :-1] <= xhi))
-                & ((qlon[:-1, 1:] >= xlo) | (qlon[:-1, 1:] <= xhi))
-                & ((qlon[1:, :-1] >= xlo) | (qlon[1:, :-1] <= xhi))
-                & ((qlon[1:, 1:] >= xlo) | (qlon[1:, 1:] <= xhi))
-            )
-        visible = (
-            lon_visible
-            & (qlat[:-1, :-1] >= ylim[0])
-            & (qlat[:-1, :-1] <= ylim[1])
-            & (qlat[:-1, 1:] >= ylim[0])
-            & (qlat[:-1, 1:] <= ylim[1])
-            & (qlat[1:, :-1] >= ylim[0])
-            & (qlat[1:, :-1] <= ylim[1])
-            & (qlat[1:, 1:] >= ylim[0])
-            & (qlat[1:, 1:] <= ylim[1])
-        )
-
-        # Always clear old annotations first
-        if hasattr(self, "_cell_stat_texts"):
-            for t in self._cell_stat_texts:
-                try:
-                    t.remove()
-                except Exception:
-                    pass
-
-        self._cell_stat_texts = []
-
-        if visible.sum() <= 40:
-            self._draw_cell_stats(visible)
-        else:
-            self.fig.canvas.draw_idle()
-
     def _select_cell(self, i, j):
         """Select a cell in the topography grid and update the UI accordingly."""
         # Remove old patch if it exists
@@ -566,9 +453,6 @@ class TopoEditor(widgets.HBox):
 
         # Double click event for cell selection on the plot
         self.fig.canvas.mpl_connect("button_press_event", self.on_double_click)
-        # Zoom-dependent stats overlay (would change x and y limits)
-        self.ax.callbacks.connect("xlim_changed", self._on_zoom_change)
-        self.ax.callbacks.connect("ylim_changed", self._on_zoom_change)
         # Min depth change observer
         self._min_depth_specifier.observe(
             self.on_min_depth_change, names="value", type="change"
