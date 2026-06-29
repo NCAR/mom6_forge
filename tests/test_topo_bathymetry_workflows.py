@@ -150,6 +150,7 @@ def test_set_depth_from_stats(get_rect_topo, synthetic_bathy_file):
 # Normal CI passes --benchmark-disable so these are zero-overhead no-ops.
 # ---------------------------------------------------------------------------
 
+
 def test_bench_set_from_dataset(benchmark, tmp_path):
     """Regression gate: set_from_dataset on a synthetic grid.
 
@@ -168,7 +169,9 @@ def test_bench_set_from_dataset(benchmark, tmp_path):
     ).to_netcdf(bathy_path)
 
     def setup():
-        grid = Grid(resolution=1.0, xstart=170.0, lenx=3.0, ystart=-3.0, leny=3.0, name="bench")
+        grid = Grid(
+            resolution=1.0, xstart=170.0, lenx=3.0, ystart=-3.0, leny=3.0, name="bench"
+        )
         topo = Topo(grid, min_depth=10, git=False)
         topo.set_flat(1000)
         return (topo,), {}
