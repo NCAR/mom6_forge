@@ -9,8 +9,8 @@ def test_topo_from_version_control(get_rect_topo_with_vc):
     assert topo_from_version_control.depth.equals(topo.depth)
 
 
-def test_topo_from_topo_file(get_rect_topo, tmp_path):
-    topo = get_rect_topo
+def test_topo_from_topo_file(get_rect_topo_without_vc, tmp_path):
+    topo = get_rect_topo_without_vc
     j, i = 1, 1
     new_val = 12123
     old_val = topo.depth[j, i]
@@ -34,8 +34,8 @@ def test_topo_from_topo_file(get_rect_topo, tmp_path):
     assert topo_from_file.depth[j, i] == 12123
 
 
-def test_send_entire_depth_change_to_tcm(get_rect_topo):
-    topo = get_rect_topo
+def test_send_entire_depth_change_to_tcm(get_rect_topo_without_vc):
+    topo = get_rect_topo_without_vc
     old_depth = topo.depth.copy()
     new_depth = old_depth + 5.0
     topo.send_entire_depth_change_to_tcm(new_depth)
@@ -49,8 +49,8 @@ def test_send_entire_depth_change_to_tcm(get_rect_topo):
     )  # Assert no new commit
 
 
-def test_erase_selected_basin(get_rect_topo):
-    topo = get_rect_topo
+def test_erase_selected_basin(get_rect_topo_without_vc):
+    topo = get_rect_topo_without_vc
     # Make a land barrier in the middle
     topo.depth[2, :] = 0  # horizontal land strip
     topo.depth[:, 2] = 0  # vertical land strip
@@ -66,8 +66,8 @@ def test_erase_selected_basin(get_rect_topo):
     assert topo.masked_depth[3:, 3:].equals(old_depth[3:, 3:])
 
 
-def test_erase_disconnected_basin(get_rect_topo):
-    topo = get_rect_topo
+def test_erase_disconnected_basin(get_rect_topo_without_vc):
+    topo = get_rect_topo_without_vc
     # Make a land barrier in the middle
     topo.depth[2, :] = 0  # horizontal land strip
     topo.depth[:, 2] = 0  # vertical land strip

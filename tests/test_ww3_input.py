@@ -6,8 +6,8 @@ import pytest
 WW3_FILE_SUFFIXES = ("_x.inp", "_y.inp", "_bottom.inp", "_mapsta.inp")
 
 
-def test_write_ww3_input_creates_all_files(get_rect_topo, tmp_path):
-    topo = get_rect_topo
+def test_write_ww3_input_creates_all_files(get_rect_topo_without_vc, tmp_path):
+    topo = get_rect_topo_without_vc
     alias = topo._grid.name
 
     topo.write_ww3_input(tmp_path, grid_alias=alias)
@@ -18,8 +18,8 @@ def test_write_ww3_input_creates_all_files(get_rect_topo, tmp_path):
     assert (tmp_path / "ww3_grid.inp").exists()
 
 
-def test_write_ww3_input_array_contents(get_rect_topo, tmp_path):
-    topo = get_rect_topo  # flat 1000 m depth, all-ocean, min_depth=0
+def test_write_ww3_input_array_contents(get_rect_topo_without_vc, tmp_path):
+    topo = get_rect_topo_without_vc  # flat 1000 m depth, all-ocean, min_depth=0
     alias = topo._grid.name
     nx, ny = topo._grid.nx, topo._grid.ny
 
@@ -43,8 +43,8 @@ def test_write_ww3_input_array_contents(get_rect_topo, tmp_path):
     assert (mapsta == 1).all()
 
 
-def test_write_ww3_input_grid_control_file(get_rect_topo, tmp_path):
-    topo = get_rect_topo
+def test_write_ww3_input_grid_control_file(get_rect_topo_without_vc, tmp_path):
+    topo = get_rect_topo_without_vc
     alias = topo._grid.name
     nx, ny = topo._grid.nx, topo._grid.ny
 
@@ -63,10 +63,10 @@ def test_write_ww3_input_grid_control_file(get_rect_topo, tmp_path):
         assert f"{alias}{suffix}" in text
 
 
-def test_write_ww3_input_masked_cells_are_land(get_rect_topo, tmp_path):
+def test_write_ww3_input_masked_cells_are_land(get_rect_topo_without_vc, tmp_path):
     """Land cells (per the mask) get depth 0 in the bottom file and 0 in mapsta,
     keeping the depth and status files mutually consistent."""
-    topo = get_rect_topo
+    topo = get_rect_topo_without_vc
     alias = topo._grid.name
 
     # Introduce land by zeroing the depth of a couple of cells.
@@ -86,7 +86,9 @@ def test_write_ww3_input_masked_cells_are_land(get_rect_topo, tmp_path):
     assert (bottom[mapsta == 0] == 0.0).all()
 
 
-def test_write_ww3_input_after_reconstruction_from_files(get_rect_topo, tmp_path):
+def test_write_ww3_input_after_reconstruction_from_files(
+    get_rect_topo_without_vc, tmp_path
+):
     """visualCaseGen's WW3 input generator reconstructs the Grid/Topo from the saved ocean grid
     files (ocean_hgrid + ocean_topog) before writing the *.inp files. Exercise that exact
     sequence: save the grid/topo, reload via Grid.from_supergrid + Topo.from_topo_file, then
@@ -95,7 +97,7 @@ def test_write_ww3_input_after_reconstruction_from_files(get_rect_topo, tmp_path
     from mom6_forge.grid import Grid
     from mom6_forge.topo import Topo
 
-    topo = get_rect_topo  # flat 1000 m depth, all ocean
+    topo = get_rect_topo_without_vc  # flat 1000 m depth, all ocean
     alias = topo._grid.name
 
     # Save the ocean grid files, as the mom6_forge notebook would.
