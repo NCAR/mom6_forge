@@ -35,7 +35,7 @@ class Topo:
         min_depth,
         channel_widths=None,
         version_control_dir="TopoLibrary",
-        git=True,
+        git=False,
     ):
         """
         MOM6 Simpler Models bathymetry constructor.
