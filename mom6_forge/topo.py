@@ -1278,7 +1278,7 @@ class Topo:
         print(
             """**NOTE**
             If bathymetry setup fails (e.g. kernel crashes), restart the kernel and edit this cell.
-            Call ``[topo_object_name].mpi_set_from_dataset()`` instead. Follow the given instructions for using mpi
+            Call ``[topo_object_name].mpi_set_depth_from_xesmf()`` instead. Follow the given instructions for using mpi
             and ESMF_Regrid outside of a python environment. This breaks up the process, so be sure to call
             ``[topo_object_name].fill_inland_lakes_and_channels()`` after regridding with mpi."""
         )
@@ -1348,7 +1348,7 @@ class Topo:
             print(f"""
             *MANUAL REGRIDDING INSTRUCTIONS*
 
-            Calling `[object_name].mpi_set_from_dataset` sets up the files necessary for regridding
+            Calling `[object_name].mpi_set_depth_from_xesmf` sets up the files necessary for regridding
             the bathymetry using mpirun and ESMF_Regrid. See below for the step-by-step instructions:
 
             1. There should be two files: `bathymetry_original.nc` and `bathymetry_unfinished.nc` located at
