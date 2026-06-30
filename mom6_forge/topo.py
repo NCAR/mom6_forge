@@ -1275,11 +1275,13 @@ class Topo:
                 Default: ``'bilinear'``.
 
         """
-        print("""**NOTE**
+        print(
+            """**NOTE**
             If bathymetry setup fails (e.g. kernel crashes), restart the kernel and edit this cell.
             Call ``[topo_object_name].mpi_set_from_dataset()`` instead. Follow the given instructions for using mpi
             and ESMF_Regrid outside of a python environment. This breaks up the process, so be sure to call
-            ``[topo_object_name].fill_inland_lakes_and_channels()`` after regridding with mpi.""")
+            ``[topo_object_name].fill_inland_lakes_and_channels()`` after regridding with mpi."""
+        )
         output_dir = Path(output_dir)
         self.src_bathymetry_dataset = self.src.ds
         self.destination_bathymetry = self._grid.get_esmf_ready_tracer_ds()
