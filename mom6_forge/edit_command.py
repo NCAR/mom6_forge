@@ -143,7 +143,9 @@ class DepthEditCommand(EditCommand):
         ov_arr = np.array(
             self.old_values if self.old_values is not None else [], dtype=np.float64
         )
-        h = hashlib.sha256(idx_arr.tobytes() + nv_arr.tobytes() + ov_arr.tobytes()).hexdigest()[:16]
+        h = hashlib.sha256(
+            idx_arr.tobytes() + nv_arr.tobytes() + ov_arr.tobytes()
+        ).hexdigest()[:16]
         nc_path = large_edits_dir / f"edit_{h}.nc"
 
         if not nc_path.exists():
@@ -290,7 +292,9 @@ class MaskEditCommand(EditCommand):
         ov_arr = np.array(
             self.old_values if self.old_values is not None else [], dtype=np.int8
         )
-        h = hashlib.sha256(idx_arr.tobytes() + nv_arr.tobytes() + ov_arr.tobytes()).hexdigest()[:16]
+        h = hashlib.sha256(
+            idx_arr.tobytes() + nv_arr.tobytes() + ov_arr.tobytes()
+        ).hexdigest()[:16]
         nc_path = large_edits_dir / f"edit_{h}.nc"
 
         if not nc_path.exists():

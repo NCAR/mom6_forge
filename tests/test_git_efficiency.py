@@ -58,7 +58,9 @@ def test_large_domain_depth_commit_is_fast(tx2_3v3_grid, tmp_path):
     history_size = os.path.getsize(history_file)
     head_entry = json.loads(json.loads(history_file.read_text())["head"])
 
-    assert "nc_filename" in head_entry, "Expected nc_filename key for large-domain depth edit"
+    assert (
+        "nc_filename" in head_entry
+    ), "Expected nc_filename key for large-domain depth edit"
     assert (
         "affected_indices" not in head_entry
     ), "Should not store inline indices for large edit"
