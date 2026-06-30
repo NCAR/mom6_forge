@@ -250,95 +250,34 @@ def test_cyclic_element_area_positive(cyclic_mesh):
         ("cyclic_sg", "cyclic"),
     ],
 )
-def test_roundtrip_corner_coords(sg_fixture, label, request, tmp_path):
+def test_roundtrip(sg_fixture, label, request, tmp_path):
     sg = request.getfixturevalue(sg_fixture)
     path = tmp_path / f"{label}.nc"
     sg.to_esmf_mesh(str(path))
     sg2 = SupergridBase.reconstruct_from_esmf_mesh(str(path))
+
+    # corner (q) and center (t) coords are stored verbatim — must be exact
     np.testing.assert_array_equal(sg2.x[::2, ::2], sg.x[::2, ::2])
     np.testing.assert_array_equal(sg2.y[::2, ::2], sg.y[::2, ::2])
-
-
-@pytest.mark.parametrize(
-    "sg_fixture,label",
-    [
-        ("non_cyclic_sg", "non_cyclic"),
-        ("cyclic_sg", "cyclic"),
-    ],
-)
-def test_roundtrip_center_coords(sg_fixture, label, request, tmp_path):
-    sg = request.getfixturevalue(sg_fixture)
-    path = tmp_path / f"{label}.nc"
-    sg.to_esmf_mesh(str(path))
-    sg2 = SupergridBase.reconstruct_from_esmf_mesh(str(path))
     np.testing.assert_array_equal(sg2.x[1::2, 1::2], sg.x[1::2, 1::2])
     np.testing.assert_array_equal(sg2.y[1::2, 1::2], sg.y[1::2, 1::2])
 
-
-@pytest.mark.parametrize(
-    "sg_fixture,label",
-    [
-        ("non_cyclic_sg", "non_cyclic"),
-        ("cyclic_sg", "cyclic"),
-    ],
-)
-def test_roundtrip_edge_coords(sg_fixture, label, request, tmp_path):
-    sg = request.getfixturevalue(sg_fixture)
-    path = tmp_path / f"{label}.nc"
-    sg.to_esmf_mesh(str(path))
-    sg2 = SupergridBase.reconstruct_from_esmf_mesh(str(path))
-    # v-points (even rows, odd cols) and u-points (odd rows, even cols)
+    # v-points (even rows, odd cols) and u-points (odd rows, even cols) — exact
     np.testing.assert_array_equal(sg2.x[::2, 1::2], sg.x[::2, 1::2])
     np.testing.assert_array_equal(sg2.y[::2, 1::2], sg.y[::2, 1::2])
     np.testing.assert_array_equal(sg2.x[1::2, ::2], sg.x[1::2, ::2])
     np.testing.assert_array_equal(sg2.y[1::2, ::2], sg.y[1::2, ::2])
 
-
-@pytest.mark.parametrize(
-    "sg_fixture,label",
-    [
-        ("non_cyclic_sg", "non_cyclic"),
-        ("cyclic_sg", "cyclic"),
-    ],
-)
-def test_roundtrip_supergrid_shape(sg_fixture, label, request, tmp_path):
-    sg = request.getfixturevalue(sg_fixture)
-    path = tmp_path / f"{label}.nc"
-    sg.to_esmf_mesh(str(path))
-    sg2 = SupergridBase.reconstruct_from_esmf_mesh(str(path))
+    # shape
     assert sg2.x.shape == sg.x.shape
     assert sg2.y.shape == sg.y.shape
 
-
-@pytest.mark.parametrize(
-    "sg_fixture,label",
-    [
-        ("non_cyclic_sg", "non_cyclic"),
-        ("cyclic_sg", "cyclic"),
-    ],
-)
-def test_roundtrip_metrics(sg_fixture, label, request, tmp_path):
-    sg = request.getfixturevalue(sg_fixture)
-    path = tmp_path / f"{label}.nc"
-    sg.to_esmf_mesh(str(path))
-    sg2 = SupergridBase.reconstruct_from_esmf_mesh(str(path))
+    # metrics recomputed from coords — approximate
     np.testing.assert_allclose(sg2.dx, sg.dx, rtol=1e-6)
     np.testing.assert_allclose(sg2.dy, sg.dy, rtol=1e-6)
     np.testing.assert_allclose(sg2.area, sg.area, rtol=1e-6)
 
-
-@pytest.mark.parametrize(
-    "sg_fixture,label",
-    [
-        ("non_cyclic_sg", "non_cyclic"),
-        ("cyclic_sg", "cyclic"),
-    ],
-)
-def test_roundtrip_axis_units(sg_fixture, label, request, tmp_path):
-    sg = request.getfixturevalue(sg_fixture)
-    path = tmp_path / f"{label}.nc"
-    sg.to_esmf_mesh(str(path))
-    sg2 = SupergridBase.reconstruct_from_esmf_mesh(str(path))
+    # axis units preserved
     assert sg2.axis_units == sg.axis_units
 
 
