@@ -1,0 +1,239 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "tags": []
+   },
+   "source": "# Applying an existing land fraction\n\nIn this notebook, we create a spherical grid with uniform resolution. We then implement a flat-bottom bathymetry. Finally, we apply a land fraction obtained from an already generated land dataset."
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 1. Import Modules"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "%%capture\n",
+    "import numpy as np\n",
+    "from mom6_forge.grid import Grid\n",
+    "from mom6_forge.topo import Topo"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 2. Create a horizontal MOM6 grid\n",
+    "\n",
+    "Spherical grid. x coordinates interval= [0, 360] degrees. y coordinates interval = [-80,+80] degrees"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Instantiate a MOM6 grid instance\n",
+    "grid = Grid(\n",
+    "    nx         = 360,         # Number of grid points in x direction\n",
+    "    ny         = 160,          # Number of grid points in y direction\n",
+    "    lenx       = 360.0,       # grid length in x direction, e.g., 360.0 (degrees)\n",
+    "    leny       = 160,         # grid length in y direction\n",
+    "    cyclic_x   = True,      # reentrant, spherical domain\n",
+    "    ystart     = -80          # start/end 10 degrees above/below poles to avoid singularity \n",
+    ")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 3. Configure the bathymetry"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Instantiate a Topo object associated with the horizontal grid object (grid).\n",
+    "topo = Topo(grid, min_depth=10.0)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "tags": []
+   },
+   "source": [
+    "### *flat bottom bathymetry*"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Set the bathymetry to be a flat bottom with a depth of 2000m\n",
+    "topo.set_flat(D=2000.0)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "topo.tmask.plot()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "tags": []
+   },
+   "source": [
+    "### *locate an existing land fraction*"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import xarray as xr\n",
+    "ds_land = xr.open_dataset(\"/glade/work/altuntas/cesm.input/vcg/fill_indianocean.nc\")\n",
+    "ds_land.landfrac.plot(size=7)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "tags": []
+   },
+   "source": [
+    "### *apply the existing land frac -- bilinear (default)*"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "topo.generate_mask_from_landfrac_file(\n",
+    "    landfrac_filepath = \"/glade/work/altuntas/cesm.input/vcg/fill_indianocean.nc\",\n",
+    "    landfrac_name = \"landfrac\",\n",
+    "    xcoord_name = \"lon\",\n",
+    "    ycoord_name = \"lat\"\n",
+    ")\n",
+    "\n",
+    "topo.tmask.plot(size=7)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "tags": []
+   },
+   "source": [
+    "### *Try out a different cutoff fraction (default is 0.5)*"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "# reset bathymetry\n",
+    "topo.set_flat(D=2000.0)\n",
+    "\n",
+    "# re-apply land frac with a different cutoff\n",
+    "topo.generate_mask_from_landfrac_file(\n",
+    "    landfrac_filepath = \"/glade/work/altuntas/cesm.input/vcg/fill_indianocean.nc\",\n",
+    "    landfrac_name = \"landfrac\",\n",
+    "    xcoord_name = \"lon\",\n",
+    "    ycoord_name = \"lat\",\n",
+    "    cutoff_frac = 0.3 ### reduce the cutoff from 0.5 to 0.3\n",
+    ")\n",
+    "\n",
+    "topo.tmask.plot(size=7)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "tags": []
+   },
+   "source": [
+    "## 4. Save the grid and bathymetry files"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# MOM6 supergrid file:\n",
+    "grid.write_supergrid(\"./ocean_hgrid_4.nc\")\n",
+    "\n",
+    "# MOM6 topography file:\n",
+    "topo.write_topo(\"./ocean_topog_4.nc\")\n",
+    "\n",
+    "# CICE grid file:\n",
+    "topo.write_cice_grid(\"./cice_grid_4.nc\")\n",
+    "\n",
+    "# SCRIP grid file (for runoff remapping, if needed):\n",
+    "topo.write_scrip_grid(\"./scrip_grid_4.nc\")\n",
+    "\n",
+    "# ESMF mesh file:\n",
+    "topo.write_esmf_mesh(\"./ESMF_mesh_4.nc\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python [conda env:mom6_forge]",
+   "language": "python",
+   "name": "conda-env-mom6_forge-py"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.11.15"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 4
+}
