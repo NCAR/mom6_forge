@@ -546,8 +546,10 @@ def generate_ESMF_map_via_xesmf(
 
     dst_is_cyclic_x = is_mesh_cyclic_x(dst_mesh_path)
 
+    src_ds = src_topo._grid.get_esmf_ready_tracer_ds()
+    src_ds["mask"] = src_topo.tmask
     regridder = xe.Regridder(
-        src_topo._grid.get_esmf_ready_tracer_ds(),
+        src_ds,
         dst_topo._grid.get_esmf_ready_tracer_ds(),
         method=method,
         periodic=dst_is_cyclic_x,
