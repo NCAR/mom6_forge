@@ -1098,7 +1098,7 @@ class Topo:
         2. Diagnose whether to use stats-based masking and Cressman interpolation based on resolution comparison between the source dataset and the model grid
         3. Apply a mask based on the user's choice or the resolution diagnostics recommendation (options are 'naturalearth', 'ocean_frac', 'dataset', 'manual', or None)
         4. Set the depth based on the user's choice or the resolution diagnostics recommendation (options are 'stats', 'xesmf', or None)
-        5. Tidy the dataset (fill channels, apply mask, etc.)
+        5. Call ``fill_channels()`` to finish processing the bathymetry (fill channels, apply mask, etc.)
 
         Parameters
         ----------
@@ -1322,8 +1322,8 @@ class Topo:
 
         Writes ``bathymetry_original.nc`` (source) and ``bathymetry_unfinished.nc``
         (destination grid shell) to ``output_dir``. The user then runs ``ESMF_Regrid``
-        externally with MPI, and finally calls ``fill_inland_lakes_and_channels()`` to
-        complete post-processing. Use this instead of ``set_depth_from_xesmf`` when the
+        externally with MPI, and finally calls ``fill_channels()`` to complete
+        post-processing. Use this instead of ``set_depth_from_xesmf`` when the
         domain is too large to regrid within a single Python process.
 
         Arguments:
