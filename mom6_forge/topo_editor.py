@@ -12,6 +12,10 @@ from matplotlib.widgets import RectangleSelector
 
 
 class TopoEditor(widgets.HBox):
+    # ------------------------------------------------------------------
+    # Construction
+    # ------------------------------------------------------------------
+
     def __init__(self, topo, build_ui=True):
         self.topo = topo
         self.ny = self.topo.masked_depth.data.shape[0]
@@ -35,128 +39,6 @@ class TopoEditor(widgets.HBox):
 
         # --- Initialize the widget layout ---
         super().__init__([self._control_panel, self._interactive_plot])
-
-    @property
-    def has_version_control(self):
-        """Check if the topo's has version control."""
-        return self.topo.has_version_control
-
-    @property
-    def active_cells(self):
-        if hasattr(self, "_selected_cells") and self._selected_cells:
-            return list(self._selected_cells)
-        elif self._selected_cell is not None:
-            j, i, *_ = self._selected_cell
-            return [(j, i)]
-        return []
-
-    def apply_edit(self, cmd):
-        """Apply an edit command, update the UI, and autosave the working state."""
-        self.topo.apply_edit(cmd)
-        self.trigger_refresh()
-
-    def undo_last_edit(self, b=None):
-        """Undo the last edit command and update the UI."""
-        assert self.topo.tcm.undo()
-        self.trigger_refresh()
-
-    def redo_last_edit(self, b=None):
-        """Redo the last undone edit command and update the UI."""
-        assert self.topo.tcm.redo()
-        self.trigger_refresh()
-
-    def reset(self, change):
-        """Reset the topo to its original state and update the UI."""
-        self.topo.tcm.reset()
-        self.trigger_refresh()
-
-    def update_undo_redo_buttons(self):
-        """Enable or disable the undo/redo buttons based on command history."""
-        if not self.has_version_control:
-            return
-        if hasattr(self, "_undo_button"):
-            self._undo_button.disabled = not self.topo.tcm.undo(check_only=True)
-        if hasattr(self, "_redo_button"):
-            self._redo_button.disabled = not self.topo.tcm.redo(check_only=True)
-
-    def construct_interactive_plot(self):
-        """
-        Construct the interactive matplotlib plot for the topography editor.
-
-        This sets up the main map display, colorbar, and coordinate formatting.
-        The plot is embedded in a widget for use in the Jupyter interface.
-        """
-        # Close any existing figure to avoid memory leaks
-        if hasattr(self, "fig") and self.fig is not None:
-            plt.close(self.fig)
-            self.fig = None
-            self.ax = None
-
-        plt.ioff()  # Turn off interactive mode for setup
-
-        # Create the figure and axis
-        self.fig = plt.figure(figsize=(7, 6))
-        self.ax = self.fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
-        self.ax.set_aspect("auto")
-
-        # Custom coordinate formatter for mouse hover
-        def format_coord(x, y):
-            j, i = self.topo._grid.get_indices(y, x)
-            return f"x={x:.2f}, y={y:.2f}, i={i}, j={j} depth={self.topo.masked_depth.data[j, i]:.2f}"
-
-        self.ax.format_coord = format_coord
-
-        # Set up colormap and plot the depth field
-        self.cmap = plt.get_cmap("viridis")
-        self.cmap.set_under("w")
-        self.im = self.ax.pcolormesh(
-            self.topo._grid.qlon.data,
-            self.topo._grid.qlat.data,
-            self.topo.masked_depth.data,
-            vmin=self.topo.min_depth,
-            cmap=self.cmap,
-            transform=ccrs.PlateCarree(),
-        )
-
-        # Axis labels and title
-        self.ax.set_title("Double click on a cell to change its depth.")
-        self.ax.set_xlabel(
-            f'x ({self.topo._grid.qlon.attrs.get("units", "degrees_east")})'
-        )
-        self.ax.set_ylabel(
-            f'y ({self.topo._grid.qlat.attrs.get("units", "degrees_north")})'
-        )
-
-        # Add colorbar for depth
-        self.cbar = self.fig.colorbar(
-            self.im, ax=self.ax, orientation="vertical", pad=0.02
-        )
-        self.cbar.set_label(f"Depth ({self.topo.masked_depth.units})")
-        self.cbar.set_ticks(MaxNLocator(integer=True))
-
-        # Enable toolbar and layout
-        self.fig.canvas.toolbar_visible = True
-        self.fig.canvas.toolbar_position = "top"
-        self.fig.tight_layout()
-        plt.ion()  # Restore interactive mode
-
-        # Wrap the figure in a widget for display
-
-        if self.build_ui:
-            self._interactive_plot = widgets.HBox(
-                children=(self.fig.canvas,), layout={"border_left": "1px solid grey"}
-            )
-        else:
-            self._interactive_plot = widgets.VBox([])
-        self._rect_selector = RectangleSelector(
-            self.ax,
-            self._on_rect_select,
-            useblit=True,
-            button=[1],
-            interactive=True,
-            props=dict(edgecolor="red", facecolor="red", alpha=0.2, fill=True),
-        )
-        self._rect_selector.set_active(False)  # off by default
 
     def construct_control_panel(self):
         """
@@ -190,10 +72,17 @@ class TopoEditor(widgets.HBox):
         self._selected_cell_label = widgets.Label(
             "Selected cell: None (double click to select a cell)."
         )
-        self._rect_select_button = widgets.ToggleButton(
+        self._rect_or_single_select_button = widgets.ToggleButton(
             value=False,
-            description="Mark Rectangular Region",
+            description="Switch to Rectangle Selection",
+            disabled=False,
             button_style="info",
+            layout={"width": "80%"},
+        )
+        self._clear_selection_button = widgets.Button(
+            description="Clear Selection",
+            disabled=True,
+            button_style="warning",
             layout={"width": "80%"},
         )
         self._depth_specifier = widgets.FloatText(
@@ -305,7 +194,8 @@ class TopoEditor(widgets.HBox):
         )
         cell_editing_section_children = [
             widgets.HTML("<h3>Cell Editing</h3>"),
-            self._rect_select_button,
+            self._rect_or_single_select_button,
+            self._clear_selection_button,
             self._selected_cell_label,
             self._depth_specifier,
             self._mask_specifier,
@@ -392,6 +282,160 @@ class TopoEditor(widgets.HBox):
             layout={"width": "30%", "height": "100%", "overflow_y": "auto"},
         )
 
+    def construct_interactive_plot(self):
+        """
+        Construct the interactive matplotlib plot for the topography editor.
+
+        This sets up the main map display, colorbar, and coordinate formatting.
+        The plot is embedded in a widget for use in the Jupyter interface.
+        """
+        # Close any existing figure to avoid memory leaks
+        if hasattr(self, "fig") and self.fig is not None:
+            plt.close(self.fig)
+            self.fig = None
+            self.ax = None
+
+        plt.ioff()  # Turn off interactive mode for setup
+
+        # Create the figure and axis
+        self.fig = plt.figure(figsize=(7, 6))
+        self.ax = self.fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
+        self.ax.set_aspect("auto")
+
+        # Custom coordinate formatter for mouse hover
+        def format_coord(x, y):
+            j, i = self.topo._grid.get_indices(y, x)
+            return f"x={x:.2f}, y={y:.2f}, i={i}, j={j} depth={self.topo.masked_depth.data[j, i]:.2f}"
+
+        self.ax.format_coord = format_coord
+
+        # Set up colormap and plot the depth field
+        self.cmap = plt.get_cmap("viridis")
+        self.cmap.set_under("w")
+        self.im = self.ax.pcolormesh(
+            self.topo._grid.qlon.data,
+            self.topo._grid.qlat.data,
+            self.topo.masked_depth.data,
+            vmin=self.topo.min_depth,
+            cmap=self.cmap,
+            transform=ccrs.PlateCarree(),
+        )
+
+        # Axis labels and title
+        self.ax.set_title("Double click on a cell to change its depth.")
+        self.ax.set_xlabel(
+            f'x ({self.topo._grid.qlon.attrs.get("units", "degrees_east")})'
+        )
+        self.ax.set_ylabel(
+            f'y ({self.topo._grid.qlat.attrs.get("units", "degrees_north")})'
+        )
+
+        # Add colorbar for depth
+        self.cbar = self.fig.colorbar(
+            self.im, ax=self.ax, orientation="vertical", pad=0.02
+        )
+        self.cbar.set_label(f"Depth ({self.topo.masked_depth.units})")
+        self.cbar.set_ticks(MaxNLocator(integer=True))
+
+        # Enable toolbar and layout
+        self.fig.canvas.toolbar_visible = True
+        self.fig.canvas.toolbar_position = "top"
+        self.fig.tight_layout()
+        plt.ion()  # Restore interactive mode
+
+        # Wrap the figure in a widget for display
+
+        if self.build_ui:
+            self._interactive_plot = widgets.HBox(
+                children=(self.fig.canvas,), layout={"border_left": "1px solid grey"}
+            )
+        else:
+            self._interactive_plot = widgets.VBox([])
+        self._rect_selector = RectangleSelector(
+            self.ax,
+            self._on_rect_select,
+            # useblit=False: the editor does plenty of full canvas redraws of
+            # its own (draw_idle on every selection/edit/mode change) that
+            # aren't coordinated with the selector's blit background cache,
+            # which goes stale and makes the rectangle fill vanish.
+            useblit=False,
+            button=[1],
+            interactive=True,
+            props=dict(edgecolor="red", facecolor="red", alpha=0.2, fill=True),
+        )
+        self._rect_selector.set_active(False)  # off by default
+
+    def construct_observances(self):
+        """Attach event observers and callbacks to all interactive widgets and plot elements."""
+        # Display mode toggle
+        self._display_mode_toggle.observe(
+            self.refresh_display_mode, names="value", type="change"
+        )
+
+        # Double click event for cell selection on the plot
+        self.fig.canvas.mpl_connect("button_press_event", self.on_double_click)
+        self._rect_or_single_select_button.observe(
+            self._on_rect_or_single_select_toggle, names="value"
+        )
+        self._clear_selection_button.on_click(self._on_clear_selection)
+
+        # Min depth change observer
+        self._min_depth_specifier.observe(
+            self.on_min_depth_change, names="value", type="change"
+        )
+
+        # Basin erase buttons
+        self._basin_specifier_toggle.on_click(self.erase_disconnected_basin)
+        self._basin_specifier_delete_selected.on_click(self.erase_selected_basin)
+
+        # Depth change observer for selected cell
+        self._depth_specifier.observe(
+            self.on_depth_change, names="value", type="change"
+        )
+
+        # Mask change observer for selected cell
+        self._mask_specifier.observe(self.on_mask_change, names="value", type="change")
+        self._clear_user_mask_button.on_click(self.clear_user_mask)
+        # Statistic buttons
+        self._set_to_mean_button.on_click(self.set_depth_to_mean)
+        self._set_to_max_button.on_click(self.set_depth_to_max)
+        self._set_to_min_button.on_click(self.set_depth_to_min)
+
+        if self.has_version_control:
+            # Undo/Redo/Reset buttons
+            self._undo_button.on_click(self.undo_last_edit)
+            self._redo_button.on_click(self.redo_last_edit)
+            self._reset_button.on_click(self.reset)
+
+            # Snapshot controls
+            self._save_button.on_click(self.on_tag)
+
+            # Git/domain controls
+            self._git_create_branch_button.on_click(self.on_git_create_branch)
+            self._git_checkout_button.on_click(self.on_git_checkout)
+
+    # ------------------------------------------------------------------
+    # Properties
+    # ------------------------------------------------------------------
+
+    @property
+    def has_version_control(self):
+        """Check if the topo's has version control."""
+        return self.topo.has_version_control
+
+    @property
+    def active_cells(self):
+        if hasattr(self, "_selected_cells") and self._selected_cells:
+            return list(self._selected_cells)
+        elif self._selected_cell is not None:
+            j, i, *_ = self._selected_cell
+            return [(j, i)]
+        return []
+
+    # ------------------------------------------------------------------
+    # Display / refresh
+    # ------------------------------------------------------------------
+
     def refresh_display_mode(self, change):
         """Refresh the display mode of the topography plot based on the selected mode."""
         mode = change["new"]
@@ -429,6 +473,10 @@ class TopoEditor(widgets.HBox):
         self.refresh_display_mode({"new": self._display_mode_toggle.value})
         self._min_depth_specifier.value = self.topo.min_depth
         self.update_undo_redo_buttons()
+
+    # ------------------------------------------------------------------
+    # Cell selection
+    # ------------------------------------------------------------------
 
     def _select_cell(self, i, j):
         """Select a cell in the topography grid and update the UI accordingly."""
@@ -522,93 +570,21 @@ class TopoEditor(widgets.HBox):
                     self._basin_specifier_toggle.disabled = True
                     self._basin_specifier_delete_selected.disabled = True
 
-    def construct_observances(self):
-        """Attach event observers and callbacks to all interactive widgets and plot elements."""
-        # Display mode toggle
-        self._display_mode_toggle.observe(
-            self.refresh_display_mode, names="value", type="change"
-        )
-
-        # Double click event for cell selection on the plot
-        self.fig.canvas.mpl_connect("button_press_event", self.on_double_click)
-        self._rect_select_button.observe(self._on_rect_select_toggle, names="value")
-
-        # Min depth change observer
-        self._min_depth_specifier.observe(
-            self.on_min_depth_change, names="value", type="change"
-        )
-
-        # Basin erase buttons
-        self._basin_specifier_toggle.on_click(self.erase_disconnected_basin)
-        self._basin_specifier_delete_selected.on_click(self.erase_selected_basin)
-
-        # Depth change observer for selected cell
-        self._depth_specifier.observe(
-            self.on_depth_change, names="value", type="change"
-        )
-
-        # Mask change observer for selected cell
-        self._mask_specifier.observe(self.on_mask_change, names="value", type="change")
-        self._clear_user_mask_button.on_click(self.clear_user_mask)
-        # Statistic buttons
-        self._set_to_mean_button.on_click(self.set_depth_to_mean)
-        self._set_to_max_button.on_click(self.set_depth_to_max)
-        self._set_to_min_button.on_click(self.set_depth_to_min)
-
-        if self.has_version_control:
-            # Undo/Redo/Reset buttons
-            self._undo_button.on_click(self.undo_last_edit)
-            self._redo_button.on_click(self.redo_last_edit)
-            self._reset_button.on_click(self.reset)
-
-            # Snapshot controls
-            self._save_button.on_click(self.on_tag)
-
-            # Git/domain controls
-            self._git_create_branch_button.on_click(self.on_git_create_branch)
-            self._git_checkout_button.on_click(self.on_git_checkout)
-
-    # --- UI Callback Methods ---
-    def _on_rect_select_toggle(self, change):
-        if change["new"]:  # rectangle mode ON
-            # Deactivate matplotlib toolbar zoom mode if it's active
-            toolbar = getattr(self.fig.canvas, "toolbar", None)
-            if (
-                toolbar is not None
-                and hasattr(toolbar, "mode")
-                and "zoom" in str(toolbar.mode).lower()
-            ):
-                toolbar.zoom()
-            # Clear the single-cell selection entirely
-            if self._selected_cell is not None and self._selected_cell[2] is not None:
-                try:
-                    self._selected_cell[2].remove()
-                except Exception:
-                    pass
-            self._selected_cell = None
-            for btn, label in [
-                (self._set_to_mean_button, "Mean"),
-                (self._set_to_max_button, "Max"),
-                (self._set_to_min_button, "Min"),
-            ]:
-                btn.description = label
-            self._rect_selector.set_active(True)
-            self._rect_select_button.button_style = "info"
-            self._rect_select_button.description = "Unmark Region"
-        else:  # rectangle mode OFF
-            self._rect_selector.set_active(False)
-            self._rect_selector.clear()  # removes the drawn box
-            self.fig.canvas.draw_idle()  # force redraw
-            self._rect_select_button.button_style = ""
-            self._rect_select_button.description = "Mark Rectangular Region"
-            self._selected_cells = []
-            self._selected_cell_label.value = (
-                "Selected cell: None (double click to select a cell)."
-            )
-            self._depth_specifier.disabled = True
-            self._mask_specifier.disabled = True
+    def on_double_click(self, event):
+        """Handle double-click events on the plot to select a cell."""
+        if (
+            self._rect_or_single_select_button.value
+        ):  # rectangle mode active, ignore double clicks
+            return
+        if event.dblclick and event.xdata is not None and event.ydata is not None:
+            # Convert lon/lat to grid indices
+            j, i = self.topo._grid.get_indices(event.ydata, event.xdata)
+            if 0 <= i < self.nx and 0 <= j < self.ny:
+                self._select_cell(i, j)
+        self._clear_selection_button.disabled = False
 
     def _on_rect_select(self, eclick, erelease):
+        self._clear_selection_button.disabled = False
         lon_min, lon_max = sorted([eclick.xdata, erelease.xdata])
         lat_min, lat_max = sorted([eclick.ydata, erelease.ydata])
         lon_min = (lon_min + 360) % 360
@@ -633,62 +609,92 @@ class TopoEditor(widgets.HBox):
         self._depth_specifier.disabled = False
         self._mask_specifier.disabled = False
 
-    def on_tag(self, _btn=None):
-        """Save the current state as a snapshot and commit it to the repository."""
-        name = self._tag_name.value.strip()
-        if not name:
-            print("Enter a snapshot name!")
-            return
+        # Enable statistic buttons if statistics are available (no single
+        # value to preview across multiple cells, so just show the label)
+        has_stats = self.topo.stats is not None
+        for btn in (
+            self._set_to_mean_button,
+            self._set_to_max_button,
+            self._set_to_min_button,
+        ):
+            btn.disabled = not (has_stats and n > 0)
 
-        self.topo.tcm.tag(name)  # TODO: Save a tag!
-        print(f"Saved tag '{name}'.")
-        return
-
-    def on_double_click(self, event):
-        """Handle double-click events on the plot to select a cell."""
-        if (
-            self._rect_select_button.value
-        ):  # rectangle mode active, ignore double clicks
-            return
-        if event.dblclick and event.xdata is not None and event.ydata is not None:
-            # Convert lon/lat to grid indices
-            j, i = self.topo._grid.get_indices(event.ydata, event.xdata)
-            if 0 <= i < self.nx and 0 <= j < self.ny:
-                self._select_cell(i, j)
-
-    def on_min_depth_change(self, change):
-        """Handle changes to the minimum depth specifier."""
-        old_val = self.topo.min_depth
-        new_val = change["new"]
-        if old_val != new_val:
-            cmd = MinDepthEditCommand(
-                self.topo, attr="min_depth", new_value=new_val, old_value=old_val
+    def _on_rect_or_single_select_toggle(self, change):
+        if change["new"]:  # rectangle mode ON
+            # Deactivate matplotlib toolbar zoom mode if it's active
+            toolbar = getattr(self.fig.canvas, "toolbar", None)
+            if (
+                toolbar is not None
+                and hasattr(toolbar, "mode")
+                and "zoom" in str(toolbar.mode).lower()
+            ):
+                toolbar.zoom()
+            # Clear the single-cell selection entirely
+            if self._selected_cell is not None and self._selected_cell[2] is not None:
+                try:
+                    self._selected_cell[2].remove()
+                except Exception:
+                    pass
+            self._selected_cell = None
+            self._reset_statistic_buttons()
+            self._rect_selector.set_active(True)
+            self._rect_or_single_select_button.button_style = "info"
+            self._rect_or_single_select_button.description = (
+                "Switch to Single Cell Selection"
             )
-            self.apply_edit(cmd)
-            self.update_undo_redo_buttons()
+            self._clear_selection_button.disabled = True
+        else:  # rectangle mode OFF
+            self._rect_selector.set_active(False)
+            self._rect_selector.clear()  # removes the drawn box
+            self.fig.canvas.draw_idle()  # force redraw
+            self._rect_or_single_select_button.button_style = ""
+            self._rect_or_single_select_button.description = (
+                "Switch to Rectangle Selection"
+            )
+            self._selected_cells = []
+            self._selected_cell_label.value = (
+                "Selected cell: None (double click to select a cell)."
+            )
+            self._depth_specifier.disabled = True
+            self._mask_specifier.disabled = True
+            self._clear_selection_button.disabled = True
+            self._reset_statistic_buttons()
 
-    def erase_disconnected_basin(self, b):
-        """Erase all disconnected basins in the topography."""
-        if self._selected_cell is None:
-            return
-        j, i, _ = self._selected_cell
-        self.topo.erase_disconnected_basin(i, j)
-        self.update_undo_redo_buttons()
+    # ------------------------------------------------------------------
+    # Cell deselection
+    # ------------------------------------------------------------------
 
-    def clear_user_mask(self, b):
-        """Clear the manual mask if it exists."""
-        if self.topo._user_mask is not None:
-            self.topo.clear_user_mask()
-            self.update_undo_redo_buttons()
-            self.trigger_refresh()
+    def _on_clear_selection(self, button_instance):
+        """Clear the current selection of cells."""
+        if not self._rect_or_single_select_button.value:
+            self._selected_cell = None
+            self._selected_cell_label.value = "Selected cell: None "
+            # Remove any existing polygon patches from the plot
+            if hasattr(self, "ax"):
+                for patch in list(self.ax.patches):
+                    patch.remove()
+        else:
+            self._selected_cells = []
+            self._rect_selector.clear()  # removes the drawn box
+        self._depth_specifier.disabled = True
+        self._mask_specifier.disabled = True
+        self._clear_selection_button.disabled = True
+        self._reset_statistic_buttons()
+        self.fig.canvas.draw_idle()
 
-    def erase_selected_basin(self, b):
-        """Erase the basin associated with the currently selected cell."""
-        if self._selected_cell is None:
-            return
-        j, i, _ = self._selected_cell
-        self.topo.erase_selected_basin(i, j)
-        self.update_undo_redo_buttons()
+    def _reset_statistic_buttons(self):
+        """Disable the statistic buttons and clear their value labels."""
+        for btn, label in [
+            (self._set_to_mean_button, "Mean"),
+            (self._set_to_max_button, "Max"),
+            (self._set_to_min_button, "Min"),
+        ]:
+            btn.disabled = True
+            btn.description = label
+
+    # ------------------------------------------------------------------
+    # Setters (depth / mask edits)
+    # ------------------------------------------------------------------
 
     def on_depth_change(self, change):
         """Handle changes to the depth specifier for the selected cell."""
@@ -724,6 +730,28 @@ class TopoEditor(widgets.HBox):
         )
         self.apply_edit(cmd)
         self.update_undo_redo_buttons()
+
+    def on_min_depth_change(self, change):
+        """Handle changes to the minimum depth specifier."""
+        old_val = self.topo.min_depth
+        new_val = change["new"]
+        if old_val != new_val:
+            cmd = MinDepthEditCommand(
+                self.topo, attr="min_depth", new_value=new_val, old_value=old_val
+            )
+            self.apply_edit(cmd)
+            self.update_undo_redo_buttons()
+
+    def clear_user_mask(self, b):
+        """Clear the manual mask if it exists."""
+        if self.topo._user_mask is not None:
+            self.topo.clear_user_mask()
+            self.update_undo_redo_buttons()
+            self.trigger_refresh()
+
+    # ------------------------------------------------------------------
+    # Statistics
+    # ------------------------------------------------------------------
 
     def _get_statistic_value(self, stat_name):
         """Get a statistic value for the selected cell."""
@@ -771,6 +799,74 @@ class TopoEditor(widgets.HBox):
 
     def set_depth_to_min(self, b):
         self._apply_statistic("D_min")
+
+    # ------------------------------------------------------------------
+    # Basin editing
+    # ------------------------------------------------------------------
+
+    def erase_disconnected_basin(self, b):
+        """Erase all disconnected basins in the topography."""
+        if self._selected_cell is None:
+            return
+        j, i, _ = self._selected_cell
+        self.topo.erase_disconnected_basin(i, j)
+        self.update_undo_redo_buttons()
+
+    def erase_selected_basin(self, b):
+        """Erase the basin associated with the currently selected cell."""
+        if self._selected_cell is None:
+            return
+        j, i, _ = self._selected_cell
+        self.topo.erase_selected_basin(i, j)
+        self.update_undo_redo_buttons()
+
+    # ------------------------------------------------------------------
+    # Undo / redo / history
+    # ------------------------------------------------------------------
+
+    def apply_edit(self, cmd):
+        """Apply an edit command, update the UI, and autosave the working state."""
+        self.topo.apply_edit(cmd)
+        self.trigger_refresh()
+
+    def undo_last_edit(self, b=None):
+        """Undo the last edit command and update the UI."""
+        assert self.topo.tcm.undo()
+        self.trigger_refresh()
+
+    def redo_last_edit(self, b=None):
+        """Redo the last undone edit command and update the UI."""
+        assert self.topo.tcm.redo()
+        self.trigger_refresh()
+
+    def reset(self, change):
+        """Reset the topo to its original state and update the UI."""
+        self.topo.tcm.reset()
+        self.trigger_refresh()
+
+    def update_undo_redo_buttons(self):
+        """Enable or disable the undo/redo buttons based on command history."""
+        if not self.has_version_control:
+            return
+        if hasattr(self, "_undo_button"):
+            self._undo_button.disabled = not self.topo.tcm.undo(check_only=True)
+        if hasattr(self, "_redo_button"):
+            self._redo_button.disabled = not self.topo.tcm.redo(check_only=True)
+
+    # ------------------------------------------------------------------
+    # Git / version control
+    # ------------------------------------------------------------------
+
+    def on_tag(self, _btn=None):
+        """Save the current state as a snapshot and commit it to the repository."""
+        name = self._tag_name.value.strip()
+        if not name:
+            print("Enter a snapshot name!")
+            return
+
+        self.topo.tcm.tag(name)  # TODO: Save a tag!
+        print(f"Saved tag '{name}'.")
+        return
 
     def on_git_create_branch(self, b):
         """Create a new git branch"""

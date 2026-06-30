@@ -117,7 +117,7 @@ def test_undo_mask_change(get_editor):
 
 def test_rect_toggle_gates_double_click(get_editor):
     """Double click should be ignored when rect mode is active."""
-    get_editor._rect_select_button.value = True
+    get_editor._rect_or_single_select_button.value = True
     mock_event = MagicMock()
     mock_event.dblclick = True
     mock_event.xdata = 279.0
@@ -129,8 +129,8 @@ def test_rect_toggle_gates_double_click(get_editor):
 def test_rect_toggle_off_clears_selection(get_editor):
     """Turning off rect mode clears selected cells."""
     get_editor._selected_cells = [(0, 0), (1, 1)]
-    get_editor._rect_select_button.value = True
-    get_editor._rect_select_button.value = False
+    get_editor._rect_or_single_select_button.value = True
+    get_editor._rect_or_single_select_button.value = False
     assert get_editor._selected_cells == []
 
 
