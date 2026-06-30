@@ -105,25 +105,18 @@ def test_topo_no_git(get_rect_topo_without_vc):
 # ---------------------------------------------------------------------------
 
 
-def test_topo_from_esmf_mesh_shape(get_rect_topo, tmp_path):
+def test_topo_from_esmf_mesh_roundtrip(get_rect_topo, tmp_path):
     topo = get_rect_topo
+    # Stamp some land cells into the mask before writing
+    land_mask = topo.tmask.values.copy()
+    land_mask[:2, :3] = 0
+    topo._user_mask = xr.DataArray(land_mask, dims=["ny", "nx"])
     mesh_path = str(tmp_path / "test.nc")
     topo.write_esmf_mesh(mesh_path)
     topo2 = Topo.from_esmf_mesh(mesh_path, git=False)
     assert topo2.tmask.shape == topo.tmask.shape
     assert topo2._grid.nx == topo._grid.nx
     assert topo2._grid.ny == topo._grid.ny
-
-
-def test_topo_from_esmf_mesh_mask_roundtrip(get_rect_topo, tmp_path):
-    topo = get_rect_topo
-    # Stamp some land cells into the mask before writing
-    land_mask = topo.tmask.values.copy()
-    land_mask[:2, :3] = 0
-    topo._user_mask = xr.DataArray(land_mask, dims=["ny", "nx"])
-    mesh_path = str(tmp_path / "masked.nc")
-    topo.write_esmf_mesh(mesh_path)
-    topo2 = Topo.from_esmf_mesh(mesh_path, git=False)
     np.testing.assert_array_equal(topo2.tmask.values, land_mask)
 
 
