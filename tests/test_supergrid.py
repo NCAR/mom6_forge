@@ -366,3 +366,19 @@ def test_tripolar_mesh_matches_reference(tripolar_mesh, reference_tripolar_mesh)
     our_area_sum = tripolar_mesh["elementArea"].values.sum()
     ref_area_sum = reference_tripolar_mesh["elementArea"].values.sum()
     np.testing.assert_allclose(our_area_sum, ref_area_sum, rtol=1e-4)
+
+
+def test_tripolar_roundtrip(tripolar_sg, tmp_path):
+    """reconstruct_from_esmf_mesh should recover corner and center coords exactly for tx2_3v3."""
+    path = tmp_path / "tripolar.nc"
+    tripolar_sg.to_esmf_mesh(str(path))
+    sg2 = SupergridBase.reconstruct_from_esmf_mesh(str(path))
+
+    assert sg2.x.shape == tripolar_sg.x.shape
+    assert sg2.y.shape == tripolar_sg.y.shape
+
+    # corner (q) and center (t) coords stored verbatim — must be exact
+    np.testing.assert_array_equal(sg2.x[::2, ::2], tripolar_sg.x[::2, ::2])
+    np.testing.assert_array_equal(sg2.y[::2, ::2], tripolar_sg.y[::2, ::2])
+    np.testing.assert_array_equal(sg2.x[1::2, 1::2], tripolar_sg.x[1::2, 1::2])
+    np.testing.assert_array_equal(sg2.y[1::2, 1::2], tripolar_sg.y[1::2, 1::2])

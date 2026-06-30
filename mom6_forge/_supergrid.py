@@ -444,9 +444,15 @@ class SupergridBase:
             top_full_lat = np.empty(nx)
             top_full_lon[: nx // 2 + 1] = top_stored_lon
             top_full_lat[: nx // 2 + 1] = top_stored_lat
-            for j in range(1, nx // 2):
-                top_full_lon[nx // 2 + j] = 360.0 - top_stored_lon[nx // 2 - j]
-                top_full_lat[nx // 2 + j] = top_stored_lat[nx // 2 - j]
+            # Fold: right-half values mirror the left half reversed.
+            # Values below the fold-point longitude need +360 to stay on the
+            # upper branch and preserve the monotone-increasing top row.
+            fold_lon = top_stored_lon[nx // 2]
+            mirrors = top_stored_lon[nx // 2 - 1 : 0 : -1]  # reversed, length nx//2-1
+            top_full_lon[nx // 2 + 1 :] = np.where(
+                mirrors < fold_lon, mirrors + 360.0, mirrors
+            )
+            top_full_lat[nx // 2 + 1 :] = top_stored_lat[nx // 2 - 1 : 0 : -1]
 
             qlon_inner = np.vstack([rows_except_top_lon, top_full_lon[np.newaxis, :]])
             qlat_inner = np.vstack([rows_except_top_lat, top_full_lat[np.newaxis, :]])
