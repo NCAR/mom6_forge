@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-import tempfile
 from pathlib import Path
 import xarray as xr
 from mom6_forge.grid import Grid
@@ -47,9 +46,21 @@ def get_curvilinear_supergrid():
     )
 
 
-@pytest.fixture
+# ---------------------------------------------------------------------------
+# Vertical grid (vgrid)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
 def get_realistic_vgrid_elements():
-    """Generate all three relevant vertical data pieces based on a 65 layer vertical grid for the Caribbean."""
+    """65-layer Caribbean vertical grid: (layer_thickness, cell_center, cell_interface).
+
+    Use for any test that needs physically realistic z* coordinates — layer
+    thicknesses grow from 2.5 m near the surface to ~249 m at depth, reaching
+    6000 m total.  The values are derived from an actual MOM6 Caribbean
+    configuration, so they exercise real-world layer-count and depth-range
+    edge cases.  Pure data; safe to share across the entire session.
+    """
     layer_thickness = np.array(
         [
             2.5,
@@ -264,21 +275,36 @@ def get_realistic_vgrid_elements():
     return (layer_thickness, cell_center, cell_interface)
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def get_faulty_vgrid_elements():
-    """Generate purposefully faulty vgrid elements. They follow appropriate mathematical rules but violate real world."""
+    """10-layer vgrid with deliberate physical violations (zero and negative thicknesses).
 
+    Use for tests that validate VGrid rejection / error-handling logic.  The
+    arrays are arithmetically self-consistent so they pass low-level shape
+    checks, but contain a zero-thickness layer and a negative-thickness layer
+    that should trigger domain-validity errors.  Pure data; safe to share
+    across the entire session.
+    """
     layer_thickness = np.array([1, 5, 6, 3, 5, 1, 0, -3, 5, 6])
-
     cell_center = np.array([0.5, 3.5, 8.5, 12.5, 16.5, 19.5, 20, 18.5, 19.5, 25])
-
     cell_interface = np.array([0, 1, 6, 11, 14, 19, 20, 20, 17, 22, 28])
-
     return (layer_thickness, cell_center, cell_interface)
+
+
+# ---------------------------------------------------------------------------
+# Panama / rectangular region  (0.1°, 278-282°E, 7-10°N)
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
 def get_rect_grid():
+    """0.1° rectilinear Grid over the Panama region (278-282°E, 7-10°N), 40×30 cells.
+
+    The general-purpose horizontal grid fixture.  Use it when a test needs a
+    realistic mid-resolution regional domain — grid slicing, segment metadata,
+    supergrid properties, or as the base for get_rect_topo.  The Panama region
+    is free of polar singularities and has well-behaved Mercator geometry.
+    """
     grid = Grid(
         resolution=0.1,
         xstart=278.0,
@@ -288,6 +314,37 @@ def get_rect_grid():
         name="panama1",
     )
     return grid
+
+
+@pytest.fixture(scope="module")
+def synthetic_bathy_file(tmp_path_factory):
+    """80×70 NetCDF bathymetry covering the Panama region (276-284°E, 5-12°N).
+
+    Pairs with get_rect_grid / get_rect_topo.  Use for tests that exercise
+    SourceBathy ingestion, stat computation, mask generation from ocean
+    fraction, or set_from_dataset on a realistically-sized source grid.
+    Contains a synthetic circular island near (280°E, 8.5°N) so that
+    land/ocean masking logic sees at least one non-trivial land cell.
+    Elevation is positive-upward (GEBCO convention): ocean = -500 m, island
+    = +200 m.  Written once per test module.
+    """
+    bathy_file = str(tmp_path_factory.mktemp("bathy") / "synthetic_bathy.nc")
+
+    lon = np.linspace(276, 284, 80)
+    lat = np.linspace(5, 12, 70)
+    elevation = np.full((len(lat), len(lon)), -500.0)
+
+    lon_2d, lat_2d = np.meshgrid(lon, lat)
+    island_mask = (lon_2d - 280) ** 2 + (lat_2d - 8.5) ** 2 < 0.5
+    elevation[island_mask] = 200.0
+
+    ds = xr.Dataset(
+        {"elevation": (["lat", "lon"], elevation)},
+        coords={"lon": lon, "lat": lat},
+    )
+    ds.to_netcdf(bathy_file)
+    yield bathy_file
+    Path(bathy_file).unlink()
 
 
 @pytest.fixture
@@ -304,96 +361,175 @@ def get_rect_topo_without_vc(get_rect_grid):
     return topo
 
 
+# ---------------------------------------------------------------------------
+# Tiny equatorial Pacific  (1°, 170-173°E, -3-0°N)
+# ---------------------------------------------------------------------------
+
+
 @pytest.fixture
-def synthetic_bathy_file():
-    """Create a temporary synthetic bathymetry NetCDF file for testing.
+def tiny_topo():
+    """3×3 cell, 1° Topo over open equatorial Pacific (170-173°E, -3-0°N), no git.
 
-    Covers the Panama region (278-282°E, 7-10°N) to match get_rect_grid().
+    Preferred fixture for parametrized set_from_dataset tests.  The 9-cell
+    domain is ~180× smaller than get_rect_topo, which matters when
+    set_from_dataset runs once per (depth_method × mask_method) combination.
+    All ocean — no land cells — so masking logic stays out of the way unless
+    the test explicitly sets a mask.
     """
-    with tempfile.NamedTemporaryFile(suffix=".nc", delete=False) as tmp:
-        bathy_file = tmp.name
+    grid = Grid(
+        resolution=1.0, xstart=170.0, lenx=3.0, ystart=-3.0, leny=3.0, name="tiny"
+    )
+    topo = Topo(grid, min_depth=0, git=False)
+    topo.set_flat(1000)
+    return topo
 
-    # Create synthetic bathymetry covering the Panama region
-    # get_rect_grid uses xstart=278, lenx=4, ystart=7, leny=3
-    # So we need lon 278-282, lat 7-10 with some buffer
-    lon = np.linspace(276, 284, 80)  # Cover 278-282 with buffer
-    lat = np.linspace(5, 12, 70)  # Cover 7-10 with buffer
 
-    # Create synthetic depth data (positive-up, like GEBCO)
-    # Ocean is negative (water), land is positive
-    elevation = np.full((len(lat), len(lon)), -500.0)  # Ocean baseline = 500m deep
+@pytest.fixture(scope="module")
+def tiny_bathy_file(tmp_path_factory):
+    """17×17 NetCDF bathymetry at 0.25° spacing covering 169.5-173.5°E, -3.5-0.5°N.
 
-    # Add synthetic land masses (islands)
-    # Create an island around (280, 8.5)
-    lon_2d, lat_2d = np.meshgrid(lon, lat)
-    island_mask = (lon_2d - 280) ** 2 + (lat_2d - 8.5) ** 2 < 0.5
-    elevation[island_mask] = 200.0  # Synthetic island
+    Pairs with tiny_topo.  Use alongside tiny_topo for fast parametrized
+    set_from_dataset tests.  Entirely ocean at -1000 m (positive-upward,
+    GEBCO convention) with a 0.5° buffer around the tiny_topo domain so the
+    regridder always has source points near every destination cell.  Written
+    once per test module.
+    """
+    path = str(tmp_path_factory.mktemp("bathy") / "tiny_bathy.nc")
+
+    lon = np.linspace(169.5, 173.5, 17)
+    lat = np.linspace(-3.5, 0.5, 17)
+    elevation = np.full((17, 17), -1000.0)
 
     ds = xr.Dataset(
-        {
-            "elevation": (["lat", "lon"], elevation),
-        },
-        coords={
-            "lon": lon,
-            "lat": lat,
-        },
+        {"elevation": (["lat", "lon"], elevation)},
+        coords={"lon": lon, "lat": lat},
     )
-    ds.to_netcdf(bathy_file)
-
-    yield bathy_file
-
-    # Cleanup
-    Path(bathy_file).unlink()
+    ds.to_netcdf(path)
+    yield path
+    Path(path).unlink()
 
 
-@pytest.fixture
+# ---------------------------------------------------------------------------
+# Supergrid (rotation tests)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def get_curvilinear_supergrid():
+    """10×10 synthetic supergrid uniformly rotated 30° from East.
+
+    Use for rotation-angle unit tests.  Every point has angle_dx = 30° by
+    construction, providing an exact analytical ground truth to compare
+    against computed rotation angles.  The grid is centred at (10°E, 10°N)
+    to stay well away from the equator (where cos(lat) → 1 trivially) and
+    from the poles.  Returns an xr.Dataset with x, y, and angle_dx on the
+    supergrid (nyp × nxp) stencil.
+    """
+    rotation_angle = 30.0
+    nx, ny = 10, 10
+    dx = dy = 0.1
+    center_x, center_y = 10.0, 10.0
+
+    θ = np.deg2rad(rotation_angle)
+    nxp, nyp = 2 * nx + 1, 2 * ny + 1
+
+    i_offsets = (np.arange(nxp) - nx) * dx
+    j_offsets = (np.arange(nyp) - ny) * dy
+    I, J = np.meshgrid(i_offsets, j_offsets)
+
+    x = center_x + I * np.cos(θ) - J * np.sin(θ)
+    y = center_y + I * np.sin(θ) + J * np.cos(θ)
+    angle_dx = np.full((nyp, nxp), rotation_angle)
+
+    return xr.Dataset(
+        {
+            "x": (["nyp", "nxp"], x),
+            "y": (["nyp", "nxp"], y),
+            "angle_dx": (["nyp", "nxp"], angle_dx),
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Mapping / seam grids  (all module-scoped, read-only)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
 def get_simple_grid():
+    """2×2 cell, 1° Grid at (1-3°E, 1-3°N) — minimal domain for mapping tests.
+
+    Use when a test only needs a small destination grid to check regridding
+    logic, subgrid-point generation, or weight lookups.  The tiny footprint
+    keeps test runtime low for operations (like Cressman weighting) that scale
+    with destination-cell count.
+    """
     grid = Grid(
-        resolution=1,  # in degrees
-        xstart=1,  # min longitude in [0, 360]
-        lenx=2,  # longitude extent in degrees
-        ystart=1,  # min latitude in [-90, 90]
-        leny=2,  # latitude extent in degrees
-        name="panama1",
+        resolution=1,
+        xstart=1,
+        lenx=2,
+        ystart=1,
+        leny=2,
+        name="simple",
     )
     return grid
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def get_simple_global_grid():
+    """Cyclic 360°×10° band (1° resolution, equatorial strip -5–5°N).
+
+    Use when a test needs a domain that wraps in longitude (cyclic_x=True)
+    but does not need global lat coverage.  The reduced latitude extent
+    (10° instead of 180°) makes this ~18× cheaper to construct than a full
+    global grid while still exercising all cyclic-wraparound code paths.
+    """
     grid = Grid(
-        resolution=1,  # in degrees
-        xstart=0,  # min longitude in [0, 360]
-        lenx=360,  # longitude extent in degrees
-        ystart=-90,  # min latitude in [-90, 90]
-        leny=180,  # latitude extent in degrees
-        name="panama1",
+        resolution=1,
+        xstart=0,
+        lenx=360,
+        ystart=-5,
+        leny=10,
+        name="global",
         cyclic_x=True,
     )
     return grid
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def get_PM_seam_grid():
+    """2×2 grid straddling the Prime Meridian seam (359-361°E, -1-1°N).
+
+    Use to verify that longitude arithmetic handles the 0°/360° wraparound
+    correctly — e.g. subgrid-point generation or weight lookups near the
+    seam.  Pair with get_dateline_seam_grid to distinguish PM-seam bugs from
+    dateline-seam bugs.
+    """
     grid = Grid(
-        resolution=1,  # in degrees
-        xstart=359,  # min longitude in [0, 360]
-        lenx=2,  # longitude extent in degrees
-        ystart=-1,  # min latitude in [-90, 90]
-        leny=2,  # latitude extent in degrees
-        name="panama1",
+        resolution=1,
+        xstart=359,
+        lenx=2,
+        ystart=-1,
+        leny=2,
+        name="pm_seam",
     )
     return grid
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def get_dateline_seam_grid():
+    """2×2 grid straddling the dateline / antimeridian seam (-1-1°E, -1-1°N).
+
+    Use to verify that longitude arithmetic handles the ±180° wraparound
+    correctly.  Pair with get_PM_seam_grid to distinguish dateline-seam bugs
+    from Prime-Meridian-seam bugs.
+    """
     grid = Grid(
-        resolution=1,  # in degrees
-        xstart=-1,  # min longitude in [0, 360]
-        lenx=2,  # longitude extent in degrees
-        ystart=-1,  # min latitude in [-90, 90]
-        leny=2,  # latitude extent in degrees
-        name="panama1",
+        resolution=1,
+        xstart=-1,
+        lenx=2,
+        ystart=-1,
+        leny=2,
+        name="dateline_seam",
     )
     return grid

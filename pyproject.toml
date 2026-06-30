@@ -3,5 +3,8 @@ requires = ["setuptools >= 77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
+markers = [
+    "benchmark: performance/regression tests requiring GLADE data (opt-in, run with -m benchmark)",
+]
 testpaths = ["tests"]
 pythonpath = ["tests"]

@@ -10,6 +10,7 @@ from pathlib import Path
 from scipy.spatial import cKDTree
 from scipy.sparse import csc_matrix, coo_matrix, csr_matrix
 import xesmf as xe
+import cf_xarray
 
 MPI = None
 rank = lambda: MPI.COMM_WORLD.Get_rank() if MPI else 0
@@ -594,6 +595,15 @@ def generate_ESMF_map_via_xesmf(
 
     import xesmf as xe
 
+    _print_regrid_info(
+        src_grid,
+        dst_grid,
+        method=method,
+        reuse_weights=False,
+        weights_path=None,
+        periodic=dst_is_cyclic_x,
+        locstream_out=False,
+    )
     regridder = xe.Regridder(
         src_grid,
         dst_grid,
@@ -943,6 +953,66 @@ def gen_rof_maps(
     print("Done generating runoff to ocean mapping file(s).")
 
 
+def _print_regrid_info(
+    input_dataset,
+    output_dataset,
+    method,
+    reuse_weights,
+    weights_path,
+    periodic,
+    locstream_out,
+):
+
+    _SPATIAL_NAMES = {"lat", "lon", "latitude", "longitude"}
+
+    src_spatial_dims = set()
+    for cf_key in ("latitude", "longitude"):
+        try:
+            src_spatial_dims.update(input_dataset.cf[cf_key].dims)
+        except KeyError:
+            pass
+    src_spatial_dims.update(d for d in input_dataset.dims if d in _SPATIAL_NAMES)
+    if not src_spatial_dims:
+        src_spatial_dims = set(input_dataset.dims)
+    src_spatial = {
+        k: input_dataset.sizes[k] for k in input_dataset.dims if k in src_spatial_dims
+    }
+    src_dims_str = ", ".join(f"{k}={v}" for k, v in src_spatial.items())
+    src_total = 1
+    for v in src_spatial.values():
+        src_total *= v
+
+    dst_spatial_dims = set()
+    for cf_key in ("latitude", "longitude"):
+        try:
+            dst_spatial_dims.update(output_dataset.cf[cf_key].dims)
+        except KeyError:
+            pass
+    dst_spatial_dims.update(d for d in output_dataset.dims if d in _SPATIAL_NAMES)
+    if not dst_spatial_dims:
+        dst_spatial_dims = set(output_dataset.dims)
+    dst_spatial = {
+        k: output_dataset.sizes[k] for k in output_dataset.dims if k in dst_spatial_dims
+    }
+    dst_dims_str = ", ".join(f"{k}={v}" for k, v in dst_spatial.items())
+    dst_total = 1
+    for v in dst_spatial.values():
+        dst_total *= v
+    weights_str = (
+        f"reusing from {weights_path}" if reuse_weights else "generating new weights"
+    )
+    print(
+        "--- xESMF Regridding Info ---\n"
+        f"  Source:        {src_dims_str}  ({src_total:,} points)  [{input_dataset.nbytes / 1e6:.2f} MB]\n"
+        f"  Destination:   {dst_dims_str}  ({dst_total:,} points)  [{output_dataset.nbytes / 1e6:.2f} MB]\n"
+        f"  Method:        {method}\n"
+        f"  Weights:       {weights_str}\n"
+        f"  Periodic:      {periodic}\n"
+        f"  Locstream out: {locstream_out}\n"
+        "-----------------------------"
+    )
+
+
 def regrid_dataset_via_xesmf(
     input_dataset,
     output_dataset,
@@ -976,10 +1046,14 @@ def regrid_dataset_via_xesmf(
 
     input_dataset = input_dataset.load()
 
-    print(
-        "Begin regridding dataset...\n\n"
-        + f"Original dataset size: {input_dataset.nbytes/1e6:.2f} Mb\n"
-        + f"Regridded size: {output_dataset.nbytes/1e6:.2f} Mb\n"
+    _print_regrid_info(
+        input_dataset,
+        output_dataset,
+        method=regridding_method,
+        reuse_weights=reuse_weights,
+        weights_path=weights_path,
+        periodic=periodic,
+        locstream_out=locstream_out,
     )
 
     if not reuse_weights:
@@ -997,7 +1071,6 @@ def regrid_dataset_via_xesmf(
         assert (
             weights_path is not None and Path(weights_path).exists()
         ), "weights_path must be provided and exist if reuse_weights is True"
-        print(f"Using pre-computed regridding weights from {weights_path}...")
         regridder = xe.Regridder(
             input_dataset,
             output_dataset,
@@ -1551,6 +1624,15 @@ def regrid_with_subsampling(
     )
 
     if regridder is None:
+        _print_regrid_info(
+            input_dataset,
+            flat_output,
+            method=regridding_method,
+            reuse_weights=False,
+            weights_path=None,
+            periodic=False,
+            locstream_out=False,
+        )
         regridder = xe.Regridder(
             input_dataset,
             flat_output,
