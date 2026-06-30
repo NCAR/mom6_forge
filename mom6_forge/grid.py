@@ -382,23 +382,30 @@ class Grid:
         # the grid is tripolar
         return nlines == 3
 
-    def is_rectangular(self, rtol=1e-3) -> bool:
+    def is_rectangular(self, atol=1e-3) -> bool:
         """Check if the grid is a rectangular lat-lon grid by comparing the
-        first and last rows and columns of the tlon and tlat arrays."""
+        first and last rows and columns of the tlon and tlat arrays.
 
-        if (
-            np.allclose(self.tlon[:, 0], self.tlon[0, 0], rtol=rtol)
-            and np.allclose(self.tlon[:, -1], self.tlon[0, -1], rtol=rtol)
-            and np.allclose(self.tlat[0, :], self.tlat[0, 0], rtol=rtol)
-            and np.allclose(self.tlat[-1, :], self.tlat[-1, 0], rtol=rtol)
-        ):
-            return True
-        return False
+        Parameters
+        ----------
+        atol : float, optional
+            Absolute tolerance in degrees for the lat/lon comparisons. An
+            absolute (rather than relative) tolerance is used because the
+            coordinates are angles: the acceptable deviation must not scale
+            with longitude/latitude magnitude.
+        """
+
+        return (
+            np.allclose(self.tlon[:, 0], self.tlon[0, 0], atol=atol, rtol=0)
+            and np.allclose(self.tlon[:, -1], self.tlon[0, -1], atol=atol, rtol=0)
+            and np.allclose(self.tlat[0, :], self.tlat[0, 0], atol=atol, rtol=0)
+            and np.allclose(self.tlat[-1, :], self.tlat[-1, 0], atol=atol, rtol=0)
+        )
 
     @classmethod
-    def get_bounding_boxes_of_rectangular_grid(cls, hgrid):
+    def get_bounding_boxes(cls, hgrid):
         """
-        Extract lat/lon bounding boxes for each edge of a rectangular regional MOM6 grid.
+        Extract lat/lon bounding boxes for each edge of a regional MOM6 grid.
         This function is used when subsetting global datasets (e.g. GLORYS)
         down to the lat/lon ranges required for efficient regridding:
             • north, south, east, west boundaries
@@ -418,13 +425,10 @@ class Grid:
                 • "ic" (full domain for initial conditions)
         """
         if type(hgrid) == Grid:
-            assert hgrid.is_rectangular()
             hgrid = hgrid._supergrid.to_ds()
-            assert not Grid.is_cyclic_x(hgrid)
-        else:
-            grid_check = Grid.from_supergrid_ds(hgrid)
-            assert grid_check.is_rectangular()
-            assert not Grid.is_cyclic_x(hgrid)
+        assert not Grid.is_cyclic_x(
+            hgrid
+        ), "Cannot compute bounding boxes for cyclic grids"
 
         init_result = {
             "lon_min": float(hgrid.x.min()),

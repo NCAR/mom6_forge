@@ -171,6 +171,15 @@ class TopoEditor(widgets.HBox):
             layout={"width": "80%"},
             style={"description_width": "auto"},
         )
+        self._set_to_mean_button = widgets.Button(
+            description="Mean", disabled=True, layout={"width": "30%"}
+        )
+        self._set_to_max_button = widgets.Button(
+            description="Max", disabled=True, layout={"width": "30%"}
+        )
+        self._set_to_min_button = widgets.Button(
+            description="Min", disabled=True, layout={"width": "30%"}
+        )
 
         # --- Basin editing widgets ---
         self._basin_specifier_toggle = widgets.Button(
@@ -244,13 +253,32 @@ class TopoEditor(widgets.HBox):
                 self._min_depth_specifier,
             ]
         )
-        cell_editing_section = widgets.VBox(
-            [
-                widgets.HTML("<h3>Cell Editing</h3>"),
-                self._selected_cell_label,
-                self._depth_specifier,
-            ]
-        )
+        cell_editing_section_children = [
+            widgets.HTML("<h3>Cell Editing</h3>"),
+            self._selected_cell_label,
+            self._depth_specifier,
+        ]
+
+        # Only add stats section if statistics are available
+        has_stats = self.topo.stats is not None
+        if has_stats:
+            cell_editing_section_children.extend(
+                [
+                    widgets.HTML(
+                        "<p style='margin: 5px 0; font-size: 12px;'>Set to statistic:</p>"
+                    ),
+                    widgets.HBox(
+                        [
+                            self._set_to_mean_button,
+                            self._set_to_max_button,
+                            self._set_to_min_button,
+                        ],
+                        layout={"justify_content": "space-between"},
+                    ),
+                ]
+            )
+
+        cell_editing_section = widgets.VBox(cell_editing_section_children)
         basin_section = widgets.VBox(
             [
                 widgets.HTML("<h3>Basin Selector</h3>"),
@@ -393,6 +421,25 @@ class TopoEditor(widgets.HBox):
         if hasattr(self, "_depth_specifier"):
             self._depth_specifier.disabled = False
             self._depth_specifier.value = self.topo.masked_depth.data[j, i]
+
+        # Enable statistic buttons and show values if statistics are available
+        has_stats = self.topo.stats is not None
+        for btn, stat_name, label in [
+            (self._set_to_mean_button, "D_mean", "Mean"),
+            (self._set_to_max_button, "D_max", "Max"),
+            (self._set_to_min_button, "D_min", "Min"),
+        ]:
+            btn.disabled = not has_stats
+            if has_stats:
+                val = self._get_statistic_value(stat_name)
+                btn.description = (
+                    f"{label}: {val:.1f}m"
+                    if val is not None and np.isfinite(val)
+                    else label
+                )
+            else:
+                btn.description = label
+
         if hasattr(self, "_basin_specifier"):
             label = self.topo.basintmask.data[j, i]
             self._basin_specifier.value = f"Basin Label Number: {str(label)}"
@@ -415,7 +462,6 @@ class TopoEditor(widgets.HBox):
 
         # Double click event for cell selection on the plot
         self.fig.canvas.mpl_connect("button_press_event", self.on_double_click)
-
         # Min depth change observer
         self._min_depth_specifier.observe(
             self.on_min_depth_change, names="value", type="change"
@@ -429,6 +475,11 @@ class TopoEditor(widgets.HBox):
         self._depth_specifier.observe(
             self.on_depth_change, names="value", type="change"
         )
+
+        # Statistic buttons
+        self._set_to_mean_button.on_click(self.set_depth_to_mean)
+        self._set_to_max_button.on_click(self.set_depth_to_max)
+        self._set_to_min_button.on_click(self.set_depth_to_min)
 
         if self.has_version_control:
             # Undo/Redo/Reset buttons
@@ -506,6 +557,37 @@ class TopoEditor(widgets.HBox):
         cmd = DepthEditCommand(self.topo, [(j, i)], [new_val], old_values=[old_val])
         self.apply_edit(cmd)
         self.update_undo_redo_buttons()
+
+    def _get_statistic_value(self, stat_name):
+        """Get a statistic value for the selected cell."""
+        if self._selected_cell is None or self.topo.stats is None:
+            return None
+
+        i, j, _ = self._selected_cell
+        ds = self.topo.stats
+
+        if ds is None or stat_name not in ds.data_vars:
+            return None
+
+        return float(ds[stat_name].data[j, i])
+
+    def set_depth_to_mean(self, b):
+        """Set the selected cell's depth to the mean value."""
+        val = self._get_statistic_value("D_mean")
+        if val is not None and np.isfinite(val):
+            self._depth_specifier.value = val
+
+    def set_depth_to_max(self, b):
+        """Set the selected cell's depth to the max value."""
+        val = self._get_statistic_value("D_max")
+        if val is not None and np.isfinite(val):
+            self._depth_specifier.value = val
+
+    def set_depth_to_min(self, b):
+        """Set the selected cell's depth to the min value."""
+        val = self._get_statistic_value("D_min")
+        if val is not None and np.isfinite(val):
+            self._depth_specifier.value = val
 
     def on_git_create_branch(self, b):
         """Create a new git branch"""

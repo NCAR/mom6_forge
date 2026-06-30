@@ -1506,13 +1506,9 @@ class Topo:
             landfrac_name in ds
         ), f"Couldn't find {landfrac_name} in {landfrac_filepath}"
         assert isinstance(xcoord_name, str), "xcoord_name must be a string"
-        assert (
-            landfrac_name in ds
-        ), f"Couldn't find {xcoord_name} in {landfrac_filepath}"
+        assert xcoord_name in ds, f"Couldn't find {xcoord_name} in {landfrac_filepath}"
         assert isinstance(ycoord_name, str), "ycoord_name must be a string"
-        assert (
-            landfrac_name in ds
-        ), f"Couldn't find {ycoord_name} in {landfrac_filepath}"
+        assert ycoord_name in ds, f"Couldn't find {ycoord_name} in {landfrac_filepath}"
         assert isinstance(
             cutoff_frac, float
         ), f"cutoff_frac={cutoff_frac} must be a float"
@@ -1536,7 +1532,9 @@ class Topo:
             data_vars={}, coords={"lat": self._grid.tlat, "lon": self._grid.tlon}
         )
 
-        regridder = xe.Regridder(ds, ds_mapped, method, periodic=self._grid.is_cyclic_x)
+        regridder = xe.Regridder(
+            ds, ds_mapped, method, periodic=self._grid.supergrid.is_cyclic_x
+        )
         mask_mapped = regridder(ds.landfrac)
 
         # Convert land fraction to binary mask (1=ocean, 0=land)
@@ -1548,7 +1546,7 @@ class Topo:
         new_values = binary_mask.values.ravel().tolist()
 
         # Get old values (current mask or 0 if no mask set)
-        old_mask = self.mask
+        old_mask = self.tmask
         old_values = (
             old_mask.values.ravel().tolist()
             if isinstance(old_mask, xr.DataArray)
@@ -1821,6 +1819,138 @@ class Topo:
             format="NETCDF3_64BIT",
         )
 
+    def write_ww3_input(self, file_dir, grid_alias):
+        """
+        Write the text-based WW3 input files ww3_grid.inp, [grid_alias]_x.inp, [grid_alias]_y.inp,
+        [grid_alias]_mapsta.inp, [grid_alias]_bottom.inp, which are to be read by the WW3
+        mod_def creator before runtime to generate the WW3 grid files.
+
+        Parameters
+        ----------
+        file_dir: str
+            Directory to write the WW3 input files to.
+        grid_alias: str
+            The alias for the grid, which will be used in the file names of the WW3 input files.
+        """
+
+        assert (
+            "degrees" in self._grid.tlat.units and "degrees" in self._grid.tlon.units
+        ), "Unsupported coord"
+
+        file_dir = Path(file_dir)
+        file_dir.mkdir(parents=True, exist_ok=True)
+
+        nx = self._grid.nx
+        ny = self._grid.ny
+
+        def _write_rows(filename, fmt_cell, sep):
+            """Write the nx*ny grid values to a WW3 text input file, southernmost
+            row (j=0) first to match IDLA=1 in ww3_grid.inp."""
+            with open(file_dir / filename, "w") as f:
+                for j in range(ny):
+                    f.write(sep.join(fmt_cell(j, i) for i in range(nx)) + "\n")
+
+        tlon = self._grid.tlon.data  # (ny, nx), degrees
+        tlat = self._grid.tlat.data  # (ny, nx), degrees
+        # Define ocean cells from the land/sea mask so the depth and status files
+        # stay consistent even if the mask has been edited.
+        tmask = self.tmask.data  # (ny, nx), 1=ocean, 0=land
+        depth_m = self.masked_depth.data
+
+        x_file = f"{grid_alias}_x.inp"
+        y_file = f"{grid_alias}_y.inp"
+        bottom_file = f"{grid_alias}_bottom.inp"
+        mapsta_file = f"{grid_alias}_mapsta.inp"
+
+        # --- x/y coordinate files (longitudes/latitudes in degrees) ---
+        _write_rows(x_file, lambda j, i: f"{tlon[j, i]:15.8f}", sep="")
+        _write_rows(y_file, lambda j, i: f"{tlat[j, i]:15.8f}", sep="")
+
+        # --- bottom depth file (positive depth in meters for ocean) ---
+        # WW3 stores seabed as elevation ZB (negative-down); DW = WLV - ZB.
+        # The preprocessor computes ZBIN = SBF * file_values, then flags a
+        # cell as sea when ZBIN <= ZLIM. We write positive depths in meters
+        # and set SBF=-1.0 in ww3_grid.inp so ZBIN comes out as the correct
+        # negative-down elevation. Matches the convention in WW3 regtest
+        # ww3_tp2.5 (regtests/ww3_tp2.5/input/depth.361x361.IDLA1.dat).
+        _write_rows(bottom_file, lambda j, i: f"{depth_m[j, i]:.8f}", sep=" ")
+
+        # --- map status file (1=ocean, 0=land) ---
+        # TODO: WW3 also supports mapsta codes 2 (active boundary), 3 (excluded),
+        # and negative values (ice). Extend when nested/boundary-forced runs are needed.
+        _write_rows(mapsta_file, lambda j, i: str(int(tmask[j, i])), sep=" ")
+
+        # --- Write ww3_grid.inp ---
+        # Use IDLA=1 (bottom-to-top) and IDFM=1 (free format) to match the
+        # row ordering used above (j=0 is the southernmost row).
+        with open(file_dir / "ww3_grid.inp", "w") as f:
+            f.write(
+                "$ -------------------------------------------------------------------- $\n"
+                "$ WAVEWATCH III Grid preprocessor input file                           $\n"
+                "$ -------------------------------------------------------------------- $\n"
+                "$\n"
+                "$ Grid name (C*30, in quotes)\n"
+                "$\n"
+            )
+            grid_name = grid_alias.ljust(30)[:30]
+            f.write(f"  '{grid_name}'\n")
+            # TODO: frequency/direction counts, model flags, and timesteps below
+            # are copied from the ww3a reference grid. Parameterize when this
+            # method is used for grids with different resolution or physics.
+            nk = 25  # number of frequencies (wavenumbers)
+            nth = 24  # number of directions
+            f.write(
+                "$\n"
+                "$ Frequency increment factor and first frequency (Hz) ---------------- $\n"
+                "$ number of frequencies (wavenumbers) and directions, relative offset\n"
+                "$ of first direction in terms of the directional increment [-0.5,0.5].\n"
+                "$\n"
+                f"  1.1  0.04118  {nk}  {nth}  0.0\n"
+                "$\n"
+                "$ Set model flags ---------------------------------------------------- $\n"
+                "$  - FLDRY         Dry run (input/output only, no calculation).\n"
+                "$  - FLCX, FLCY    Activate X and Y component of propagation.\n"
+                "$  - FLCTH, FLCK   Activate direction and wavenumber shifts.\n"
+                "$  - FLSOU         Activate source terms.\n"
+                "  F  T  T  T  F  T \n"
+                "$\n"
+                "$ Set time steps ----------------------------------------------------- $\n"
+                "$ - Time step information (this information is always read)\n"
+                "$     maximum global time step, maximum CFL time step for x-y and\n"
+                "$     k-theta, minimum source term time step (all in seconds).\n"
+                "$\n"
+                "  600.00  300.00  300.00   30.00\n"
+                "$\n"
+                "$ Start of namelist input section ------------------------------------ $\n"
+                "$\n"
+                "&OUTS\n"
+                f"  E3D = 1, I1E3D = 1, I2E3D = {nk}\n"
+                "/\n"
+                "\n"
+                "END OF NAMELISTS\n"
+                "$\n"
+                "$ Define grid -------------------------------------------------------- $\n"
+                "$\n"
+            )
+            closure = "SMPL" if self._grid.supergrid.is_cyclic_x else "NONE"
+            f.write(f"  'CURV'  T  '{closure}'\n")
+            f.write(f"  {nx}  {ny}\n")
+            f.write(f"  21 1.0 0.0 1 1 '(....)' 'NAME' '{x_file}'\n")
+            f.write(f"  22 1.0 0.0 1 1 '(....)' 'NAME' '{y_file}'\n")
+            f.write(
+                f"  -0.1 {self._min_depth:.2f} 23 -1. 1 1 '(....)' 'NAME' '{bottom_file}'\n"
+            )
+            f.write(f"  24 1 1 '(....)' 'NAME' '{mapsta_file}'\n")
+            f.write(
+                "$\n"
+                "$  Close list by defining line with 0 points (mandatory)\n"
+                "$\n"
+                "    0.  0.  0.  0.  0  \n"
+                "$ -------------------------------------------------------------------- $\n"
+                "$ End of input file                                                    $\n"
+                "$ -------------------------------------------------------------------- $\n"
+            )
+
     def write_scrip_grid(self, file_path, title=None):
         """
         Write the SCRIP grid file. In latest CESM versions, SCRIP grid files are
@@ -1994,7 +2124,7 @@ class Topo:
 
                 return [ll, lr, ur, ul]
 
-        elif self._grid.is_cyclic_x == True:
+        elif self._grid.supergrid.is_cyclic_x == True:
 
             nx, ny = self._grid.nx, self._grid.ny
             qlon_flat = self._grid.qlon.data[:, :-1].flatten()
