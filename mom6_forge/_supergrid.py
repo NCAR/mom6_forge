@@ -397,9 +397,6 @@ class SupergridBase:
             recovered coordinates rather than read from file. If you need the exact
             original supergrid, load it from the source supergrid NetCDF file.
 
-        Tripolar grids are not supported — the fold-node truncation applied by
-        ``to_esmf_mesh`` cannot be cleanly reversed. Use the original supergrid file.
-
         Parameters
         ----------
         file_path : str or xr.Dataset
@@ -425,12 +422,6 @@ class SupergridBase:
             ds = xr.open_dataset(file_path)
 
         topology = ds.attrs.get("grid_topology", None)
-        if topology == "tripolar":
-            raise NotImplementedError(
-                "reconstruct_from_esmf_mesh does not support tripolar grids. "
-                "The fold node truncation performed during writing cannot be "
-                "cleanly reversed. Load from the original supergrid file instead."
-            )
         is_cyclic = is_mesh_cyclic_x(ds)
         nx, ny = get_mesh_dimensions(ds)
 
@@ -439,7 +430,30 @@ class SupergridBase:
         node_lat = ds["nodeCoords"].values[:, 1]
         axis_units = ds["nodeCoords"].attrs.get("units", "degrees")
 
-        if is_cyclic:
+        if topology == "tripolar":
+            # Nodes stored without wrap column and with fold duplicates removed.
+            # Rows 0..ny-1 have nx nodes each; top row has nx//2+1 nodes stored
+            # (the second half were truncated as exact fold-symmetry duplicates).
+            # Recover the missing nx//2-1 nodes: qlon[ny, nx//2+j] = 360 - qlon[ny, nx//2-j].
+            rows_except_top_lon = node_lon[: ny * nx].reshape(ny, nx)
+            rows_except_top_lat = node_lat[: ny * nx].reshape(ny, nx)
+            top_stored_lon = node_lon[ny * nx :]  # length nx//2 + 1
+            top_stored_lat = node_lat[ny * nx :]
+
+            top_full_lon = np.empty(nx)
+            top_full_lat = np.empty(nx)
+            top_full_lon[: nx // 2 + 1] = top_stored_lon
+            top_full_lat[: nx // 2 + 1] = top_stored_lat
+            for j in range(1, nx // 2):
+                top_full_lon[nx // 2 + j] = 360.0 - top_stored_lon[nx // 2 - j]
+                top_full_lat[nx // 2 + j] = top_stored_lat[nx // 2 - j]
+
+            qlon_inner = np.vstack([rows_except_top_lon, top_full_lon[np.newaxis, :]])
+            qlat_inner = np.vstack([rows_except_top_lat, top_full_lat[np.newaxis, :]])
+            # Tripolar grids are periodic in x — add wrap column
+            qlon = np.hstack([qlon_inner, qlon_inner[:, :1] + 360.0])
+            qlat = np.hstack([qlat_inner, qlat_inner[:, :1]])
+        elif is_cyclic:
             # nodes stored without wrap column; add it back by repeating column 0
             qlon_inner = node_lon.reshape(ny + 1, nx)
             qlat_inner = node_lat.reshape(ny + 1, nx)
