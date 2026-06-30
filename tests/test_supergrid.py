@@ -156,15 +156,6 @@ def test_uniform_spherical_supergrid():
     assert isinstance(sg, UniformSphericalSupergrid)
 
 
-def make_mom6_mask(ny, nx, frac_land=0.25):
-    """MOM6-convention mask (1=ocean, 0=land). Land in bottom-left corner."""
-    mask = np.ones((ny, nx), dtype=np.int32)
-    land_ny = max(1, int(ny * frac_land))
-    land_nx = max(1, int(nx * frac_land))
-    mask[:land_ny, :land_nx] = 0
-    return mask
-
-
 # ---------------------------------------------------------------------------
 # Non-cyclic tests
 # ---------------------------------------------------------------------------
