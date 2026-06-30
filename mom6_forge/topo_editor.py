@@ -586,6 +586,12 @@ class TopoEditor(widgets.HBox):
                 except Exception:
                     pass
             self._selected_cell = None
+            for btn, label in [
+                (self._set_to_mean_button, "Mean"),
+                (self._set_to_max_button, "Max"),
+                (self._set_to_min_button, "Min"),
+            ]:
+                btn.description = label
             self._rect_selector.set_active(True)
             self._rect_select_button.button_style = "info"
             self._rect_select_button.description = "Unmark Region"
@@ -601,13 +607,6 @@ class TopoEditor(widgets.HBox):
             )
             self._depth_specifier.disabled = True
             self._mask_specifier.disabled = True
-            # No cell selected after leaving rect mode; keep stats buttons disabled
-            for btn in [
-                self._set_to_mean_button,
-                self._set_to_max_button,
-                self._set_to_min_button,
-            ]:
-                btn.disabled = True
 
     def _on_rect_select(self, eclick, erelease):
         lon_min, lon_max = sorted([eclick.xdata, erelease.xdata])
