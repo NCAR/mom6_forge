@@ -264,8 +264,8 @@ def test_roundtrip_corner_coords(sg_fixture, label, request, tmp_path):
     path = tmp_path / f"{label}.nc"
     sg.to_esmf_mesh(str(path))
     sg2 = SupergridBase.reconstruct_from_esmf_mesh(str(path))
-    np.testing.assert_allclose(sg2.x[::2, ::2], sg.x[::2, ::2], atol=1e-10)
-    np.testing.assert_allclose(sg2.y[::2, ::2], sg.y[::2, ::2], atol=1e-10)
+    np.testing.assert_array_equal(sg2.x[::2, ::2], sg.x[::2, ::2])
+    np.testing.assert_array_equal(sg2.y[::2, ::2], sg.y[::2, ::2])
 
 
 @pytest.mark.parametrize(
@@ -280,8 +280,27 @@ def test_roundtrip_center_coords(sg_fixture, label, request, tmp_path):
     path = tmp_path / f"{label}.nc"
     sg.to_esmf_mesh(str(path))
     sg2 = SupergridBase.reconstruct_from_esmf_mesh(str(path))
-    np.testing.assert_allclose(sg2.x[1::2, 1::2], sg.x[1::2, 1::2], atol=1e-10)
-    np.testing.assert_allclose(sg2.y[1::2, 1::2], sg.y[1::2, 1::2], atol=1e-10)
+    np.testing.assert_array_equal(sg2.x[1::2, 1::2], sg.x[1::2, 1::2])
+    np.testing.assert_array_equal(sg2.y[1::2, 1::2], sg.y[1::2, 1::2])
+
+
+@pytest.mark.parametrize(
+    "sg_fixture,label",
+    [
+        ("non_cyclic_sg", "non_cyclic"),
+        ("cyclic_sg", "cyclic"),
+    ],
+)
+def test_roundtrip_edge_coords(sg_fixture, label, request, tmp_path):
+    sg = request.getfixturevalue(sg_fixture)
+    path = tmp_path / f"{label}.nc"
+    sg.to_esmf_mesh(str(path))
+    sg2 = SupergridBase.reconstruct_from_esmf_mesh(str(path))
+    # v-points (even rows, odd cols) and u-points (odd rows, even cols)
+    np.testing.assert_array_equal(sg2.x[::2, 1::2], sg.x[::2, 1::2])
+    np.testing.assert_array_equal(sg2.y[::2, 1::2], sg.y[::2, 1::2])
+    np.testing.assert_array_equal(sg2.x[1::2, ::2], sg.x[1::2, ::2])
+    np.testing.assert_array_equal(sg2.y[1::2, ::2], sg.y[1::2, ::2])
 
 
 @pytest.mark.parametrize(
