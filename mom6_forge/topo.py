@@ -2040,6 +2040,78 @@ class Topo:
             format="NETCDF3_64BIT",
         )
 
+    @staticmethod
+    def _collapse_pole_node_rows(
+        node_coords, element_conn, node_row_width, start_index=1, tol=1e-10
+    ):
+        """Collapse a full coincident pole node row into a single shared node.
+
+        When a logically-rectangular lat-lon grid reaches a geographic pole, the
+        first (south) or last (north) node row consists of nodes that are
+        geometrically the same point (lat = -90 or +90) but carry distinct
+        longitudes. ESMF treats these as separate coincident nodes, which defeats
+        its pole-aware regridding (e.g. POLEMETHOD_ALLAVG). This helper merges such
+        a row into one shared node and remaps the element connectivity accordingly.
+        Affected cells keep four connectivity entries (degenerate quads with a
+        repeated apex), so ``numElementConn`` stays 4.
+
+        Parameters
+        ----------
+        node_coords : np.ndarray, shape (nnodes, 2)
+            Node (lon, lat) coordinates in degrees, row-major (south row first).
+        element_conn : np.ndarray, shape (ncells, maxNodePElement)
+            Element connectivity using ``start_index``-based node ids.
+        node_row_width : int
+            Number of nodes per logical row (``nx`` for cyclic, ``nx+1`` otherwise).
+        start_index : int, optional
+            Base index of ``element_conn`` (1 for ESMF meshes). Default 1.
+        tol : float, optional
+            Absolute tolerance (degrees) for detecting nodes at a pole. Default 1e-10.
+
+        Returns
+        -------
+        new_node_coords : np.ndarray
+            Node table with the redundant pole-row nodes removed.
+        new_element_conn : np.ndarray
+            Connectivity remapped onto ``new_node_coords`` (same dtype/start_index).
+        collapsed : list of (str, int)
+            One ``(pole_name, n_merged)`` entry per pole that was collapsed; empty
+            if neither edge row lies on a pole (i.e. this was a no-op).
+        """
+
+        lat = node_coords[:, 1]
+        nnodes = node_coords.shape[0]
+        remap = np.arange(nnodes)  # old idx -> representative old idx
+        keep = np.ones(nnodes, dtype=bool)
+        collapsed = []
+
+        south_row = np.arange(0, node_row_width)
+        north_row = np.arange(nnodes - node_row_width, nnodes)
+        for row, pole_val, name in (
+            (south_row, -90.0, "south"),
+            (north_row, 90.0, "north"),
+        ):
+            # Only collapse when the *whole* edge row sits on the pole.
+            if row.size > 1 and np.all(np.isclose(lat[row], pole_val, atol=tol)):
+                rep = row[0]  # keep the first node of the fan
+                remap[row] = rep
+                keep[row[1:]] = False
+                collapsed.append((name, int(row.size)))
+
+        if not collapsed:
+            return node_coords, element_conn, []
+
+        # Compact the kept nodes and build an old->new index map.
+        old_to_new = np.cumsum(keep) - 1  # new 0-based index for kept nodes
+        final_old_to_new = old_to_new[remap]  # collapsed nodes -> their rep's new index
+
+        new_node_coords = node_coords[keep]
+        conn0 = element_conn - start_index
+        new_element_conn = (final_old_to_new[conn0] + start_index).astype(element_conn.dtype)
+
+        return new_node_coords, new_element_conn, collapsed
+
+
     def write_esmf_mesh(self, file_path, title=None):
         """
         Write the ESMF mesh file
@@ -2090,6 +2162,11 @@ class Topo:
 
         i0 = 1  # start index for node id's
 
+        # Width of a logical node row, set per branch. Left None for the tripolar
+        # branch to disable collapse (its folded north seam has bespoke connectivity
+        # that must not be touched); the cyclic / non-cyclic branches set it.
+        pole_node_row_width = None
+
         if self._grid.is_tripolar(self._grid._supergrid):
             nx, ny = self._grid.nx, self._grid.ny
             qlon_flat = self._grid.qlon.data[:, :-1].flatten()[: -(nx // 2 - 1)]
@@ -2131,6 +2208,7 @@ class Topo:
             qlat_flat = self._grid.qlat.data[:, :-1].flatten()
             nnodes = len(qlon_flat)
             assert nnodes == nx * (ny + 1)
+            pole_node_row_width = nx
 
             # Below returns element connectivity of i-th element
             # (assuming 0 based node and element indexing)
@@ -2147,6 +2225,7 @@ class Topo:
             qlat_flat = self._grid.qlat.data.flatten()
             nnodes = len(qlon_flat)
             assert nnodes == (nx + 1) * (ny + 1)
+            pole_node_row_width = nx + 1
 
             # Below returns element connectivity of i-th element
             # (assuming 0 based node and element indexing)
@@ -2157,14 +2236,37 @@ class Topo:
                 i0 + i % nx + (i // nx + 1) * (nx + 1),
             ]
 
+        node_coords = np.column_stack((qlon_flat, qlat_flat))
+        element_conn = np.array(
+            [get_element_conn(i) for i in range(ncells)]
+        ).astype(np.int32)
+
+        # Collapse a pole-coincident edge node row to a single shared node (needed
+        # by ESMF). A no-op unless a full edge row lies on a pole; skipped entirely
+        # for tripolar grids (width is None).
+        if pole_node_row_width is not None:
+            node_coords, element_conn, collapsed = Topo._collapse_pole_node_rows(
+                node_coords, element_conn, pole_node_row_width, start_index=i0
+            )
+            for name, n_merged in collapsed:
+                print(
+                    f"Collapsed {n_merged} coincident {name}-pole nodes into a "
+                    "single shared node (for ESMF pole detection)."
+                )
+            if collapsed:
+                ds.attrs["history"] = (
+                    f"{datetime.now().isoformat()}: collapsed pole node rows to "
+                    "a single node per pole for ESMF pole detection"
+                )
+
         ds["nodeCoords"] = xr.DataArray(
-            np.column_stack((qlon_flat, qlat_flat)),
+            node_coords,
             dims=["nodeCount", "coordDim"],
             attrs={"units": coord_units},
         )
 
         ds["elementConn"] = xr.DataArray(
-            np.array([get_element_conn(i) for i in range(ncells)]).astype(np.int32),
+            element_conn,
             dims=["elementCount", "maxNodePElement"],
             attrs={
                 "long_name": "Node indices that define the element connectivity",
