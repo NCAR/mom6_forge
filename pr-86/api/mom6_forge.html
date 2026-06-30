@@ -2128,7 +2128,7 @@ The workflow is as follows:
 <li><p>Diagnose whether to use stats-based masking and Cressman interpolation based on resolution comparison between the source dataset and the model grid</p></li>
 <li><p>Apply a mask based on the user’s choice or the resolution diagnostics recommendation (options are ‘naturalearth’, ‘ocean_frac’, ‘dataset’, ‘manual’, or None)</p></li>
 <li><p>Set the depth based on the user’s choice or the resolution diagnostics recommendation (options are ‘stats’, ‘xesmf’, or None)</p></li>
-<li><p>Tidy the dataset (fill channels, apply mask, etc.)</p></li>
+<li><p>Call <code class="docutils literal notranslate"><span class="pre">fill_inland_lakes_and_channels()</span></code> to finish processing the bathymetry (fill channels, apply mask, etc.)</p></li>
 </ol>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
