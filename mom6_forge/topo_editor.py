@@ -479,7 +479,7 @@ class TopoEditor(widgets.HBox):
             self._selected_cell_label.value = f"Selected cell: {i}, {j}"
         if hasattr(self, "_depth_specifier"):
             self._depth_specifier.disabled = False
-            self._depth_specifier.value = self.topo.masked_depth.data[j, i]
+            self._depth_specifier.value = self.topo.depth.data[j, i]
         if hasattr(self, "_mask_specifier"):
             self._mask_specifier.disabled = False
             self._mask_specifier.value = (
@@ -579,12 +579,13 @@ class TopoEditor(widgets.HBox):
                 and "zoom" in str(toolbar.mode).lower()
             ):
                 toolbar.zoom()
-            # Clear the single-cell polygon patch if it exists
+            # Clear the single-cell selection entirely
             if self._selected_cell is not None and self._selected_cell[2] is not None:
                 try:
                     self._selected_cell[2].remove()
                 except Exception:
                     pass
+            self._selected_cell = None
             self._rect_selector.set_active(True)
             self._rect_select_button.button_style = "info"
             self._rect_select_button.description = "Unmark Region"
@@ -600,6 +601,13 @@ class TopoEditor(widgets.HBox):
             )
             self._depth_specifier.disabled = True
             self._mask_specifier.disabled = True
+            # No cell selected after leaving rect mode; keep stats buttons disabled
+            for btn in [
+                self._set_to_mean_button,
+                self._set_to_max_button,
+                self._set_to_min_button,
+            ]:
+                btn.disabled = True
 
     def _on_rect_select(self, eclick, erelease):
         lon_min, lon_max = sorted([eclick.xdata, erelease.xdata])
@@ -723,7 +731,7 @@ class TopoEditor(widgets.HBox):
         if self._selected_cell is None or self.topo.stats is None:
             return None
 
-        i, j, _ = self._selected_cell
+        j, i, _ = self._selected_cell
         ds = self.topo.stats
 
         if ds is None or stat_name not in ds.data_vars:
@@ -731,23 +739,39 @@ class TopoEditor(widgets.HBox):
 
         return float(ds[stat_name].data[j, i])
 
+    def _apply_statistic(self, stat_name):
+        if self.topo.stats is None:
+            return
+        ds = self.topo.stats
+        if stat_name not in ds.data_vars:
+            return
+        cells = self.active_cells
+        if not cells:
+            return
+        valid = [
+            (j, i, float(ds[stat_name].data[j, i]))
+            for j, i in cells
+            if np.isfinite(ds[stat_name].data[j, i])
+        ]
+        if not valid:
+            return
+        valid_cells = [(j, i) for j, i, _ in valid]
+        new_values = [v for _, _, v in valid]
+        old_values = [self.topo.depth.data[j, i] for j, i in valid_cells]
+        cmd = DepthEditCommand(
+            self.topo, valid_cells, new_values, old_values=old_values
+        )
+        self.apply_edit(cmd)
+        self.update_undo_redo_buttons()
+
     def set_depth_to_mean(self, b):
-        """Set the selected cell's depth to the mean value."""
-        val = self._get_statistic_value("D_mean")
-        if val is not None and np.isfinite(val):
-            self._depth_specifier.value = val
+        self._apply_statistic("D_mean")
 
     def set_depth_to_max(self, b):
-        """Set the selected cell's depth to the max value."""
-        val = self._get_statistic_value("D_max")
-        if val is not None and np.isfinite(val):
-            self._depth_specifier.value = val
+        self._apply_statistic("D_max")
 
     def set_depth_to_min(self, b):
-        """Set the selected cell's depth to the min value."""
-        val = self._get_statistic_value("D_min")
-        if val is not None and np.isfinite(val):
-            self._depth_specifier.value = val
+        self._apply_statistic("D_min")
 
     def on_git_create_branch(self, b):
         """Create a new git branch"""
