@@ -2107,10 +2107,11 @@ class Topo:
 
         new_node_coords = node_coords[keep]
         conn0 = element_conn - start_index
-        new_element_conn = (final_old_to_new[conn0] + start_index).astype(element_conn.dtype)
+        new_element_conn = (final_old_to_new[conn0] + start_index).astype(
+            element_conn.dtype
+        )
 
         return new_node_coords, new_element_conn, collapsed
-
 
     def write_esmf_mesh(self, file_path, title=None):
         """
@@ -2237,9 +2238,9 @@ class Topo:
             ]
 
         node_coords = np.column_stack((qlon_flat, qlat_flat))
-        element_conn = np.array(
-            [get_element_conn(i) for i in range(ncells)]
-        ).astype(np.int32)
+        element_conn = np.array([get_element_conn(i) for i in range(ncells)]).astype(
+            np.int32
+        )
 
         # Collapse a pole-coincident edge node row to a single shared node (needed
         # by ESMF). A no-op unless a full edge row lies on a pole; skipped entirely

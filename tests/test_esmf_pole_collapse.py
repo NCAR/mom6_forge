@@ -107,9 +107,29 @@ def test_collapse_is_noop(south_lats, north_lats):
 @pytest.mark.parametrize(
     "kw, width, collapses",
     [
-        (dict(nx=8, ny=6, lenx=360.0, leny=180.0, ystart=-90.0, cyclic_x=True), 8, True),
-        (dict(nx=8, ny=6, lenx=180.0, leny=180.0, xstart=0.0, ystart=-90.0, cyclic_x=False), 9, True),
-        (dict(nx=8, ny=6, lenx=360.0, leny=120.0, ystart=-60.0, cyclic_x=True), 8, False),
+        (
+            dict(nx=8, ny=6, lenx=360.0, leny=180.0, ystart=-90.0, cyclic_x=True),
+            8,
+            True,
+        ),
+        (
+            dict(
+                nx=8,
+                ny=6,
+                lenx=180.0,
+                leny=180.0,
+                xstart=0.0,
+                ystart=-90.0,
+                cyclic_x=False,
+            ),
+            9,
+            True,
+        ),
+        (
+            dict(nx=8, ny=6, lenx=360.0, leny=120.0, ystart=-60.0, cyclic_x=True),
+            8,
+            False,
+        ),
     ],
     ids=["cyclic_pole", "noncyclic_pole", "midlatitude_noop"],
 )
