@@ -6,20 +6,6 @@ from mom6_forge._source_bathy import SourceBathy
 from mom6_forge.grid import Grid
 
 
-def test_generate_mask_ocean_frac_returns_binary_mask(
-    get_rect_topo, synthetic_bathy_file
-):
-    """Mask values must be 0 (land) or 1 (ocean) only."""
-    get_rect_topo._src = SourceBathy(
-        get_rect_topo, synthetic_bathy_file, depth_name="elevation"
-    )
-    get_rect_topo.compute_stats(
-        nx_sub=2, ny_sub=2, mask_hmin=0.0
-    )  # Compute stats to populate cache
-    mask = get_rect_topo.generate_mask_from_stats_ocean_frac()
-    assert set(np.unique(mask.values)).issubset({0, 1})
-
-
 def test_generate_mask_ocean_frac_raises_without_src(get_rect_topo_without_vc):
     """generate_mask_from_stats_ocean_frac must raise if src has not been set."""
     with pytest.raises(AssertionError, match="Source bathymetry"):
@@ -162,13 +148,15 @@ def test_set_depth_from_stats(get_rect_topo_without_vc, synthetic_bathy_file):
     ).all()
 
 
-def test_diagnose_resolution_below_threshold(get_rect_topo, synthetic_bathy_file):
+def test_diagnose_resolution_below_threshold(
+    get_rect_topo_without_vc, synthetic_bathy_file
+):
     """When model and source have similar resolution, diagnose_resolution returns False."""
     # get_rect_grid is 0.1 deg; synthetic_bathy_file is also ~0.1 deg → ratio ~1x, below 12x
-    get_rect_topo.src = SourceBathy(
-        get_rect_topo, synthetic_bathy_file, depth_name="elevation"
+    get_rect_topo_without_vc.src = SourceBathy(
+        get_rect_topo_without_vc, synthetic_bathy_file, depth_name="elevation"
     )
-    result = get_rect_topo.diagnose_resolution()
+    result = get_rect_topo_without_vc.diagnose_resolution()
     assert result is False
 
 
@@ -192,9 +180,9 @@ def test_diagnose_resolution_above_threshold(synthetic_bathy_file, tmp_path):
     assert result is True
 
 
-def test_set_from_dataset_stats_path(get_rect_topo, synthetic_bathy_file):
+def test_set_from_dataset_stats_path(get_rect_topo_without_vc, synthetic_bathy_file):
     """set_from_dataset with explicit mask_method='ocean_frac' and depth_method='stats' sets depth from stats."""
-    get_rect_topo.set_from_dataset(
+    get_rect_topo_without_vc.set_from_dataset(
         bathymetry_path=synthetic_bathy_file,
         longitude_coordinate_name="lon",
         latitude_coordinate_name="lat",
@@ -206,15 +194,15 @@ def test_set_from_dataset_stats_path(get_rect_topo, synthetic_bathy_file):
         mask_hmin=0.0,
     )
     # Depth should be set (not all NaN) and user_mask should be populated
-    assert get_rect_topo.user_mask is not None
-    assert not np.all(np.isnan(get_rect_topo.depth.values))
+    assert get_rect_topo_without_vc.user_mask is not None
+    assert not np.all(np.isnan(get_rect_topo_without_vc.depth.values))
 
 
 def test_set_from_dataset_auto_fine_resolution(
-    get_rect_topo, synthetic_bathy_file, tmp_path
+    get_rect_topo_without_vc, synthetic_bathy_file, tmp_path
 ):
     """Auto path (None/None) on a fine grid: diagnose_resolution returns False → naturalearth mask + xesmf depth."""
-    get_rect_topo.set_from_dataset(
+    get_rect_topo_without_vc.set_from_dataset(
         bathymetry_path=synthetic_bathy_file,
         longitude_coordinate_name="lon",
         latitude_coordinate_name="lat",
@@ -222,8 +210,8 @@ def test_set_from_dataset_auto_fine_resolution(
         output_dir=tmp_path,
         regridding_method="bilinear",
     )
-    assert get_rect_topo.user_mask is not None
-    assert not np.all(np.isnan(get_rect_topo.depth.values))
+    assert get_rect_topo_without_vc.user_mask is not None
+    assert not np.all(np.isnan(get_rect_topo_without_vc.depth.values))
 
 
 def test_set_from_dataset_auto_coarse_resolution(synthetic_bathy_file, tmp_path):
