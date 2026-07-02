@@ -72,12 +72,12 @@ class TopoEditor(widgets.HBox):
         self._selected_cell_label = widgets.Label(
             "Selected cell: None (double click to select a cell)."
         )
-        self._rect_or_single_select_button = widgets.ToggleButton(
-            value=False,
-            description="Switch to Rectangle Selection",
+        self._rect_or_single_select_button = widgets.ToggleButtons(
+            options=["Single Cell", "Rectangular Area"],
+            description="Selection Mode:",
             disabled=False,
-            button_style="info",
             layout={"width": "80%"},
+            style={"description_width": "auto"},
         )
         self._clear_selection_button = widgets.Button(
             description="Clear Selection",
@@ -573,7 +573,7 @@ class TopoEditor(widgets.HBox):
     def on_double_click(self, event):
         """Handle double-click events on the plot to select a cell."""
         if (
-            self._rect_or_single_select_button.value
+            self._rect_or_single_select_button.value == "Rectangular Area"
         ):  # rectangle mode active, ignore double clicks
             return
         if event.dblclick and event.xdata is not None and event.ydata is not None:
@@ -620,7 +620,7 @@ class TopoEditor(widgets.HBox):
             btn.disabled = not (has_stats and n > 0)
 
     def _on_rect_or_single_select_toggle(self, change):
-        if change["new"]:  # rectangle mode ON
+        if change["new"] == "Rectangular Area":  # rectangle mode ON
             # Deactivate matplotlib toolbar zoom mode if it's active
             toolbar = getattr(self.fig.canvas, "toolbar", None)
             if (
@@ -638,19 +638,12 @@ class TopoEditor(widgets.HBox):
             self._selected_cell = None
             self._reset_statistic_buttons()
             self._rect_selector.set_active(True)
-            self._rect_or_single_select_button.button_style = "info"
-            self._rect_or_single_select_button.description = (
-                "Switch to Single Cell Selection"
-            )
+            self.fig.canvas.draw_idle()  # force redraw so the selector patch appears
             self._clear_selection_button.disabled = True
-        else:  # rectangle mode OFF
+        else:  # rectangle mode OFF (Single Cell)
             self._rect_selector.set_active(False)
             self._rect_selector.clear()  # removes the drawn box
             self.fig.canvas.draw_idle()  # force redraw
-            self._rect_or_single_select_button.button_style = ""
-            self._rect_or_single_select_button.description = (
-                "Switch to Rectangle Selection"
-            )
             self._selected_cells = []
             self._selected_cell_label.value = (
                 "Selected cell: None (double click to select a cell)."
@@ -666,7 +659,7 @@ class TopoEditor(widgets.HBox):
 
     def _on_clear_selection(self, button_instance):
         """Clear the current selection of cells."""
-        if not self._rect_or_single_select_button.value:
+        if self._rect_or_single_select_button.value != "Rectangular Area":
             self._selected_cell = None
             self._selected_cell_label.value = "Selected cell: None "
             # Remove any existing polygon patches from the plot
