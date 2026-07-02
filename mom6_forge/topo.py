@@ -39,7 +39,7 @@ class Topo:
         min_depth,
         channel_widths=None,
         version_control_dir="TopoLibrary",
-        git=True,
+        git=False,
     ):
         """
         MOM6 Simpler Models bathymetry constructor.
@@ -171,6 +171,7 @@ class Topo:
             0.0,
             version_control_dir=folder_path.parent,
             channel_widths=channel_widths,
+            git=True,
         )  # Because we hash the grid, the correct domain will be selected
 
         # Reapply any changes
@@ -187,7 +188,7 @@ class Topo:
         min_depth=0.0,
         varname="depth",
         version_control_dir="TopoLibrary",
-        git=True,
+        git=False,
         channel_widths=None,
     ):
         """

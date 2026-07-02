@@ -72,9 +72,9 @@ def test_generate_mask_from_naturalearth_bad_resolution():
         topo.generate_mask_from_naturalearth(resolution="999")
 
 
-def test_mask_setter_and_getter(get_rect_topo):
+def test_mask_setter_and_getter(get_rect_topo_without_vc):
     """Test setting and getting user_mask property."""
-    topo = get_rect_topo
+    topo = get_rect_topo_without_vc
     ny, nx = topo._grid.ny, topo._grid.nx
 
     # Create a simple binary mask (half ocean, half land)
@@ -89,9 +89,9 @@ def test_mask_setter_and_getter(get_rect_topo):
     assert (retrieved_mask == mask).all()
 
 
-def test_mask_applies_to_depth(get_rect_topo):
+def test_mask_applies_to_depth(get_rect_topo_without_vc):
     """Test that user_mask modifies masked_depth property correctly."""
-    topo = get_rect_topo
+    topo = get_rect_topo_without_vc
     ny, nx = topo._grid.ny, topo._grid.nx
 
     # Create binary mask: eastern half ocean (1), western half land (0)
@@ -110,9 +110,9 @@ def test_mask_applies_to_depth(get_rect_topo):
     assert (masked_depth[:, : nx // 2] == topo._land_fillval).all()
 
 
-def test_mask_none_disables_masking(get_rect_topo):
+def test_mask_none_disables_masking(get_rect_topo_without_vc):
     """Test that setting user_mask=None disables user masking."""
-    topo = get_rect_topo
+    topo = get_rect_topo_without_vc
     ny, nx = topo._grid.ny, topo._grid.nx
 
     # Apply a mask
@@ -131,9 +131,9 @@ def test_mask_none_disables_masking(get_rect_topo):
     assert (topo.tmask == topo._compute_tmask_from_raw_depth()).all()
 
 
-def test_mask_shape_validation(get_rect_topo):
+def test_mask_shape_validation(get_rect_topo_without_vc):
     """Test that user_mask shape must match grid."""
-    topo = get_rect_topo
+    topo = get_rect_topo_without_vc
 
     # Try to set mask with wrong shape
     bad_mask = np.ones((10, 10), dtype=int)
@@ -142,9 +142,9 @@ def test_mask_shape_validation(get_rect_topo):
         topo.user_mask = bad_mask
 
 
-def test_mask_initialization_from_tmask(get_rect_topo):
+def test_mask_initialization_from_tmask(get_rect_topo_without_vc):
     """Test that MaskEditCommand initializes mask correctly."""
-    topo = get_rect_topo
+    topo = get_rect_topo_without_vc
     ny, nx = topo._grid.ny, topo._grid.nx
 
     # Initially no user mask

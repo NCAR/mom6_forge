@@ -4,7 +4,47 @@ from pathlib import Path
 import xarray as xr
 from mom6_forge.grid import Grid
 from mom6_forge.topo import Topo
+from mom6_forge.topo_editor import TopoEditor
 from mom6_forge._source_bathy import SourceBathy
+
+
+@pytest.fixture
+def get_editor(get_rect_topo_with_vc):
+    return TopoEditor(get_rect_topo_with_vc, build_ui=False)
+
+
+@pytest.fixture
+def get_curvilinear_supergrid():
+    """
+    Synthetic supergrid uniformly rotated by 30 degrees from East.
+    Every point has angle_dx = 30 degrees by construction, giving a known
+    ground truth to test against.
+    """
+    rotation_angle = 30.0  # degrees
+    nx, ny = 10, 10  # model cells
+    dx = dy = 0.1  # half-cell spacing in degrees
+    center_x, center_y = 10.0, 10.0  # well away from lat=0 to avoid cos issues
+
+    θ = np.deg2rad(rotation_angle)
+    nxp, nyp = 2 * nx + 1, 2 * ny + 1
+
+    # Build rotated grid via meshgrid
+    i_offsets = (np.arange(nxp) - nx) * dx
+    j_offsets = (np.arange(nyp) - ny) * dy
+    I, J = np.meshgrid(i_offsets, j_offsets)
+
+    x = center_x + I * np.cos(θ) - J * np.sin(θ)
+    y = center_y + I * np.sin(θ) + J * np.cos(θ)
+    angle_dx = np.full((nyp, nxp), rotation_angle)
+
+    return xr.Dataset(
+        {
+            "x": (["nyp", "nxp"], x),
+            "y": (["nyp", "nxp"], y),
+            "angle_dx": (["nyp", "nxp"], angle_dx),
+        }
+    )
+
 
 # ---------------------------------------------------------------------------
 # Vertical grid (vgrid)
@@ -308,27 +348,14 @@ def synthetic_bathy_file(tmp_path_factory):
 
 
 @pytest.fixture
-def get_rect_topo(get_rect_grid, tmp_path):
-    """Flat 1000 m Topo on get_rect_grid with version control enabled.
-
-    The standard topo fixture for tests that interact with the
-    TopoCommandManager, undo/redo, git history, masks, or edit commands.
-    Each test gets a fresh copy so mutations (depth edits, mask changes)
-    do not bleed between tests.
-    """
-    topo = Topo(get_rect_grid, min_depth=0, version_control_dir=tmp_path)
+def get_rect_topo_with_vc(get_rect_grid, tmp_path):
+    topo = Topo(get_rect_grid, min_depth=0, version_control_dir=tmp_path, git=True)
     topo.set_flat(1000)
     return topo
 
 
 @pytest.fixture
-def get_rect_topo_without_vc(get_rect_grid, tmp_path):
-    """Flat 1000 m Topo on get_rect_grid with git disabled.
-
-    Use when the test only cares about topo data — depth values, file I/O,
-    serialization — and must not accidentally create a git repo.  Avoids the
-    overhead of version_control_dir setup compared to get_rect_topo.
-    """
+def get_rect_topo_without_vc(get_rect_grid):
     topo = Topo(get_rect_grid, min_depth=0, git=False)
     topo.set_flat(1000)
     return topo
