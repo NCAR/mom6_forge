@@ -2,17 +2,18 @@ import numpy as np
 import xarray as xr
 import pytest
 from mom6_forge.topo import *
+from mom6_forge.channel_width import ChannelWidth, ChannelWidthList
 
 
-def test_topo_from_version_control(get_rect_topo):
-    topo = get_rect_topo  # this topo has a version control directory
+def test_topo_from_version_control(get_rect_topo_with_vc):
+    topo = get_rect_topo_with_vc  # this topo has a version control directory
     topo_from_version_control = Topo.from_version_control(topo.domain_dir)
     assert topo_from_version_control.min_depth == topo.min_depth
     assert topo_from_version_control.depth.equals(topo.depth)
 
 
-def test_topo_from_topo_file(get_rect_topo, tmp_path):
-    topo = get_rect_topo
+def test_topo_from_topo_file(get_rect_topo_with_vc, tmp_path):
+    topo = get_rect_topo_with_vc
     j, i = 1, 1
     new_val = 12123
     old_val = topo.depth[j, i]
@@ -36,8 +37,8 @@ def test_topo_from_topo_file(get_rect_topo, tmp_path):
     assert topo_from_file.depth[j, i] == 12123
 
 
-def test_send_entire_depth_change_to_tcm(get_rect_topo):
-    topo = get_rect_topo
+def test_send_entire_depth_change_to_tcm(get_rect_topo_with_vc):
+    topo = get_rect_topo_with_vc
     old_depth = topo.depth.copy()
     new_depth = old_depth + 5.0
     topo.send_entire_depth_change_to_tcm(new_depth)
@@ -51,8 +52,8 @@ def test_send_entire_depth_change_to_tcm(get_rect_topo):
     )  # Assert no new commit
 
 
-def test_erase_selected_basin(get_rect_topo):
-    topo = get_rect_topo
+def test_erase_selected_basin(get_rect_topo_without_vc):
+    topo = get_rect_topo_without_vc
     # Make a land barrier in the middle
     topo.depth[2, :] = 0  # horizontal land strip
     topo.depth[:, 2] = 0  # vertical land strip
@@ -68,8 +69,8 @@ def test_erase_selected_basin(get_rect_topo):
     assert topo.masked_depth[3:, 3:].equals(old_depth[3:, 3:])
 
 
-def test_erase_disconnected_basin(get_rect_topo):
-    topo = get_rect_topo
+def test_erase_disconnected_basin(get_rect_topo_without_vc):
+    topo = get_rect_topo_without_vc
     # Make a land barrier in the middle
     topo.depth[2, :] = 0  # horizontal land strip
     topo.depth[:, 2] = 0  # vertical land strip
@@ -105,8 +106,8 @@ def test_topo_no_git(get_rect_topo_without_vc):
 # ---------------------------------------------------------------------------
 
 
-def test_topo_from_esmf_mesh_roundtrip(get_rect_topo, tmp_path):
-    topo = get_rect_topo
+def test_topo_from_esmf_mesh_roundtrip(get_rect_topo_with_vc, tmp_path):
+    topo = get_rect_topo_with_vc
     # Stamp some land cells into the mask before writing
     land_mask = topo.tmask.values.copy()
     land_mask[:2, :3] = 0
@@ -120,8 +121,8 @@ def test_topo_from_esmf_mesh_roundtrip(get_rect_topo, tmp_path):
     np.testing.assert_array_equal(topo2.tmask.values, land_mask)
 
 
-def test_topo_from_esmf_mesh_accepts_dataset(get_rect_topo, tmp_path):
-    topo = get_rect_topo
+def test_topo_from_esmf_mesh_accepts_dataset(get_rect_topo_with_vc, tmp_path):
+    topo = get_rect_topo_with_vc
     mesh_path = str(tmp_path / "test.nc")
     topo.write_esmf_mesh(mesh_path)
     ds = xr.open_dataset(mesh_path)
@@ -129,8 +130,8 @@ def test_topo_from_esmf_mesh_accepts_dataset(get_rect_topo, tmp_path):
     assert topo2.tmask.shape == topo.tmask.shape
 
 
-def test_topo_from_esmf_mesh_raises_without_mask(get_rect_topo, tmp_path):
-    topo = get_rect_topo
+def test_topo_from_esmf_mesh_raises_without_mask(get_rect_topo_with_vc, tmp_path):
+    topo = get_rect_topo_with_vc
     mesh_path = str(tmp_path / "with_mask.nc")
     no_mask_path = str(tmp_path / "no_mask.nc")
     topo._grid.supergrid.to_esmf_mesh(mesh_path, mask="all_unmasked")
@@ -139,3 +140,53 @@ def test_topo_from_esmf_mesh_raises_without_mask(get_rect_topo, tmp_path):
         ds.drop_vars("elementMask").load().to_netcdf(no_mask_path)
     with pytest.raises(ValueError, match="elementMask"):
         Topo.from_esmf_mesh(no_mask_path, git=False)
+
+
+def test_topo_channel_widths_none(get_rect_grid):
+    """channel_widths=None creates an empty ChannelWidthList."""
+    topo = Topo(get_rect_grid, min_depth=0, git=False)
+    assert isinstance(topo.channel_widths, ChannelWidthList)
+    assert len(topo.channel_widths.get_all()) == 0
+
+
+def test_topo_channel_widths_object(get_rect_grid):
+    """Passing a ChannelWidthList object attaches it directly."""
+    cwl = ChannelWidthList()
+    cwl.add(
+        ChannelWidth(
+            component="U_width",
+            lon1=-6.5,
+            lon2=-4.75,
+            lat1=35.6,
+            lat2=36.3,
+            width=12000.0,
+            place="St. of Gibralter",
+        )
+    )
+    topo = Topo(get_rect_grid, min_depth=0, git=False, channel_widths=cwl)
+    assert topo.channel_widths is cwl
+    assert len(topo.channel_widths.get_all()) == 1
+
+
+def test_topo_channel_widths_filepath(get_rect_grid, tmp_path):
+    """Passing a filepath loads ChannelWidthList from disk."""
+    cwl = ChannelWidthList()
+    cwl.add(
+        ChannelWidth(
+            component="U_width",
+            lon1=-6.5,
+            lon2=-4.75,
+            lat1=35.6,
+            lat2=36.3,
+            width=12000.0,
+            place="St. of Gibralter",
+        )
+    )
+    filepath = tmp_path / "channels.txt"
+    cwl.write(filepath)
+
+    topo = Topo(get_rect_grid, min_depth=0, git=False, channel_widths=filepath)
+    loaded = topo.channel_widths.get_all()
+    assert len(loaded) == 1
+    assert loaded[0].component == "U_width"
+    assert loaded[0].place == "St. of Gibralter"

@@ -8,18 +8,72 @@ import datetime
 from time import time
 from pathlib import Path
 from scipy.spatial import cKDTree
-from scipy.sparse import csc_matrix, coo_matrix
+from scipy.sparse import csc_matrix, coo_matrix, csr_matrix
 import xesmf as xe
+import cf_xarray
 
 MPI = None
 rank = lambda: MPI.COMM_WORLD.Get_rank() if MPI else 0
 
 from mom6_forge.utils import (
+    get_mesh_dimensions,
     cell_area_rad,
     normalize_deg,
     is_mesh_cyclic_x,
     get_avg_resolution_km,
 )
+
+
+def grid_from_esmf_mesh(mesh: xr.Dataset | str | Path) -> "Grid":
+    """Given an ESMF mesh where the grid metrics are stored in 1D (flattened) arrays,
+    compute the dimensions of the 2D grid and return a 2D horizontal grid dataset
+    containing the longitude, latitude, and mask of the grid points which are all that
+    is needed to create a regridder.
+
+    Parameters
+    ----------
+    mesh : xr.Dataset or str or Path
+        The ESMF mesh dataset or the path to the mesh file.
+
+    Returns
+    -------
+    ds : xr.Dataset
+        A 2D horizontal grid dataset containing the longitude, latitude, and mask of the grid points.
+    """
+
+    if not isinstance(mesh, xr.Dataset):
+        assert (
+            isinstance(mesh, (Path, str)) and Path(mesh).exists()
+        ), "mesh must be a path to an existing file"
+        mesh = xr.open_dataset(mesh)
+
+    nx, ny = get_mesh_dimensions(mesh)
+
+    lon = mesh["centerCoords"][:, 0].values.reshape((ny, nx))
+    lat = mesh["centerCoords"][:, 1].values.reshape((ny, nx))
+    mask = mesh["elementMask"].values.reshape((ny, nx))
+
+    ds = xr.Dataset(
+        data_vars={
+            "mask": (("nlat", "nlon"), mask),
+        },
+        coords={
+            "lon": (
+                ("nlat", "nlon"),
+                lon,
+                {"standard_name": "longitude", "units": "degrees_east"},
+            ),
+            "lat": (
+                ("nlat", "nlon"),
+                lat,
+                {"standard_name": "latitude", "units": "degrees_north"},
+            ),
+            "nlat": np.arange(ny),
+            "nlon": np.arange(nx),
+        },
+    )
+
+    return ds
 
 
 def extract_coastline_mask(horiz_grid):
@@ -29,7 +83,7 @@ def extract_coastline_mask(horiz_grid):
     ----------
     horiz_grid : xr.Dataset
         A 2D horizontal grid dataset containing the longitude, latitude, and mask of the grid points.
-        This dataset may be obtained from the Topo.from_esmf_mesh function by passing an ESMF mesh.
+        This dataset may be obtained from the grid_from_esmf_mesh function by passing an ESMF mesh.
 
     Returns
     -------
@@ -502,10 +556,8 @@ def generate_ESMF_map_via_xesmf(
         zero out the mask in the source mesh that falls outside the rectangle defined by the destination mesh.
     """
 
-    from mom6_forge.topo import Topo
-
-    src_topo = Topo.from_esmf_mesh(src_mesh_path)
-    dst_topo = Topo.from_esmf_mesh(dst_mesh_path)
+    src_grid = grid_from_esmf_mesh(src_mesh_path)
+    dst_grid = grid_from_esmf_mesh(dst_mesh_path)
 
     # from dst mesh, find the lower left corner and upper right corner
     # then, in the src mesh, zero out the mask falling outside of this rectangle
@@ -529,30 +581,32 @@ def generate_ESMF_map_via_xesmf(
         lat_min, lat_max = dst_mesh_lat.min(), dst_mesh_lat.max()
 
         # normalize source grid coordinates
-        src_lon = normalize_deg(src_topo._grid.tlon.data)
-        src_lat = normalize_deg(src_topo._grid.tlat.data)
+        src_lon = normalize_deg(src_grid["lon"].data)
+        src_lat = normalize_deg(src_grid["lat"].data)
 
-        src_topo._user_mask = xr.DataArray(
-            np.where(
-                (src_lon < lon_min)
-                | (src_lon > lon_max)
-                | (src_lat < lat_min)
-                | (src_lat > lat_max),
-                0,
-                src_topo.tmask.values,
-            ),
-            dims=["ny", "nx"],
+        src_grid["mask"].data = np.where(
+            (src_lon < lon_min)
+            | (src_lon > lon_max)
+            | (src_lat < lat_min)
+            | (src_lat > lat_max),
+            0,
+            src_grid["mask"].data,
         )
 
     dst_is_cyclic_x = is_mesh_cyclic_x(dst_mesh_path)
 
-    src_ds = src_topo._grid.get_esmf_ready_tracer_ds()
-    src_ds["mask"] = src_topo.tmask
-    dst_ds = dst_topo._grid.get_esmf_ready_tracer_ds()
-    dst_ds["mask"] = dst_topo.tmask
+    _print_regrid_info(
+        src_grid,
+        dst_grid,
+        method=method,
+        reuse_weights=False,
+        weights_path=None,
+        periodic=dst_is_cyclic_x,
+        locstream_out=False,
+    )
     regridder = xe.Regridder(
-        src_ds,
-        dst_ds,
+        src_grid,
+        dst_grid,
         method=method,
         periodic=dst_is_cyclic_x,
     )
@@ -899,12 +953,76 @@ def gen_rof_maps(
     print("Done generating runoff to ocean mapping file(s).")
 
 
+def _print_regrid_info(
+    input_dataset,
+    output_dataset,
+    method,
+    reuse_weights,
+    weights_path,
+    periodic,
+    locstream_out,
+):
+
+    _SPATIAL_NAMES = {"lat", "lon", "latitude", "longitude"}
+
+    src_spatial_dims = set()
+    for cf_key in ("latitude", "longitude"):
+        try:
+            src_spatial_dims.update(input_dataset.cf[cf_key].dims)
+        except KeyError:
+            pass
+    src_spatial_dims.update(d for d in input_dataset.dims if d in _SPATIAL_NAMES)
+    if not src_spatial_dims:
+        src_spatial_dims = set(input_dataset.dims)
+    src_spatial = {
+        k: input_dataset.sizes[k] for k in input_dataset.dims if k in src_spatial_dims
+    }
+    src_dims_str = ", ".join(f"{k}={v}" for k, v in src_spatial.items())
+    src_total = 1
+    for v in src_spatial.values():
+        src_total *= v
+
+    dst_spatial_dims = set()
+    for cf_key in ("latitude", "longitude"):
+        try:
+            dst_spatial_dims.update(output_dataset.cf[cf_key].dims)
+        except KeyError:
+            pass
+    dst_spatial_dims.update(d for d in output_dataset.dims if d in _SPATIAL_NAMES)
+    if not dst_spatial_dims:
+        dst_spatial_dims = set(output_dataset.dims)
+    dst_spatial = {
+        k: output_dataset.sizes[k] for k in output_dataset.dims if k in dst_spatial_dims
+    }
+    dst_dims_str = ", ".join(f"{k}={v}" for k, v in dst_spatial.items())
+    dst_total = 1
+    for v in dst_spatial.values():
+        dst_total *= v
+    weights_str = (
+        f"reusing from {weights_path}" if reuse_weights else "generating new weights"
+    )
+    print(
+        "--- xESMF Regridding Info ---\n"
+        f"  Source:        {src_dims_str}  ({src_total:,} points)  [{input_dataset.nbytes / 1e6:.2f} MB]\n"
+        f"  Destination:   {dst_dims_str}  ({dst_total:,} points)  [{output_dataset.nbytes / 1e6:.2f} MB]\n"
+        f"  Method:        {method}\n"
+        f"  Weights:       {weights_str}\n"
+        f"  Periodic:      {periodic}\n"
+        f"  Locstream out: {locstream_out}\n"
+        "-----------------------------"
+    )
+
+
 def regrid_dataset_via_xesmf(
     input_dataset,
     output_dataset,
     regridding_method=None,
-    write_to_file=True,
+    write_to_file=False,
     output_path=Path("regridded_dataset.nc"),
+    weights_path=None,
+    reuse_weights=False,
+    locstream_out=False,
+    periodic=False,
 ):
     """
     Regrids the dataset given ``input_dataset`` which contains the original dataset and ``output_dataset`` which is a template for the regridded product.
@@ -913,8 +1031,12 @@ def regrid_dataset_via_xesmf(
     Args:
         input_dataset (Xarray Dataset): original dataset with proper  metadata and structure for ESMF regridding.
         output_dataset (Xarray Dataset): Template for the regridded dataset regridding_method: (Optional[str]) The type of regridding method to use. Defaults to bilinear
-        write_to_file (Optional[bool]): Files saved to ``output_dir`` Defaults to ``True``. Must be set to true if using manual regridding methods with ESMF_regrid.
-
+        write_to_file (Optional[bool]): Files saved to ``output_path`` Defaults to ``False``. Must be set to true if using manual regridding methods with ESMF_regrid.
+        weights_path (Optional[str]): Path to pre-computed regridding weights file.
+        output_path (Optional[str]): Path to save the regridded dataset if ``write_to_file`` is True. Defaults to "regridded_dataset.nc".
+        reuse_weights (Optional[bool]): Whether to reuse the weights from ``weights_path`` if provided. Defaults to False. If False, weights will be recomputed even if ``weights_path`` is provided. If True, weights will be reused from ``weights_path`` if provided, and an error will be raised if ``weights_path`` is not provided.
+        locstream_out (Optional[bool]): Whether the output grid is a location stream. Defaults to False.
+        periodic (Optional[bool]): Whether the grid is periodic in the longitude direction. Defaults to False.
     Returns:
         regridded_dataset (Xarray.Dataset):
     """
@@ -924,19 +1046,40 @@ def regrid_dataset_via_xesmf(
 
     input_dataset = input_dataset.load()
 
-    print(
-        "Begin regridding dataset...\n\n"
-        + f"Original dataset size: {input_dataset.nbytes/1e6:.2f} Mb\n"
-        + f"Regridded size: {output_dataset.nbytes/1e6:.2f} Mb\n"
-    )
-
-    regridder = xe.Regridder(
+    _print_regrid_info(
         input_dataset,
         output_dataset,
         method=regridding_method,
-        locstream_out=False,
-        periodic=False,
+        reuse_weights=reuse_weights,
+        weights_path=weights_path,
+        periodic=periodic,
+        locstream_out=locstream_out,
     )
+
+    if not reuse_weights:
+        print(
+            f"Generating regridding weights using xESMF with method '{regridding_method}'..."
+        )
+        regridder = xe.Regridder(
+            input_dataset,
+            output_dataset,
+            method=regridding_method,
+            locstream_out=locstream_out,
+            periodic=periodic,
+        )
+    else:
+        assert (
+            weights_path is not None and Path(weights_path).exists()
+        ), "weights_path must be provided and exist if reuse_weights is True"
+        regridder = xe.Regridder(
+            input_dataset,
+            output_dataset,
+            method=regridding_method,  # This argument is required but ignored when reuse_weights=True
+            locstream_out=locstream_out,
+            periodic=periodic,
+            weights=weights_path,
+            reuse_weights=reuse_weights,
+        )
 
     dataset = regridder(input_dataset)
 
@@ -948,6 +1091,422 @@ def regrid_dataset_via_xesmf(
         )
 
     return dataset
+
+
+def compute_cressman_weights(
+    src_ds: xr.Dataset,
+    dst_ds: xr.Dataset,
+    smooth_scl: float = 2.0,
+    cressman_exp: float = 2.0,
+    radius: float = 6_371_000.0,
+) -> xr.Dataset:
+    """Compute Cressman distance-weighted interpolation weights from a regular
+    source grid to a model destination grid. Mirrors ``interp_smooth.f90`` from
+    the tx2_3 topography workflow.
+
+    For each ocean destination cell ``i``:
+
+    * The smoothing radius is ``L = smooth_scl * sqrt(dst_area[i])`` (metres).
+    * All source ocean points within ``L`` are gathered.
+    * Weights are ``w = ((L²-r²)/(L²+r²))^cressman_exp`` where ``r`` is the
+      great-circle arc distance from the model cell centre to the source point.
+    * Row ``i`` of the returned matrix holds the normalised weights
+      (sum = 1) for destination cell ``i``.
+
+    Parameters
+    ----------
+    src_ds : xr.Dataset
+        Must have 1D coordinates ``lon`` and ``lat``, and a 2D variable ``depth``
+        of shape (ny_src, nx_src), positive-down. Land cells should be <= 0.
+    dst_ds : xr.Dataset
+        Must have 2D variables or coordinates ``lon``, ``lat``, ``area``, and
+        ``mask`` of shape (ny_dst, nx_dst).
+    smooth_scl : float
+        Smoothing scale multiplier: ``L = smooth_scl * sqrt(cell_area)``.
+        Default ``2.0`` (matches tx2_3 default).
+    cressman_exp : float
+        Exponent for the Cressman weight function. Default ``2.0``.
+    radius : float
+        Earth radius in metres. Default is 6,371,000 m.
+
+    Returns
+    -------
+    xr.Dataset
+        ESMF-compatible weights dataset with the following variables:
+
+        - ``S``: non-zero Cressman weights, shape (n_s,)
+        - ``row``: destination cell index for each weight, 1-based, shape (n_s,)
+        - ``col``: source cell index for each weight, 1-based, shape (n_s,)
+        - ``unfilled``: bool mask, True for ocean destination cells that had no
+          source ocean point within ``L`` and need a fallback fill, shape (n_b,)
+        - source/destination grid metadata variables (``xc_a``, ``yc_a``, ``xc_b``,
+          ``yc_b``, ``mask_a``, ``mask_b``, ``area_b``, etc.)
+    """
+    for var in ("lon", "lat"):
+        assert var in src_ds.coords, f"src_ds missing coordinate: '{var}'"
+        assert src_ds[var].ndim == 1, f"src_ds['{var}'] must be 1D (regular grid)"
+
+    assert "depth" in src_ds, "src_ds missing variable: 'depth'"
+    assert src_ds["depth"].ndim == 2, "src_ds['depth'] must be 2D (ny, nx)"
+
+    for var in ("lon", "lat", "area", "mask"):
+        assert var in dst_ds or var in dst_ds.coords, f"dst_ds missing: '{var}'"
+        arr = dst_ds[var]
+        assert arr.ndim == 2, f"dst_ds['{var}'] must be 2D (ny, nx)"
+
+    g = dict(
+        src_lon=src_ds["lon"].values,
+        src_lat=src_ds["lat"].values,
+        src_depth=src_ds["depth"].values,
+        dst_lon=dst_ds["lon"].values,
+        dst_lat=dst_ds["lat"].values,
+        dst_area=dst_ds["area"].values,
+        dst_mask=dst_ds["mask"].values.astype(bool),
+    )
+
+    R = radius
+
+    src_ocean_mask = g["src_depth"] > 0.0
+
+    # --- Source grid: 2-D coordinates and Cartesian points ---
+    src_lon_2d, src_lat_2d = np.meshgrid(g["src_lon"], g["src_lat"])  # (ny_src, nx_src)
+    n_src = src_lon_2d.size
+    lon_src_rad = np.deg2rad(src_lon_2d.ravel())
+    lat_src_rad = np.deg2rad(src_lat_2d.ravel())
+    xyz_src = np.stack(
+        [
+            R * np.cos(lat_src_rad) * np.cos(lon_src_rad),
+            R * np.cos(lat_src_rad) * np.sin(lon_src_rad),
+            R * np.sin(lat_src_rad),
+        ],
+        axis=1,
+    )
+
+    # KDTree only over ocean source points
+    ocean_src_idx = np.where(src_ocean_mask.ravel())[0]
+    tree = cKDTree(xyz_src[ocean_src_idx])
+
+    # --- Destination grid: Cartesian points ---
+    dst_lon_flat = g["dst_lon"].ravel()
+    dst_lat_flat = g["dst_lat"].ravel()
+    dst_area_flat = g["dst_area"].ravel()
+    dst_mask_flat = g["dst_mask"].ravel()
+
+    lon_dst_rad = np.deg2rad(dst_lon_flat)
+    lat_dst_rad = np.deg2rad(dst_lat_flat)
+    xyz_dst = np.stack(
+        [
+            R * np.cos(lat_dst_rad) * np.cos(lon_dst_rad),
+            R * np.cos(lat_dst_rad) * np.sin(lon_dst_rad),
+            R * np.sin(lat_dst_rad),
+        ],
+        axis=1,
+    )
+
+    rows, cols, data = [], [], []
+    unfilled = np.zeros(len(dst_lon_flat), dtype=bool)
+
+    for i in np.where(dst_mask_flat)[0]:
+        L = smooth_scl * np.sqrt(dst_area_flat[i])  # metres
+        L2 = L**2
+
+        neighbors = tree.query_ball_point(xyz_dst[i], L)
+        if not neighbors:
+            unfilled[i] = True
+            continue
+
+        nbr = np.asarray(neighbors)
+        d_xyz = xyz_src[ocean_src_idx[nbr]] - xyz_dst[i]
+        chord = np.linalg.norm(d_xyz, axis=1)
+        arc = 2.0 * R * np.arcsin(np.clip(chord / (2.0 * R), 0.0, 1.0))
+        d2 = arc**2
+
+        in_radius = d2 <= L2
+        if not in_radius.any():
+            unfilled[i] = True
+            continue
+
+        w = ((L2 - d2[in_radius]) / (L2 + d2[in_radius])) ** cressman_exp
+        w_sum = w.sum()
+        if w_sum == 0.0:
+            unfilled[i] = True
+            continue
+
+        src_cols = ocean_src_idx[nbr[in_radius]]
+        rows.extend([i] * int(in_radius.sum()))
+        cols.extend(src_cols.tolist())
+        data.extend((w / w_sum).tolist())
+
+    S = csr_matrix((data, (rows, cols)), shape=(len(dst_lon_flat), n_src))
+
+    S_coo = S.tocoo()
+    ny_src, nx_src = src_lon_2d.shape
+    ny_dst, nx_dst = g["dst_lon"].shape
+    # Trying to copy the weights writing function above without the esmf files.
+    ds = xr.Dataset(
+        {
+            # --- sparse weight triplets ---
+            "S": xr.DataArray(
+                S_coo.data.astype(np.float64),
+                dims=["n_s"],
+                attrs={"long_name": "Cressman interpolation weight"},
+            ),
+            "row": xr.DataArray(
+                (S_coo.row + 1).astype(np.int32),
+                dims=["n_s"],
+                attrs={"long_name": "destination cell index (1-based)"},
+            ),
+            "col": xr.DataArray(
+                (S_coo.col + 1).astype(np.int32),
+                dims=["n_s"],
+                attrs={"long_name": "source cell index (1-based)"},
+            ),
+            # --- source grid ---
+            "xc_a": xr.DataArray(
+                src_lon_2d.ravel(),
+                dims=["n_a"],
+                attrs={
+                    "long_name": "source grid center longitude",
+                    "units": "degrees_east",
+                },
+            ),
+            "yc_a": xr.DataArray(
+                src_lat_2d.ravel(),
+                dims=["n_a"],
+                attrs={
+                    "long_name": "source grid center latitude",
+                    "units": "degrees_north",
+                },
+            ),
+            "mask_a": xr.DataArray(
+                src_ocean_mask.ravel().astype(np.int32),
+                dims=["n_a"],
+                attrs={"long_name": "source grid mask", "units": "unitless"},
+            ),
+            "area_a": xr.DataArray(
+                np.zeros(n_src),
+                dims=["n_a"],
+                attrs={
+                    "long_name": "[PLACEHOLDER NOT FILLED] source grid area",
+                    "units": "radians^2",
+                },
+            ),
+            "frac_a": xr.DataArray(
+                src_ocean_mask.ravel().astype(np.float64),
+                dims=["n_a"],
+                attrs={
+                    "long_name": "[PLACEHOLDER NOT FILLED] source grid fraction",
+                    "units": "unitless",
+                },
+            ),
+            "nj_a": xr.DataArray(
+                ny_src, attrs={"long_name": "source grid j dimension"}
+            ),
+            "ni_a": xr.DataArray(
+                nx_src, attrs={"long_name": "source grid i dimension"}
+            ),
+            "src_grid_dims": xr.DataArray(
+                np.array([ny_src, nx_src], dtype=np.int32),
+                dims=["src_grid_rank"],
+                attrs={"long_name": "source grid dimensions"},
+            ),
+            # --- destination grid ---
+            "xc_b": xr.DataArray(
+                g["dst_lon"].ravel(),
+                dims=["n_b"],
+                attrs={
+                    "long_name": "destination grid center longitude",
+                    "units": "degrees_east",
+                },
+            ),
+            "yc_b": xr.DataArray(
+                g["dst_lat"].ravel(),
+                dims=["n_b"],
+                attrs={
+                    "long_name": "destination grid center latitude",
+                    "units": "degrees_north",
+                },
+            ),
+            "mask_b": xr.DataArray(
+                dst_mask_flat.astype(np.int32),
+                dims=["n_b"],
+                attrs={"long_name": "destination grid mask", "units": "unitless"},
+            ),
+            "area_b": xr.DataArray(
+                dst_area_flat,
+                dims=["n_b"],
+                attrs={"long_name": "destination grid area", "units": "m^2"},
+            ),
+            "frac_b": xr.DataArray(
+                dst_mask_flat.astype(np.float64),
+                dims=["n_b"],
+                attrs={
+                    "long_name": "[PLACEHOLDER NOT FILLED] destination grid fraction",
+                    "units": "unitless",
+                },
+            ),
+            "nj_b": xr.DataArray(
+                ny_dst, attrs={"long_name": "destination grid j dimension"}
+            ),
+            "ni_b": xr.DataArray(
+                nx_dst, attrs={"long_name": "destination grid i dimension"}
+            ),
+            "dst_grid_dims": xr.DataArray(
+                np.array([ny_dst, nx_dst], dtype=np.int32),
+                dims=["dst_grid_rank"],
+                attrs={"long_name": "destination grid dimensions"},
+            ),
+            # --- unfilled flag (non-standard but useful) ---
+            "unfilled": xr.DataArray(
+                unfilled,
+                dims=["n_b"],
+                attrs={
+                    "long_name": "True for ocean destination cells with no source points within smoothing radius"
+                },
+            ),
+        }
+    )
+
+    ds.attrs["title"] = "Cressman interpolation weights generated by mom6_forge"
+    ds.attrs["history"] = "Generated by mom6_forge"
+    ds.attrs["date_created"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return ds
+
+
+def regrid_dataset_via_cressman(
+    src_ds: xr.Dataset,
+    dst_ds: xr.Dataset,
+    weights_path: Path,
+    smooth_scl: float = 2.0,
+    cressman_exp: float = 2.0,
+    write_to_file: bool = False,
+    output_path: Path = Path("cressman_regridded.nc"),
+) -> tuple[xr.Dataset, np.ndarray]:
+    """Compute mask-aware Cressman weights, save to an ESMF weights file, and regrid
+    source depths to the destination model grid using ``xe.Regridder``.
+
+    Parameters
+    ----------
+    src_ds : xr.Dataset
+        Must have 1D coordinates ``lon`` and ``lat``, and a 2D variable ``depth``
+        of shape (ny_src, nx_src), positive-down. Land cells should be <= 0.
+    dst_ds : xr.Dataset
+        Must have 2D variables or coordinates ``lon``, ``lat``, ``area``, and
+        ``mask`` of shape (ny_dst, nx_dst).
+    weights_path : str or Path
+        Path where the ESMF-compatible weights netCDF will be written.
+        If the file already exists it is **overwritten**.
+    smooth_scl : float
+        Cressman smoothing scale multiplier. Default ``2.0``.
+    cressman_exp : float
+        Cressman weight function exponent. Default ``2.0``.
+    write_to_file : bool
+        If True, save the regridded dataset to ``output_path``. Default ``False``.
+    output_path : Path
+        Path for the regridded output netCDF. Default ``cressman_regridded.nc``.
+
+    Returns
+    -------
+    depth_dst : xr.Dataset, shape (ny_dst, nx_dst)
+        Cressman-interpolated depth field. Unfilled ocean cells are 0.
+    unfilled : np.ndarray of bool, shape (ny_dst, nx_dst)
+        True for ocean cells that had no source ocean point within radius L
+        and therefore need a fallback (e.g. iterative neighbour fill).
+    """
+    # --- Compute per-cell Cressman weights ---
+    print("Computing Cressman weights...")
+    weights_ds = compute_cressman_weights(
+        src_ds,
+        dst_ds,
+        smooth_scl=smooth_scl,
+        cressman_exp=cressman_exp,
+    )
+
+    # --- Save weights to ESMF-compatible netCDF ---
+    weights_ds.to_netcdf(weights_path)
+    print(f"Cressman weights written to {weights_path}")
+
+    # --- Regrid using xesmf Regridder from the pre-computed weights ---
+    # The reason to do this is because it handles seams well
+    depth_dst = regrid_dataset_via_xesmf(
+        input_dataset=src_ds,
+        output_dataset=dst_ds,
+        regridding_method="bilinear",  # THis doesn't matter if you provide the weights directly, but we need to specify something to initialize the regridder
+        weights_path=weights_path,
+        write_to_file=write_to_file,  # We'll write the final regridded dataset at the end of this function
+        output_path=output_path,
+        reuse_weights=True,
+    )
+
+    unfilled = weights_ds["unfilled"].values.reshape(dst_ds["lon"].shape)
+
+    return depth_dst, unfilled
+
+
+def source_to_dst(ds_weights, src_idx_2d):
+    """
+    Given a 2D source index and a weights file, find which destination cells it contributes to.
+
+    Parameters
+    ----------
+    ds_weights  : xr.Dataset   SCRIP-format weight dataset
+    src_idx_2d  : tuple (j, i) 2D index into source grid
+    """
+
+    src_shape = (int(ds_weights["nj_a"].values), int(ds_weights["ni_a"].values))
+    dst_shape = (int(ds_weights["nj_b"].values), int(ds_weights["ni_b"].values))
+    n_src = int(ds_weights.sizes["n_a"])
+    n_dst = int(ds_weights.sizes["n_b"])
+
+    row = ds_weights["row"].values - 1
+    col = ds_weights["col"].values - 1
+    data = ds_weights["S"].values
+    S = coo_matrix((data, (row, col)), shape=(n_dst, n_src)).tocsc()
+
+    src_flat = np.ravel_multi_index(src_idx_2d, src_shape)
+    col_vec = S.getcol(src_flat)
+    dst_indices = col_vec.nonzero()[0]
+    weights = np.asarray(col_vec[dst_indices].todense()).ravel()
+
+    print(
+        f"Source {src_idx_2d} (flat={src_flat}) → {len(dst_indices)} destination cells:"
+    )
+    for dst, w in zip(dst_indices, weights):
+        print(f"  dst {np.unravel_index(dst, dst_shape)} (flat={dst})  weight={w:.4f}")
+
+    return dst_indices, weights
+
+
+def dst_to_source(ds_weights, dst_idx_2d):
+    """
+    Given a 2D destination index and a weights file, find which source pixels contribute to it.
+
+    Parameters
+    ----------
+    ds_weights  : xr.Dataset   SCRIP-format weight dataset
+    dst_idx_2d  : tuple (j, i) 2D index into destination grid
+    """
+
+    src_shape = (int(ds_weights["nj_a"].values), int(ds_weights["ni_a"].values))
+    dst_shape = (int(ds_weights["nj_b"].values), int(ds_weights["ni_b"].values))
+    n_src = int(ds_weights.sizes["n_a"])
+    n_dst = int(ds_weights.sizes["n_b"])
+
+    row = ds_weights["row"].values - 1
+    col = ds_weights["col"].values - 1
+    data = ds_weights["S"].values
+    S = coo_matrix((data, (row, col)), shape=(n_dst, n_src)).tocsr()
+
+    dst_flat = np.ravel_multi_index(dst_idx_2d, dst_shape)
+    row_vec = S.getrow(dst_flat)
+    src_indices = row_vec.nonzero()[1]
+    weights = np.asarray(row_vec[0, src_indices].todense()).ravel()
+
+    print(f"Dest {dst_idx_2d} (flat={dst_flat}) ← {len(src_indices)} source pixels:")
+    for src, w in zip(src_indices, weights):
+        print(f"  src {np.unravel_index(src, src_shape)} (flat={src})  weight={w:.4f}")
+
+    return src_indices, weights
 
 
 def _make_subgrid_points(qlon, qlat, nx_sub, ny_sub):
@@ -1065,6 +1624,15 @@ def regrid_with_subsampling(
     )
 
     if regridder is None:
+        _print_regrid_info(
+            input_dataset,
+            flat_output,
+            method=regridding_method,
+            reuse_weights=False,
+            weights_path=None,
+            periodic=False,
+            locstream_out=False,
+        )
         regridder = xe.Regridder(
             input_dataset,
             flat_output,
