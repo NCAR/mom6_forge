@@ -325,7 +325,7 @@ def test_grid_from_center():
 
 def test_grid_from_esmf_mesh_non_cyclic(tmp_path, get_rect_grid):
     mesh_path = str(tmp_path / "non_cyclic.nc")
-    get_rect_grid.supergrid.to_esmf_mesh(mesh_path)
+    get_rect_grid.supergrid.to_esmf_mesh(mesh_path, mask="all_unmasked")
     grid2 = Grid.from_esmf_mesh(mesh_path)
     assert isinstance(grid2, Grid)
     assert grid2.nx == get_rect_grid.nx
@@ -335,7 +335,7 @@ def test_grid_from_esmf_mesh_non_cyclic(tmp_path, get_rect_grid):
 
 def test_grid_from_esmf_mesh_cyclic(tmp_path, get_simple_global_grid):
     mesh_path = str(tmp_path / "cyclic.nc")
-    get_simple_global_grid.supergrid.to_esmf_mesh(mesh_path)
+    get_simple_global_grid.supergrid.to_esmf_mesh(mesh_path, mask="all_unmasked")
     grid2 = Grid.from_esmf_mesh(mesh_path)
     assert isinstance(grid2, Grid)
     assert grid2.nx == get_simple_global_grid.nx
@@ -345,7 +345,7 @@ def test_grid_from_esmf_mesh_cyclic(tmp_path, get_simple_global_grid):
 
 def test_grid_from_esmf_mesh_coords_preserved(tmp_path, get_rect_grid):
     mesh_path = str(tmp_path / "coords.nc")
-    get_rect_grid.supergrid.to_esmf_mesh(mesh_path)
+    get_rect_grid.supergrid.to_esmf_mesh(mesh_path, mask="all_unmasked")
     grid2 = Grid.from_esmf_mesh(mesh_path)
     np.testing.assert_allclose(grid2.tlon.values, get_rect_grid.tlon.values, atol=1e-6)
     np.testing.assert_allclose(grid2.tlat.values, get_rect_grid.tlat.values, atol=1e-6)

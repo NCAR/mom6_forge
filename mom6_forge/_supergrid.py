@@ -225,7 +225,7 @@ class SupergridBase:
 
         return ds
 
-    def to_esmf_mesh(self, file_path, mask=None, title=None):
+    def to_esmf_mesh(self, file_path, mask, title=None):
         """
         Write the supergrid as an ESMF mesh file.
 
@@ -233,8 +233,9 @@ class SupergridBase:
         ----------
         file_path : str
             Path to write the ESMF mesh NetCDF file.
-        mask : 2D array, optional
+        mask : 2D array or "all_unmasked"
             Element mask in MOM6/ESMF convention (1=ocean/unmasked, 0=land/masked).
+            Pass the literal string "all_unmasked" to write a mask of all ones.
         title : str, optional
             Optional title global attribute.
         """
@@ -368,12 +369,14 @@ class SupergridBase:
             attrs={"units": "m2"},
         )
 
-        if mask is not None:
-            esmf_mask = mask.astype(np.int32)
-            ds["elementMask"] = xr.DataArray(
-                esmf_mask.flatten(),
-                dims=["elementCount"],
-            )
+        if isinstance(mask, str) and mask == "all_unmasked":
+            esmf_mask = np.ones((ny, nx), dtype=np.int32)
+        else:
+            esmf_mask = np.asarray(mask).astype(np.int32)
+        ds["elementMask"] = xr.DataArray(
+            esmf_mask.flatten(),
+            dims=["elementCount"],
+        )
 
         all_vars_encoding = {
             var: {"_FillValue": None} for var in ds.data_vars
@@ -433,8 +436,10 @@ class SupergridBase:
         if topology == "tripolar":
             # Nodes stored without wrap column and with fold duplicates removed.
             # Rows 0..ny-1 have nx nodes each; top row has nx//2+1 nodes stored
-            # (the second half were truncated as exact fold-symmetry duplicates).
-            # Recover the missing nx//2-1 nodes: qlon[ny, nx//2+j] = 360 - qlon[ny, nx//2-j].
+            # (the fold point is a mirror line, so the nodes past nx//2 are exact
+            # duplicates of the nodes before it and were dropped).
+            # Recover the missing nx//2-1 nodes by mirroring: qlon[ny, nx//2+j] = qlon[ny, nx//2-j],
+            # adding 360 where needed so the row stays monotonically increasing.
             rows_except_top_lon = node_lon[: ny * nx].reshape(ny, nx)
             rows_except_top_lat = node_lat[: ny * nx].reshape(ny, nx)
             top_stored_lon = node_lon[ny * nx :]  # length nx//2 + 1

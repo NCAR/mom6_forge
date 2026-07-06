@@ -183,7 +183,7 @@ class Topo:
         radius=_DEFAULT_RADIUS,
         min_depth=0.0,
         version_control_dir="TopoLibrary",
-        git=True,
+        git=False,
     ):
         """
         Construct a topo object from the ESMF mesh + Mask, there is no depth associated with this
@@ -196,6 +196,8 @@ class Topo:
             Radius of the Earth (m). Default is _DEFAULT_RADIUS.
         min_depth: float, optional
             Minimum water column depth (m). Columns with shallower depths are to be masked out. Default is 0.0.
+        git: bool, optional
+            Passed through to Topo.__init__. See Topo docstring for details. Default is False.
         """
 
         supergrid, mask = SupergridBase.reconstruct_from_esmf_mesh(

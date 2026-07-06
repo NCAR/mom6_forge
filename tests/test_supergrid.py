@@ -37,14 +37,14 @@ def cyclic_sg():
 @pytest.fixture
 def non_cyclic_mesh(non_cyclic_sg, tmp_path):
     path = tmp_path / "non_cyclic.nc"
-    non_cyclic_sg.to_esmf_mesh(str(path))
+    non_cyclic_sg.to_esmf_mesh(str(path), mask="all_unmasked")
     return xr.open_dataset(path)
 
 
 @pytest.fixture
 def cyclic_mesh(cyclic_sg, tmp_path):
     path = tmp_path / "cyclic.nc"
-    cyclic_sg.to_esmf_mesh(str(path))
+    cyclic_sg.to_esmf_mesh(str(path), mask="all_unmasked")
     return xr.open_dataset(path)
 
 
@@ -195,8 +195,8 @@ def test_non_cyclic_coord_units_preserved(non_cyclic_sg, non_cyclic_mesh):
     assert non_cyclic_mesh["nodeCoords"].attrs["units"] == non_cyclic_sg.axis_units
 
 
-def test_non_cyclic_no_mask_when_not_provided(non_cyclic_mesh):
-    assert "elementMask" not in non_cyclic_mesh
+def test_non_cyclic_all_unmasked(non_cyclic_mesh):
+    assert (non_cyclic_mesh["elementMask"].values == 1).all()
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +253,7 @@ def test_cyclic_element_area_positive(cyclic_mesh):
 def test_roundtrip(sg_fixture, label, request, tmp_path):
     sg = request.getfixturevalue(sg_fixture)
     path = tmp_path / f"{label}.nc"
-    sg.to_esmf_mesh(str(path))
+    sg.to_esmf_mesh(str(path), mask="all_unmasked")
     sg2 = SupergridBase.reconstruct_from_esmf_mesh(str(path))
 
     # corner (q) and center (t) coords are stored verbatim — must be exact
@@ -301,7 +301,7 @@ def tripolar_sg():
 @pytest.fixture
 def tripolar_mesh(tripolar_sg, tmp_path):
     path = tmp_path / "tripolar.nc"
-    tripolar_sg.to_esmf_mesh(str(path))
+    tripolar_sg.to_esmf_mesh(str(path), mask="all_unmasked")
     return xr.open_dataset(path)
 
 
@@ -371,7 +371,7 @@ def test_tripolar_mesh_matches_reference(tripolar_mesh, reference_tripolar_mesh)
 def test_tripolar_roundtrip(tripolar_sg, tmp_path):
     """reconstruct_from_esmf_mesh should recover corner and center coords exactly for tx2_3v3."""
     path = tmp_path / "tripolar.nc"
-    tripolar_sg.to_esmf_mesh(str(path))
+    tripolar_sg.to_esmf_mesh(str(path), mask="all_unmasked")
     sg2 = SupergridBase.reconstruct_from_esmf_mesh(str(path))
 
     assert sg2.x.shape == tripolar_sg.x.shape

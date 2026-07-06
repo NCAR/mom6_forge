@@ -131,7 +131,11 @@ def test_topo_from_esmf_mesh_accepts_dataset(get_rect_topo, tmp_path):
 
 def test_topo_from_esmf_mesh_raises_without_mask(get_rect_topo, tmp_path):
     topo = get_rect_topo
-    mesh_path = str(tmp_path / "no_mask.nc")
-    topo._grid.supergrid.to_esmf_mesh(mesh_path)  # write without mask
+    mesh_path = str(tmp_path / "with_mask.nc")
+    no_mask_path = str(tmp_path / "no_mask.nc")
+    topo._grid.supergrid.to_esmf_mesh(mesh_path, mask="all_unmasked")
+    # Simulate a mesh file with no elementMask, e.g. from an external tool
+    with xr.open_dataset(mesh_path) as ds:
+        ds.drop_vars("elementMask").load().to_netcdf(no_mask_path)
     with pytest.raises(ValueError, match="elementMask"):
-        Topo.from_esmf_mesh(mesh_path, git=False)
+        Topo.from_esmf_mesh(no_mask_path, git=False)
