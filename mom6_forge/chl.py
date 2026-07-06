@@ -15,11 +15,10 @@ def interpolate_and_fill_seawifs(
     topo: Topo,
     processed_seawifs_path: Path | str,
     output_path: Path | str = None,
+    calendar: str = "NOLEAP",
 ):
     """
     Interpolate and fill SeaWiFS chlorophyll data to a model grid and save to NetCDF.
-
-    This function assumes a NO_LEAP calendar.
 
     This function takes gridded SeaWiFS chlorophyll data, interpolates it onto a
     super-sampled model grid, applies ocean masking, fills missing values, and writes
@@ -38,6 +37,8 @@ def interpolate_and_fill_seawifs(
     output_path : Path or str, optional
         Path to save the output NetCDF file. If not provided, it is created in the same
         directory as `processed_seawifs_path` using the grid name.
+    calendar : str, optional
+        CF calendar attribute to write on the output time coordinate. Default is "NOLEAP".
 
     Returns
     -------
@@ -83,6 +84,7 @@ def interpolate_and_fill_seawifs(
         grid.tlon[int(grid.ny / 2), :].values,
         grid.tlat[:, int(grid.nx / 2)].values,
         fill_value,
+        calendar=calendar,
     )
     chlor_a = chla["CHL_A"]
 
@@ -154,11 +156,11 @@ def interpolate_and_fill_seawifs(
     return chla
 
 
-def gen_chl_empty_dataset(output_path, lon, lat, fill_value=-1.0e34, no_leap=True):
+def gen_chl_empty_dataset(
+    output_path, lon, lat, fill_value=-1.0e34, no_leap=True, calendar="NOLEAP"
+):
     """
     Generate an empty NetCDF dataset for SeaWiFS chlorophyll climatology and save it to disk.
-
-    This function assumes a NO_LEAP calendar.
 
     This function creates a synthetic xarray dataset with a CHL_A variable (monthly mean chlorophyll)
     initialized entirely with fill values. The dataset uses the provided longitude and latitude
@@ -174,6 +176,9 @@ def gen_chl_empty_dataset(output_path, lon, lat, fill_value=-1.0e34, no_leap=Tru
 
     lat : array-like
         1D array of latitude values (in degrees north) defining the spatial Y-axis.
+
+    calendar : str, optional
+        CF calendar attribute to write on the TIME coordinate. Default is "NOLEAP".
 
     Returns
     -------
@@ -230,7 +235,7 @@ def gen_chl_empty_dataset(output_path, lon, lat, fill_value=-1.0e34, no_leap=Tru
                 dims="TIME",
                 attrs={
                     "units": "days since 0001-01-01 00:00:00",
-                    "calendar": "NOLEAP",
+                    "calendar": calendar,
                     "modulo": " ",
                     "axis": "T",
                     "cartesian_axis": "T",
