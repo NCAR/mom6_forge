@@ -135,6 +135,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.get_mesh_dimensions"><code class="docutils literal notranslate"><span class="pre">get_mesh_dimensions()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.is_mesh_cyclic_x"><code class="docutils literal notranslate"><span class="pre">is_mesh_cyclic_x()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.iterative_fill"><code class="docutils literal notranslate"><span class="pre">iterative_fill()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.longitude_slicer"><code class="docutils literal notranslate"><span class="pre">longitude_slicer()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.normalize_deg"><code class="docutils literal notranslate"><span class="pre">normalize_deg()</span></code></a></li>
 </ul>
 </li>
@@ -2616,6 +2617,49 @@ compute the dimensions of the 2D grid and return them as nx, ny.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>np.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mom6_forge.utils.longitude_slicer">
+<span class="sig-prename descclassname"><span class="pre">mom6_forge.utils.</span></span><span class="sig-name descname"><span class="pre">longitude_slicer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_extent</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">longitude_coords</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.utils.longitude_slicer" title="Link to this definition"></a></dt>
+<dd><p>Slice a dataset in longitude, handling periodicity and domain seams.</p>
+<p>Correctly clips datasets whose longitude coordinate may use any
+convention (e.g. <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">360]</span></code> or <code class="docutils literal notranslate"><span class="pre">[-180,</span> <span class="pre">180]</span></code>) and where the
+requested <code class="docutils literal notranslate"><span class="pre">longitude_extent</span></code> may straddle the wrap-around seam.</p>
+<p>The algorithm proceeds in five steps:</p>
+<ol class="arabic simple">
+<li><p>Determine the integer multiple of 360° needed to shift the midpoint
+of <code class="docutils literal notranslate"><span class="pre">longitude_extent</span></code> into the range covered by <code class="docutils literal notranslate"><span class="pre">data</span></code>.</p></li>
+<li><p>Roll the dataset so that its centre aligns with the midpoint of the
+target extent.</p></li>
+<li><p>Rebuild a monotonically increasing longitude coordinate that removes
+the seam introduced by the roll.</p></li>
+<li><p>Index out the required number of longitude points symmetrically
+around the new centre.</p></li>
+<li><p>Re-centre the coordinate values to match the target domain.</p></li>
+</ol>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> (<em>xarray.Dataset</em>) – Global (or at least periodic) dataset to slice.  The longitude
+coordinate must be uniformly spaced.</p></li>
+<li><p><strong>longitude_extent</strong> (<em>array-like</em><em> of </em><em>float</em>) – Target longitude bounds <code class="docutils literal notranslate"><span class="pre">(west,</span> <span class="pre">east)</span></code> in degrees, in increasing
+order.</p></li>
+<li><p><strong>longitude_coords</strong> (<em>str</em><em> or </em><em>list</em><em> of </em><em>str</em>) – Name(s) of the longitude coordinate(s) in <code class="docutils literal notranslate"><span class="pre">data</span></code> along which to
+slice.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Dataset sliced to <code class="docutils literal notranslate"><span class="pre">longitude_extent</span></code>, with the longitude
+coordinate re-centred to match the target domain.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>xarray.Dataset</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>AssertionError</strong> – If any named longitude coordinate is not uniformly spaced.</p>
 </dd>
 </dl>
 </dd></dl>
