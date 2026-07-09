@@ -17,7 +17,7 @@ from datetime import datetime
 from typing import Optional
 
 _DEFAULT_RADIUS = 6.371e6  # mean radius of the Earth (IUGG), in metres
-from pyproj import CRS, Transformer
+from pyproj import CRS, Proj, Transformer
 from mom6_forge.utils import normalize_deg
 
 
@@ -95,8 +95,14 @@ class SupergridBase:
             Arc lengths between vertically adjacent nodes, in metres.
         """
         if type == "smallangle":
-            # Use small angle approximation for dx, which is faster to compute and not much different
-            dx = R * np.cos(np.deg2rad(y[:, :-1])) * np.deg2rad(np.diff(x, axis=1))
+            # Use small angle approximation for dx, which is faster to compute and not much different.
+            # Wrap the longitude difference into (-180, 180] first: grids that fully encircle a pole
+            # (e.g. polar-projected caps) cross the antimeridian internally, where adjacent supergrid
+            # nodes can be e.g. 179.99 and -179.99 degrees — a raw np.diff there gives ~-360 instead of
+            # the true ~0.02 degree gap, producing a wildly wrong (and sign-flipped) dx.
+            dlon = np.diff(x, axis=1)
+            dlon = ((dlon + 180.0) % 360.0) - 180.0
+            dx = R * np.cos(np.deg2rad(y[:, :-1])) * np.deg2rad(dlon)
             dy = R * np.deg2rad(np.diff(y, axis=0))
         elif type == "haversine":
             dx = haversine(y[:, :-1], x[:, :-1], y[:, 1:], x[:, 1:], R)
@@ -453,7 +459,27 @@ class ProjectedSupergrid(SupergridBase):
         transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
         lon, lat = transformer.transform(xx, yy)
 
-        return cls._init_from_xy(lon, lat, "projected_crs", radius)
+        sg = cls._init_from_xy(lon, lat, "projected_crs", radius)
+
+        # Recompute dx/dy directly from the (always well-behaved) projected-plane
+        # grid spacing, scaled by the projection's local conformal scale factor,
+        # instead of differencing the reprojected lon/lat values. The lon/lat-diff
+        # approach breaks down catastrophically wherever a grid line passes
+        # through the pole (latitude stops varying monotonically with row/column
+        # index) or crosses the antimeridian (adjacent nodes near +-180 deg) --
+        # both of which are unavoidable for a box that fully encircles a pole,
+        # as any Arctic/Antarctic polar-cap domain does. The projected x,y grid
+        # has no such singularity: it's a plain regular Cartesian mesh, and for a
+        # conformal projection (e.g. polar stereographic) one isotropic scale
+        # factor k relates projected distance to true distance everywhere,
+        # including exactly at the pole (k is finite and smooth there).
+        dx_proj = np.diff(xx, axis=1)
+        dy_proj = np.diff(yy, axis=0)
+        k = np.asarray(Proj(crs).get_factors(lon, lat).parallel_scale)
+        sg.dx = dx_proj / (0.5 * (k[:, :-1] + k[:, 1:]))
+        sg.dy = dy_proj / (0.5 * (k[:-1, :] + k[1:, :]))
+
+        return sg
 
     @classmethod
     def from_center(
