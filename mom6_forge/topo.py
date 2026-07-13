@@ -8,7 +8,7 @@ from typing import Optional
 from scipy import interpolate
 from scipy.ndimage import label, binary_fill_holes
 from scipy.spatial import cKDTree
-from mom6_forge.utils import cell_area_rad, iterative_fill
+from mom6_forge.utils import cell_area_rad, iterative_fill, compute_subsampling_factor
 from mom6_forge.grid import Grid
 from mom6_forge.git_utils import get_domain_dir, get_repo
 from pathlib import Path
@@ -21,7 +21,11 @@ from mom6_forge.mapping import (
 )
 from mom6_forge._source_bathy import SourceBathy
 from mom6_forge.channel_width import ChannelWidthList
+from mom6_forge._supergrid import haversine, _DEFAULT_RADIUS
 import regionmask
+
+VALID_MASK_METHODS = ("naturalearth", "ocean_frac", "dataset", "manual")
+VALID_DEPTH_METHODS = ("stats", "cressman", "xesmf")
 
 
 class Topo:
@@ -35,7 +39,7 @@ class Topo:
         min_depth,
         channel_widths=None,
         version_control_dir="TopoLibrary",
-        git=True,
+        git=False,
     ):
         """
         MOM6 Simpler Models bathymetry constructor.
@@ -167,6 +171,7 @@ class Topo:
             0.0,
             version_control_dir=folder_path.parent,
             channel_widths=channel_widths,
+            git=True,
         )  # Because we hash the grid, the correct domain will be selected
 
         # Reapply any changes
@@ -183,7 +188,7 @@ class Topo:
         min_depth=0.0,
         varname="depth",
         version_control_dir="TopoLibrary",
-        git=True,
+        git=False,
         channel_widths=None,
     ):
         """
@@ -242,6 +247,7 @@ class Topo:
             ),
             self._land_fillval,  # Land cells to _land_fillval
         )
+        masked_depth = masked_depth.fillna(0)
         return masked_depth
 
     @property
@@ -285,11 +291,7 @@ class Topo:
             self._grid.nx,
         ), "Incompatible depth array shape"
 
-        self._depth = xr.DataArray(
-            depth,
-            dims=["ny", "nx"],
-            attrs={"units": "m"},
-        )
+        self.send_entire_depth_change_to_tcm(depth)
 
     @property
     def min_depth(self):
@@ -573,7 +575,9 @@ class Topo:
         all_indices = list(np.ndindex(self._depth.shape))  # list of (j, i) tuples
 
         # 2. Flatten the new values to match the indices
-        new_values = depth.values.ravel().tolist()
+        if type(depth) == xr.DataArray:
+            depth = depth.data
+        new_values = depth.ravel().tolist()
 
         # 3. Flatten old values from raw depth
         old_values = (
@@ -915,11 +919,11 @@ class Topo:
                 "mask_hmin": mask_hmin,
             },
         )
-        return self.stats
+        return self.src.stats
 
     def set_depth_from_stats(self, statistic):
         """
-        Set the topo depth to a statistic computed by _compute_stats.
+        Set the topo depth to a statistic computed by compute_stats.
 
         Parameters
         ----------
@@ -940,6 +944,88 @@ class Topo:
         ), f"Invalid statistic {statistic}, must be one of {approved_list}"
 
         self.send_entire_depth_change_to_tcm(self.src.stats[f"D_{statistic}"])
+
+    def diagnose_resolution(self, radius=_DEFAULT_RADIUS):
+        """
+        Print resolution diagnostics comparing the model grid to a source bathymetry
+        dataset, and recommend whether Cressman interpolation / stats-based masking
+        is worthwhile.
+
+        The recommendation threshold is a resolution ratio of 12x (model dx /
+        dataset dx), equivalent to ~0.05° (~5 km) for GEBCO 15-arcsecond source
+        data. This matches the criterion used by the tx2_3 global workflow
+        (interp_smooth.f90) and might be the scale at which ocean-aware Cressman
+        interpolation meaningfully improves coastal depth estimates over standard
+        xesmf conservative regridding.
+
+        Parameters
+        ----------
+        src : SourceBathy (provided internally by the class)
+            Source bathymetry object.
+        radius: float, optional
+            Radius of the Earth in meters, used to convert source dataset lat/lon spacing to approximate physical spacing in meters at the domain's mid-latitude. Default is 6.371e6 m.
+
+        Returns
+        -------
+        bool
+            True if Cressman / stats-based masking is recommended (ratio >= 12x),
+            False otherwise.
+        """
+        CRESSMAN_THRESHOLD = 12.0
+
+        # --- Model T-cell spacing in meters ---
+        # sqrt(tarea) gives the geometric mean cell spacing (equiv. to sqrt(dxt * dyt))
+        cell_dx_m = np.sqrt(self._grid.tarea.values)
+
+        median_dx_m = float(np.median(cell_dx_m))
+        min_dx_m = float(np.min(cell_dx_m))
+        max_dx_m = float(np.max(cell_dx_m))
+
+        # --- Source dataset spacing ---
+        src = self.src
+
+        dlon_deg = float(abs(src.lon[1] - src.lon[0]))
+        dlat_deg = float(abs(src.lat[1] - src.lat[0]))
+        R = radius
+        dataset_dx_m = haversine(src.lat[0], src.lon[0], src.lat[0], src.lon[1], R)
+        dataset_dy_m = haversine(src.lat[0], src.lon[0], src.lat[1], src.lon[0], R)
+
+        ratio_median = median_dx_m / dataset_dx_m
+        ratio_max = max_dx_m / dataset_dx_m
+
+        # --- Print ---
+        sep = "=" * 58
+        print(sep)
+        print("  Resolution Diagnostics")
+        print(sep)
+        print(f"\n  Source dataset ({src.path.name}):")
+        print(f"    dlon = {dlon_deg * 3600:.1f} arcsec  ({dlon_deg:.6f}°)")
+        print(f"    dlat = {dlat_deg * 3600:.1f} arcsec  ({dlat_deg:.6f}°)")
+        print(f"    dx   ~ {dataset_dx_m:.0f} m)")
+        print(f"    dy   ~ {dataset_dy_m:.0f} m")
+        print(f"\n  Model grid (T-cell spacing):")
+        print(f"    median = {median_dx_m / 1000:.2f} km")
+        print(f"    min    = {min_dx_m / 1000:.2f} km")
+        print(f"    max    = {max_dx_m / 1000:.2f} km")
+        print(f"\n  Resolution ratio (model dx / dataset dx):")
+        print(f"    median = {ratio_median:.1f}x")
+        print(f"    max    = {ratio_max:.1f}x")
+        print(f"\n  Cressman / stats-mask threshold: {CRESSMAN_THRESHOLD:.0f}x")
+        if ratio_median >= CRESSMAN_THRESHOLD:
+            print(f"  → RECOMMENDED: high_res_regrid()  (Cressman + stats mask)")
+            print(
+                f"    Each model cell spans ~{ratio_median:.0f} dataset pixels per side."
+            )
+            print(f"    Ocean-aware Cressman interpolation will meaningfully reduce")
+            print(f"    land contamination of coastal depth estimates.")
+        else:
+            print(f"  → RECOMMENDED: direct_xesmf_regrid()  (bilinear / conservative)")
+            print(
+                f"    Ratio {ratio_median:.1f}x is below the threshold where Cressman"
+            )
+            print(f"    likely provides benefit over xesmf regridding.")
+        print(sep)
+        return bool(ratio_median >= CRESSMAN_THRESHOLD)
 
     def generate_mask_from_stats_ocean_frac(
         self,
@@ -1000,52 +1086,204 @@ class Topo:
         is_input_positive_below_msl=False,
         output_dir=Path(""),
         write_to_file=False,
+        mask_method=None,
+        depth_method=None,
         regridding_method="bilinear",
-        run_regrid_dataset=True,
-        run_tidy_dataset=True,
+        **kwargs,
     ):
         """
-        This code was originally written by Ashley Barnes in regional_mom6(https://github.com/COSIMA/regional-mom6) and adapted for this package.
+        This is a high-level workflow function that runs multiple steps in sequence to set the bathymetry from a source dataset, with optional masking and depth method choices. It is designed to be opinionated and make recommendations based on resolution diagnostics, but users can override the defaults by specifying mask_method and depth_method.
+        The workflow is as follows:
+        1. Set the source dataset (this will not modify the depth or mask yet,
+            it just loads the dataset and prepares it for regridding)
+        2. Diagnose whether to use stats-based masking and Cressman interpolation based on resolution comparison between the source dataset and the model grid
+        3. Apply a mask based on the user's choice or the resolution diagnostics recommendation (options are 'naturalearth', 'ocean_frac', 'dataset', 'manual', or None)
+        4. Set the depth based on the user's choice or the resolution diagnostics recommendation (options are 'stats', 'xesmf', or None)
+        5. Call ``fill_inland_lakes_and_channels()`` to finish processing the bathymetry (fill channels, apply mask, etc.)
 
-        Cut out and interpolate the chosen bathymetry and then fill inland lakes.
-
-        Users can optionally fill narrow channels (see ``fill_channels`` keyword argument
-        below). Note, however, that narrow channels are less of an issue for models that
-        are discretized on an Arakawa C grid, like MOM6.
-
-        Output is saved in the output_dir.
-
-        Arguments:
-            bathymetry_path (str): Path to the netCDF file with the bathymetry.
-            longitude_coordinate_name (Optional[str]): The name of the longitude coordinate in the bathymetry
-                dataset at ``bathymetry_path``. For example, for GEBCO bathymetry: ``'lon'`` (default).
-            latitude_coordinate_name (Optional[str]): The name of the latitude coordinate in the bathymetry
-                dataset at ``bathymetry_path``. For example, for GEBCO bathymetry: ``'lat'`` (default).
-            vertical_coordinate_name (Optional[str]): The name of the vertical coordinate in the bathymetry
-                dataset at ``bathymetry_path``. For example, for GEBCO bathymetry: ``'elevation'`` (default).
-            fill_channels (Optional[bool]): Whether or not to fill in
-                diagonal channels. This removes more narrow inlets,
-                but can also connect extra islands to land. Default: ``False``.
-            is_input_positive_below_msl (Optional[bool]): If ``True``, it assumes that the
-                bathymetry vertical coordinate is positive downwards. Default: ``False``.
-            write_to_file (Optional[bool]): Whether to write the bathymetry to a file. Default: ``False``.
-            regridding_method (Optional[str]): The type of regridding method to use. Defaults to self.regridding_method
-            run_* (Optional[bool]): Whether to run the respective step in the bathymetry processing. Default: ``True``.
+        Parameters
+        ----------
+        bathymetry_path (str): Path to the netCDF file with the bathymetry
+        longitude_coordinate_name (str): The name of the longitude coordinate in the bathymetry dataset at ``bathymetry_path``. For example, for GEBCO bathymetry: ``'lon'``.
+        latitude_coordinate_name (str): The name of the latitude coordinate in the bathymetry dataset at ``bathymetry_path``. For example, for GEBCO bathymetry: ``'lat'``.
+        vertical_coordinate_name (str): The name of the vertical coordinate (elevation) in the bathymetry dataset at ``bathymetry_path``. For example, for GEBCO bathymetry: ``'elevation'``.
+        fill_channels (bool, optional): Whether to fill narrow channels in the final depth. Default is False.
+        is_input_positive_below_msl (bool, optional): Whether the vertical coordinate in the source dataset is positive down (e.g. depth) rather than positive up (e.g. elevation). Default is False (positive up).
+        output_dir (str or Path, optional): Directory to save intermediate files if needed (e.g. for Cressman interpolation). Default is current directory.
+        write_to_file (bool, optional): Whether to write intermediate files to disk (e.g. for Cressman interpolation). Default is False.
+        mask_method (str or None, optional): Method to use for masking land vs ocean. Options are 'naturalearth' (use natural earth land polygons), 'ocean_frac' (use ocean fraction from sub-sampling stats), 'dataset' (derive mask directly from raw depth from dataset), 'manual' (use a user-provided mask set via the user_mask property), or None to automatically choose based on resolution diagnostics. Default is None.
+        depth_method (str or None, optional): Method to use for setting depth. Options are 'stats' (use a statistic from the sub-sampling stats), 'xesmf' (do a direct xesmf regrid of the source dataset depth), or None to automatically choose based on resolution diagnostics. Default is None.
+        regridding_method (str, optional): The xESMF regridding method to use when depth_method is 'xesmf' (or when xesmf is chosen automatically). Default is 'bilinear'.
+        **kwargs: Additional keyword arguments needed for specific mask or depth methods. For example, if mask_method is 'ocean_frac', then kwargs should include 'nx_sub', 'ny_sub', and 'mask_hmin' for the sub-sampling stats calculation.
 
         """
-        print("""**NOTE**
-            If bathymetry setup fails (e.g. kernel crashes), restart the kernel and edit this cell.
-            Call ``[topo_object_name].mpi_set_from_dataset()`` instead. Follow the given instructions for using mpi
-            and ESMF_Regrid outside of a python environment. This breaks up the process, so be sure to call
-            ``[topo_object_name].tidy_dataset() after regridding with mpi.""")
-        output_dir = Path(output_dir)
+        # Set source
         self.set_src(
-            bathymetry_path=bathymetry_path,
-            longitude_coordinate_name=longitude_coordinate_name,
-            latitude_coordinate_name=latitude_coordinate_name,
-            vertical_coordinate_name=vertical_coordinate_name,
-            is_input_positive_below_msl=is_input_positive_below_msl,
+            bathymetry_path,
+            longitude_coordinate_name,
+            latitude_coordinate_name,
+            vertical_coordinate_name,
+            is_input_positive_below_msl,
         )
+
+        # Diagnose wether to use stats-based masking and Cressman interpolation based on resolution comparison between the source dataset and the model grid
+        use_stats_depth = self.diagnose_resolution()
+
+        # Check necessary attributes for different conditions.
+        # Note ocean_frac, stats-based masking, and stats-based depth all rely on the same sub-sampling stats, so we check for those together.
+        if (
+            (mask_method == "ocean_frac")
+            or (mask_method is None and use_stats_depth)
+            or (depth_method == "stats")
+            or (depth_method is None and use_stats_depth)
+        ):
+            if kwargs.get("mask_hmin") is None:
+                print(
+                    "Masking depth threshold (mask_hmin) not provided in kwargs, defaulting to 0 m"
+                )
+                mask_hmin = 0.0
+            else:
+                mask_hmin = kwargs["mask_hmin"]
+
+            if kwargs.get("nx_sub") is None or kwargs.get("ny_sub") is None:
+                print(
+                    "Sub-sampling factors (nx_sub, ny_sub) not provided in kwargs, computing based on source dataset and model grid resolution"
+                )
+                src_nj, src_ni = self.src.depth.shape
+                ocn_ni, ocn_nj = self._grid.nx, self._grid.ny
+                ny_sub, nx_sub = compute_subsampling_factor(
+                    src_nj, src_ni, ocn_nj, ocn_ni
+                )
+            else:
+                ny_sub = kwargs["ny_sub"]
+                nx_sub = kwargs["nx_sub"]
+
+        # Apply a mask if specified
+        if mask_method is not None:
+            if mask_method == "naturalearth":
+                self.user_mask = self.generate_mask_from_naturalearth()
+            elif mask_method == "ocean_frac":
+                self.compute_stats(
+                    nx_sub=nx_sub,
+                    ny_sub=ny_sub,
+                    mask_hmin=mask_hmin,
+                )
+                self.user_mask = self.generate_mask_from_stats_ocean_frac()
+            elif mask_method == "dataset":
+                self.clear_user_mask()  # ensure no user mask is set so that the mask is derived from the raw depth, which is directly from the dataset
+            elif mask_method == "manual":
+                assert (
+                    self.user_mask is not None
+                ), "Mask method set to 'manual' but no user mask has been set. Please set the user mask before calling set_from_dataset with mask_method='manual'"
+            else:
+                raise ValueError(
+                    f"Invalid mask option {mask_method!r}, must be one of {VALID_MASK_METHODS}"
+                )
+        else:
+            if use_stats_depth:
+                print(
+                    "Resolution diagnostics recommend using stats-based masking, which we will set because no mask option was specified"
+                )
+                self.compute_stats(
+                    nx_sub=nx_sub,
+                    ny_sub=ny_sub,
+                    mask_hmin=mask_hmin,
+                )
+                self.user_mask = self.generate_mask_from_stats_ocean_frac()
+            else:
+                print(
+                    "Resolution diagnostics recommend not using stats-based masking, so we'll use the natural earth mask"
+                )
+                self.user_mask = self.generate_mask_from_naturalearth()
+
+        if depth_method is not None:
+            if depth_method == "stats":
+                if not use_stats_depth:
+                    print(
+                        "Resolution diagnostics recommend not using stats-based masking, but stats-based depth was requested"
+                    )
+                self.compute_stats(
+                    nx_sub=nx_sub,
+                    ny_sub=ny_sub,
+                    mask_hmin=mask_hmin,
+                )
+                self.set_depth_from_stats(statistic="mean")
+            elif depth_method == "cressman":
+                self.direct_cressman_interp(
+                    weights_path=Path(output_dir) / "cressman_weights.nc"
+                )
+            elif depth_method == "xesmf":
+                if use_stats_depth:
+                    print(
+                        "Resolution diagnostics recommend using stats-based masking, but xesmf-based depth was requested, so we will do a direct xesmf regrid anyway because it was explicitly requested, but be aware that this may lead to significant land contamination of coastal depth estimates"
+                    )
+                self.set_depth_from_xesmf(
+                    output_dir=output_dir,
+                    write_to_file=write_to_file,
+                    regridding_method=regridding_method,
+                )
+            else:
+                raise ValueError(
+                    f"Invalid depth option {depth_method!r}, must be one of {VALID_DEPTH_METHODS}"
+                )
+        else:
+            if not use_stats_depth:
+                print(
+                    "Resolution diagnostics recommend not using stats-based depth method, so we'll do a direct xesmf regrid for depth because no depth option was specified"
+                )
+                self.set_depth_from_xesmf(
+                    output_dir=output_dir,
+                    write_to_file=write_to_file,
+                    regridding_method=regridding_method,
+                )
+            else:
+                print(
+                    "Resolution diagnostics recommend using stats-based method, which we will set for depth as cressman method because no depth option was specified"
+                )
+                self.direct_cressman_interp(
+                    weights_path=Path(output_dir) / "cressman_weights.nc"
+                )
+
+        # Tidy the dataset (fill channels, is_input_positive_below_msl, etc...)
+        if fill_channels:
+            self.fill_inland_lakes_and_channels()
+
+        print(
+            "Warning! This was an opionated workflow function that ran multiple steps in sequence. Please edit the mask manually if need be (Some depth methods, like cressman, are mask-aware and may need to be rerun)! "
+        )
+
+    def set_depth_from_xesmf(
+        self,
+        output_dir=Path(""),
+        write_to_file=False,
+        regridding_method="bilinear",
+    ):
+        """
+        Regrid the source bathymetry onto the model grid using xESMF.
+
+        This code was originally written by Ashley Barnes in regional_mom6
+        (https://github.com/COSIMA/regional-mom6) and adapted for this package.
+
+        Requires that ``set_src`` has been called first (or that the source dataset
+        has been set via ``set_from_dataset``).
+
+        Arguments:
+            output_dir (str or Path, optional): Directory where intermediate files are
+                written when ``write_to_file=True``. Default: current directory.
+            write_to_file (Optional[bool]): Whether to write the source and unfinished
+                destination grids to netCDF before regridding. Default: ``False``.
+            regridding_method (Optional[str]): The xESMF regridding method to use.
+                Default: ``'bilinear'``.
+
+        """
+        print(
+            """**NOTE**
+            If bathymetry setup fails (e.g. kernel crashes), restart the kernel and edit this cell.
+            Call ``[topo_object_name].mpi_set_depth_from_xesmf()`` instead. Follow the given instructions for using mpi
+            and ESMF_Regrid outside of a python environment. This breaks up the process, so be sure to call
+            ``[topo_object_name].fill_inland_lakes_and_channels()`` after regridding with mpi."""
+        )
+        output_dir = Path(output_dir)
         self.src_bathymetry_dataset = self.src.ds
         self.destination_bathymetry = self._grid.get_esmf_ready_tracer_ds()
         self.destination_bathymetry["depth"] = xr.zeros_like(
@@ -1059,27 +1297,19 @@ class Topo:
                 output_dir / "bathymetry_unfinished.nc"
             )
 
-        if run_regrid_dataset:
-            self.regridded_bathy = regrid_dataset_via_xesmf(
-                input_dataset=self.src_bathymetry_dataset,
-                output_dataset=self.destination_bathymetry,
-                regridding_method=regridding_method,
-                write_to_file=write_to_file,
-                output_path=output_dir / "bathymetry_unfinished.nc",
-            )
+        self.depth = regrid_dataset_via_xesmf(
+            input_dataset=self.src_bathymetry_dataset,
+            output_dataset=self.destination_bathymetry,
+            regridding_method=regridding_method,
+            write_to_file=write_to_file,
+            output_path=output_dir / "bathymetry_unfinished.nc",
+        )["depth"]
+        if write_to_file:
+            self.write_topo(
+                output_dir / "bathymetry_unfinished.nc"
+            )  # This is called unfinished because the regridding is not fully complete until the one-cell channels are filled
 
-        if run_tidy_dataset:
-            # Set directly into self.depth in this function
-            self.tidy_dataset(
-                fill_channels=fill_channels,
-                vertical_coordinate_name="depth",
-                bathymetry=self.regridded_bathy,
-                output_dir=output_dir,
-                longitude_coordinate_name="lon",
-                latitude_coordinate_name="lat",
-            )
-
-    def mpi_set_from_dataset(
+    def mpi_set_depth_from_xesmf(
         self,
         *,
         bathymetry_path,
@@ -1090,11 +1320,36 @@ class Topo:
         output_dir=Path(""),
         verbose=True,
     ):
+        """
+        Prepare input files for MPI-parallel bathymetry regridding with ESMF_Regrid.
+
+        Writes ``bathymetry_original.nc`` (source) and ``bathymetry_unfinished.nc``
+        (destination grid shell) to ``output_dir``. The user then runs ``ESMF_Regrid``
+        externally with MPI, and finally calls ``fill_inland_lakes_and_channels()`` to
+        complete post-processing. Use this instead of ``set_depth_from_xesmf`` when the
+        domain is too large to regrid within a single Python process.
+
+        Arguments:
+            bathymetry_path (str): Path to the netCDF file with the source bathymetry.
+            longitude_coordinate_name (str): Name of the longitude coordinate in the
+                source dataset (e.g. ``'lon'`` for GEBCO).
+            latitude_coordinate_name (str): Name of the latitude coordinate in the
+                source dataset (e.g. ``'lat'`` for GEBCO).
+            vertical_coordinate_name (str): Name of the vertical/elevation coordinate in
+                the source dataset (e.g. ``'elevation'`` for GEBCO).
+            is_input_positive_below_msl (bool, optional): Set ``True`` if the source
+                vertical coordinate is positive downwards (depth convention). Default: ``False``.
+            output_dir (str or Path, optional): Directory where the two netCDF files are
+                written. Default: current directory.
+            verbose (bool, optional): Print step-by-step MPI regridding instructions.
+                Default: ``True``.
+
+        """
         if verbose:
             print(f"""
             *MANUAL REGRIDDING INSTRUCTIONS*
 
-            Calling `[object_name].mpi_set_from_dataset` sets up the files necessary for regridding
+            Calling `[object_name].mpi_set_depth_from_xesmf` sets up the files necessary for regridding
             the bathymetry using mpirun and ESMF_Regrid. See below for the step-by-step instructions:
 
             1. There should be two files: `bathymetry_original.nc` and `bathymetry_unfinished.nc` located at
@@ -1106,7 +1361,7 @@ class Topo:
 
             `mpirun -np NUMBER_OF_CPUS ESMF_Regrid -s bathymetry_original.nc -d bathymetry_unfinished.nc -m bilinear --src_var depth --dst_var depth --netcdf4 --src_regional --dst_regional`
 
-            4. Run Topo_object.tidy_bathymetry(args) to finish processing the bathymetry.
+            4. Run Topo_object.fill_inland_lakes_and_channels() to finish processing the bathymetry.
 
             Example PBS script using NCAR's Casper Machine: https://gist.github.com/AidanJanney/911290acaef62107f8e2d4ccef9d09be
 
@@ -1197,69 +1452,15 @@ class Topo:
             )
         )
 
-    def tidy_dataset(
-        self,
-        fill_channels=False,
-        vertical_coordinate_name="depth",
-        bathymetry=None,
-        output_dir=Path(""),
-        longitude_coordinate_name="lon",
-        latitude_coordinate_name="lat",
-    ):
+    def fill_inland_lakes_and_channels(self):
         """
-        An auxiliary method for bathymetry used to fix up the metadata and remove inland
-        lakes after regridding the bathymetry. Having :func:`~tidy_dataset` as a separate
-        method from :func:`~setup_bathymetry` allows for the regridding to be done separately,
-        since regridding can be really expensive for large domains.
-
-        If the bathymetry is already regridded and what is left to be done is fixing the metadata
-        or fill in some channels, then :func:`~tidy_dataset` directly can read the existing
-        ``bathymetry_unfinished.nc`` file that should be in the input directory.
-
-        Arguments:
-            fill_channels (Optional[bool]): Whether to fill in diagonal channels.
-                This removes more narrow inlets, but can also connect extra islands to land.
-                Default: ``False``.
-            is_input_positive_below_msl (Optional[bool]): If ``True`` (default), assume that
-                bathymetry vertical coordinate is positive below sea level, GEBCO is negative below sea level, and would need for this to be False.
-            bathymetry (Optional[xr.Dataset]): The bathymetry dataset to tidy up. If not provided,
-                it will read the bathymetry from the file ``bathymetry_unfinished.nc`` in the input directory
-                that was created by :func:`~config/regrid_dataset`.
+        Fill in one-cell-wide channels and inland lakes. This removes more narrow inlets, but can also connect extra islands to land.
         """
-        ## reopen bathymetry to modify
-        print(
-            "Tidy bathymetry: Reading in regridded bathymetry to fix up metadata...",
-            end="",
-        )
-        if read_bathy_from_file := bathymetry is None:
-            bathymetry = xr.open_dataset(
-                output_dir / "bathymetry_unfinished.nc", engine="netcdf4"
-            )
-
-        ## Ensure correct encoding
-        bathymetry = xr.Dataset(
-            {"depth": (["ny", "nx"], bathymetry[vertical_coordinate_name].values)},
-            coords={
-                "lon": (["ny", "nx"], bathymetry[longitude_coordinate_name].values),
-                "lat": (["ny", "nx"], bathymetry[latitude_coordinate_name].values),
-            },
-        )
-        bathymetry.attrs["depth"] = "meters"
-        bathymetry.attrs["standard_name"] = "bathymetric depth at T-cell centers"
-        bathymetry.attrs["coordinates"] = "zi"
-
-        bathymetry.expand_dims("tiles", 0)
-
-        ## Make a land mask based on the bathymetry
-        ocean_mask = xr.where(bathymetry.depth <= 0, 0, 1)
-        land_mask = np.abs(ocean_mask - 1)
-
-        ## REMOVE INLAND LAKES
-        print("done. Filling in inland lakes and channels... ", end="")
-
         changed = True  ## keeps track of whether solution has converged or not
 
         forward = True  ## only useful for iterating through diagonal channel removal. Means iteration goes SW -> NE
+        ocean_mask = self.tmask
+        land_mask = np.abs(ocean_mask - 1)
 
         while changed == True:
             ## First fill in all lakes.
@@ -1268,118 +1469,109 @@ class Topo:
             ## Get the ocean mask instead of land- easier to remove channels this way
             ocean_mask = np.abs(land_mask - 1)
 
-            ## Now fill in all one-cell-wide channels
+            ## fill in all one-cell-wide horizontal channels
             newmask = xr.where(
-                ocean_mask * (land_mask.shift(nx=1) + land_mask.shift(nx=-1)) == 2, 1, 0
+                ocean_mask * (land_mask.shift(nx=1) + land_mask.shift(nx=-1)) == 2,
+                1,
+                0,
             )
             newmask += xr.where(
-                ocean_mask * (land_mask.shift(ny=1) + land_mask.shift(ny=-1)) == 2, 1, 0
+                ocean_mask * (land_mask.shift(ny=1) + land_mask.shift(ny=-1)) == 2,
+                1,
+                0,
             )
-
-            if fill_channels == True:
-                ## fill in all one-cell-wide horizontal channels
-                newmask = xr.where(
-                    ocean_mask * (land_mask.shift(nx=1) + land_mask.shift(nx=-1)) == 2,
-                    1,
-                    0,
-                )
+            ## Diagonal channels
+            if forward == True:
+                ## horizontal channels
                 newmask += xr.where(
-                    ocean_mask * (land_mask.shift(ny=1) + land_mask.shift(ny=-1)) == 2,
+                    (ocean_mask * ocean_mask.shift(nx=1))
+                    * (
+                        land_mask.shift({"nx": 1, "ny": 1})
+                        + land_mask.shift({"ny": -1})
+                    )
+                    == 2,
                     1,
                     0,
-                )
-                ## Diagonal channels
-                if forward == True:
-                    ## horizontal channels
-                    newmask += xr.where(
-                        (ocean_mask * ocean_mask.shift(nx=1))
-                        * (
-                            land_mask.shift({"nx": 1, "ny": 1})
-                            + land_mask.shift({"ny": -1})
-                        )
-                        == 2,
-                        1,
-                        0,
-                    )  ## up right & below
-                    newmask += xr.where(
-                        (ocean_mask * ocean_mask.shift(nx=1))
-                        * (
-                            land_mask.shift({"nx": 1, "ny": -1})
-                            + land_mask.shift({"ny": 1})
-                        )
-                        == 2,
-                        1,
-                        0,
-                    )  ## down right & above
-                    ## Vertical channels
-                    newmask += xr.where(
-                        (ocean_mask * ocean_mask.shift(ny=1))
-                        * (
-                            land_mask.shift({"nx": 1, "ny": 1})
-                            + land_mask.shift({"nx": -1})
-                        )
-                        == 2,
-                        1,
-                        0,
-                    )  ## up right & left
-                    newmask += xr.where(
-                        (ocean_mask * ocean_mask.shift(ny=1))
-                        * (
-                            land_mask.shift({"nx": -1, "ny": 1})
-                            + land_mask.shift({"nx": 1})
-                        )
-                        == 2,
-                        1,
-                        0,
-                    )  ## up left & right
+                )  ## up right & below
+                newmask += xr.where(
+                    (ocean_mask * ocean_mask.shift(nx=1))
+                    * (
+                        land_mask.shift({"nx": 1, "ny": -1})
+                        + land_mask.shift({"ny": 1})
+                    )
+                    == 2,
+                    1,
+                    0,
+                )  ## down right & above
+                ## Vertical channels
+                newmask += xr.where(
+                    (ocean_mask * ocean_mask.shift(ny=1))
+                    * (
+                        land_mask.shift({"nx": 1, "ny": 1})
+                        + land_mask.shift({"nx": -1})
+                    )
+                    == 2,
+                    1,
+                    0,
+                )  ## up right & left
+                newmask += xr.where(
+                    (ocean_mask * ocean_mask.shift(ny=1))
+                    * (
+                        land_mask.shift({"nx": -1, "ny": 1})
+                        + land_mask.shift({"nx": 1})
+                    )
+                    == 2,
+                    1,
+                    0,
+                )  ## up left & right
 
-                    forward = False
+                forward = False
 
-                if forward == False:
-                    ## Horizontal channels
-                    newmask += xr.where(
-                        (ocean_mask * ocean_mask.shift(nx=-1))
-                        * (
-                            land_mask.shift({"nx": -1, "ny": 1})
-                            + land_mask.shift({"ny": -1})
-                        )
-                        == 2,
-                        1,
-                        0,
-                    )  ## up left & below
-                    newmask += xr.where(
-                        (ocean_mask * ocean_mask.shift(nx=-1))
-                        * (
-                            land_mask.shift({"nx": -1, "ny": -1})
-                            + land_mask.shift({"ny": 1})
-                        )
-                        == 2,
-                        1,
-                        0,
-                    )  ## down left & above
-                    ## Vertical channels
-                    newmask += xr.where(
-                        (ocean_mask * ocean_mask.shift(ny=-1))
-                        * (
-                            land_mask.shift({"nx": 1, "ny": -1})
-                            + land_mask.shift({"nx": -1})
-                        )
-                        == 2,
-                        1,
-                        0,
-                    )  ## down right & left
-                    newmask += xr.where(
-                        (ocean_mask * ocean_mask.shift(ny=-1))
-                        * (
-                            land_mask.shift({"nx": -1, "ny": -1})
-                            + land_mask.shift({"nx": 1})
-                        )
-                        == 2,
-                        1,
-                        0,
-                    )  ## down left & right
+            if forward == False:
+                ## Horizontal channels
+                newmask += xr.where(
+                    (ocean_mask * ocean_mask.shift(nx=-1))
+                    * (
+                        land_mask.shift({"nx": -1, "ny": 1})
+                        + land_mask.shift({"ny": -1})
+                    )
+                    == 2,
+                    1,
+                    0,
+                )  ## up left & below
+                newmask += xr.where(
+                    (ocean_mask * ocean_mask.shift(nx=-1))
+                    * (
+                        land_mask.shift({"nx": -1, "ny": -1})
+                        + land_mask.shift({"ny": 1})
+                    )
+                    == 2,
+                    1,
+                    0,
+                )  ## down left & above
+                ## Vertical channels
+                newmask += xr.where(
+                    (ocean_mask * ocean_mask.shift(ny=-1))
+                    * (
+                        land_mask.shift({"nx": 1, "ny": -1})
+                        + land_mask.shift({"nx": -1})
+                    )
+                    == 2,
+                    1,
+                    0,
+                )  ## down right & left
+                newmask += xr.where(
+                    (ocean_mask * ocean_mask.shift(ny=-1))
+                    * (
+                        land_mask.shift({"nx": -1, "ny": -1})
+                        + land_mask.shift({"nx": 1})
+                    )
+                    == 2,
+                    1,
+                    0,
+                )  ## down left & right
 
-                    forward = True
+                forward = True
 
             newmask = xr.where(newmask > 0, 1, 0)
             changed = np.max(newmask) == 1
@@ -1387,22 +1579,8 @@ class Topo:
 
         ocean_mask = np.abs(land_mask - 1)
 
-        bathymetry["depth"] *= ocean_mask
-
-        ## Now, any points in the bathymetry that are shallower than minimum depth are set to minimum depth.
-        ## This preserves the true land/ocean mask.
-        bathymetry["depth"] = bathymetry["depth"].where(bathymetry["depth"] > 0, np.nan)
-        bathymetry["depth"] = bathymetry["depth"].where(
-            ~(bathymetry.depth <= self.min_depth), self.min_depth + 0.1
-        )
-        bathymetry = bathymetry.fillna(
-            0
-        )  # After min_depth filtering, move the land values to zero
-        bathymetry.depth.attrs["units"] = "meters"
-        new_values = bathymetry.depth
-
-        # Save to object (Build TCM Object)
-        self.send_entire_depth_change_to_tcm(new_values)
+        # Reset the mask through Mask Edit
+        self.user_mask = ocean_mask
 
     def erase_selected_basin(self, i, j):
         label = self.basintmask.data[j, i]
@@ -1506,13 +1684,9 @@ class Topo:
             landfrac_name in ds
         ), f"Couldn't find {landfrac_name} in {landfrac_filepath}"
         assert isinstance(xcoord_name, str), "xcoord_name must be a string"
-        assert (
-            landfrac_name in ds
-        ), f"Couldn't find {xcoord_name} in {landfrac_filepath}"
+        assert xcoord_name in ds, f"Couldn't find {xcoord_name} in {landfrac_filepath}"
         assert isinstance(ycoord_name, str), "ycoord_name must be a string"
-        assert (
-            landfrac_name in ds
-        ), f"Couldn't find {ycoord_name} in {landfrac_filepath}"
+        assert ycoord_name in ds, f"Couldn't find {ycoord_name} in {landfrac_filepath}"
         assert isinstance(
             cutoff_frac, float
         ), f"cutoff_frac={cutoff_frac} must be a float"
@@ -1536,7 +1710,9 @@ class Topo:
             data_vars={}, coords={"lat": self._grid.tlat, "lon": self._grid.tlon}
         )
 
-        regridder = xe.Regridder(ds, ds_mapped, method, periodic=self._grid.is_cyclic_x)
+        regridder = xe.Regridder(
+            ds, ds_mapped, method, periodic=self._grid.supergrid.is_cyclic_x
+        )
         mask_mapped = regridder(ds.landfrac)
 
         # Convert land fraction to binary mask (1=ocean, 0=land)
@@ -1548,7 +1724,7 @@ class Topo:
         new_values = binary_mask.values.ravel().tolist()
 
         # Get old values (current mask or 0 if no mask set)
-        old_mask = self.mask
+        old_mask = self.tmask
         old_values = (
             old_mask.values.ravel().tolist()
             if isinstance(old_mask, xr.DataArray)
@@ -1821,6 +1997,138 @@ class Topo:
             format="NETCDF3_64BIT",
         )
 
+    def write_ww3_input(self, file_dir, grid_alias):
+        """
+        Write the text-based WW3 input files ww3_grid.inp, [grid_alias]_x.inp, [grid_alias]_y.inp,
+        [grid_alias]_mapsta.inp, [grid_alias]_bottom.inp, which are to be read by the WW3
+        mod_def creator before runtime to generate the WW3 grid files.
+
+        Parameters
+        ----------
+        file_dir: str
+            Directory to write the WW3 input files to.
+        grid_alias: str
+            The alias for the grid, which will be used in the file names of the WW3 input files.
+        """
+
+        assert (
+            "degrees" in self._grid.tlat.units and "degrees" in self._grid.tlon.units
+        ), "Unsupported coord"
+
+        file_dir = Path(file_dir)
+        file_dir.mkdir(parents=True, exist_ok=True)
+
+        nx = self._grid.nx
+        ny = self._grid.ny
+
+        def _write_rows(filename, fmt_cell, sep):
+            """Write the nx*ny grid values to a WW3 text input file, southernmost
+            row (j=0) first to match IDLA=1 in ww3_grid.inp."""
+            with open(file_dir / filename, "w") as f:
+                for j in range(ny):
+                    f.write(sep.join(fmt_cell(j, i) for i in range(nx)) + "\n")
+
+        tlon = self._grid.tlon.data  # (ny, nx), degrees
+        tlat = self._grid.tlat.data  # (ny, nx), degrees
+        # Define ocean cells from the land/sea mask so the depth and status files
+        # stay consistent even if the mask has been edited.
+        tmask = self.tmask.data  # (ny, nx), 1=ocean, 0=land
+        depth_m = self.masked_depth.data
+
+        x_file = f"{grid_alias}_x.inp"
+        y_file = f"{grid_alias}_y.inp"
+        bottom_file = f"{grid_alias}_bottom.inp"
+        mapsta_file = f"{grid_alias}_mapsta.inp"
+
+        # --- x/y coordinate files (longitudes/latitudes in degrees) ---
+        _write_rows(x_file, lambda j, i: f"{tlon[j, i]:15.8f}", sep="")
+        _write_rows(y_file, lambda j, i: f"{tlat[j, i]:15.8f}", sep="")
+
+        # --- bottom depth file (positive depth in meters for ocean) ---
+        # WW3 stores seabed as elevation ZB (negative-down); DW = WLV - ZB.
+        # The preprocessor computes ZBIN = SBF * file_values, then flags a
+        # cell as sea when ZBIN <= ZLIM. We write positive depths in meters
+        # and set SBF=-1.0 in ww3_grid.inp so ZBIN comes out as the correct
+        # negative-down elevation. Matches the convention in WW3 regtest
+        # ww3_tp2.5 (regtests/ww3_tp2.5/input/depth.361x361.IDLA1.dat).
+        _write_rows(bottom_file, lambda j, i: f"{depth_m[j, i]:.8f}", sep=" ")
+
+        # --- map status file (1=ocean, 0=land) ---
+        # TODO: WW3 also supports mapsta codes 2 (active boundary), 3 (excluded),
+        # and negative values (ice). Extend when nested/boundary-forced runs are needed.
+        _write_rows(mapsta_file, lambda j, i: str(int(tmask[j, i])), sep=" ")
+
+        # --- Write ww3_grid.inp ---
+        # Use IDLA=1 (bottom-to-top) and IDFM=1 (free format) to match the
+        # row ordering used above (j=0 is the southernmost row).
+        with open(file_dir / "ww3_grid.inp", "w") as f:
+            f.write(
+                "$ -------------------------------------------------------------------- $\n"
+                "$ WAVEWATCH III Grid preprocessor input file                           $\n"
+                "$ -------------------------------------------------------------------- $\n"
+                "$\n"
+                "$ Grid name (C*30, in quotes)\n"
+                "$\n"
+            )
+            grid_name = grid_alias.ljust(30)[:30]
+            f.write(f"  '{grid_name}'\n")
+            # TODO: frequency/direction counts, model flags, and timesteps below
+            # are copied from the ww3a reference grid. Parameterize when this
+            # method is used for grids with different resolution or physics.
+            nk = 25  # number of frequencies (wavenumbers)
+            nth = 24  # number of directions
+            f.write(
+                "$\n"
+                "$ Frequency increment factor and first frequency (Hz) ---------------- $\n"
+                "$ number of frequencies (wavenumbers) and directions, relative offset\n"
+                "$ of first direction in terms of the directional increment [-0.5,0.5].\n"
+                "$\n"
+                f"  1.1  0.04118  {nk}  {nth}  0.0\n"
+                "$\n"
+                "$ Set model flags ---------------------------------------------------- $\n"
+                "$  - FLDRY         Dry run (input/output only, no calculation).\n"
+                "$  - FLCX, FLCY    Activate X and Y component of propagation.\n"
+                "$  - FLCTH, FLCK   Activate direction and wavenumber shifts.\n"
+                "$  - FLSOU         Activate source terms.\n"
+                "  F  T  T  T  F  T \n"
+                "$\n"
+                "$ Set time steps ----------------------------------------------------- $\n"
+                "$ - Time step information (this information is always read)\n"
+                "$     maximum global time step, maximum CFL time step for x-y and\n"
+                "$     k-theta, minimum source term time step (all in seconds).\n"
+                "$\n"
+                "  600.00  300.00  300.00   30.00\n"
+                "$\n"
+                "$ Start of namelist input section ------------------------------------ $\n"
+                "$\n"
+                "&OUTS\n"
+                f"  E3D = 1, I1E3D = 1, I2E3D = {nk}\n"
+                "/\n"
+                "\n"
+                "END OF NAMELISTS\n"
+                "$\n"
+                "$ Define grid -------------------------------------------------------- $\n"
+                "$\n"
+            )
+            closure = "SMPL" if self._grid.supergrid.is_cyclic_x else "NONE"
+            f.write(f"  'CURV'  T  '{closure}'\n")
+            f.write(f"  {nx}  {ny}\n")
+            f.write(f"  21 1.0 0.0 1 1 '(....)' 'NAME' '{x_file}'\n")
+            f.write(f"  22 1.0 0.0 1 1 '(....)' 'NAME' '{y_file}'\n")
+            f.write(
+                f"  -0.1 {self._min_depth:.2f} 23 -1. 1 1 '(....)' 'NAME' '{bottom_file}'\n"
+            )
+            f.write(f"  24 1 1 '(....)' 'NAME' '{mapsta_file}'\n")
+            f.write(
+                "$\n"
+                "$  Close list by defining line with 0 points (mandatory)\n"
+                "$\n"
+                "    0.  0.  0.  0.  0  \n"
+                "$ -------------------------------------------------------------------- $\n"
+                "$ End of input file                                                    $\n"
+                "$ -------------------------------------------------------------------- $\n"
+            )
+
     def write_scrip_grid(self, file_path, title=None):
         """
         Write the SCRIP grid file. In latest CESM versions, SCRIP grid files are
@@ -1994,7 +2302,7 @@ class Topo:
 
                 return [ll, lr, ur, ul]
 
-        elif self._grid.is_cyclic_x == True:
+        elif self._grid.supergrid.is_cyclic_x == True:
 
             nx, ny = self._grid.nx, self._grid.ny
             qlon_flat = self._grid.qlon.data[:, :-1].flatten()

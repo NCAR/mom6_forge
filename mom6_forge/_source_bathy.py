@@ -109,7 +109,7 @@ class SourceBathy:
         self._ds.depth.attrs["units"] = "meters"
         self._ds.depth.attrs["coordinates"] = "lon lat"
         if "units" not in self._ds[self.lon_name].attrs:
-            self._ds[self.lon_name].attrs["units"] = "degrees"
+            self._ds[self.lon_name].attrs["units"] = "degrees_east"
         if "units" not in self._ds[self.lat_name].attrs:
             self._ds[self.lat_name].attrs["units"] = "degrees_north"
 

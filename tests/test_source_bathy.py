@@ -8,9 +8,9 @@ import xarray as xr
 from mom6_forge._source_bathy import SourceBathy
 
 
-def test_simple_source_bathy_calls(get_rect_topo, synthetic_bathy_file):
+def test_simple_source_bathy_calls(get_rect_topo_without_vc, synthetic_bathy_file):
     src = SourceBathy(
-        get_rect_topo,
+        get_rect_topo_without_vc,
         synthetic_bathy_file,
         lon_name="lon",
         lat_name="lat",
@@ -19,10 +19,10 @@ def test_simple_source_bathy_calls(get_rect_topo, synthetic_bathy_file):
     print(src, src.ds, src.lon, src.lat, src.depth)
 
 
-def test_source_bathy_initialization(synthetic_bathy_file, get_rect_topo):
+def test_source_bathy_initialization(synthetic_bathy_file, get_rect_topo_without_vc):
     """Test SourceBathy initialization and coordinate names."""
     src = SourceBathy(
-        get_rect_topo,
+        get_rect_topo_without_vc,
         synthetic_bathy_file,
         lon_name="lon",
         lat_name="lat",
@@ -35,9 +35,9 @@ def test_source_bathy_initialization(synthetic_bathy_file, get_rect_topo):
     assert src.depth_name == "depth"
 
 
-def test_source_bathy_slice_to_domain(get_rect_topo, synthetic_bathy_file):
+def test_source_bathy_slice_to_domain(get_rect_topo_without_vc, synthetic_bathy_file):
     """Smoke test: load and slice depth to topo domain."""
-    topo = get_rect_topo
+    topo = get_rect_topo_without_vc
 
     src = SourceBathy(
         topo,
@@ -56,9 +56,9 @@ def test_source_bathy_slice_to_domain(get_rect_topo, synthetic_bathy_file):
     assert src.depth.shape == (len(src.lat), len(src.lon))
 
 
-def test_source_bathy_depth_conversion(get_rect_topo, synthetic_bathy_file):
+def test_source_bathy_depth_conversion(get_rect_topo_without_vc, synthetic_bathy_file):
     """Test that depth is converted to positive-down depth."""
-    topo = get_rect_topo
+    topo = get_rect_topo_without_vc
 
     src = SourceBathy(
         topo,
