@@ -425,41 +425,47 @@ class Grid:
                 • "ic" (full domain for initial conditions)
         """
         if type(hgrid) == Grid:
+            # assert hgrid.is_rectangular()  # not valid for polar-projected grids (pole inside domain)
             hgrid = hgrid._supergrid.to_ds()
-        assert not Grid.is_cyclic_x(
-            hgrid
-        ), "Cannot compute bounding boxes for cyclic grids"
+            assert not Grid.is_cyclic_x(hgrid)
+        else:
+            grid_check = Grid.from_supergrid_ds(hgrid)
+            # assert grid_check.is_rectangular()  # not valid for polar-projected grids (pole inside domain)
+            assert not Grid.is_cyclic_x(hgrid)
 
-        init_result = {
-            "lon_min": float(hgrid.x.min()),
-            "lon_max": float(hgrid.x.max()),
-            "lat_min": float(hgrid.y.min()),
-            "lat_max": float(hgrid.y.max()),
-        }
-        east_result = {
-            "lon_min": float(hgrid.x.isel(nxp=-1).min()),
-            "lon_max": float(hgrid.x.isel(nxp=-1).max()),
-            "lat_min": float(hgrid.y.isel(nxp=-1).min()),
-            "lat_max": float(hgrid.y.isel(nxp=-1).max()),
-        }
-        west_result = {
-            "lon_min": float(hgrid.x.isel(nxp=0).min()),
-            "lon_max": float(hgrid.x.isel(nxp=0).max()),
-            "lat_min": float(hgrid.y.isel(nxp=0).min()),
-            "lat_max": float(hgrid.y.isel(nxp=0).max()),
-        }
-        south_result = {
-            "lon_min": float(hgrid.x.isel(nyp=0).min()),
-            "lon_max": float(hgrid.x.isel(nyp=0).max()),
-            "lat_min": float(hgrid.y.isel(nyp=0).min()),
-            "lat_max": float(hgrid.y.isel(nyp=0).max()),
-        }
-        north_result = {
-            "lon_min": float(hgrid.x.isel(nyp=-1).min()),
-            "lon_max": float(hgrid.x.isel(nyp=-1).max()),
-            "lat_min": float(hgrid.y.isel(nyp=-1).min()),
-            "lat_max": float(hgrid.y.isel(nyp=-1).max()),
-        }
+        def _lon_lat_bounds(lon_values, lat_values):
+            lon_min, lon_max = float(lon_values.min()), float(lon_values.max())
+            # A raw min/max span over 180 degrees almost always means this edge
+            # crosses the antimeridian (unavoidable for a box that fully encircles
+            # a pole) rather than genuinely spanning most of the globe. Left as-is,
+            # lon_max frequently lands exactly on 180.0, which downstream lon
+            # normalization (mapping to (-180, 180]) collapses to -180.0 -- flipping
+            # the antimeridian-crossing sign check and causing the data query to
+            # grab only a thin sliver near +-180 instead of the true wraparound
+            # range. Widen explicitly to the full range instead, which downstream
+            # antimeridian-crossing handling already treats correctly.
+            if lon_max - lon_min > 180:
+                lon_min, lon_max = -180.0, 179.999
+            return {
+                "lon_min": lon_min,
+                "lon_max": lon_max,
+                "lat_min": float(lat_values.min()),
+                "lat_max": float(lat_values.max()),
+            }
+
+        init_result = _lon_lat_bounds(hgrid.x.values, hgrid.y.values)
+        east_result = _lon_lat_bounds(
+            hgrid.x.isel(nxp=-1).values, hgrid.y.isel(nxp=-1).values
+        )
+        west_result = _lon_lat_bounds(
+            hgrid.x.isel(nxp=0).values, hgrid.y.isel(nxp=0).values
+        )
+        south_result = _lon_lat_bounds(
+            hgrid.x.isel(nyp=0).values, hgrid.y.isel(nyp=0).values
+        )
+        north_result = _lon_lat_bounds(
+            hgrid.x.isel(nyp=-1).values, hgrid.y.isel(nyp=-1).values
+        )
         return {
             "east": east_result,
             "west": west_result,
