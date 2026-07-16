@@ -102,9 +102,7 @@ class SourceBathy:
         self.lon_name = "lon"
         self.lat_name = "lat"
         self.depth_name = "depth"
-        self._ds.depth.attrs["missing_value"] = (
-            -32768
-        )
+        self._ds.depth.attrs["missing_value"] = -32768
         self._ds.depth.attrs["_FillValue"] = -32768
         self._ds.depth.attrs["units"] = "meters"
         self._ds.depth.attrs["coordinates"] = "lon lat"
