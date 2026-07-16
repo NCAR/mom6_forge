@@ -103,9 +103,9 @@ class SourceBathy:
         self.lat_name = "lat"
         self.depth_name = "depth"
         self._ds.depth.attrs["missing_value"] = (
-            -1e20
-        )  # missing value expected by FRE tools
-        self._ds.depth.attrs["_FillValue"] = -1e20
+            -32768
+        )
+        self._ds.depth.attrs["_FillValue"] = -32768
         self._ds.depth.attrs["units"] = "meters"
         self._ds.depth.attrs["coordinates"] = "lon lat"
         if "units" not in self._ds[self.lon_name].attrs:
