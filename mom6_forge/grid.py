@@ -64,6 +64,8 @@ class Grid:
         nx: int = None,
         ny: int = None,
         resolution: Optional[float] = None,
+        resolution_lat: Optional[float] = None,
+        resolution_lon: Optional[float] = None,
         xstart: float = 0.0,
         ystart: Optional[float] = None,
         cyclic_x: bool = False,
@@ -84,9 +86,19 @@ class Grid:
         ny : int, optional
             Number of grid points in y direction
         resolution : float, optional
-            grid resolution in degrees. If provided, the grid
-            dimensions are computed based on the resolution:
-            nx = int(lenx / resolution) and ny = int(leny / resolution)
+            grid resolution in degrees, applied to both x and y directions.
+            If provided, the grid dimensions are computed based on the
+            resolution: nx = int(lenx / resolution) and
+            ny = int(leny / resolution). Mutually exclusive with
+            resolution_lat/resolution_lon and with nx/ny.
+        resolution_lat : float, optional
+            grid resolution in the y (latitude) direction, in degrees.
+            Must be provided together with resolution_lon, as an
+            alternative to resolution. ny = int(leny / resolution_lat)
+        resolution_lon : float, optional
+            grid resolution in the x (longitude) direction, in degrees.
+            Must be provided together with resolution_lat, as an
+            alternative to resolution. nx = int(lenx / resolution_lon)
         xstart : float, optional
             starting x coordinate. 0.0 by default.
         ystart : float, optional
@@ -108,11 +120,23 @@ class Grid:
             assert (
                 nx is not None and ny is not None
             ), "nx and ny must be provided together"
-            assert resolution is None, "resolution cannot be provided with nx and ny"
-        else:
             assert (
-                resolution is not None
-            ), "resolution must be provided if nx and ny are not"
+                resolution is None and resolution_lat is None and resolution_lon is None
+            ), "resolution/resolution_lat/resolution_lon cannot be provided with nx and ny"
+        elif resolution_lat is not None or resolution_lon is not None:
+            assert (
+                resolution_lat is not None and resolution_lon is not None
+            ), "resolution_lat and resolution_lon must be provided together"
+            assert (
+                resolution is None
+            ), "resolution cannot be provided with resolution_lat/resolution_lon"
+            nx = int(lenx / resolution_lon)
+            ny = int(leny / resolution_lat)
+        else:
+            assert resolution is not None, (
+                "either resolution, or resolution_lat and resolution_lon, "
+                "must be provided if nx and ny are not"
+            )
             nx = int(lenx / resolution)
             ny = int(leny / resolution)
 

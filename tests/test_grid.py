@@ -338,6 +338,31 @@ def test_grid_rectilinear_cartesian():
     assert grid.ny == 10
 
 
+def test_grid_resolution_lat_lon():
+    grid = Grid(lenx=10.0, leny=5.0, resolution_lat=1.0, resolution_lon=2.0)
+    assert isinstance(grid, Grid)
+    assert grid.nx == 5
+    assert grid.ny == 5
+
+
+def test_grid_resolution_lat_lon_conflicts_with_resolution():
+    with pytest.raises(AssertionError):
+        Grid(
+            lenx=10.0,
+            leny=5.0,
+            resolution=1.0,
+            resolution_lat=1.0,
+            resolution_lon=2.0,
+        )
+
+
+def test_grid_resolution_lat_lon_requires_both():
+    with pytest.raises(AssertionError):
+        Grid(lenx=10.0, leny=5.0, resolution_lat=1.0)
+    with pytest.raises(AssertionError):
+        Grid(lenx=10.0, leny=5.0, resolution_lon=2.0)
+
+
 def test_grid_from_projection():
     grid = Grid.from_projection(
         "EPSG:3995", -500_000, 500_000, -500_000, 500_000, 50_000, name="arctic"
