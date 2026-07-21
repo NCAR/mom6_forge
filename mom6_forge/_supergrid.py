@@ -21,6 +21,17 @@ from pyproj import CRS, Transformer
 from mom6_forge.utils import normalize_deg
 
 
+def _max_adjacent_diff(x):
+    """Largest absolute difference between horizontally or vertically adjacent
+    values of a 2D array. Used to detect a raw dateline-wrap discontinuity."""
+    max_diff = 0.0
+    if x.shape[1] > 1:
+        max_diff = max(max_diff, np.abs(np.diff(x, axis=1)).max())
+    if x.shape[0] > 1:
+        max_diff = max(max_diff, np.abs(np.diff(x, axis=0)).max())
+    return max_diff
+
+
 class SupergridBase:
     """Base class defining the MOM6-style supergrid interface."""
 
@@ -59,6 +70,8 @@ class SupergridBase:
         grid_type : str
             the type of grid being created
         """
+        if axis_units == "degrees":
+            self._validate_longitude_continuity(x, y)
         self.x = x
         self.y = y
         self.dx = dx
@@ -67,6 +80,58 @@ class SupergridBase:
         self.angle_dx = angle_dx
         self.axis_units = axis_units
         self.grid_type = grid_type
+
+    # Domains that reach this close to a pole legitimately surround every
+    # longitude (the pole is the one point where all meridians meet), so no
+    # wrap can make them continuous -- this is a real geometric singularity,
+    # not a wrap bug, and the validation below must leave such domains alone.
+    _POLE_ADJACENT_LAT = 89.9
+
+    @staticmethod
+    def _validate_longitude_continuity(x, y, max_span=360.0, max_adjacent_jump=180.0):
+        """Guard against the two dateline-wrapping failure modes this class must never produce.
+
+        1. A discontinuous jump between adjacent supergrid nodes (e.g. 179 next to
+           -179), which corrupts dx/dy/area/angle_dx since those are computed by
+           differencing adjacent x values.
+        2. Longitude values sitting at an implausible absolute offset (e.g. left in
+           the thousands of degrees by an upstream unit bug) or an unbounded span,
+           either of which indicates x was never wrapped/normalized at all.
+
+        A legitimate global, cyclic-in-x grid has span == 360 exactly (or a hair
+        over due to floating point), which is why the span check has a small
+        tolerance rather than being a strict `< 360`.
+        """
+        if np.abs(y).max() >= SupergridBase._POLE_ADJACENT_LAT:
+            return
+
+        tol = 1e-6
+        span = x.max() - x.min()
+        if span > max_span + tol:
+            raise ValueError(
+                f"Longitude span is {span:.4f} degrees (> {max_span}); x looks "
+                "unwrapped/unbounded rather than a valid regional or global domain."
+            )
+        # A gross unit bug upstream (e.g. treating projected metres as degrees)
+        # can produce values sitting at a huge absolute offset while still having
+        # a small *local* span, which the check above alone would miss. Every
+        # value must independently sit within [-360, 360]: with a span capped at
+        # 360 and the domain's own center within (-180, 180], no individual
+        # value can legitimately fall outside [-360, 360].
+        abs_bound = 360.0
+        if x.max() > abs_bound + tol or x.min() < -abs_bound - tol:
+            raise ValueError(
+                f"Longitude values (range [{x.min():.4f}, {x.max():.4f}]) exceed "
+                f"+/-{abs_bound} degrees; x looks unwrapped/unnormalized rather "
+                "than a valid geographic longitude."
+            )
+        max_jump = _max_adjacent_diff(x)
+        if max_jump > max_adjacent_jump:
+            raise ValueError(
+                f"Longitude array contains a jump of {max_jump:.4f} degrees between "
+                f"adjacent supergrid nodes (> {max_adjacent_jump}); this indicates an "
+                "un-wrapped dateline crossing."
+            )
 
     def __eq__(self, other):
         if not isinstance(other, SupergridBase):
