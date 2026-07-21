@@ -6,8 +6,8 @@ GRID_MATRIX exercises all 4 builders x 3 seam positions (12 grids) against
 the two invariants SupergridBase.__init__ enforces: no discontinuous jump
 between adjacent nodes, and no unbounded/implausible longitude range.
 Domains within 0.1 degrees of a pole are exempt from both -- see
-test_pole_adjacent_domain_is_exempt_from_continuity_check -- since every
-longitude converges there; a jump is a geometric singularity, not a wrap bug.
+test_init_validation_exempts_pole_adjacent_latitude -- since every longitude
+converges there; a jump is a geometric singularity, not a wrap bug.
 """
 
 import numpy as np
