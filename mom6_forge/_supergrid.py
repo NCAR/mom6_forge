@@ -218,6 +218,31 @@ class SupergridBase:
         # Clamp to valid geographic range (floating-point overshoot from projection in some cases)
         y = np.clip(y, -90.0, 90.0)
 
+        # Longitude must be continuous before dx/dy/area/angle are computed by
+        # differencing adjacent x values: a raw dateline-wrap discontinuity (e.g.
+        # adjacent values of 179 and -179) corrupts those calculations at the seam.
+        # Skip entirely for domains that reach a pole: every longitude legitimately
+        # converges there, so no wrap can (or should) make them continuous.
+        if np.abs(y).max() < SupergridBase._POLE_ADJACENT_LAT:
+            center_lon = x[x.shape[0] // 2, x.shape[1] // 2]
+            # The per-element modulo is only needed (and only invoked) when the
+            # raw array actually contains a within-domain discontinuity (e.g. a
+            # raw PROJ transform whose +/-180 branch cut falls inside this
+            # domain) -- calling it unconditionally would round-trip every
+            # already-fine value through a floating-point modulo, introducing
+            # noise into arrays that never needed touching. Wrap around the
+            # grid's own center point rather than a fixed reference (e.g.
+            # Greenwich) so a domain straddling any seam is never split by the
+            # wrap itself.
+            if _max_adjacent_diff(x) > 180.0:
+                x = modulo_around_point(x, center_lon, 360)
+            # Re-centering by a whole multiple of 360 is always safe (it can't
+            # introduce a new discontinuity, and shifting by exactly 0 -- the
+            # common case -- is a bit-identical no-op) so this always runs, to
+            # land the field as close to the conventional [-180, 180] range as
+            # the domain allows.
+            x = x - round(center_lon / 360) * 360
+
         # dx, dy, area: use base class consistent calculation methods
         dx, dy = SupergridBase._calc_dx_dy(x, y, R=R, type=dx_dy_calc_type)
         area = SupergridBase._calc_area(x, y, R=R)
@@ -406,11 +431,6 @@ class UniformSphericalSupergrid(SupergridBase):
         grid_y = lat_min + jindp * len_y / ny_total  # latitude edges
         grid_x = lon_min + iindp * len_x / nx_total  # longitude edges
 
-        # ---------------------------------------------------------------------
-        # If there are longitudes larger than 360, shift to -180 -> 180 instead
-        # ---------------------------------------------------------------------
-        if grid_x.max() > 360:
-            grid_x -= 360
         # Form full 2D coordinate arrays for all cell corners
         x = np.tile(grid_x, (ny_total + 1, 1))
         y = np.tile(grid_y.reshape((ny_total + 1, 1)), (1, nx_total + 1))
@@ -466,11 +486,6 @@ class RectilinearCartesianSupergrid(SupergridBase):
         ), "provided array of longitudes must be uniformly spaced"
 
         lon, lat = np.meshgrid(lons, lats)
-        # ---------------------------------------------------------------------
-        # If there are longitudes larger than 360, shift to -180 -> 180 instead
-        # ---------------------------------------------------------------------
-        if lon.max() > 360:
-            lon -= 360
         return lon, lat
 
 
@@ -524,21 +539,9 @@ class ProjectedSupergrid(SupergridBase):
         y_sg = np.linspace(y_min, y_max, 2 * ny + 1)
         xx, yy = np.meshgrid(x_sg, y_sg)
 
-        center_lon = np.mean([x_min, x_max])
         transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
+        lon, lat = transformer.transform(xx, yy)
 
-        transformer = Transformer.from_crs(
-            crs,
-            CRS.from_proj4(f"+proj=longlat +datum=WGS84 +pm={center_lon}"),
-            always_xy=True,
-        )
-        lon_rel, lat = transformer.transform(xx, yy)
-        lon = lon_rel + center_lon  # shift back to true (Greenwich-relative) longitude
-        # ---------------------------------------------------------------------
-        # If there are longitudes larger than 360, shift to -180 -> 180 instead
-        # ---------------------------------------------------------------------
-        if lon.max() > 360:
-            lon -= 360
         return cls._init_from_xy(lon, lat, "projected_crs", radius)
 
     @classmethod
@@ -594,18 +597,9 @@ class ProjectedSupergrid(SupergridBase):
         xx_rot = xx * np.cos(theta) + yy * np.sin(theta)
         yy_rot = -xx * np.sin(theta) + yy * np.cos(theta)
 
-        transformer = Transformer.from_crs(
-            crs,
-            CRS.from_proj4(f"+proj=longlat +datum=WGS84 +pm={center_lon}"),
-            always_xy=True,
-        )
-        lon_rel, lat = transformer.transform(xx_rot, yy_rot)
-        lon = lon_rel + center_lon  # shift back to true (Greenwich-relative) longitude
-        # ---------------------------------------------------------------------
-        # If there are longitudes larger than 360, shift to -180 -> 180 instead
-        # ---------------------------------------------------------------------
-        if lon.max() > 360:
-            lon -= 360
+        transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
+        lon, lat = transformer.transform(xx_rot, yy_rot)
+
         return cls._init_from_xy(lon, lat, "projected_crs", radius)
 
 
