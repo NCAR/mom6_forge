@@ -112,10 +112,7 @@ class SupergridBase:
                 f"Longitude span is {span:.4f} degrees (> {max_span}); x looks "
                 "unwrapped/unbounded rather than a valid regional or global domain."
             )
-        # A gross unit bug upstream (e.g. treating projected metres as degrees)
-        # can produce values sitting at a huge absolute offset while still having
-        # a small *local* span, which the check above alone would miss. Every
-        # value must independently sit within [-360, 360]: with a span capped at
+        # Every value must independently sit within [-360, 360]: with a span capped at
         # 360 and the domain's own center within (-180, 180], no individual
         # value can legitimately fall outside [-360, 360].
         abs_bound = 360.0
