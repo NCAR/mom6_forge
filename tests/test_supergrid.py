@@ -76,7 +76,8 @@ def test_projected_supergrid_from_center():
     centre_lat = sg.y[sg.y.shape[0] // 2, sg.y.shape[1] // 2]
     centre_lon = sg.x[sg.x.shape[0] // 2, sg.x.shape[1] // 2]
     assert abs(centre_lat - center_lat) < 1.0
-    assert abs(centre_lon - center_lon) < 1.0
+    # Output longitude is normalized to [0, 360), so -70 comes back as 290.
+    assert abs(centre_lon - (center_lon % 360)) < 1.0
 
 
 def test_projected_supergrid_from_center_rotated():
@@ -99,7 +100,8 @@ def test_projected_supergrid_from_center_rotated():
     cy = sg_45.y[sg_45.y.shape[0] // 2, sg_45.y.shape[1] // 2]
     cx = sg_45.x[sg_45.x.shape[0] // 2, sg_45.x.shape[1] // 2]
     assert abs(cy - center_lat) < 1.0
-    assert abs(cx - center_lon) < 1.0
+    # Output longitude is normalized to [0, 360), so -70 comes back as 290.
+    assert abs(cx - (center_lon % 360)) < 1.0
     assert ((sg_45.angle_dx + np.deg2rad(45.0)) < 0.1).all()
 
 

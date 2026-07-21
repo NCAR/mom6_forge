@@ -356,4 +356,5 @@ def test_grid_from_center():
     mid_lat = grid.tlat.values[grid.ny // 2, grid.nx // 2]
     mid_lon = grid.tlon.values[grid.ny // 2, grid.nx // 2]
     assert abs(mid_lat - 40.0) < 1.0
-    assert abs(mid_lon - (-70.0)) < 1.0
+    # Output longitude is normalized to [0, 360), so -70 comes back as 290.
+    assert abs(mid_lon - 290.0) < 1.0
