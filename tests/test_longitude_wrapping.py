@@ -125,7 +125,7 @@ def test_global_cyclic_grid_still_spans_exactly_360():
         pytest.param([[0.0, 200.0, 400.0, 600.0]], "span", id="unbounded-span"),
         pytest.param(
             [[100_000.0, 100_001.0, 100_002.0]],
-            "exceed",
+            "outside",
             id="huge-absolute-offset-small-local-span",
         ),
         pytest.param(

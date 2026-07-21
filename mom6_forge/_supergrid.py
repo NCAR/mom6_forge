@@ -112,15 +112,16 @@ class SupergridBase:
                 f"Longitude span is {span:.4f} degrees (> {max_span}); x looks "
                 "unwrapped/unbounded rather than a valid regional or global domain."
             )
-        # Every value must independently sit within [-360, 360]: with a span capped at
-        # 360 and the domain's own center within (-180, 180], no individual
-        # value can legitimately fall outside [-360, 360].
-        abs_bound = 360.0
-        if x.max() > abs_bound + tol or x.min() < -abs_bound - tol:
+        # Every value must independently sit within [-180, 540]: the fix targets
+        # a domain center within [0, 360) and, with span capped at 360, no
+        # individual value can legitimately fall outside 180 degrees either
+        # side of that -- i.e. [0 - 180, 360 + 180).
+        low_bound, high_bound = -180.0, 540.0
+        if x.max() > high_bound + tol or x.min() < low_bound - tol:
             raise ValueError(
-                f"Longitude values (range [{x.min():.4f}, {x.max():.4f}]) exceed "
-                f"+/-{abs_bound} degrees; x looks unwrapped/unnormalized rather "
-                "than a valid geographic longitude."
+                f"Longitude values (range [{x.min():.4f}, {x.max():.4f}]) fall "
+                f"outside [{low_bound}, {high_bound}]; x looks unwrapped/"
+                "unnormalized rather than a valid geographic longitude."
             )
         max_jump = _max_adjacent_diff(x)
         if max_jump > max_adjacent_jump:
@@ -234,11 +235,12 @@ class SupergridBase:
             if _max_adjacent_diff(x) > 180.0:
                 x = modulo_around_point(x, center_lon, 360)
             # Re-centering by a whole multiple of 360 is always safe (it can't
-            # introduce a new discontinuity, and shifting by exactly 0 -- the
-            # common case -- is a bit-identical no-op) so this always runs, to
-            # land the field as close to the conventional [-180, 180] range as
-            # the domain allows.
-            x = x - round(center_lon / 360) * 360
+            # introduce a new discontinuity, and shifting by exactly 0 is a
+            # bit-identical no-op) so this always runs, to land the field in
+            # the conventional [0, 360) range. Only a domain that itself
+            # straddles that seam (e.g. centered near the Prime Meridian)
+            # spills outside it, since no shift avoids that.
+            x = x - np.floor(center_lon / 360) * 360
 
         # dx, dy, area: use base class consistent calculation methods
         dx, dy = SupergridBase._calc_dx_dy(x, y, R=R, type=dx_dy_calc_type)
