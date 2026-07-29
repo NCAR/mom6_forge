@@ -2,6 +2,7 @@ import pytest
 from mom6_forge.utils import (
     get_avg_resolution,
     get_avg_resolution_km,
+    longitude_slicer,
     iterative_fill,
 )
 from mom6_forge._supergrid import (
@@ -89,6 +90,79 @@ def test_quadrilateral_areas(lat, lon, true_area):
 )
 def test_latlon_to_cartesian(lat, lon, true_xyz):
     assert np.isclose(latlon_to_cartesian(lat, lon), true_xyz).all()
+
+
+def test_longitude_slicer():
+    with pytest.raises(AssertionError):
+        nx, ny, nt = 4, 14, 5
+
+        latitude_extent = (10, 20)
+        longitude_extent = (12, 18)
+
+        dims = ["random_lat", "random_lon", "time"]
+
+        dlambda = (longitude_extent[1] - longitude_extent[0]) / 2
+
+        data = xr.DataArray(
+            np.random.random((ny, nx, nt)),
+            dims=dims,
+            coords={
+                "random_lat": np.linspace(latitude_extent[0], latitude_extent[1], ny),
+                "random_lon": np.array(
+                    [
+                        longitude_extent[0],
+                        longitude_extent[0] + 1.5 * dlambda,
+                        longitude_extent[0] + 2.6 * dlambda,
+                        longitude_extent[1],
+                    ]
+                ),
+                "time": np.linspace(0, 1000, nt),
+            },
+        )
+
+        longitude_slicer(data, longitude_extent, "random_lon")
+
+
+def test_longitude_slicers_regionally():
+    nx, ny = 4, 14
+
+    latitude_extent = (2, 5)
+    longitude_extent = (-90, -70)
+
+    dims = ["random_lat", "random_lon"]
+
+    dlambda = (longitude_extent[1] - longitude_extent[0]) / 2
+
+    data = xr.DataArray(
+        np.random.random((ny, nx)),
+        dims=dims,
+        coords={
+            "random_lat": np.linspace(latitude_extent[0], latitude_extent[1], ny),
+            "random_lon": np.linspace(
+                longitude_extent[0] - 2, longitude_extent[1] + 2, nx
+            ),
+        },
+    )
+
+    # Regular regional
+    data_regular = longitude_slicer(data, longitude_extent, "random_lon")
+    data_east = longitude_slicer(data, (270, 290), "random_lon")
+    assert (data_regular == data_east).all()
+
+    # Seam data
+    longitude_extent = (-5, 5)
+    data = xr.DataArray(
+        np.random.random((ny, nx)),
+        dims=dims,
+        coords={
+            "random_lat": np.linspace(latitude_extent[0], latitude_extent[1], ny),
+            "random_lon": np.linspace(
+                longitude_extent[0] - 2, longitude_extent[1] + 2, nx
+            ),
+        },
+    )
+    data_regular = longitude_slicer(data, longitude_extent, "random_lon")
+    assert len(data_regular.random_lon) > 0
 
 
 def test_quadrilateral_area_exception():

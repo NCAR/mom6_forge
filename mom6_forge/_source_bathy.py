@@ -17,6 +17,7 @@ should construct a ``SourceBathy`` explicitly::
 import numpy as np
 import xarray as xr
 from pathlib import Path
+from mom6_forge.utils import longitude_slicer
 
 
 class SourceBathy:
@@ -101,10 +102,8 @@ class SourceBathy:
         self.lon_name = "lon"
         self.lat_name = "lat"
         self.depth_name = "depth"
-        self._ds.depth.attrs["missing_value"] = (
-            -1e20
-        )  # missing value expected by FRE tools
-        self._ds.depth.attrs["_FillValue"] = -1e20
+        self._ds.depth.attrs["missing_value"] = -32768
+        self._ds.depth.attrs["_FillValue"] = -32768
         self._ds.depth.attrs["units"] = "meters"
         self._ds.depth.attrs["coordinates"] = "lon lat"
         if "units" not in self._ds[self.lon_name].attrs:
@@ -239,135 +238,3 @@ class SourceBathy:
             f"SourceBathy({self.path.name!r}, lon={self.lon_name!r}, "
             f"lat={self.lat_name!r}, depth={self.depth_name!r}, shape={self.depth.shape})"
         )
-
-
-def longitude_slicer(data, longitude_extent, longitude_coords):
-    """Slice a dataset in longitude, handling periodicity and domain seams.
-
-    Correctly clips datasets whose longitude coordinate may use any
-    convention (e.g. ``[0, 360]`` or ``[-180, 180]``) and where the
-    requested ``longitude_extent`` may straddle the wrap-around seam.
-
-    The algorithm proceeds in five steps:
-
-    1. Determine the integer multiple of 360° needed to shift the midpoint
-       of ``longitude_extent`` into the range covered by ``data``.
-    2. Roll the dataset so that its centre aligns with the midpoint of the
-       target extent.
-    3. Rebuild a monotonically increasing longitude coordinate that removes
-       the seam introduced by the roll.
-    4. Index out the required number of longitude points symmetrically
-       around the new centre.
-    5. Re-centre the coordinate values to match the target domain.
-
-    Parameters
-    ----------
-    data : xarray.Dataset
-        Global (or at least periodic) dataset to slice.  The longitude
-        coordinate must be uniformly spaced.
-    longitude_extent : array-like of float
-        Target longitude bounds ``(west, east)`` in degrees, in increasing
-        order.
-    longitude_coords : str or list of str
-        Name(s) of the longitude coordinate(s) in ``data`` along which to
-        slice.
-
-    Returns
-    -------
-    xarray.Dataset
-        Dataset sliced to ``longitude_extent``, with the longitude
-        coordinate re-centred to match the target domain.
-
-    Raises
-    ------
-    AssertionError
-        If any named longitude coordinate is not uniformly spaced.
-    """
-
-    if isinstance(longitude_coords, str):
-        longitude_coords = [longitude_coords]
-
-    for lon in longitude_coords:
-
-        central_longitude = np.mean(longitude_extent)  ## Midpoint of target domain
-
-        ## Find a corresponding value for the intended domain midpoint in our data.
-        ## It's assumed that data has equally-spaced longitude values.
-
-        lons = data[lon].data
-        dlons = lons[1] - lons[0]
-        lon_span = lons[-1] - lons[0] + dlons
-
-        assert np.allclose(
-            np.diff(lons), dlons * np.ones(np.size(lons) - 1)
-        ), "provided longitude coordinate must be uniformly spaced"
-
-        is_longitude_extent_in_data = (
-            False  # This boolean checks if the 360 + i adjustment isn't found
-        )
-        for i in range(-1, 2, 1):
-            if data[lon][0] <= central_longitude + 360 * i <= data[lon][-1]:
-                is_longitude_extent_in_data = True
-
-                ## Shifted version of target midpoint; e.g., could be -90 vs 270
-                ## integer i keeps track of what how many multiples of 360 we need to shift entire
-                ## grid by to match central_longitude
-                _central_longitude = central_longitude + 360 * i
-
-                ## Midpoint of the data
-                central_data = data[lon][data[lon].shape[0] // 2].values
-
-                ## Number of indices between the data midpoint and the target midpoint.
-                ## Sign indicates direction needed to shift.
-                shift = int(
-                    -(data[lon].shape[0] * (_central_longitude - central_data))
-                    // lon_span
-                )
-
-                ## Shift data so that the midpoint of the target domain is the middle of
-                ## the data for easy slicing.
-                new_data = data.roll({lon: 1 * shift}, roll_coords=True)
-
-                ## Create a new longitude coordinate.
-                ## We'll modify this to remove any seams (i.e., jumps like -270 -> 90)
-                new_lon = new_data[lon].values.copy()
-
-                ## Take the 'seam' of the data, and either backfill or forward fill based on
-                ## whether the data was shifted F or west
-                if shift > 0:
-                    new_seam_index = shift
-
-                    new_lon[0:new_seam_index] -= 360
-
-                if shift < 0:
-                    new_seam_index = data[lon].shape[0] + shift
-
-                    new_lon[new_seam_index:] += 360
-
-                ## new_lon is used to re-centre the midpoint to match that of target domain
-                new_lon -= i * 360
-
-                new_data = new_data.assign_coords({lon: new_lon})
-
-                ## Choose the number of lon points to take from the middle, including a buffer.
-                ## Use this to index the new global dataset
-                num_lonpoints = int(
-                    int(data[lon].shape[0] * (central_longitude - longitude_extent[0]))
-                    // lon_span
-                )
-
-        if not is_longitude_extent_in_data:
-            raise ValueError(
-                "The longitude of the data doesn't seem to include the longitude of the grid."
-            )
-
-        data = new_data.isel(
-            {
-                lon: slice(
-                    data[lon].shape[0] // 2 - num_lonpoints,
-                    data[lon].shape[0] // 2 + num_lonpoints,
-                )
-            }
-        )
-
-    return data
