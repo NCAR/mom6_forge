@@ -198,6 +198,22 @@ def test_expanded_supergrid_generation(get_curvilinear_supergrid):
     return
 
 
+def test_expand_adds_halo_and_preserves_interior(get_curvilinear_supergrid):
+    supergrid = get_curvilinear_supergrid
+    sg = SupergridBase._init_from_xy(supergrid.x.values, supergrid.y.values)
+
+    nyp, nxp = sg.x.shape
+    n_cells = 2
+    expanded = sg.expand(n_cells=n_cells)
+
+    assert expanded.x.shape == (nyp + 4 * n_cells, nxp + 4 * n_cells)
+    assert expanded.y.shape == (nyp + 4 * n_cells, nxp + 4 * n_cells)
+
+    pad = 2 * n_cells
+    assert np.allclose(expanded.x[pad:-pad, pad:-pad], sg.x)
+    assert np.allclose(expanded.y[pad:-pad, pad:-pad], sg.y)
+
+
 @pytest.mark.parametrize(("angle"), [0, 12.5, 65, -20])
 def test_mom6_angle_calculation_method_simple_square_grids(angle):
     """
