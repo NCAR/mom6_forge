@@ -878,6 +878,27 @@ Example: angle_deg=45 places the x-axis along a NE–SW estuary mouth.</p></li>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.grid.Grid.from_esmf_mesh">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_esmf_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid"><span class="pre">Grid</span></a></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.from_esmf_mesh" title="Link to this definition"></a></dt>
+<dd><p>Create a Grid instance from a supergrid file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path</strong> (<em>str</em>) – Path to the supergrid file to be written</p></li>
+<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of the new grid. If provided, it will be used as the name of the grid.
+If not provided, the name will be derived from the file name.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The Grid instance created from the supergrid file.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid">Grid</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.grid.Grid.from_projection">
 <span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_projection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">crs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_min</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_max</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_min</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_max</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resolution_m</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid"><span class="pre">Grid</span></a></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.from_projection" title="Link to this definition"></a></dt>
 <dd><p>Create a Grid from projected coordinate extents.</p>
@@ -1042,7 +1063,7 @@ with longitude/latitude magnitude.</p>
 <dd><p>Check if the given supergrid x coordinates form a tripolar grid.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>supergrid</strong> (<em>xr.DataArray</em><em> or </em><em>np.array</em><em> or </em><em>SupergridBase</em>) – Supergrid to check if tripolar.</p>
+<dd class="field-odd"><p><strong>supergrid</strong> (<em>SupergridBase</em>) – Supergrid to check if tripolar.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1853,6 +1874,22 @@ averaging (up to 100 passes).</p>
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.fill_inland_lakes_and_channels">
 <span class="sig-name descname"><span class="pre">fill_inland_lakes_and_channels</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.fill_inland_lakes_and_channels" title="Link to this definition"></a></dt>
 <dd><p>Fill in one-cell-wide channels and inland lakes. This removes more narrow inlets, but can also connect extra islands to land.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.from_esmf_mesh">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_esmf_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mesh_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">radius</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">6371000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_depth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version_control_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'TopoLibrary'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">git</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.from_esmf_mesh" title="Link to this definition"></a></dt>
+<dd><p>Construct a topo object from the ESMF mesh + Mask, there is no depth associated with this</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>mesh_path</strong> (<em>str</em><em> or </em><em>xr.Dataset</em>) – Path to ESMF mesh file to read, or an already-opened Dataset.</p></li>
+<li><p><strong>radius</strong> (<em>float</em><em>, </em><em>optional</em>) – Radius of the Earth (m). Default is _DEFAULT_RADIUS.</p></li>
+<li><p><strong>min_depth</strong> (<em>float</em><em>, </em><em>optional</em>) – Minimum water column depth (m). Columns with shallower depths are to be masked out. Default is 0.0.</p></li>
+<li><p><strong>git</strong> (<em>bool</em><em>, </em><em>optional</em>) – Passed through to Topo.__init__. See Topo docstring for details. Default is False.</p></li>
+</ul>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
