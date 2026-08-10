@@ -357,30 +357,11 @@ class Grid:
 
         Parameters
         ----------
-        supergrid : xr.DataArray or np.array or SupergridBase
+        supergrid : SupergridBase
             Supergrid to check if tripolar.
         """
 
-        nlines = (
-            0  # number of lines along the top row,
-            # (i.e., 2 or more cells with the same x coordinate)
-        )
-
-        ny, nx = supergrid.x.shape
-
-        within_line = False
-        for i in range(0, nx - 1):
-            if not within_line:
-                if supergrid.x[-1, i] == supergrid.x[-1, i + 1]:
-                    within_line = True
-                    nlines += 1
-            else:
-                if supergrid.x[-1, i] != supergrid.x[-1, i + 1]:
-                    within_line = False
-
-        # If there are 3 lines (i.e., 2 or more cells with the same x coordinate),
-        # the grid is tripolar
-        return nlines == 3
+        return supergrid.is_tripolar
 
     def is_rectangular(self, atol=1e-3) -> bool:
         """Check if the grid is a rectangular lat-lon grid by comparing the
@@ -573,6 +554,26 @@ class Grid:
             else os.path.basename(path)
         )
         return Grid.from_supergrid_ds(ds, name)
+
+    @classmethod
+    def from_esmf_mesh(cls, path: str, name: Optional[str] = None) -> "Grid":
+        """Create a Grid instance from a supergrid file.
+
+        Parameters
+        ----------
+        path : str
+            Path to the supergrid file to be written
+        name : str, optional
+            Name of the new grid. If provided, it will be used as the name of the grid.
+            If not provided, the name will be derived from the file name.
+
+        Returns
+        -------
+        Grid
+            The Grid instance created from the supergrid file.
+        """
+        sg = SupergridBase.reconstruct_from_esmf_mesh(path)
+        return Grid.from_supergrid_ds(sg.to_ds(), name)
 
     @classmethod
     def from_supergrid_ds(cls, ds: xr.Dataset, name: Optional[str] = None) -> "Grid":

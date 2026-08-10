@@ -23,6 +23,7 @@ from mom6_forge._source_bathy import SourceBathy
 from mom6_forge.channel_width import ChannelWidthList
 from mom6_forge._supergrid import haversine, _DEFAULT_RADIUS
 import regionmask
+from mom6_forge._supergrid import _DEFAULT_RADIUS, SupergridBase
 
 VALID_MASK_METHODS = ("naturalearth", "ocean_frac", "dataset", "manual")
 VALID_DEPTH_METHODS = ("stats", "cressman", "xesmf")
@@ -222,6 +223,38 @@ class Topo:
         if topo.tcm is not None:
             topo.tcm.reapply_changes()
         topo.set_depth_via_topog_file(topo_file_path, varname)
+        return topo
+
+    @classmethod
+    def from_esmf_mesh(
+        cls,
+        mesh_path,
+        radius=_DEFAULT_RADIUS,
+        min_depth=0.0,
+        version_control_dir="TopoLibrary",
+        git=False,
+    ):
+        """
+        Construct a topo object from the ESMF mesh + Mask, there is no depth associated with this
+
+        Parameters
+        ----------
+        mesh_path: str or xr.Dataset
+            Path to ESMF mesh file to read, or an already-opened Dataset.
+        radius: float, optional
+            Radius of the Earth (m). Default is _DEFAULT_RADIUS.
+        min_depth: float, optional
+            Minimum water column depth (m). Columns with shallower depths are to be masked out. Default is 0.0.
+        git: bool, optional
+            Passed through to Topo.__init__. See Topo docstring for details. Default is False.
+        """
+
+        supergrid, mask = SupergridBase.reconstruct_from_esmf_mesh(
+            mesh_path, radius, return_mask=True
+        )
+        grid = Grid.from_supergrid_ds(supergrid.to_ds())
+        topo = cls(grid, min_depth, version_control_dir=version_control_dir, git=git)
+        topo.user_mask = mask
         return topo
 
     @property
@@ -2230,127 +2263,5 @@ class Topo:
             File title.
         """
 
-        ds = xr.Dataset()
-
-        # global attrs:
-        ds.attrs["gridType"] = "unstructured mesh"
-        ds.attrs["date_created"] = datetime.now().isoformat()
-        if title:
-            ds.attrs["title"] = title
-
-        tlon_flat = self._grid.tlon.data.flatten()
-        tlat_flat = self._grid.tlat.data.flatten()
-        ncells = len(tlon_flat)  # i.e., elementCount in ESMF mesh nomenclature
-
-        coord_units = self._grid.supergrid.axis_units
-
-        ds["centerCoords"] = xr.DataArray(
-            [[tlon_flat[i], tlat_flat[i]] for i in range(ncells)],
-            dims=["elementCount", "coordDim"],
-            attrs={"units": coord_units},
-        )
-
-        ds["numElementConn"] = xr.DataArray(
-            np.full(ncells, 4).astype(np.int8),
-            dims=["elementCount"],
-            attrs={"long_name": "Node indices that define the element connectivity"},
-        )
-
-        ds["elementArea"] = xr.DataArray(
-            self._grid.tarea.data.flatten(),
-            dims=["elementCount"],
-            attrs={"units": self._grid.tarea.units},
-        )
-
-        ds["elementMask"] = xr.DataArray(
-            self.tmask.data.astype(np.int32).flatten(), dims=["elementCount"]
-        )
-
-        i0 = 1  # start index for node id's
-
-        if self._grid.is_tripolar(self._grid._supergrid):
-            nx, ny = self._grid.nx, self._grid.ny
-            qlon_flat = self._grid.qlon.data[:, :-1].flatten()[: -(nx // 2 - 1)]
-            qlat_flat = self._grid.qlat.data[:, :-1].flatten()[: -(nx // 2 - 1)]
-            nnodes = len(qlon_flat)
-            assert nnodes + (nx // 2 - 1) == nx * (ny + 1)
-
-            # Below returns element connectivity of i-th element
-            # (assuming 0 based node and element indexing)
-            def get_element_conn(i):
-                is_final_column = (i + 1) % nx == 0
-                on_top_row = i // nx == ny - 1
-                on_second_half_of_stitch = on_top_row and (i % nx) >= nx // 2
-
-                # lower left corner
-                ll = i0 + i % nx + (i // nx) * (nx)
-
-                # lower right corner
-                lr = ll + 1
-                if is_final_column:
-                    lr -= nx
-
-                # upper right corner
-                ur = lr + nx
-                if on_second_half_of_stitch and not is_final_column:
-                    ur -= 2 * (i % nx + 1 - nx // 2)
-
-                # upper left corner
-                ul = ll + nx
-                if on_second_half_of_stitch:
-                    ul = ur + 1
-
-                return [ll, lr, ur, ul]
-
-        elif self._grid.supergrid.is_cyclic_x == True:
-
-            nx, ny = self._grid.nx, self._grid.ny
-            qlon_flat = self._grid.qlon.data[:, :-1].flatten()
-            qlat_flat = self._grid.qlat.data[:, :-1].flatten()
-            nnodes = len(qlon_flat)
-            assert nnodes == nx * (ny + 1)
-
-            # Below returns element connectivity of i-th element
-            # (assuming 0 based node and element indexing)
-            get_element_conn = lambda i: [
-                i0 + i % nx + (i // nx) * (nx),
-                i0 + i % nx + (i // nx) * (nx) + 1 - (((i + 1) % nx) == 0) * nx,
-                i0 + i % nx + (i // nx + 1) * (nx) + 1 - (((i + 1) % nx) == 0) * nx,
-                i0 + i % nx + (i // nx + 1) * (nx),
-            ]
-
-        else:  # non-cyclic grid
-            nx, ny = self._grid.nx, self._grid.ny
-            qlon_flat = self._grid.qlon.data.flatten()
-            qlat_flat = self._grid.qlat.data.flatten()
-            nnodes = len(qlon_flat)
-            assert nnodes == (nx + 1) * (ny + 1)
-
-            # Below returns element connectivity of i-th element
-            # (assuming 0 based node and element indexing)
-            get_element_conn = lambda i: [
-                i0 + i % nx + (i // nx) * (nx + 1),
-                i0 + i % nx + (i // nx) * (nx + 1) + 1,
-                i0 + i % nx + (i // nx + 1) * (nx + 1) + 1,
-                i0 + i % nx + (i // nx + 1) * (nx + 1),
-            ]
-
-        ds["nodeCoords"] = xr.DataArray(
-            np.column_stack((qlon_flat, qlat_flat)),
-            dims=["nodeCount", "coordDim"],
-            attrs={"units": coord_units},
-        )
-
-        ds["elementConn"] = xr.DataArray(
-            np.array([get_element_conn(i) for i in range(ncells)]).astype(np.int32),
-            dims=["elementCount", "maxNodePElement"],
-            attrs={
-                "long_name": "Node indices that define the element connectivity",
-                "start_index": np.int32(i0),
-            },
-        )
-        all_vars_encoding = {
-            var: {"_FillValue": None} for var in ds.data_vars
-        }  # disable _FillValue for all variables to avoid issues in ESMF
+        self._grid.supergrid.to_esmf_mesh(file_path, mask=self.tmask.data, title=title)
         self.mesh_path = file_path
-        ds.to_netcdf(self.mesh_path, format="NETCDF3_64BIT", encoding=all_vars_encoding)

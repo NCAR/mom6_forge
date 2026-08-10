@@ -262,8 +262,10 @@ def write_mapping_file(
         ), "weights_coo must be a scipy sparse COO matrix"
 
     # From 1D ESMF mesh to 2D grid
-    src_grid = grid_from_esmf_mesh(src_mesh)
-    dst_grid = grid_from_esmf_mesh(dst_mesh)
+    from mom6_forge.topo import Topo
+
+    src_topo = Topo.from_esmf_mesh(src_mesh)
+    dst_topo = Topo.from_esmf_mesh(dst_mesh)
 
     # 1/3: Source Domain Fields
     # -------------------
@@ -330,7 +332,7 @@ def write_mapping_file(
     )
 
     src_grid_dims = xr.DataArray(
-        np.array(src_grid.mask.shape[::-1]).astype(np.int32),
+        np.array(src_topo.tmask.shape[::-1]).astype(np.int32),
         dims=["src_grid_rank"],
         # attrs={
         #    'long_name': 'dimensions of the source grid',
@@ -338,12 +340,12 @@ def write_mapping_file(
     )
 
     nj_a = xr.DataArray(
-        [i + 1 for i in range(src_grid.mask.shape[0])],
+        [i + 1 for i in range(src_topo.tmask.shape[0])],
         dims=["nj_a"],
     )
 
     ni_a = xr.DataArray(
-        [i + 1 for i in range(src_grid.mask.shape[1])],
+        [i + 1 for i in range(src_topo.tmask.shape[1])],
         dims=["ni_a"],
     )
 
@@ -412,7 +414,7 @@ def write_mapping_file(
     )
 
     dst_grid_dims = xr.DataArray(
-        np.array(dst_grid.mask.shape[::-1]).astype(np.int32),
+        np.array(dst_topo.tmask.shape[::-1]).astype(np.int32),
         dims=["dst_grid_rank"],
         # dst_grid_dimsattrs={
         #    'long_name': 'dimensions of the destination grid',
@@ -420,12 +422,12 @@ def write_mapping_file(
     )
 
     nj_b = xr.DataArray(
-        [i + 1 for i in range(dst_grid.mask.shape[0])],
+        [i + 1 for i in range(dst_topo.tmask.shape[0])],
         dims=["nj_b"],
     )
 
     ni_b = xr.DataArray(
-        [i + 1 for i in range(dst_grid.mask.shape[1])],
+        [i + 1 for i in range(dst_topo.tmask.shape[1])],
         dims=["ni_b"],
     )
 
@@ -592,8 +594,6 @@ def generate_ESMF_map_via_xesmf(
         )
 
     dst_is_cyclic_x = is_mesh_cyclic_x(dst_mesh_path)
-
-    import xesmf as xe
 
     _print_regrid_info(
         src_grid,
