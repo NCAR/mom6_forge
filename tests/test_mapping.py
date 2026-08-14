@@ -458,13 +458,16 @@ def test_write_mapping_file_uses_shape_lookup_not_full_reconstruction(
 
 
 def test_gen_rof_maps_crop_matches_uncropped_physical_mapping(tmp_path):
-    """The whole point of cropping is that it must not change the actual
-    regridding result, only the array size it's computed over. Compare
-    cropped vs. uncropped gen_rof_maps() output by physical (lon, lat)
-    mapping rather than raw index, since cropping intentionally shrinks
-    n_a (this is as close to "bit for bit" as two differently-shaped
-    mesh files can be compared - every weight must land on the exact
-    same physical source/destination pair).
+    """Cropping is purely an internal speed-up for computing weights - it must
+    not change what mesh the written mapping file claims to describe. The
+    runtime component that actually consumes this file (e.g. DROF) declares
+    its own domain as the FULL, uncropped ROF mesh, and CMEPS's remap requires
+    the mapping file's `n_a` to match that domain's element count exactly.
+    A cropped-but-mismatched `n_a` is a real, confirmed bug (found by
+    inspecting how CrocoDash wires up ROF_DOMAIN_MESH - it never gets
+    re-pointed at a cropped mesh), not just a cosmetic difference - so this
+    checks both that the mapping is physically the same AND that `n_a` did
+    not shrink.
 
     Uses positive-latitude grids (not the equator-straddling crop_rof_grid
     fixture): generate_ESMF_map_via_xesmf's own map_overlap masking still
@@ -485,12 +488,16 @@ def test_gen_rof_maps_crop_matches_uncropped_physical_mapping(tmp_path):
     gen_rof_maps(rof_path, ocn_path, cropped_dir, "test_map", crop_source_mesh=True)
     gen_rof_maps(rof_path, ocn_path, uncropped_dir, "test_map", crop_source_mesh=False)
 
-    map_crop = _physical_mapping(
-        xr.open_dataset(get_nn_map_filepath("test_map", cropped_dir))
-    )
-    map_uncrop = _physical_mapping(
-        xr.open_dataset(get_nn_map_filepath("test_map", uncropped_dir))
-    )
+    ds_crop = xr.open_dataset(get_nn_map_filepath("test_map", cropped_dir))
+    ds_uncrop = xr.open_dataset(get_nn_map_filepath("test_map", uncropped_dir))
+
+    # The regression guard for the actual bug: cropping must not shrink n_a.
+    # rof_grid is 10x10 = 100 elements - if this is 900 instead, the crop
+    # window leaked into the output and the file is DROF-domain-inconsistent.
+    assert ds_crop.sizes["n_a"] == ds_uncrop.sizes["n_a"] == 100
+
+    map_crop = _physical_mapping(ds_crop)
+    map_uncrop = _physical_mapping(ds_uncrop)
     assert map_crop, "expected at least one nonzero mapping entry"
     assert map_crop.keys() == map_uncrop.keys()
     for key, weight in map_crop.items():
