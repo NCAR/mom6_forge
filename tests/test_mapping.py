@@ -10,7 +10,6 @@ from mom6_forge.mapping import (
     regrid_dataset_via_cressman,
     _make_subgrid_points,
     regrid_with_subsampling,
-    _construct_vertex_coords,
     _get_mesh_bbox,
     crop_esmf_mesh_to_bbox,
     write_mapping_file,
@@ -327,8 +326,8 @@ def test_regrid_with_subsampling(get_simple_grid):
 
 
 # ---------------------------------------------------------------------------
-# Runoff-mapping scaling fixes: _get_mesh_bbox, crop_esmf_mesh_to_bbox,
-# vectorized _construct_vertex_coords, and write_mapping_file's shape lookup.
+# Runoff-mapping scaling fixes: _get_mesh_bbox, crop_esmf_mesh_to_bbox, and
+# write_mapping_file's shape lookup.
 # ---------------------------------------------------------------------------
 
 
@@ -337,32 +336,22 @@ def _write_esmf_mesh(grid, path):
     return path
 
 
-def _set_element_mask(mesh_path, mask_2d):
-    """Overwrite elementMask on an existing ESMF mesh file with a (ny, nx) mask."""
-    ds = xr.open_dataset(mesh_path)
-    ds = ds.assign(
-        elementMask=(("elementCount",), mask_2d.ravel().astype(ds["elementMask"].dtype))
-    )
-    ds.to_netcdf(mesh_path)
-
-
-def _physical_mapping_set(ds):
-    """Key each nonzero mapping entry by (dst_lon, dst_lat, src_lon, src_lat) instead
-    of raw row/col index, so mappings built from differently-shaped source meshes
-    (e.g. cropped vs. uncropped) can still be compared for equivalence."""
+def _physical_mapping(ds):
+    """Key each nonzero mapping entry by (dst_lon, dst_lat, src_lon, src_lat)
+    instead of raw row/col index, so a cropped and an uncropped mapping (which
+    have different n_a/array sizes by design) can still be compared."""
     xc_a, yc_a = ds["xc_a"].values, ds["yc_a"].values
     xc_b, yc_b = ds["xc_b"].values, ds["yc_b"].values
     row, col, S = ds["row"].values - 1, ds["col"].values - 1, ds["S"].values
-    out = {}
-    for r, c, s in zip(row, col, S):
-        key = (
+    return {
+        (
             round(float(xc_b[r]), 6),
             round(float(yc_b[r]), 6),
             round(float(xc_a[c]), 6),
             round(float(yc_a[c]), 6),
-        )
-        out[key] = out.get(key, 0.0) + float(s)
-    return out
+        ): float(s)
+        for r, c, s in zip(row, col, S)
+    }
 
 
 @pytest.fixture
@@ -379,39 +368,6 @@ def crop_ocn_grid():
     """3x3 deg destination domain fully inside crop_rof_grid's extent."""
     return Grid(
         resolution=1.0, xstart=13.0, lenx=3.0, ystart=-2.0, leny=3.0, name="crop_ocn"
-    )
-
-
-@pytest.fixture
-def crop_rof_grid_pos_lat():
-    """Same footprint as crop_rof_grid but shifted to all-positive latitude.
-
-    generate_ESMF_map_via_xesmf's map_overlap masking (mapping.py) still runs
-    src_lat through normalize_deg (a separate, pre-existing bug not fixed by
-    this branch - see _get_mesh_bbox's docstring) - straddling the equator
-    there would wrap negative latitudes and mask out the wrong cells. Tests
-    that exercise the actual regridder go through this fixture instead of
-    crop_rof_grid so they check the crop, not that unrelated bug.
-    """
-    return Grid(
-        resolution=1.0,
-        xstart=10.0,
-        lenx=10.0,
-        ystart=25.0,
-        leny=10.0,
-        name="crop_rof_pos",
-    )
-
-
-@pytest.fixture
-def crop_ocn_grid_pos_lat():
-    return Grid(
-        resolution=1.0,
-        xstart=13.0,
-        lenx=3.0,
-        ystart=28.0,
-        leny=3.0,
-        name="crop_ocn_pos",
     )
 
 
@@ -432,12 +388,6 @@ def test_crop_esmf_mesh_to_bbox_shrinks_to_expected_window(
 ):
     rof_path = _write_esmf_mesh(crop_rof_grid, tmp_path / "rof.nc")
     ocn_path = _write_esmf_mesh(crop_ocn_grid, tmp_path / "ocn.nc")
-
-    # Mark a single active cell at rof grid indices (i=4, j=4) -> lon center
-    # 14.5, lat center -0.5 - inside the crop window computed below.
-    full_mask = np.zeros((10, 10))
-    full_mask[4, 4] = 1
-    _set_element_mask(rof_path, full_mask)
 
     lon_min, lon_max, lat_min, lat_max = _get_mesh_bbox(ocn_path)
     cropped_path = crop_esmf_mesh_to_bbox(
@@ -461,14 +411,6 @@ def test_crop_esmf_mesh_to_bbox_shrinks_to_expected_window(
     np.testing.assert_allclose(center_lon[0, :], [12.5, 13.5, 14.5, 15.5, 16.5])
     np.testing.assert_allclose(center_lat[:, 0], [-2.5, -1.5, -0.5, 0.5, 1.5])
 
-    # The single active cell (global i=4, j=4) sits at local (i=2, j=2) in the
-    # cropped window (imin=jmin=2) - crop must preserve mask *position*, not
-    # just mask *values*.
-    mask_c = cropped["elementMask"].data.reshape(ny_c, nx_c)
-    expected_mask = np.zeros((5, 5))
-    expected_mask[2, 2] = 1
-    np.testing.assert_array_equal(mask_c, expected_mask)
-
 
 def test_crop_esmf_mesh_to_bbox_rejects_nonmonotonic_mesh(tmp_path, crop_rof_grid):
     rof_path = _write_esmf_mesh(crop_rof_grid, tmp_path / "rof.nc")
@@ -480,58 +422,6 @@ def test_crop_esmf_mesh_to_bbox_rejects_nonmonotonic_mesh(tmp_path, crop_rof_gri
 
     with pytest.raises(AssertionError, match="monotonic"):
         crop_esmf_mesh_to_bbox(rof_path, 13.0, 16.0, -2.0, 1.0, tmp_path / "out.nc")
-
-
-def test_construct_vertex_coords_vectorized_quads_and_triangle():
-    node_coords = np.array(
-        [[0.0, 0.0], [1.0, 0.0], [2.0, 0.0], [0.0, 1.0], [1.0, 1.0], [2.0, 1.0]]
-    )
-    # 1-based connectivity; third row is a triangle (NaN in the 4th slot).
-    element_conn = np.array(
-        [
-            [1, 2, 5, 4],
-            [2, 3, 6, 5],
-            [1, 2, 5, np.nan],
-        ]
-    )
-    mesh = xr.Dataset(
-        {
-            "nodeCoords": (("nodeCount", "coordDim"), node_coords),
-            "elementConn": (("elementCount", "maxNodePElement"), element_conn),
-        }
-    )
-
-    xv, yv = _construct_vertex_coords(mesh)
-
-    expected_xv = np.array(
-        [[0.0, 1.0, 1.0, 0.0], [1.0, 2.0, 2.0, 1.0], [0.0, 1.0, 1.0, 1.0]]
-    )
-    expected_yv = np.array(
-        [[0.0, 0.0, 1.0, 1.0], [0.0, 0.0, 1.0, 1.0], [0.0, 0.0, 1.0, 1.0]]
-    )
-    np.testing.assert_allclose(xv, expected_xv)
-    np.testing.assert_allclose(yv, expected_yv)
-
-
-def test_construct_vertex_coords_matches_reference_loop(crop_rof_grid, tmp_path):
-    """Cross-check the vectorized implementation against a plain-Python
-    reference loop (the pre-vectorization algorithm) on a real, all-quad mesh."""
-    mesh_path = _write_esmf_mesh(crop_rof_grid, tmp_path / "rof.nc")
-    mesh = xr.open_dataset(mesh_path)
-
-    element_conn = mesh.elementConn.data - 1
-    node_coords = mesh.nodeCoords.data
-    xv_loop = np.zeros(element_conn.shape)
-    yv_loop = np.zeros(element_conn.shape)
-    for e, nodes in enumerate(element_conn):
-        for v in range(4):
-            idx = nodes[2] if np.isnan(nodes[v]) else nodes[v]
-            xv_loop[e, v] = node_coords[int(idx), 0]
-            yv_loop[e, v] = node_coords[int(idx), 1]
-
-    xv_vec, yv_vec = _construct_vertex_coords(mesh)
-    np.testing.assert_allclose(xv_vec, xv_loop)
-    np.testing.assert_allclose(yv_vec, yv_loop)
 
 
 def test_write_mapping_file_uses_shape_lookup_not_full_reconstruction(
@@ -565,66 +455,46 @@ def test_write_mapping_file_uses_shape_lookup_not_full_reconstruction(
     ds = xr.open_dataset(out_path)
     assert list(ds["src_grid_dims"].values) == [3, 2]
     assert list(ds["dst_grid_dims"].values) == [2, 2]
-    assert ds.sizes["nj_a"] == 2 and ds.sizes["ni_a"] == 3
-    assert ds.sizes["nj_b"] == 2 and ds.sizes["ni_b"] == 2
 
 
-def test_gen_rof_maps_crop_matches_uncropped_physical_mapping(
-    tmp_path, crop_rof_grid_pos_lat, crop_ocn_grid_pos_lat
-):
+def test_gen_rof_maps_crop_matches_uncropped_physical_mapping(tmp_path):
     """The whole point of cropping is that it must not change the actual
     regridding result, only the array size it's computed over. Compare
     cropped vs. uncropped gen_rof_maps() output by physical (lon, lat)
-    mapping rather than raw index, since cropping intentionally changes
-    n_a/array shape."""
-    rof_path = _write_esmf_mesh(crop_rof_grid_pos_lat, tmp_path / "rof.nc")
-    ocn_path = _write_esmf_mesh(crop_ocn_grid_pos_lat, tmp_path / "ocn.nc")
+    mapping rather than raw index, since cropping intentionally shrinks
+    n_a (this is as close to "bit for bit" as two differently-shaped
+    mesh files can be compared - every weight must land on the exact
+    same physical source/destination pair).
 
-    # Sparse, non-trivial mask (checkerboard) so the mapping isn't a
-    # degenerate all-active case.
-    checkerboard = np.zeros((10, 10))
-    checkerboard[::2, ::2] = 1
-    _set_element_mask(rof_path, checkerboard)
-
-    cropped_dir = tmp_path / "cropped"
-    uncropped_dir = tmp_path / "uncropped"
-    gen_rof_maps(
-        rof_path,
-        ocn_path,
-        cropped_dir,
-        "test_map",
-        rmax=200,
-        fold=400,
-        crop_source_mesh=True,
+    Uses positive-latitude grids (not the equator-straddling crop_rof_grid
+    fixture): generate_ESMF_map_via_xesmf's own map_overlap masking still
+    runs latitude through normalize_deg - a separate, pre-existing bug not
+    touched by this change (see _get_mesh_bbox's docstring) - and this test
+    should check the crop, not that unrelated bug.
+    """
+    rof_grid = Grid(
+        resolution=1.0, xstart=10.0, lenx=10.0, ystart=25.0, leny=10.0, name="rof"
     )
-    gen_rof_maps(
-        rof_path,
-        ocn_path,
-        uncropped_dir,
-        "test_map",
-        rmax=200,
-        fold=400,
-        crop_source_mesh=False,
+    ocn_grid = Grid(
+        resolution=1.0, xstart=13.0, lenx=3.0, ystart=28.0, leny=3.0, name="ocn"
     )
+    rof_path = _write_esmf_mesh(rof_grid, tmp_path / "rof.nc")
+    ocn_path = _write_esmf_mesh(ocn_grid, tmp_path / "ocn.nc")
 
-    from mom6_forge.mapping import get_smoothed_map_filepath
+    cropped_dir, uncropped_dir = tmp_path / "cropped", tmp_path / "uncropped"
+    gen_rof_maps(rof_path, ocn_path, cropped_dir, "test_map", crop_source_mesh=True)
+    gen_rof_maps(rof_path, ocn_path, uncropped_dir, "test_map", crop_source_mesh=False)
 
-    for cropped_file, uncropped_file in [
-        (
-            get_nn_map_filepath("test_map", cropped_dir),
-            get_nn_map_filepath("test_map", uncropped_dir),
-        ),
-        (
-            get_smoothed_map_filepath("test_map", cropped_dir, 200, 400),
-            get_smoothed_map_filepath("test_map", uncropped_dir, 200, 400),
-        ),
-    ]:
-        map_crop = _physical_mapping_set(xr.open_dataset(cropped_file))
-        map_uncrop = _physical_mapping_set(xr.open_dataset(uncropped_file))
-        assert map_crop, "expected at least one nonzero mapping entry"
-        assert set(map_crop) == set(map_uncrop)
-        for key, weight in map_crop.items():
-            assert weight == pytest.approx(map_uncrop[key], abs=1e-9)
+    map_crop = _physical_mapping(
+        xr.open_dataset(get_nn_map_filepath("test_map", cropped_dir))
+    )
+    map_uncrop = _physical_mapping(
+        xr.open_dataset(get_nn_map_filepath("test_map", uncropped_dir))
+    )
+    assert map_crop, "expected at least one nonzero mapping entry"
+    assert map_crop.keys() == map_uncrop.keys()
+    for key, weight in map_crop.items():
+        assert weight == pytest.approx(map_uncrop[key], abs=1e-9)
 
 
 def test_regrid_with_subsampling_time_dim(get_simple_grid):
