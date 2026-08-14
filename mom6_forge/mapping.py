@@ -173,23 +173,22 @@ def _construct_vertex_coords(mesh):
         The vertex coordinates in the y-direction.
     """
 
-    xv_data = np.full((len(mesh.centerCoords.data), 4), np.nan)
-    yv_data = np.full((len(mesh.centerCoords.data), 4), np.nan)
-
     element_conn = mesh.elementConn.data - 1  # one-based to zero-based indexing
     node_coords = mesh.nodeCoords.data
 
-    for e, nodes in enumerate(element_conn):
-        if np.isnan(nodes[3]):
-            valid_nodes = nodes[:3][~np.isnan(nodes[:3])].astype(int)
-            xv_data[e, :3] = node_coords[valid_nodes, 0]
-            xv_data[e, 3] = xv_data[e, 2]
-            yv_data[e, :3] = node_coords[valid_nodes, 1]
-            yv_data[e, 3] = yv_data[e, 2]
-        else:
-            valid_nodes = nodes.astype(int)
-            xv_data[e, :] = node_coords[valid_nodes, 0]
-            yv_data[e, :] = node_coords[valid_nodes, 1]
+    # Triangular elements store NaN in the 4th connectivity slot (nodes 0-2
+    # are always valid); gather all four slots at once, replacing NaN with a
+    # placeholder index of 0, then overwrite the placeholder for triangles by
+    # duplicating vertex 2 - matching the fan-out a Python loop would do, but
+    # vectorized.
+    is_tri = np.isnan(element_conn[:, 3])
+    conn_safe = np.where(np.isnan(element_conn), 0, element_conn).astype(int)
+
+    xv_data = node_coords[conn_safe, 0]
+    yv_data = node_coords[conn_safe, 1]
+
+    xv_data[is_tri, 3] = xv_data[is_tri, 2]
+    yv_data[is_tri, 3] = yv_data[is_tri, 2]
 
     return xv_data, yv_data
 
@@ -261,11 +260,10 @@ def write_mapping_file(
             weights_coo, coo_matrix
         ), "weights_coo must be a scipy sparse COO matrix"
 
-    # From 1D ESMF mesh to 2D grid
-    from mom6_forge.topo import Topo
-
-    src_topo = Topo.from_esmf_mesh(src_mesh)
-    dst_topo = Topo.from_esmf_mesh(dst_mesh)
+    # Only the (ny, nx) shape of each mesh is needed below - get it directly
+    # from element connectivity, without reconstructing full mesh geometry.
+    src_nx, src_ny = get_mesh_dimensions(src_mesh)
+    dst_nx, dst_ny = get_mesh_dimensions(dst_mesh)
 
     # 1/3: Source Domain Fields
     # -------------------
@@ -332,7 +330,7 @@ def write_mapping_file(
     )
 
     src_grid_dims = xr.DataArray(
-        np.array(src_topo.tmask.shape[::-1]).astype(np.int32),
+        np.array([src_nx, src_ny]).astype(np.int32),
         dims=["src_grid_rank"],
         # attrs={
         #    'long_name': 'dimensions of the source grid',
@@ -340,12 +338,12 @@ def write_mapping_file(
     )
 
     nj_a = xr.DataArray(
-        [i + 1 for i in range(src_topo.tmask.shape[0])],
+        [i + 1 for i in range(src_ny)],
         dims=["nj_a"],
     )
 
     ni_a = xr.DataArray(
-        [i + 1 for i in range(src_topo.tmask.shape[1])],
+        [i + 1 for i in range(src_nx)],
         dims=["ni_a"],
     )
 
@@ -414,7 +412,7 @@ def write_mapping_file(
     )
 
     dst_grid_dims = xr.DataArray(
-        np.array(dst_topo.tmask.shape[::-1]).astype(np.int32),
+        np.array([dst_nx, dst_ny]).astype(np.int32),
         dims=["dst_grid_rank"],
         # dst_grid_dimsattrs={
         #    'long_name': 'dimensions of the destination grid',
@@ -422,12 +420,12 @@ def write_mapping_file(
     )
 
     nj_b = xr.DataArray(
-        [i + 1 for i in range(dst_topo.tmask.shape[0])],
+        [i + 1 for i in range(dst_ny)],
         dims=["nj_b"],
     )
 
     ni_b = xr.DataArray(
-        [i + 1 for i in range(dst_topo.tmask.shape[1])],
+        [i + 1 for i in range(dst_nx)],
         dims=["ni_b"],
     )
 
@@ -529,6 +527,180 @@ def write_mapping_file(
     )
 
 
+def _get_mesh_bbox(mesh_path):
+    """Compute the lon/lat bounding box (degrees, normalized to [0, 360)) covered
+    by an ESMF mesh's nodes.
+
+    Parameters
+    ----------
+    mesh_path : str or Path
+        Path to an ESMF mesh file.
+
+    Returns
+    -------
+    lon_min, lon_max, lat_min, lat_max : float
+    """
+
+    assert isinstance(
+        mesh_path, (str, Path)
+    ), "mesh_path must be a path to an existing file"
+    assert Path(
+        mesh_path
+    ).exists(), "mesh_path must point to an existing ESMF mesh file"
+    mesh = xr.open_dataset(mesh_path)
+    assert (
+        "units" in mesh["centerCoords"].attrs
+    ), "centerCoords must have 'units' attribute"
+    assert (
+        "degrees" in mesh["centerCoords"].attrs["units"]
+    ), "_get_mesh_bbox() expects centerCoords in degrees"
+    # Only longitude has a 0/360 wrap ambiguity to normalize away - latitude is
+    # already well-defined and must not be wrapped (mod 360 would corrupt any
+    # negative latitude, e.g. -6.95 -> 353.05).
+    mesh_lon = normalize_deg(mesh["nodeCoords"].data[:, 0])
+    mesh_lat = mesh["nodeCoords"].data[:, 1]
+    return mesh_lon.min(), mesh_lon.max(), mesh_lat.min(), mesh_lat.max()
+
+
+def crop_esmf_mesh_to_bbox(
+    mesh_path, lon_min, lon_max, lat_min, lat_max, output_path, buffer_deg=0.5
+):
+    """Crop a regular-grid ESMF mesh to the smallest rectangular index window
+    covering a lon/lat bounding box (plus a buffer), and write it as a new,
+    self-consistent ESMF mesh file.
+
+    This works directly on the mesh's own fields (centerCoords/elementMask/
+    nodeCoords) via plain reshape and slicing - it never reconstructs full
+    mesh geometry (no supergrid, no dx/dy/area/angle_dx), since none of that
+    is part of the ESMF mesh format or needed here. ``elementConn`` is
+    rebuilt fresh for the cropped rectangle rather than remapped from the
+    original mesh, since a plain rectangular grid's connectivity is fully
+    determined by its shape.
+
+    Parameters
+    ----------
+    mesh_path : str or Path
+        Path to the source ESMF mesh file to crop. Must be a non-cyclic,
+        non-tripolar, rectangular lat/lon mesh (monotonic lon along x,
+        monotonic lat along y).
+    lon_min, lon_max, lat_min, lat_max : float
+        Bounding box (degrees) to crop to - typically the destination mesh's
+        own bounding box, from ``_get_mesh_bbox()``.
+    output_path : str or Path
+        Path to write the cropped ESMF mesh file to.
+    buffer_deg : float, optional
+        Degrees of margin added around the bbox on each side, so the crop
+        window is a strict superset of whatever downstream masking
+        (``map_overlap``) keeps active - the buffer only widens the array
+        bounds, it doesn't change which points end up unmasked. Default 0.5.
+
+    Returns
+    -------
+    output_path : Path
+    """
+
+    assert isinstance(
+        mesh_path, (str, Path)
+    ), "mesh_path must be a path to an existing file"
+    mesh = xr.open_dataset(mesh_path)
+    nx, ny = get_mesh_dimensions(mesh)
+
+    # Only longitude has a 0/360 wrap ambiguity - latitude must stay unwrapped
+    # (see _get_mesh_bbox).
+    center_lon = normalize_deg(mesh["centerCoords"].data[:, 0]).reshape(ny, nx)
+    center_lat = mesh["centerCoords"].data[:, 1].reshape(ny, nx)
+
+    lon_row = center_lon[0, :]
+    lat_col = center_lat[:, 0]
+    assert np.all(np.diff(lon_row) > 0) or np.all(np.diff(lon_row) < 0), (
+        "crop_esmf_mesh_to_bbox() requires a rectangular mesh with monotonic "
+        "longitude along the x-axis (non-cyclic, non-tripolar meshes only)"
+    )
+    assert np.all(np.diff(lat_col) > 0) or np.all(np.diff(lat_col) < 0), (
+        "crop_esmf_mesh_to_bbox() requires a rectangular mesh with monotonic "
+        "latitude along the y-axis (non-cyclic, non-tripolar meshes only)"
+    )
+
+    lon_lo, lon_hi = lon_min - buffer_deg, lon_max + buffer_deg
+    lat_lo, lat_hi = lat_min - buffer_deg, lat_max + buffer_deg
+
+    i_in_range = np.where((lon_row >= lon_lo) & (lon_row <= lon_hi))[0]
+    j_in_range = np.where((lat_col >= lat_lo) & (lat_col <= lat_hi))[0]
+    assert i_in_range.size > 0 and j_in_range.size > 0, (
+        "crop_esmf_mesh_to_bbox(): no source mesh cells fall within the "
+        "requested bounding box + buffer"
+    )
+    imin, imax = int(i_in_range.min()), int(i_in_range.max()) + 1
+    jmin, jmax = int(j_in_range.min()), int(j_in_range.max()) + 1
+
+    mask_c = mesh["elementMask"].data.reshape(ny, nx)[jmin:jmax, imin:imax]
+    center_lon_c = mesh["centerCoords"].data[:, 0].reshape(ny, nx)[jmin:jmax, imin:imax]
+    center_lat_c = mesh["centerCoords"].data[:, 1].reshape(ny, nx)[jmin:jmax, imin:imax]
+
+    node_lon = mesh["nodeCoords"].data[:, 0].reshape(ny + 1, nx + 1)
+    node_lat = mesh["nodeCoords"].data[:, 1].reshape(ny + 1, nx + 1)
+    node_lon_c = node_lon[jmin : jmax + 1, imin : imax + 1]
+    node_lat_c = node_lat[jmin : jmax + 1, imin : imax + 1]
+
+    ny_c, nx_c = mask_c.shape
+    node_idx = np.arange((ny_c + 1) * (nx_c + 1)).reshape(ny_c + 1, nx_c + 1)
+    element_conn_c = (
+        np.stack(
+            [
+                node_idx[:-1, :-1].ravel(),
+                node_idx[:-1, 1:].ravel(),
+                node_idx[1:, 1:].ravel(),
+                node_idx[1:, :-1].ravel(),
+            ],
+            axis=1,
+        )
+        + 1  # one-based, per ESMF mesh convention
+    ).astype(np.float64)
+
+    lon_units = mesh["centerCoords"].attrs.get("units", "degrees")
+
+    ds_out = xr.Dataset(
+        {
+            "nodeCoords": (
+                ("nodeCount", "coordDim"),
+                np.stack([node_lon_c.ravel(), node_lat_c.ravel()], axis=1),
+                {"units": lon_units},
+            ),
+            "elementConn": (
+                ("elementCount", "maxNodePElement"),
+                element_conn_c,
+                {"long_name": "Node indices that define the element connectivity"},
+            ),
+            "numElementConn": (
+                ("elementCount",),
+                np.full(ny_c * nx_c, 4, dtype=np.int32),
+                {"long_name": "Number of nodes per element"},
+            ),
+            "centerCoords": (
+                ("elementCount", "coordDim"),
+                np.stack([center_lon_c.ravel(), center_lat_c.ravel()], axis=1),
+                {"units": lon_units},
+            ),
+            "elementMask": (
+                ("elementCount",),
+                mask_c.ravel().astype(mesh["elementMask"].dtype),
+                {"units": "unitless"},
+            ),
+        }
+    )
+    ds_out.attrs["gridType"] = "unstructured mesh"
+    ds_out.attrs["history"] = (
+        f"Cropped from {Path(mesh_path).name} to bbox "
+        f"lon=[{lon_min:.3f}, {lon_max:.3f}] lat=[{lat_min:.3f}, {lat_max:.3f}] "
+        f"+ {buffer_deg} deg buffer, by mom6_forge.mapping.crop_esmf_mesh_to_bbox()"
+    )
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    ds_out.to_netcdf(output_path)
+    return output_path
+
+
 def generate_ESMF_map_via_xesmf(
     src_mesh_path,
     dst_mesh_path,
@@ -562,23 +734,7 @@ def generate_ESMF_map_via_xesmf(
     # from dst mesh, find the lower left corner and upper right corner
     # then, in the src mesh, zero out the mask falling outside of this rectangle
     if map_overlap:
-        assert isinstance(
-            dst_mesh_path, (str, Path)
-        ), "dst_mesh_path must be a path to an existing file"
-        assert Path(
-            dst_mesh_path
-        ).exists(), "dst_mesh_path must point to an existing ESMF mesh file"
-        dst_mesh = xr.open_dataset(dst_mesh_path)
-        assert (
-            "units" in dst_mesh["centerCoords"].attrs
-        ), "centerCoords must have 'units' attribute"
-        assert (
-            "degrees" in dst_mesh["centerCoords"].attrs["units"]
-        ), "get_mesh_dimensions() expects centerCoords in degrees"
-        dst_mesh_lon = normalize_deg(dst_mesh["nodeCoords"].data[:, 0])
-        dst_mesh_lat = normalize_deg(dst_mesh["nodeCoords"].data[:, 1])
-        lon_min, lon_max = dst_mesh_lon.min(), dst_mesh_lon.max()
-        lat_min, lat_max = dst_mesh_lat.min(), dst_mesh_lat.max()
+        lon_min, lon_max, lat_min, lat_max = _get_mesh_bbox(dst_mesh_path)
 
         # normalize source grid coordinates
         src_lon = normalize_deg(src_grid["lon"].data)
@@ -835,7 +991,14 @@ def get_smoothed_map_filepath(mapping_file_prefix, output_dir, rmax, fold):
 
 
 def gen_rof_maps(
-    rof_mesh_path, ocn_mesh_path, output_dir, mapping_file_prefix, rmax=None, fold=None
+    rof_mesh_path,
+    ocn_mesh_path,
+    output_dir,
+    mapping_file_prefix,
+    rmax=None,
+    fold=None,
+    crop_source_mesh=True,
+    crop_buffer_deg=0.5,
 ):
     """Generate (1) nearest neighbor and (2) smoothed nearest neighbor mapping files
     from a runoff mesh to an ocean mesh.
@@ -855,6 +1018,14 @@ def gen_rof_maps(
         Maximum distance for smoothing weights, in kilometers. If None, no smoothing is applied.
     fold : float, optional
         Fold factor (km) determining the strength of smoothing based on distance. If None, no smoothing is applied.
+    crop_source_mesh : bool, optional
+        If True (default), crop the ROF source mesh down to a rectangular window
+        around the ocean mesh's bounding box (see `crop_esmf_mesh_to_bbox`) before
+        generating maps. This is what makes generation tractable for a full-size
+        production ROF mesh; disable only to compare against the uncropped path.
+    crop_buffer_deg : float, optional
+        Buffer (degrees) added around the ocean mesh's bounding box when cropping.
+        Only used if `crop_source_mesh` is True. Default 0.5.
     """
 
     print(f"Generating nearest neighbor mapping file...")
@@ -875,6 +1046,20 @@ def gen_rof_maps(
     assert isinstance(output_dir, (str, Path)), "output_dir must be a string or Path"
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    if crop_source_mesh:
+        print(f"Cropping ROF source mesh to ocean mesh bounding box...")
+        lon_min, lon_max, lat_min, lat_max = _get_mesh_bbox(ocn_mesh_path)
+        rof_mesh_path = crop_esmf_mesh_to_bbox(
+            rof_mesh_path,
+            lon_min,
+            lon_max,
+            lat_min,
+            lat_max,
+            output_dir / f"{mapping_file_prefix}_rof_mesh_cropped.nc",
+            buffer_deg=crop_buffer_deg,
+        )
+        print(f"  Cropped ROF mesh written to {rof_mesh_path}")
 
     nn_map_filepath = get_nn_map_filepath(mapping_file_prefix, output_dir)
 
