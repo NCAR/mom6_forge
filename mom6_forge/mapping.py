@@ -2,6 +2,9 @@
 
 import os
 import argparse
+import shutil
+import subprocess
+import tempfile
 import xarray as xr
 import numpy as np
 import datetime
@@ -559,11 +562,34 @@ def write_mapping_file(
     if dst_mesh_path := dst_mesh.encoding.get("source"):
         ds.attrs["domain_b"] = dst_mesh_path
 
-    ds.to_netcdf(
-        filename,
-        format="NETCDF3_64BIT",
-        encoding={var: {"_FillValue": None} for var in ds.data_vars},
-    )
+    # NETCDF3_64BIT is required for compatibility with CESM's mapping-file
+    # readers, but writing large fixed-size variables directly in that format
+    # via netCDF4-python/xarray triggers pathological backward-seeking,
+    # read-before-write I/O in the classic-format writer (~17x slower on a
+    # 21.6M-element mesh - confirmed both through xarray and the low-level
+    # netCDF4 API). Writing NETCDF4 (HDF5) first and converting with `nccopy`
+    # avoids that writer entirely and is dramatically faster.
+    filename = Path(filename)
+    if shutil.which("nccopy") is None:
+        raise RuntimeError(
+            "write_mapping_file() requires the 'nccopy' command-line tool "
+            "(part of the netCDF-C distribution) on PATH to efficiently "
+            "convert the intermediate NETCDF4 file to NETCDF3_64BIT."
+        )
+    with tempfile.TemporaryDirectory(dir=filename.parent) as tmpdir:
+        tmp_nc4 = Path(tmpdir) / "tmp_netcdf4.nc"
+        # NETCDF4/HDF5 supports int64, but the classic 64-bit-offset format
+        # `nccopy -6` converts to does not - downcast explicitly here since
+        # writing NETCDF4 (unlike writing classic directly through xarray)
+        # doesn't do this coercion automatically, and nccopy errors on int64.
+        encoding = {}
+        for var in ds.variables:
+            enc = {"_FillValue": None}
+            if np.issubdtype(ds[var].dtype, np.integer) and ds[var].dtype != np.int32:
+                enc["dtype"] = "int32"
+            encoding[var] = enc
+        ds.to_netcdf(tmp_nc4, format="NETCDF4", encoding=encoding)
+        subprocess.run(["nccopy", "-6", str(tmp_nc4), str(filename)], check=True)
 
 
 def _get_mesh_bbox(mesh_path):

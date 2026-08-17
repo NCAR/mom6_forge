@@ -1,5 +1,6 @@
 import xarray as xr
 import numpy as np
+import netCDF4
 import scipy.sparse as sp
 import pytest
 from pathlib import Path
@@ -455,6 +456,45 @@ def test_write_mapping_file_uses_shape_lookup_not_full_reconstruction(
     ds = xr.open_dataset(out_path)
     assert list(ds["src_grid_dims"].values) == [3, 2]
     assert list(ds["dst_grid_dims"].values) == [2, 2]
+
+
+def test_write_mapping_file_produces_valid_classic_format(tmp_path):
+    """write_mapping_file writes via an intermediate NETCDF4 file converted with
+    `nccopy -6` (much faster than writing NETCDF3_64BIT directly - see NOTES.md
+    Step 9), but the output must still be a genuine 64-bit-offset classic file,
+    since that's what CESM's mapping-file readers require. Also guards the
+    int64-vs-classic-format bug found while implementing this: `nj_a`/`ni_a`/
+    `nj_b`/`ni_b` are coordinate variables (their DataArray name matches their
+    sole dimension), so an encoding loop scoped to `ds.data_vars` silently skips
+    them and leaves them as int64 - a dtype classic format can't represent at
+    all, which makes `nccopy` fail outright. Every integer variable, coordinate
+    or not, must come out as int32."""
+    src_grid = Grid(
+        resolution=1.0, xstart=0.0, lenx=3.0, ystart=0.0, leny=2.0, name="src_classic"
+    )
+    dst_grid = Grid(
+        resolution=1.0, xstart=0.0, lenx=2.0, ystart=0.0, leny=2.0, name="dst_classic"
+    )
+    src_path = _write_esmf_mesh(src_grid, tmp_path / "src.nc")
+    dst_path = _write_esmf_mesh(dst_grid, tmp_path / "dst.nc")
+
+    weights_coo = sp.coo_matrix(([1.0, 1.0], ([0, 1], [0, 1])), shape=(4, 6))
+    out_path = tmp_path / "out.nc"
+    write_mapping_file(
+        src_mesh=str(src_path),
+        dst_mesh=str(dst_path),
+        filename=out_path,
+        weights_coo=weights_coo,
+    )
+
+    nc = netCDF4.Dataset(out_path)
+    try:
+        assert nc.data_model == "NETCDF3_64BIT_OFFSET"
+        for name, var in nc.variables.items():
+            if np.issubdtype(var.dtype, np.integer):
+                assert var.dtype == np.int32, f"{name} is {var.dtype}, expected int32"
+    finally:
+        nc.close()
 
 
 def test_gen_rof_maps_crop_matches_uncropped_physical_mapping(tmp_path):
