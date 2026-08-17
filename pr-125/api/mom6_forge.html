@@ -95,7 +95,6 @@
 <li class="toctree-l3"><a class="reference internal" href="#module-mom6_forge.mapping">mom6_forge.mapping module</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.mapping.compute_cressman_weights"><code class="docutils literal notranslate"><span class="pre">compute_cressman_weights()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.mapping.compute_smoothing_weights"><code class="docutils literal notranslate"><span class="pre">compute_smoothing_weights()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.mapping.crop_esmf_mesh_to_bbox"><code class="docutils literal notranslate"><span class="pre">crop_esmf_mesh_to_bbox()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.mapping.dst_to_source"><code class="docutils literal notranslate"><span class="pre">dst_to_source()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.mapping.extract_coastline_mask"><code class="docutils literal notranslate"><span class="pre">extract_coastline_mask()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.mapping.gen_rof_maps"><code class="docutils literal notranslate"><span class="pre">gen_rof_maps()</span></code></a></li>
@@ -1362,49 +1361,6 @@ source ocean point within <code class="docutils literal notranslate"><span class
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="mom6_forge.mapping.crop_esmf_mesh_to_bbox">
-<span class="sig-prename descclassname"><span class="pre">mom6_forge.mapping.</span></span><span class="sig-name descname"><span class="pre">crop_esmf_mesh_to_bbox</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mesh_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lon_min</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lon_max</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lat_min</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lat_max</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">buffer_deg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.mapping.crop_esmf_mesh_to_bbox" title="Link to this definition"></a></dt>
-<dd><p>Crop a regular-grid ESMF mesh to the smallest rectangular index window
-covering a lon/lat bounding box (plus a buffer), and write it as a new,
-self-consistent ESMF mesh file.</p>
-<p>This works directly on the mesh’s own fields (centerCoords/elementMask/
-nodeCoords) via plain reshape and slicing - it never reconstructs full
-mesh geometry (no supergrid, no dx/dy/area/angle_dx), since none of that
-is part of the ESMF mesh format or needed here. <code class="docutils literal notranslate"><span class="pre">elementConn</span></code> is
-rebuilt fresh for the cropped rectangle rather than remapped from the
-original mesh, since a plain rectangular grid’s connectivity is fully
-determined by its shape.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>mesh_path</strong> (<em>str</em><em> or </em><em>Path</em>) – Path to the source ESMF mesh file to crop. Must be a non-cyclic,
-non-tripolar, rectangular lat/lon mesh (monotonic lon along x,
-monotonic lat along y).</p></li>
-<li><p><strong>lon_min</strong> (<em>float</em>) – Bounding box (degrees) to crop to - typically the destination mesh’s
-own bounding box, from <code class="docutils literal notranslate"><span class="pre">_get_mesh_bbox()</span></code>.</p></li>
-<li><p><strong>lon_max</strong> (<em>float</em>) – Bounding box (degrees) to crop to - typically the destination mesh’s
-own bounding box, from <code class="docutils literal notranslate"><span class="pre">_get_mesh_bbox()</span></code>.</p></li>
-<li><p><strong>lat_min</strong> (<em>float</em>) – Bounding box (degrees) to crop to - typically the destination mesh’s
-own bounding box, from <code class="docutils literal notranslate"><span class="pre">_get_mesh_bbox()</span></code>.</p></li>
-<li><p><strong>lat_max</strong> (<em>float</em>) – Bounding box (degrees) to crop to - typically the destination mesh’s
-own bounding box, from <code class="docutils literal notranslate"><span class="pre">_get_mesh_bbox()</span></code>.</p></li>
-<li><p><strong>output_path</strong> (<em>str</em><em> or </em><em>Path</em>) – Path to write the cropped ESMF mesh file to.</p></li>
-<li><p><strong>buffer_deg</strong> (<em>float</em><em>, </em><em>optional</em>) – Degrees of margin added around the bbox on each side, so the crop
-window is a strict superset of whatever downstream masking
-(<code class="docutils literal notranslate"><span class="pre">map_overlap</span></code>) keeps active - the buffer only widens the array
-bounds, it doesn’t change which points end up unmasked. Default 0.5.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>output_path</strong></p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Path</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
 <dt class="sig sig-object py" id="mom6_forge.mapping.dst_to_source">
 <span class="sig-prename descclassname"><span class="pre">mom6_forge.mapping.</span></span><span class="sig-name descname"><span class="pre">dst_to_source</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ds_weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dst_idx_2d</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.mapping.dst_to_source" title="Link to this definition"></a></dt>
 <dd><p>Given a 2D destination index and a weights file, find which source pixels contribute to it.</p>
@@ -1438,7 +1394,7 @@ This dataset may be obtained from the grid_from_esmf_mesh function by passing an
 
 <dl class="py function">
 <dt class="sig sig-object py" id="mom6_forge.mapping.gen_rof_maps">
-<span class="sig-prename descclassname"><span class="pre">mom6_forge.mapping.</span></span><span class="sig-name descname"><span class="pre">gen_rof_maps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rof_mesh_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ocn_mesh_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mapping_file_prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rmax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">crop_source_mesh</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">crop_buffer_deg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.5</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.mapping.gen_rof_maps" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">mom6_forge.mapping.</span></span><span class="sig-name descname"><span class="pre">gen_rof_maps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rof_mesh_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ocn_mesh_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mapping_file_prefix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rmax</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.mapping.gen_rof_maps" title="Link to this definition"></a></dt>
 <dd><p>Generate (1) nearest neighbor and (2) smoothed nearest neighbor mapping files
 from a runoff mesh to an ocean mesh.</p>
 <dl class="field-list simple">
@@ -1451,19 +1407,6 @@ from a runoff mesh to an ocean mesh.</p>
 “rx1_to_t232_nn.nc” and “rx1_to_t232_nnsm.nc”.</p></li>
 <li><p><strong>rmax</strong> (<em>float</em><em>, </em><em>optional</em>) – Maximum distance for smoothing weights, in kilometers. If None, no smoothing is applied.</p></li>
 <li><p><strong>fold</strong> (<em>float</em><em>, </em><em>optional</em>) – Fold factor (km) determining the strength of smoothing based on distance. If None, no smoothing is applied.</p></li>
-<li><p><strong>crop_source_mesh</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True (default), crop the ROF source mesh down to a rectangular window
-around the ocean mesh’s bounding box (see <cite>crop_esmf_mesh_to_bbox</cite>) before
-computing regrid weights - this is what makes generation tractable for a
-full-size production ROF mesh. This is purely an internal speed-up: the
-written mapping file’s source-domain fields (<cite>xc_a</cite>/<cite>area_a</cite>/<cite>mask_a</cite>/
-<cite>src_grid_dims</cite>/<cite>n_a</cite>/…) always describe the FULL, uncropped
-<cite>rof_mesh_path</cite> mesh, matching whatever mesh the runtime component
-(e.g. DROF) actually declares as its own domain - cropping never
-changes what mesh the output file claims to be. Disable only to
-compare against the (much slower, for a large mesh) fully-uncropped
-computation path.</p></li>
-<li><p><strong>crop_buffer_deg</strong> (<em>float</em><em>, </em><em>optional</em>) – Buffer (degrees) added around the ocean mesh’s bounding box when cropping.
-Only used if <cite>crop_source_mesh</cite> is True. Default 0.5.</p></li>
 </ul>
 </dd>
 </dl>
@@ -1488,29 +1431,18 @@ Only used if <cite>crop_source_mesh</cite> is True. Default 0.5.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="mom6_forge.mapping.generate_ESMF_map_via_xesmf">
-<span class="sig-prename descclassname"><span class="pre">mom6_forge.mapping.</span></span><span class="sig-name descname"><span class="pre">generate_ESMF_map_via_xesmf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">src_mesh_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dst_mesh_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mapping_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">area_normalization</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">map_overlap</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">src_full_mesh_path</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">src_crop_window</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.mapping.generate_ESMF_map_via_xesmf" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">mom6_forge.mapping.</span></span><span class="sig-name descname"><span class="pre">generate_ESMF_map_via_xesmf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">src_mesh_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dst_mesh_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mapping_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">area_normalization</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">map_overlap</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.mapping.generate_ESMF_map_via_xesmf" title="Link to this definition"></a></dt>
 <dd><p>Generate an ESMF mapping file using xesmf.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>src_mesh_path</strong> (<em>str</em><em> or </em><em>Path</em>) – Path to the source ESMF mesh file. If <cite>src_full_mesh_path</cite> is given,
-this may be a cropped subset used only to compute weights cheaply.</p></li>
+<li><p><strong>src_mesh_path</strong> (<em>str</em><em> or </em><em>Path</em>) – Path to the source ESMF mesh file.</p></li>
 <li><p><strong>dst_mesh_path</strong> (<em>str</em><em> or </em><em>Path</em>) – Path to the destination ESMF mesh file.</p></li>
 <li><p><strong>mapping_file</strong> (<em>str</em><em> or </em><em>Path</em>) – Path to the output ESMF mapping file to be created.</p></li>
 <li><p><strong>method</strong> (<em>str</em>) – Regridding method to use. Options are ‘nearest_d2s’, ‘nearest_s2d’, ‘bilinear’, ‘conservative’.</p></li>
 <li><p><strong>area_normalization</strong> (<em>bool</em>) – Whether to apply area normalization to the weights.</p></li>
 <li><p><strong>map_overlap</strong> (<em>bool</em>) – If True, only map the overlapping area between the source and destination meshes, i.e.,
 zero out the mask in the source mesh that falls outside the rectangle defined by the destination mesh.</p></li>
-<li><p><strong>src_full_mesh_path</strong> – Passed straight through to <cite>write_mapping_file()</cite> - see its docstring.
-Use when <cite>src_mesh_path</cite> is a cropped subset of <cite>src_full_mesh_path</cite>,
-so the written mapping file’s source-domain fields describe the full
-mesh (matching the runtime component’s own domain) rather than the
-cropped one used only to speed up weight computation.</p></li>
-<li><p><strong>src_crop_window</strong> – Passed straight through to <cite>write_mapping_file()</cite> - see its docstring.
-Use when <cite>src_mesh_path</cite> is a cropped subset of <cite>src_full_mesh_path</cite>,
-so the written mapping file’s source-domain fields describe the full
-mesh (matching the runtime component’s own domain) rather than the
-cropped one used only to speed up weight computation.</p></li>
 </ul>
 </dd>
 </dl>
@@ -1711,16 +1643,12 @@ properly analyze high-res source data into each coarse cell.  (Originally create
 
 <dl class="py function">
 <dt class="sig sig-object py" id="mom6_forge.mapping.write_mapping_file">
-<span class="sig-prename descclassname"><span class="pre">mom6_forge.mapping.</span></span><span class="sig-name descname"><span class="pre">write_mapping_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">src_mesh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dst_mesh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights_esmpy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights_coo</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">area_normalization</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">src_full_mesh</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">src_crop_window</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.mapping.write_mapping_file" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">mom6_forge.mapping.</span></span><span class="sig-name descname"><span class="pre">write_mapping_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">src_mesh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dst_mesh</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights_esmpy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights_coo</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">area_normalization</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.mapping.write_mapping_file" title="Link to this definition"></a></dt>
 <dd><p>Based on a given source mesh, destination mesh, and weights, write out an ESMF map file.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>src_mesh</strong> (<em>str</em><em>, </em><em>xr.Dataset</em>) – ESMF mesh object or path to the source ESMF mesh file. If <cite>src_full_mesh</cite>
-is given, this is only used to compute the weights’ index space (e.g.
-a cropped mesh) - the file’s source-domain fields (xc_a, area_a, …)
-describe <cite>src_full_mesh</cite> instead. If <cite>src_full_mesh</cite> is None, this mesh
-is used for everything, as before.</p></li>
+<li><p><strong>src_mesh</strong> (<em>str</em><em>, </em><em>xr.Dataset</em>) – ESMF mesh object or path to the source ESMF mesh file.</p></li>
 <li><p><strong>dst_mesh</strong> (<em>str</em><em>, </em><em>xr.Dataset</em>) – ESMF mesh object or path to the destination ESMF mesh file.</p></li>
 <li><p><strong>filename</strong> (<em>str</em>) – Path to the output ESMF map file.</p></li>
 <li><p><strong>weights</strong> (<em>xr.DataArray</em>) – xESMF-generated weights to be used for the regridding.</p></li>
@@ -1728,22 +1656,6 @@ is used for everything, as before.</p></li>
 <li><p><strong>weights_coo</strong> (<em>scipy.sparse.coo_matrix</em>) – COO format sparse matrix containing the weights.</p></li>
 <li><p><strong>regrid_method</strong> (<em>str</em><em>, </em><em>optional</em>) – Regridding method, by default ‘bilinear’.</p></li>
 <li><p><strong>area_normalization</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to multiply the weights by (area_source / area_destination), by default False.</p></li>
-<li><p><strong>src_full_mesh</strong> (<em>str</em><em>, </em><em>xr.Dataset</em><em>, </em><em>optional</em>) – The full, uncropped source mesh, if <cite>src_mesh</cite> is a cropped subset used
-only to compute weights cheaply. When given, every source-domain field
-written (xc_a/yc_a/xv_a/yv_a/mask_a/area_a/frac_a/src_grid_dims/nj_a/ni_a)
-describes this full mesh instead of <cite>src_mesh</cite> - so <cite>n_a</cite> matches
-whatever mesh the runtime component (e.g. DROF) actually uses as its
-own domain, not the cropped mesh used only to speed up weight
-computation. Without this, a mapping file built from a cropped source
-mesh is dimensionally inconsistent with a component whose registered
-domain is the uncropped mesh - see <cite>crop_source_mesh</cite> in <cite>gen_rof_maps</cite>.</p></li>
-<li><p><strong>src_crop_window</strong> (<em>tuple</em><em> of </em><em>(</em><em>imin</em><em>, </em><em>jmin</em><em>, </em><em>nx_crop</em><em>, </em><em>nx_full</em><em>)</em><em>, </em><em>optional</em>) – Only used with the <cite>weights</cite> (xESMF) path, together with <cite>src_full_mesh</cite>.
-<cite>weights</cite>’ column indices are positions in <cite>src_mesh</cite>’s (cropped) flat
-raster; this translates them into <cite>src_full_mesh</cite>’s flat raster before
-writing, using the cropped window’s offset within the full mesh.
-<cite>weights_coo</cite>/<cite>weights_esmpy</cite> column indices don’t need this: a
-smoothing matrix built from a mapping file already written with a
-<cite>src_full_mesh</cite> is already in full-mesh index space by construction.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
