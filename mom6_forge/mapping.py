@@ -183,11 +183,8 @@ def _construct_vertex_coords(mesh):
     # are always valid); gather all four slots at once, replacing NaN with a
     # placeholder index of 0, then overwrite the placeholder for triangles by
     # duplicating vertex 2 - matching the fan-out a Python loop would do, but
-    # vectorized. Needed because write_mapping_file() must run this over the
-    # FULL source mesh (tens of millions of elements for the production ROF
-    # mesh) to keep the mapping file's source-domain fields consistent with
-    # the runtime component's own (uncropped) domain - see crop_source_mesh's
-    # docstring in gen_rof_maps().
+    # vectorized. This runs over the full source mesh (tens of millions of
+    # elements for the production ROF mesh), so vectorization matters here.
     is_tri = np.isnan(element_conn[:, 3])
     conn_safe = np.where(np.isnan(element_conn), 0, element_conn).astype(int)
 
@@ -208,19 +205,13 @@ def write_mapping_file(
     weights_esmpy=None,
     weights_coo=None,
     area_normalization=False,
-    src_full_mesh=None,
-    src_crop_window=None,
 ):
     """Based on a given source mesh, destination mesh, and weights, write out an ESMF map file.
 
     Parameters
     ----------
     src_mesh : str, xr.Dataset
-        ESMF mesh object or path to the source ESMF mesh file. If `src_full_mesh`
-        is given, this is only used to compute the weights' index space (e.g.
-        a cropped mesh) - the file's source-domain fields (xc_a, area_a, ...)
-        describe `src_full_mesh` instead. If `src_full_mesh` is None, this mesh
-        is used for everything, as before.
+        ESMF mesh object or path to the source ESMF mesh file.
     dst_mesh : str, xr.Dataset
         ESMF mesh object or path to the destination ESMF mesh file.
     filename : str
@@ -235,24 +226,6 @@ def write_mapping_file(
         Regridding method, by default 'bilinear'.
     area_normalization : bool, optional
         Whether to multiply the weights by (area_source / area_destination), by default False.
-    src_full_mesh : str, xr.Dataset, optional
-        The full, uncropped source mesh, if `src_mesh` is a cropped subset used
-        only to compute weights cheaply. When given, every source-domain field
-        written (xc_a/yc_a/xv_a/yv_a/mask_a/area_a/frac_a/src_grid_dims/nj_a/ni_a)
-        describes this full mesh instead of `src_mesh` - so `n_a` matches
-        whatever mesh the runtime component (e.g. DROF) actually uses as its
-        own domain, not the cropped mesh used only to speed up weight
-        computation. Without this, a mapping file built from a cropped source
-        mesh is dimensionally inconsistent with a component whose registered
-        domain is the uncropped mesh - see `crop_source_mesh` in `gen_rof_maps`.
-    src_crop_window : tuple of (imin, jmin, nx_crop, nx_full), optional
-        Only used with the `weights` (xESMF) path, together with `src_full_mesh`.
-        `weights`' column indices are positions in `src_mesh`'s (cropped) flat
-        raster; this translates them into `src_full_mesh`'s flat raster before
-        writing, using the cropped window's offset within the full mesh.
-        `weights_coo`/`weights_esmpy` column indices don't need this: a
-        smoothing matrix built from a mapping file already written with a
-        `src_full_mesh` is already in full-mesh index space by construction.
 
     Returns
     -------
@@ -266,9 +239,6 @@ def write_mapping_file(
         src_mesh = xr.open_dataset(src_mesh)
     if isinstance(dst_mesh, (str, Path)):
         dst_mesh = xr.open_dataset(dst_mesh)
-    if isinstance(src_full_mesh, (str, Path)):
-        src_full_mesh = xr.open_dataset(src_full_mesh)
-    src_domain_mesh = src_full_mesh if src_full_mesh is not None else src_mesh
 
     if weights is weights_esmpy is weights_coo is None:
         raise ValueError(
@@ -296,14 +266,14 @@ def write_mapping_file(
 
     # Only the (ny, nx) shape of each mesh is needed below - get it directly
     # from element connectivity, without reconstructing full mesh geometry.
-    src_nx, src_ny = get_mesh_dimensions(src_domain_mesh)
+    src_nx, src_ny = get_mesh_dimensions(src_mesh)
     dst_nx, dst_ny = get_mesh_dimensions(dst_mesh)
 
     # 1/3: Source Domain Fields
     # -------------------
 
     xc_a = xr.DataArray(
-        src_domain_mesh.centerCoords.data[:, 0],
+        src_mesh.centerCoords.data[:, 0],
         dims=["n_a"],
         attrs={
             "long_name": "longitude of grid cell center (input)",
@@ -312,7 +282,7 @@ def write_mapping_file(
     )
 
     yc_a = xr.DataArray(
-        src_domain_mesh.centerCoords.data[:, 1],
+        src_mesh.centerCoords.data[:, 1],
         dims=["n_a"],
         attrs={
             "long_name": "latitude of grid cell center (input)",
@@ -320,7 +290,7 @@ def write_mapping_file(
         },
     )
 
-    xv_a_data, yv_a_data = _construct_vertex_coords(src_domain_mesh)
+    xv_a_data, yv_a_data = _construct_vertex_coords(src_mesh)
 
     xv_a = xr.DataArray(
         xv_a_data,
@@ -341,7 +311,7 @@ def write_mapping_file(
     )
 
     mask_a = xr.DataArray(
-        src_domain_mesh.elementMask.data,
+        src_mesh.elementMask.data,
         dims=["n_a"],
         attrs={
             "long_name": "domain mask (input)",
@@ -355,7 +325,7 @@ def write_mapping_file(
     )
 
     frac_a = xr.DataArray(
-        src_domain_mesh.elementMask.data.astype(np.float64),
+        src_mesh.elementMask.data.astype(np.float64),
         dims=["n_a"],
         attrs={
             "long_name": "fraction of domain intersection (input)",
@@ -470,14 +440,6 @@ def write_mapping_file(
         w = weights.data.copy()
         col_data = w.coords[1, :] + 1
         row_data = w.coords[0, :] + 1
-        if src_crop_window is not None:
-            # col_data indexes src_mesh's (cropped) flat raster - translate
-            # into src_domain_mesh's (full) flat raster before this index is
-            # used for anything (area normalization below, or the file itself).
-            imin, jmin, nx_crop, nx_full = src_crop_window
-            local0 = col_data - 1
-            local_i, local_j = local0 % nx_crop, local0 // nx_crop
-            col_data = (local_j + jmin) * nx_full + (local_i + imin) + 1
     elif weights_esmpy is not None:  # esmpy weights
         w = weights_esmpy.S.copy()
         col_data = weights_esmpy.col.data
@@ -557,7 +519,7 @@ def write_mapping_file(
     ds.attrs["history"] = "Generated by mom6_forge"
     ds.attrs["conventions"] = "NCAR-CCSM"
     ds.attrs["date_created"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    if src_mesh_path := src_domain_mesh.encoding.get("source"):
+    if src_mesh_path := src_mesh.encoding.get("source"):
         ds.attrs["domain_a"] = src_mesh_path
     if dst_mesh_path := dst_mesh.encoding.get("source"):
         ds.attrs["domain_b"] = dst_mesh_path
@@ -627,174 +589,6 @@ def _get_mesh_bbox(mesh_path):
     return mesh_lon.min(), mesh_lon.max(), mesh_lat.min(), mesh_lat.max()
 
 
-def _mesh_index_window(mesh_path, lon_min, lon_max, lat_min, lat_max, buffer_deg=0.5):
-    """Find the smallest rectangular index window in `mesh_path`'s (ny, nx) raster
-    covering a lon/lat bounding box (plus a buffer). Shared by
-    `crop_esmf_mesh_to_bbox()` (to do the actual slicing) and `gen_rof_maps()`
-    (to translate cropped-mesh weight indices back into the full mesh's index
-    space afterward) so both agree on the exact same window.
-
-    Parameters
-    ----------
-    mesh_path : str or Path
-        Path to a non-cyclic, non-tripolar, rectangular lat/lon ESMF mesh file
-        (monotonic lon along x, monotonic lat along y).
-    lon_min, lon_max, lat_min, lat_max, buffer_deg :
-        See `crop_esmf_mesh_to_bbox()`.
-
-    Returns
-    -------
-    imin, imax, jmin, jmax, nx, ny : int
-        Index window `[jmin:jmax, imin:imax]` into the mesh's own `(ny, nx)`
-        raster, and the mesh's own full `(nx, ny)`.
-    """
-
-    mesh = xr.open_dataset(mesh_path)
-    nx, ny = get_mesh_dimensions(mesh)
-
-    # Only longitude has a 0/360 wrap ambiguity - latitude must stay unwrapped
-    # (see _get_mesh_bbox).
-    center_lon = normalize_deg(mesh["centerCoords"].data[:, 0]).reshape(ny, nx)
-    center_lat = mesh["centerCoords"].data[:, 1].reshape(ny, nx)
-
-    lon_row = center_lon[0, :]
-    lat_col = center_lat[:, 0]
-    assert np.all(np.diff(lon_row) > 0) or np.all(np.diff(lon_row) < 0), (
-        "crop_esmf_mesh_to_bbox() requires a rectangular mesh with monotonic "
-        "longitude along the x-axis (non-cyclic, non-tripolar meshes only)"
-    )
-    assert np.all(np.diff(lat_col) > 0) or np.all(np.diff(lat_col) < 0), (
-        "crop_esmf_mesh_to_bbox() requires a rectangular mesh with monotonic "
-        "latitude along the y-axis (non-cyclic, non-tripolar meshes only)"
-    )
-
-    lon_lo, lon_hi = lon_min - buffer_deg, lon_max + buffer_deg
-    lat_lo, lat_hi = lat_min - buffer_deg, lat_max + buffer_deg
-
-    i_in_range = np.where((lon_row >= lon_lo) & (lon_row <= lon_hi))[0]
-    j_in_range = np.where((lat_col >= lat_lo) & (lat_col <= lat_hi))[0]
-    assert i_in_range.size > 0 and j_in_range.size > 0, (
-        "crop_esmf_mesh_to_bbox(): no source mesh cells fall within the "
-        "requested bounding box + buffer"
-    )
-    imin, imax = int(i_in_range.min()), int(i_in_range.max()) + 1
-    jmin, jmax = int(j_in_range.min()), int(j_in_range.max()) + 1
-    return imin, imax, jmin, jmax, nx, ny
-
-
-def crop_esmf_mesh_to_bbox(
-    mesh_path, lon_min, lon_max, lat_min, lat_max, output_path, buffer_deg=0.5
-):
-    """Crop a regular-grid ESMF mesh to the smallest rectangular index window
-    covering a lon/lat bounding box (plus a buffer), and write it as a new,
-    self-consistent ESMF mesh file.
-
-    This works directly on the mesh's own fields (centerCoords/elementMask/
-    nodeCoords) via plain reshape and slicing - it never reconstructs full
-    mesh geometry (no supergrid, no dx/dy/area/angle_dx), since none of that
-    is part of the ESMF mesh format or needed here. ``elementConn`` is
-    rebuilt fresh for the cropped rectangle rather than remapped from the
-    original mesh, since a plain rectangular grid's connectivity is fully
-    determined by its shape.
-
-    Parameters
-    ----------
-    mesh_path : str or Path
-        Path to the source ESMF mesh file to crop. Must be a non-cyclic,
-        non-tripolar, rectangular lat/lon mesh (monotonic lon along x,
-        monotonic lat along y).
-    lon_min, lon_max, lat_min, lat_max : float
-        Bounding box (degrees) to crop to - typically the destination mesh's
-        own bounding box, from ``_get_mesh_bbox()``.
-    output_path : str or Path
-        Path to write the cropped ESMF mesh file to.
-    buffer_deg : float, optional
-        Degrees of margin added around the bbox on each side, so the crop
-        window is a strict superset of whatever downstream masking
-        (``map_overlap``) keeps active - the buffer only widens the array
-        bounds, it doesn't change which points end up unmasked. Default 0.5.
-
-    Returns
-    -------
-    output_path : Path
-    """
-
-    assert isinstance(
-        mesh_path, (str, Path)
-    ), "mesh_path must be a path to an existing file"
-    mesh = xr.open_dataset(mesh_path)
-    imin, imax, jmin, jmax, nx, ny = _mesh_index_window(
-        mesh_path, lon_min, lon_max, lat_min, lat_max, buffer_deg=buffer_deg
-    )
-
-    mask_c = mesh["elementMask"].data.reshape(ny, nx)[jmin:jmax, imin:imax]
-    center_lon_c = mesh["centerCoords"].data[:, 0].reshape(ny, nx)[jmin:jmax, imin:imax]
-    center_lat_c = mesh["centerCoords"].data[:, 1].reshape(ny, nx)[jmin:jmax, imin:imax]
-
-    node_lon = mesh["nodeCoords"].data[:, 0].reshape(ny + 1, nx + 1)
-    node_lat = mesh["nodeCoords"].data[:, 1].reshape(ny + 1, nx + 1)
-    node_lon_c = node_lon[jmin : jmax + 1, imin : imax + 1]
-    node_lat_c = node_lat[jmin : jmax + 1, imin : imax + 1]
-
-    ny_c, nx_c = mask_c.shape
-    node_idx = np.arange((ny_c + 1) * (nx_c + 1)).reshape(ny_c + 1, nx_c + 1)
-    element_conn_c = (
-        np.stack(
-            [
-                node_idx[:-1, :-1].ravel(),
-                node_idx[:-1, 1:].ravel(),
-                node_idx[1:, 1:].ravel(),
-                node_idx[1:, :-1].ravel(),
-            ],
-            axis=1,
-        )
-        + 1  # one-based, per ESMF mesh convention
-    ).astype(np.float64)
-
-    lon_units = mesh["centerCoords"].attrs.get("units", "degrees")
-
-    ds_out = xr.Dataset(
-        {
-            "nodeCoords": (
-                ("nodeCount", "coordDim"),
-                np.stack([node_lon_c.ravel(), node_lat_c.ravel()], axis=1),
-                {"units": lon_units},
-            ),
-            "elementConn": (
-                ("elementCount", "maxNodePElement"),
-                element_conn_c,
-                {"long_name": "Node indices that define the element connectivity"},
-            ),
-            "numElementConn": (
-                ("elementCount",),
-                np.full(ny_c * nx_c, 4, dtype=np.int32),
-                {"long_name": "Number of nodes per element"},
-            ),
-            "centerCoords": (
-                ("elementCount", "coordDim"),
-                np.stack([center_lon_c.ravel(), center_lat_c.ravel()], axis=1),
-                {"units": lon_units},
-            ),
-            "elementMask": (
-                ("elementCount",),
-                mask_c.ravel().astype(mesh["elementMask"].dtype),
-                {"units": "unitless"},
-            ),
-        }
-    )
-    ds_out.attrs["gridType"] = "unstructured mesh"
-    ds_out.attrs["history"] = (
-        f"Cropped from {Path(mesh_path).name} to bbox "
-        f"lon=[{lon_min:.3f}, {lon_max:.3f}] lat=[{lat_min:.3f}, {lat_max:.3f}] "
-        f"+ {buffer_deg} deg buffer, by mom6_forge.mapping.crop_esmf_mesh_to_bbox()"
-    )
-
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    ds_out.to_netcdf(output_path)
-    return output_path
-
-
 def generate_ESMF_map_via_xesmf(
     src_mesh_path,
     dst_mesh_path,
@@ -802,16 +596,13 @@ def generate_ESMF_map_via_xesmf(
     method,
     area_normalization=False,
     map_overlap=True,
-    src_full_mesh_path=None,
-    src_crop_window=None,
 ):
     """Generate an ESMF mapping file using xesmf.
 
     Parameters
     ----------
     src_mesh_path : str or Path
-        Path to the source ESMF mesh file. If `src_full_mesh_path` is given,
-        this may be a cropped subset used only to compute weights cheaply.
+        Path to the source ESMF mesh file.
     dst_mesh_path : str or Path
         Path to the destination ESMF mesh file.
     mapping_file : str or Path
@@ -823,12 +614,6 @@ def generate_ESMF_map_via_xesmf(
     map_overlap : bool
         If True, only map the overlapping area between the source and destination meshes, i.e.,
         zero out the mask in the source mesh that falls outside the rectangle defined by the destination mesh.
-    src_full_mesh_path, src_crop_window :
-        Passed straight through to `write_mapping_file()` - see its docstring.
-        Use when `src_mesh_path` is a cropped subset of `src_full_mesh_path`,
-        so the written mapping file's source-domain fields describe the full
-        mesh (matching the runtime component's own domain) rather than the
-        cropped one used only to speed up weight computation.
     """
 
     src_grid = grid_from_esmf_mesh(src_mesh_path)
@@ -876,8 +661,6 @@ def generate_ESMF_map_via_xesmf(
         weights=regridder.weights,
         filename=mapping_file,
         area_normalization=area_normalization,
-        src_full_mesh=src_full_mesh_path,
-        src_crop_window=src_crop_window,
     )
 
 
@@ -1102,8 +885,6 @@ def gen_rof_maps(
     mapping_file_prefix,
     rmax=None,
     fold=None,
-    crop_source_mesh=True,
-    crop_buffer_deg=0.5,
 ):
     """Generate (1) nearest neighbor and (2) smoothed nearest neighbor mapping files
     from a runoff mesh to an ocean mesh.
@@ -1123,21 +904,6 @@ def gen_rof_maps(
         Maximum distance for smoothing weights, in kilometers. If None, no smoothing is applied.
     fold : float, optional
         Fold factor (km) determining the strength of smoothing based on distance. If None, no smoothing is applied.
-    crop_source_mesh : bool, optional
-        If True (default), crop the ROF source mesh down to a rectangular window
-        around the ocean mesh's bounding box (see `crop_esmf_mesh_to_bbox`) before
-        computing regrid weights - this is what makes generation tractable for a
-        full-size production ROF mesh. This is purely an internal speed-up: the
-        written mapping file's source-domain fields (`xc_a`/`area_a`/`mask_a`/
-        `src_grid_dims`/`n_a`/...) always describe the FULL, uncropped
-        `rof_mesh_path` mesh, matching whatever mesh the runtime component
-        (e.g. DROF) actually declares as its own domain - cropping never
-        changes what mesh the output file claims to be. Disable only to
-        compare against the (much slower, for a large mesh) fully-uncropped
-        computation path.
-    crop_buffer_deg : float, optional
-        Buffer (degrees) added around the ocean mesh's bounding box when cropping.
-        Only used if `crop_source_mesh` is True. Default 0.5.
     """
 
     print(f"Generating nearest neighbor mapping file...")
@@ -1159,38 +925,6 @@ def gen_rof_maps(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    full_rof_mesh_path = rof_mesh_path
-    src_crop_window = None
-    if crop_source_mesh:
-        print(f"Cropping ROF source mesh to ocean mesh bounding box...")
-        lon_min, lon_max, lat_min, lat_max = _get_mesh_bbox(ocn_mesh_path)
-        imin, imax, jmin, jmax, nx_full, ny_full = _mesh_index_window(
-            full_rof_mesh_path,
-            lon_min,
-            lon_max,
-            lat_min,
-            lat_max,
-            buffer_deg=crop_buffer_deg,
-        )
-        rof_mesh_path = crop_esmf_mesh_to_bbox(
-            full_rof_mesh_path,
-            lon_min,
-            lon_max,
-            lat_min,
-            lat_max,
-            output_dir / f"{mapping_file_prefix}_rof_mesh_cropped.nc",
-            buffer_deg=crop_buffer_deg,
-        )
-        # Weights are computed on the small cropped mesh (cheap), but the
-        # mapping file's source-domain fields must describe the FULL mesh -
-        # that's what the runtime component (e.g. DROF) actually declares as
-        # its own domain via ROF_DOMAIN_MESH, and CMEPS's remap requires the
-        # map's n_a to match that domain's element count exactly. Cropping
-        # is purely an internal speed-up for computing the weights; it must
-        # not change what mesh the written file claims to describe.
-        src_crop_window = (imin, jmin, imax - imin, nx_full)
-        print(f"  Cropped ROF mesh written to {rof_mesh_path}")
-
     nn_map_filepath = get_nn_map_filepath(mapping_file_prefix, output_dir)
 
     generate_ESMF_map_via_xesmf(
@@ -1199,8 +933,6 @@ def gen_rof_maps(
         mapping_file=nn_map_filepath,
         method="nearest_d2s",
         area_normalization=True,
-        src_full_mesh_path=full_rof_mesh_path if crop_source_mesh else None,
-        src_crop_window=src_crop_window,
     )
 
     print(f"  Generated nearest mapping file in {(t1:=time()) - t0:.2f} seconds at:")
@@ -1262,12 +994,6 @@ def gen_rof_maps(
             filename=nnsm_map_filepath,
             weights_coo=S_smooth,
             area_normalization=False,  # No area normalization for smoothing
-            # S_smooth's column indices are already in full-mesh index space:
-            # they come from S_coo, built directly from nn_map's own row/col/
-            # ni_a/nj_a - which the nn_map write above already wrote in full-
-            # mesh space (no separate remap needed here, only the matching
-            # full-mesh descriptive fields for consistency with the nn map).
-            src_full_mesh=full_rof_mesh_path if crop_source_mesh else None,
         )
 
         print(f"  Generated smoothed mapping file in {time() - t1:.2f} seconds at:")

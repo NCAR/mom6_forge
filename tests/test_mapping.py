@@ -12,10 +12,10 @@ from mom6_forge.mapping import (
     _make_subgrid_points,
     regrid_with_subsampling,
     _get_mesh_bbox,
-    crop_esmf_mesh_to_bbox,
     write_mapping_file,
     gen_rof_maps,
     get_nn_map_filepath,
+    get_smoothed_map_filepath,
 )
 from mom6_forge._supergrid import haversine
 from mom6_forge.grid import Grid
@@ -327,8 +327,8 @@ def test_regrid_with_subsampling(get_simple_grid):
 
 
 # ---------------------------------------------------------------------------
-# Runoff-mapping scaling fixes: _get_mesh_bbox, crop_esmf_mesh_to_bbox, and
-# write_mapping_file's shape lookup.
+# Runoff-mapping scaling fixes: _get_mesh_bbox and write_mapping_file's shape
+# lookup / classic-format write path.
 # ---------------------------------------------------------------------------
 
 
@@ -337,38 +337,12 @@ def _write_esmf_mesh(grid, path):
     return path
 
 
-def _physical_mapping(ds):
-    """Key each nonzero mapping entry by (dst_lon, dst_lat, src_lon, src_lat)
-    instead of raw row/col index, so a cropped and an uncropped mapping (which
-    have different n_a/array sizes by design) can still be compared."""
-    xc_a, yc_a = ds["xc_a"].values, ds["yc_a"].values
-    xc_b, yc_b = ds["xc_b"].values, ds["yc_b"].values
-    row, col, S = ds["row"].values - 1, ds["col"].values - 1, ds["S"].values
-    return {
-        (
-            round(float(xc_b[r]), 6),
-            round(float(yc_b[r]), 6),
-            round(float(xc_a[c]), 6),
-            round(float(yc_a[c]), 6),
-        ): float(s)
-        for r, c, s in zip(row, col, S)
-    }
-
-
 @pytest.fixture
 def crop_rof_grid():
     """10x10 deg, 1 deg resolution, straddling the equator (lat -5..5) so
     _get_mesh_bbox's latitude handling is exercised on negative values."""
     return Grid(
         resolution=1.0, xstart=10.0, lenx=10.0, ystart=-5.0, leny=10.0, name="crop_rof"
-    )
-
-
-@pytest.fixture
-def crop_ocn_grid():
-    """3x3 deg destination domain fully inside crop_rof_grid's extent."""
-    return Grid(
-        resolution=1.0, xstart=13.0, lenx=3.0, ystart=-2.0, leny=3.0, name="crop_ocn"
     )
 
 
@@ -382,47 +356,6 @@ def test_get_mesh_bbox_preserves_negative_latitude(tmp_path, crop_rof_grid):
     # mod-360 longitude logic (that would turn -5.0 into ~355.0).
     assert lat_min == pytest.approx(-5.0)
     assert lat_max == pytest.approx(5.0)
-
-
-def test_crop_esmf_mesh_to_bbox_shrinks_to_expected_window(
-    tmp_path, crop_rof_grid, crop_ocn_grid
-):
-    rof_path = _write_esmf_mesh(crop_rof_grid, tmp_path / "rof.nc")
-    ocn_path = _write_esmf_mesh(crop_ocn_grid, tmp_path / "ocn.nc")
-
-    lon_min, lon_max, lat_min, lat_max = _get_mesh_bbox(ocn_path)
-    cropped_path = crop_esmf_mesh_to_bbox(
-        rof_path,
-        lon_min,
-        lon_max,
-        lat_min,
-        lat_max,
-        tmp_path / "rof_cropped.nc",
-        buffer_deg=0.5,
-    )
-
-    cropped = xr.open_dataset(cropped_path)
-    nx_c, ny_c = get_mesh_dimensions(cropped)
-    # lon centers 12.5..16.5 (buffer-widened [12.5, 16.5]), lat centers
-    # -2.5..1.5 (buffer-widened [-2.5, 1.5]) -> 5x5 window.
-    assert (nx_c, ny_c) == (5, 5)
-
-    center_lon = cropped["centerCoords"].data[:, 0].reshape(ny_c, nx_c)
-    center_lat = cropped["centerCoords"].data[:, 1].reshape(ny_c, nx_c)
-    np.testing.assert_allclose(center_lon[0, :], [12.5, 13.5, 14.5, 15.5, 16.5])
-    np.testing.assert_allclose(center_lat[:, 0], [-2.5, -1.5, -0.5, 0.5, 1.5])
-
-
-def test_crop_esmf_mesh_to_bbox_rejects_nonmonotonic_mesh(tmp_path, crop_rof_grid):
-    rof_path = _write_esmf_mesh(crop_rof_grid, tmp_path / "rof.nc")
-    ds = xr.open_dataset(rof_path)
-    lon = ds["centerCoords"].data[:, 0].copy()
-    lon[5] = lon[1]  # break strict monotonicity along the x-axis of row 0
-    ds["centerCoords"].data[:, 0] = lon
-    ds.to_netcdf(rof_path)
-
-    with pytest.raises(AssertionError, match="monotonic"):
-        crop_esmf_mesh_to_bbox(rof_path, 13.0, 16.0, -2.0, 1.0, tmp_path / "out.nc")
 
 
 def test_write_mapping_file_uses_shape_lookup_not_full_reconstruction(
@@ -497,24 +430,12 @@ def test_write_mapping_file_produces_valid_classic_format(tmp_path):
         nc.close()
 
 
-def test_gen_rof_maps_crop_matches_uncropped_physical_mapping(tmp_path):
-    """Cropping is purely an internal speed-up for computing weights - it must
-    not change what mesh the written mapping file claims to describe. The
-    runtime component that actually consumes this file (e.g. DROF) declares
-    its own domain as the FULL, uncropped ROF mesh, and CMEPS's remap requires
-    the mapping file's `n_a` to match that domain's element count exactly.
-    A cropped-but-mismatched `n_a` is a real, confirmed bug (found by
-    inspecting how CrocoDash wires up ROF_DOMAIN_MESH - it never gets
-    re-pointed at a cropped mesh), not just a cosmetic difference - so this
-    checks both that the mapping is physically the same AND that `n_a` did
-    not shrink.
-
-    Uses positive-latitude grids (not the equator-straddling crop_rof_grid
-    fixture): generate_ESMF_map_via_xesmf's own map_overlap masking still
-    runs latitude through normalize_deg - a separate, pre-existing bug not
-    touched by this change (see _get_mesh_bbox's docstring) - and this test
-    should check the crop, not that unrelated bug.
-    """
+def test_gen_rof_maps_end_to_end(tmp_path):
+    """Smoke test for gen_rof_maps() end-to-end (nn map + smoothing), on
+    positive-latitude grids to avoid the separate, pre-existing
+    normalize_deg(src_lat) bug in generate_ESMF_map_via_xesmf's map_overlap
+    masking (see _get_mesh_bbox's docstring) - unrelated to what this test
+    covers."""
     rof_grid = Grid(
         resolution=1.0, xstart=10.0, lenx=10.0, ystart=25.0, leny=10.0, name="rof"
     )
@@ -524,24 +445,14 @@ def test_gen_rof_maps_crop_matches_uncropped_physical_mapping(tmp_path):
     rof_path = _write_esmf_mesh(rof_grid, tmp_path / "rof.nc")
     ocn_path = _write_esmf_mesh(ocn_grid, tmp_path / "ocn.nc")
 
-    cropped_dir, uncropped_dir = tmp_path / "cropped", tmp_path / "uncropped"
-    gen_rof_maps(rof_path, ocn_path, cropped_dir, "test_map", crop_source_mesh=True)
-    gen_rof_maps(rof_path, ocn_path, uncropped_dir, "test_map", crop_source_mesh=False)
+    out_dir = tmp_path / "out"
+    gen_rof_maps(rof_path, ocn_path, out_dir, "test_map", rmax=50, fold=100)
 
-    ds_crop = xr.open_dataset(get_nn_map_filepath("test_map", cropped_dir))
-    ds_uncrop = xr.open_dataset(get_nn_map_filepath("test_map", uncropped_dir))
-
-    # The regression guard for the actual bug: cropping must not shrink n_a.
-    # rof_grid is 10x10 = 100 elements - if this is 900 instead, the crop
-    # window leaked into the output and the file is DROF-domain-inconsistent.
-    assert ds_crop.sizes["n_a"] == ds_uncrop.sizes["n_a"] == 100
-
-    map_crop = _physical_mapping(ds_crop)
-    map_uncrop = _physical_mapping(ds_uncrop)
-    assert map_crop, "expected at least one nonzero mapping entry"
-    assert map_crop.keys() == map_uncrop.keys()
-    for key, weight in map_crop.items():
-        assert weight == pytest.approx(map_uncrop[key], abs=1e-9)
+    ds_nn = xr.open_dataset(get_nn_map_filepath("test_map", out_dir))
+    ds_sm = xr.open_dataset(get_smoothed_map_filepath("test_map", out_dir, 50, 100))
+    assert ds_nn.sizes["n_a"] == ds_sm.sizes["n_a"] == 100  # rof_grid is 10x10
+    assert ds_nn["S"].size > 0, "expected at least one nonzero nn mapping entry"
+    assert ds_sm["S"].size > 0, "expected at least one nonzero smoothed mapping entry"
 
 
 def test_regrid_with_subsampling_time_dim(get_simple_grid):
