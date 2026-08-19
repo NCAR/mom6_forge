@@ -624,9 +624,18 @@ def generate_ESMF_map_via_xesmf(
     if map_overlap:
         lon_min, lon_max, lat_min, lat_max = _get_mesh_bbox(dst_mesh_path)
 
-        # normalize source grid coordinates
+        # Normalize longitude only, to match _get_mesh_bbox's [0, 360) convention
+        # for the bbox it just returned. Latitude must NOT be wrapped: mod 360
+        # turns a negative latitude into a large positive one (-5 -> 355), which
+        # then compares as "north of lat_max" and silently masks out source cells
+        # that really do fall inside the destination domain. That made every
+        # runoff source point below the equator invisible - harmless for a
+        # northern-hemisphere domain, but it dropped ~10% of source rivers for an
+        # equator-straddling domain and masked out *all* of them for a purely
+        # southern one, yielding an empty mapping file. Same reasoning as the
+        # latitude handling in _get_mesh_bbox.
         src_lon = normalize_deg(src_grid["lon"].data)
-        src_lat = normalize_deg(src_grid["lat"].data)
+        src_lat = src_grid["lat"].data
 
         src_grid["mask"].data = np.where(
             (src_lon < lon_min)
