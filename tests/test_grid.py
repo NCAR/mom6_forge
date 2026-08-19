@@ -12,7 +12,7 @@ import xarray as xr
 import pytest
 from mom6_forge.grid import Grid
 from mom6_forge.topo import Topo
-from mom6_forge._supergrid import SupergridBase
+from mom6_forge._supergrid import SupergridBase, _DEFAULT_RADIUS
 from utils import on_cisl_machine
 import os
 
@@ -276,6 +276,45 @@ def test_grid_properties(simple_2by2_grid):
     assert grid._supergrid.lenx == 2.0
     assert grid._supergrid.leny == 2.0
     assert grid.name == "testgrid"
+
+
+def test_grid_tarea_sums_all_four_supergrid_quadrants(get_rect_grid):
+    """Each T-cell area is the sum of its four distinct supergrid quadrants.
+
+    Regression test: the sum used to double-count the upper-left quadrant and
+    omit the lower-right one entirely, so every grid ever built carried a small
+    but systematic area error (~1e-4 relative on a 0.1 deg mid-latitude domain,
+    growing with cell size and latitude).
+    """
+    grid = get_rect_grid
+    sg = grid.supergrid
+    ny, nx = grid.ny, grid.nx
+
+    # Fold the (2*ny, 2*nx) supergrid areas into (ny, 2, nx, 2) and sum the
+    # 2x2 block belonging to each T-cell.
+    expected = sg.area[: 2 * ny, : 2 * nx].reshape(ny, 2, nx, 2).sum(axis=(1, 3))
+    np.testing.assert_allclose(grid.tarea.values, expected, rtol=1e-12)
+
+
+def test_grid_tarea_matches_analytic_spherical_area(get_rect_grid):
+    """Total T-cell area equals the analytic area of the lat/lon box.
+
+    An independent check that does not go through sg.area at all, so a bug in
+    the quadrant bookkeeping cannot hide behind a matching bug in the
+    supergrid cell areas.
+    """
+    grid = get_rect_grid
+    ds = grid.supergrid.to_ds()
+    R = _DEFAULT_RADIUS
+
+    lon_min, lon_max = float(ds.x.min()), float(ds.x.max())
+    lat_min, lat_max = float(ds.y.min()), float(ds.y.max())
+    analytic = (
+        R**2
+        * np.deg2rad(lon_max - lon_min)
+        * (np.sin(np.deg2rad(lat_max)) - np.sin(np.deg2rad(lat_min)))
+    )
+    np.testing.assert_allclose(float(grid.tarea.sum()), analytic, rtol=1e-6)
 
 
 def test_grid_sanitize_name():
