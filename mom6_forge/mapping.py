@@ -554,6 +554,52 @@ def write_mapping_file(
         subprocess.run(["nccopy", "-6", str(tmp_nc4), str(filename)], check=True)
 
 
+def _lon_bbox(lon):
+    """Smallest longitude interval in [0, 360) containing every value in `lon`.
+
+    Returns ``(lon_min, lon_max)``. **The interval may wrap**: if it crosses the
+    0/360 seam then ``lon_min > lon_max``, and it covers
+    ``[lon_min, 360) | [0, lon_max]``. Callers must test for that rather than
+    assuming an ordered pair.
+
+    Taking ``min()``/``max()`` of normalized longitudes is what this replaces, and
+    it is wrong for any mesh touching the seam. ``normalize_deg`` is
+    ``mod(x + 360, 360)``, so a node at exactly lon 360 becomes 0 - which then *is*
+    the minimum, while 359.92 is the maximum. A domain spanning 280..360 reports a
+    bbox of 0.00..359.92, i.e. nearly the whole globe. Downstream that turned
+    `generate_ESMF_map_via_xesmf`'s `map_overlap` masking into a no-op in
+    longitude, so the regrid ran against a global latitude band instead of the
+    domain's own window and did not finish in over an hour.
+
+    Find the largest angular *gap* between successive longitudes instead; the
+    domain is everything outside that gap. For a fully periodic (global) mesh every
+    gap equals the grid spacing, so the tie falls through to the unwrapped answer,
+    which is the full range - the behavior a global mesh wants.
+    """
+    lon = np.unique(normalize_deg(np.asarray(lon, dtype=float)))
+    if lon.size == 1:
+        return float(lon[0]), float(lon[0])
+    gaps = np.diff(lon)
+    wrap_gap = lon[0] + 360.0 - lon[-1]
+    widest = int(np.argmax(gaps))
+    if wrap_gap >= gaps[widest]:
+        return float(lon[0]), float(lon[-1])
+    return float(lon[widest + 1]), float(lon[widest])
+
+
+def _lon_outside(lon, lon_min, lon_max):
+    """Boolean mask of longitudes falling outside a possibly-wrapped interval.
+
+    Companion to `_lon_bbox`: when the interval wraps (``lon_min > lon_max``) the
+    "outside" test flips from OR to AND, since outside then means "west of the
+    start *and* east of the end".
+    """
+    lon = normalize_deg(lon)
+    if lon_min <= lon_max:
+        return (lon < lon_min) | (lon > lon_max)
+    return (lon < lon_min) & (lon > lon_max)
+
+
 def _get_mesh_bbox(mesh_path):
     """Compute the lon/lat bounding box (degrees, normalized to [0, 360)) covered
     by an ESMF mesh's nodes.
@@ -566,6 +612,9 @@ def _get_mesh_bbox(mesh_path):
     Returns
     -------
     lon_min, lon_max, lat_min, lat_max : float
+        The longitude interval may wrap the 0/360 seam, in which case
+        ``lon_min > lon_max`` - see `_lon_bbox`. Pair it with `_lon_outside`
+        rather than comparing against it directly.
     """
 
     assert isinstance(
@@ -584,9 +633,9 @@ def _get_mesh_bbox(mesh_path):
     # Only longitude has a 0/360 wrap ambiguity to normalize away - latitude is
     # already well-defined and must not be wrapped (mod 360 would corrupt any
     # negative latitude, e.g. -6.95 -> 353.05).
-    mesh_lon = normalize_deg(mesh["nodeCoords"].data[:, 0])
+    lon_min, lon_max = _lon_bbox(mesh["nodeCoords"].data[:, 0])
     mesh_lat = mesh["nodeCoords"].data[:, 1]
-    return mesh_lon.min(), mesh_lon.max(), mesh_lat.min(), mesh_lat.max()
+    return lon_min, lon_max, mesh_lat.min(), mesh_lat.max()
 
 
 def generate_ESMF_map_via_xesmf(
@@ -624,22 +673,23 @@ def generate_ESMF_map_via_xesmf(
     if map_overlap:
         lon_min, lon_max, lat_min, lat_max = _get_mesh_bbox(dst_mesh_path)
 
-        # Normalize longitude only, to match _get_mesh_bbox's [0, 360) convention
-        # for the bbox it just returned. Latitude must NOT be wrapped: mod 360
-        # turns a negative latitude into a large positive one (-5 -> 355), which
-        # then compares as "north of lat_max" and silently masks out source cells
-        # that really do fall inside the destination domain. That made every
-        # runoff source point below the equator invisible - harmless for a
-        # northern-hemisphere domain, but it dropped ~10% of source rivers for an
-        # equator-straddling domain and masked out *all* of them for a purely
-        # southern one, yielding an empty mapping file. Same reasoning as the
-        # latitude handling in _get_mesh_bbox.
-        src_lon = normalize_deg(src_grid["lon"].data)
+        # Longitude goes through _lon_outside, which handles the case where the
+        # destination straddles the 0/360 seam and _get_mesh_bbox therefore
+        # returned a wrapped interval (lon_min > lon_max). A plain
+        # `(lon < lon_min) | (lon > lon_max)` is inverted for such a domain.
+        #
+        # Latitude must NOT be wrapped: mod 360 turns a negative latitude into a
+        # large positive one (-5 -> 355), which then compares as "north of
+        # lat_max" and silently masks out source cells that really do fall inside
+        # the destination domain. That made every runoff source point below the
+        # equator invisible - harmless for a northern-hemisphere domain, but it
+        # dropped ~10% of source rivers for an equator-straddling domain and
+        # masked out *all* of them for a purely southern one, yielding an empty
+        # mapping file. Same reasoning as the latitude handling in _get_mesh_bbox.
         src_lat = src_grid["lat"].data
 
         src_grid["mask"].data = np.where(
-            (src_lon < lon_min)
-            | (src_lon > lon_max)
+            _lon_outside(src_grid["lon"].data, lon_min, lon_max)
             | (src_lat < lat_min)
             | (src_lat > lat_max),
             0,

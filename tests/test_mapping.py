@@ -399,6 +399,72 @@ def test_map_overlap_masking_is_hemisphere_symmetric(tmp_path):
     )
 
 
+def test_get_mesh_bbox_handles_0_360_seam(tmp_path):
+    """A mesh whose eastern edge is exactly lon 360 must not report a global bbox.
+
+    normalize_deg is mod(x + 360, 360), so nodes sitting on exactly 360 come back
+    as 0. Taking min()/max() of that then reports 0.00..359.x - nearly the whole
+    globe - for a mesh spanning ten degrees. Downstream that turned
+    generate_ESMF_map_via_xesmf's map_overlap masking into a no-op in longitude,
+    so the regrid ran against a global latitude band; a 576K-cell domain went from
+    106 s to not finishing in over an hour.
+
+    The interval is allowed to wrap (lon_min > lon_max) - that is how a
+    seam-crossing domain is expressed - so what this asserts is the *width*.
+    """
+    grid = Grid(
+        resolution=1.0, xstart=350.0, lenx=10.0, ystart=-3.0, leny=6.0, name="seam"
+    )
+    mesh_path = _write_esmf_mesh(grid, tmp_path / "seam.nc")
+    lon_min, lon_max, lat_min, lat_max = _get_mesh_bbox(mesh_path)
+
+    width = lon_max - lon_min if lon_max >= lon_min else 360.0 - lon_min + lon_max
+    assert width == pytest.approx(10.0), (
+        f"bbox spans {width:.2f} deg for a 10 deg mesh - longitudes touching the "
+        f"0/360 seam are being collapsed by normalize_deg again "
+        f"(got lon_min={lon_min}, lon_max={lon_max})"
+    )
+    assert lon_min == pytest.approx(350.0)
+    assert lat_min == pytest.approx(-3.0)
+    assert lat_max == pytest.approx(3.0)
+
+
+def test_map_overlap_masking_is_rotation_invariant(tmp_path):
+    """map_overlap must mask the same way whether or not the domain touches lon 360.
+
+    Companion to test_map_overlap_masking_is_hemisphere_symmetric: that one covers
+    latitude, this one longitude. The source mesh is uniform in longitude, so two
+    destination windows of equal width must select equally many source cells no
+    matter where they sit. Before the fix the seam window's bbox came back as
+    ~0..359, masked nothing, and mapped the entire source mesh - three times as
+    many cells as the interior window.
+    """
+    rof_grid = Grid(
+        resolution=1.0, xstart=330.0, lenx=30.0, ystart=-5.0, leny=10.0, name="rof_rot"
+    )
+    rof_path = _write_esmf_mesh(rof_grid, tmp_path / "rof_rot.nc")
+
+    counts = {}
+    # "seam" ends on exactly lon 360; "interior" is the same width, 10 deg west.
+    for tag, xstart in (("seam", 350.0), ("interior", 340.0)):
+        ocn_grid = Grid(
+            resolution=1.0, xstart=xstart, lenx=10.0, ystart=-3.0, leny=6.0, name=tag
+        )
+        ocn_path = _write_esmf_mesh(ocn_grid, tmp_path / f"ocn_{tag}.nc")
+        out_dir = tmp_path / f"out_{tag}"
+        gen_rof_maps(rof_path, ocn_path, out_dir, f"map_{tag}", rmax=50, fold=100)
+        with xr.open_dataset(get_nn_map_filepath(f"map_{tag}", out_dir)) as ds:
+            counts[tag] = int(ds["S"].size)
+
+    assert counts["interior"] > 0, "interior destination should map some source cells"
+    assert counts["seam"] == counts["interior"], (
+        f"equal-width domains must map equally many source cells regardless of "
+        f"where they sit in longitude, got seam={counts['seam']} "
+        f"interior={counts['interior']} - the domain touching lon 360 is getting a "
+        f"near-global bbox again, so map_overlap masks nothing"
+    )
+
+
 def test_write_mapping_file_uses_shape_lookup_not_full_reconstruction(
     tmp_path, monkeypatch
 ):
