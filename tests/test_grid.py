@@ -12,7 +12,7 @@ import xarray as xr
 import pytest
 from mom6_forge.grid import Grid
 from mom6_forge.topo import Topo
-from mom6_forge._supergrid import SupergridBase
+from mom6_forge._supergrid import SupergridBase, _DEFAULT_RADIUS
 from utils import on_cisl_machine
 import os
 
@@ -278,6 +278,45 @@ def test_grid_properties(simple_2by2_grid):
     assert grid.name == "testgrid"
 
 
+def test_grid_tarea_sums_all_four_supergrid_quadrants(get_rect_grid):
+    """Each T-cell area is the sum of its four distinct supergrid quadrants.
+
+    Regression test: the sum used to double-count the upper-left quadrant and
+    omit the lower-right one entirely, so every grid ever built carried a small
+    but systematic area error (~1e-4 relative on a 0.1 deg mid-latitude domain,
+    growing with cell size and latitude).
+    """
+    grid = get_rect_grid
+    sg = grid.supergrid
+    ny, nx = grid.ny, grid.nx
+
+    # Fold the (2*ny, 2*nx) supergrid areas into (ny, 2, nx, 2) and sum the
+    # 2x2 block belonging to each T-cell.
+    expected = sg.area[: 2 * ny, : 2 * nx].reshape(ny, 2, nx, 2).sum(axis=(1, 3))
+    np.testing.assert_allclose(grid.tarea.values, expected, rtol=1e-12)
+
+
+def test_grid_tarea_matches_analytic_spherical_area(get_rect_grid):
+    """Total T-cell area equals the analytic area of the lat/lon box.
+
+    An independent check that does not go through sg.area at all, so a bug in
+    the quadrant bookkeeping cannot hide behind a matching bug in the
+    supergrid cell areas.
+    """
+    grid = get_rect_grid
+    ds = grid.supergrid.to_ds()
+    R = _DEFAULT_RADIUS
+
+    lon_min, lon_max = float(ds.x.min()), float(ds.x.max())
+    lat_min, lat_max = float(ds.y.min()), float(ds.y.max())
+    analytic = (
+        R**2
+        * np.deg2rad(lon_max - lon_min)
+        * (np.sin(np.deg2rad(lat_max)) - np.sin(np.deg2rad(lat_min)))
+    )
+    np.testing.assert_allclose(float(grid.tarea.sum()), analytic, rtol=1e-6)
+
+
 def test_grid_sanitize_name():
     with pytest.raises(AssertionError):
         g = Grid(lenx=2.0, leny=2.0, nx=2, ny=2, name="bad name!@#")
@@ -357,3 +396,36 @@ def test_grid_from_center():
     mid_lon = grid.tlon.values[grid.ny // 2, grid.nx // 2]
     assert abs(mid_lat - 40.0) < 1.0
     assert abs(mid_lon - (-70.0)) < 1.0
+
+
+# ---------------------------------------------------------------------------
+# Grid.from_esmf_mesh tests
+# ---------------------------------------------------------------------------
+
+
+def test_grid_from_esmf_mesh_non_cyclic(tmp_path, get_rect_grid):
+    mesh_path = str(tmp_path / "non_cyclic.nc")
+    get_rect_grid.supergrid.to_esmf_mesh(mesh_path, mask="all_unmasked")
+    grid2 = Grid.from_esmf_mesh(mesh_path)
+    assert isinstance(grid2, Grid)
+    assert grid2.nx == get_rect_grid.nx
+    assert grid2.ny == get_rect_grid.ny
+    assert not grid2.cyclic_x
+
+
+def test_grid_from_esmf_mesh_cyclic(tmp_path, get_simple_global_grid):
+    mesh_path = str(tmp_path / "cyclic.nc")
+    get_simple_global_grid.supergrid.to_esmf_mesh(mesh_path, mask="all_unmasked")
+    grid2 = Grid.from_esmf_mesh(mesh_path)
+    assert isinstance(grid2, Grid)
+    assert grid2.nx == get_simple_global_grid.nx
+    assert grid2.ny == get_simple_global_grid.ny
+    assert grid2.cyclic_x
+
+
+def test_grid_from_esmf_mesh_coords_preserved(tmp_path, get_rect_grid):
+    mesh_path = str(tmp_path / "coords.nc")
+    get_rect_grid.supergrid.to_esmf_mesh(mesh_path, mask="all_unmasked")
+    grid2 = Grid.from_esmf_mesh(mesh_path)
+    np.testing.assert_allclose(grid2.tlon.values, get_rect_grid.tlon.values, atol=1e-6)
+    np.testing.assert_allclose(grid2.tlat.values, get_rect_grid.tlat.values, atol=1e-6)
