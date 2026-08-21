@@ -5,6 +5,7 @@ import scipy.sparse as sp
 import pytest
 from pathlib import Path
 from mom6_forge.mapping import (
+    MINIMAL_MAP_VARIABLES,
     compute_cressman_weights,
     dst_to_source,
     source_to_dst,
@@ -14,6 +15,7 @@ from mom6_forge.mapping import (
     _get_mesh_bbox,
     write_mapping_file,
     gen_rof_maps,
+    get_full_map_filepath,
     get_nn_map_filepath,
     get_smoothed_map_filepath,
 )
@@ -555,11 +557,208 @@ def test_gen_rof_maps_end_to_end(tmp_path):
     out_dir = tmp_path / "out"
     gen_rof_maps(rof_path, ocn_path, out_dir, "test_map", rmax=50, fold=100)
 
-    ds_nn = xr.open_dataset(get_nn_map_filepath("test_map", out_dir))
-    ds_sm = xr.open_dataset(get_smoothed_map_filepath("test_map", out_dir, 50, 100))
-    assert ds_nn.sizes["n_a"] == ds_sm.sizes["n_a"] == 100  # rof_grid is 10x10
+    nn_path = get_nn_map_filepath("test_map", out_dir)
+    sm_path = get_smoothed_map_filepath("test_map", out_dir, 50, 100)
+    ds_nn = xr.open_dataset(nn_path)
+    ds_sm = xr.open_dataset(sm_path)
     assert ds_nn["S"].size > 0, "expected at least one nonzero nn mapping entry"
     assert ds_sm["S"].size > 0, "expected at least one nonzero smoothed mapping entry"
+    # gen_rof_maps writes minimal files by default, so the per-source-cell
+    # geometry (and its n_a dimension) lives in the _full companions instead.
+    for ds in (ds_nn, ds_sm):
+        assert "n_a" not in ds.sizes
+    with xr.open_dataset(get_full_map_filepath(nn_path)) as ds_nn_full:
+        with xr.open_dataset(get_full_map_filepath(sm_path)) as ds_sm_full:
+            # rof_grid is 10x10
+            assert ds_nn_full.sizes["n_a"] == ds_sm_full.sizes["n_a"] == 100
+
+
+def test_gen_rof_maps_minimal_and_full_agree(tmp_path):
+    """With save_full_map=True the output pair must be self-consistent: the file
+    CESM reads carries exactly the variables ESMF's ESMF_FactorRead() needs, the
+    _full companion carries the whole CESM/SCRIP variable set, and the weights in
+    the two are identical. Also pins the requested-vs-legacy variable sets, so
+    dropping a variable ESMF does read can't pass silently."""
+    rof_grid = Grid(
+        resolution=1.0, xstart=10.0, lenx=10.0, ystart=25.0, leny=10.0, name="rof_min"
+    )
+    ocn_grid = Grid(
+        resolution=1.0, xstart=13.0, lenx=3.0, ystart=28.0, leny=3.0, name="ocn_min"
+    )
+    rof_path = _write_esmf_mesh(rof_grid, tmp_path / "rof.nc")
+    ocn_path = _write_esmf_mesh(ocn_grid, tmp_path / "ocn.nc")
+
+    out_dir = tmp_path / "out"
+    gen_rof_maps(rof_path, ocn_path, out_dir, "m", rmax=50, fold=100)
+
+    for path in (
+        get_nn_map_filepath("m", out_dir),
+        get_smoothed_map_filepath("m", out_dir, 50, 100),
+    ):
+        full_path = get_full_map_filepath(path)
+        assert full_path.exists(), f"missing record-keeping companion {full_path}"
+        with xr.open_dataset(path) as ds, xr.open_dataset(full_path) as ds_full:
+            assert set(ds.variables) == set(MINIMAL_MAP_VARIABLES)
+            # "row", "col" and "S" over dimension "n_s" are what ESMF_FactorRead
+            # requires; the grid-dims arrays are two ints each and record the
+            # shape that row/col index into.
+            assert {"S", "row", "col"}.issubset(ds.variables)
+            assert ds["S"].dims == ("n_s",)
+            assert set(ds_full.variables) > set(MINIMAL_MAP_VARIABLES)
+            for var in MINIMAL_MAP_VARIABLES:
+                assert np.array_equal(ds[var].values, ds_full[var].values), var
+            # minimal must be strictly smaller - that's the entire point
+            assert path.stat().st_size < full_path.stat().st_size
+
+
+def test_gen_rof_maps_full_companion_is_compressed_netcdf4(tmp_path):
+    """The CESM-facing file must stay NETCDF3_64BIT; the record-keeping companion
+    must not be held to it. Classic format cannot address a variable over 4 GiB -
+    S alone is 11.8 GiB for CrocIndoPacific_112 at rmax=100 - and nothing reads
+    the companion from CESM, so it goes out as compressed NETCDF4 instead."""
+    rof_grid = Grid(
+        resolution=1.0, xstart=10.0, lenx=10.0, ystart=25.0, leny=10.0, name="rof_fmt"
+    )
+    ocn_grid = Grid(
+        resolution=1.0, xstart=13.0, lenx=3.0, ystart=28.0, leny=3.0, name="ocn_fmt"
+    )
+    rof_path = _write_esmf_mesh(rof_grid, tmp_path / "rof.nc")
+    ocn_path = _write_esmf_mesh(ocn_grid, tmp_path / "ocn.nc")
+
+    out_dir = tmp_path / "out"
+    gen_rof_maps(rof_path, ocn_path, out_dir, "m", rmax=50, fold=100)
+
+    for path in (
+        get_nn_map_filepath("m", out_dir),
+        get_smoothed_map_filepath("m", out_dir, 50, 100),
+    ):
+        nc = netCDF4.Dataset(path)
+        try:
+            assert nc.data_model == "NETCDF3_64BIT_OFFSET", path.name
+        finally:
+            nc.close()
+
+        full_path = get_full_map_filepath(path)
+        nc = netCDF4.Dataset(full_path)
+        try:
+            assert nc.data_model == "NETCDF4", full_path.name
+            # integers stay int32 on this path too - nothing here needs 64-bit
+            for name, var in nc.variables.items():
+                if np.issubdtype(var.dtype, np.integer):
+                    assert var.dtype == np.int32, f"{name} is {var.dtype}"
+        finally:
+            nc.close()
+
+
+def test_write_mapping_file_deflates_large_vars_only(tmp_path):
+    """Deflate is applied to the arrays big enough for it to pay off, and skipped
+    on the handful of tiny index/grid-dims arrays where chunking is pure
+    overhead."""
+    src_grid = Grid(
+        resolution=0.5, xstart=0.0, lenx=40.0, ystart=0.0, leny=40.0, name="src_defl"
+    )
+    dst_grid = Grid(
+        resolution=1.0, xstart=0.0, lenx=2.0, ystart=0.0, leny=2.0, name="dst_defl"
+    )
+    src_path = _write_esmf_mesh(src_grid, tmp_path / "src.nc")
+    dst_path = _write_esmf_mesh(dst_grid, tmp_path / "dst.nc")
+    weights_coo = sp.coo_matrix(([1.0, 1.0], ([0, 1], [0, 1])), shape=(4, 6400))
+
+    write_mapping_file(
+        src_mesh=str(src_path),
+        dst_mesh=str(dst_path),
+        filename=tmp_path / "out.nc",
+        weights_coo=weights_coo,
+        minimal=True,
+        full_map_filename=tmp_path / "out_full.nc",
+    )
+
+    nc = netCDF4.Dataset(tmp_path / "out_full.nc")
+    try:
+        # src side is 80x80 = 6400 elements, over the deflate threshold
+        assert nc.variables["xc_a"].filters()["zlib"] is True
+        assert nc.variables["mask_a"].filters()["zlib"] is True
+        # dst side is 2x2 and the grid-dims arrays are length 2 - far below it
+        assert nc.variables["dst_grid_dims"].filters()["zlib"] is False
+        assert nc.variables["xc_b"].filters()["zlib"] is False
+    finally:
+        nc.close()
+
+
+def test_gen_rof_maps_single_precision(tmp_path):
+    """single_precision=True must halve the float variables' on-disk width without
+    changing the integer indices, in both output files, and must survive the
+    nccopy -6 conversion (a float32 S is still a valid ESMF weight file:
+    ESMF_FactorRead reads it into a real(R8) buffer and netCDF converts on
+    read)."""
+    rof_grid = Grid(
+        resolution=1.0, xstart=10.0, lenx=10.0, ystart=25.0, leny=10.0, name="rof_sp"
+    )
+    ocn_grid = Grid(
+        resolution=1.0, xstart=13.0, lenx=3.0, ystart=28.0, leny=3.0, name="ocn_sp"
+    )
+    rof_path = _write_esmf_mesh(rof_grid, tmp_path / "rof.nc")
+    ocn_path = _write_esmf_mesh(ocn_grid, tmp_path / "ocn.nc")
+
+    dtypes = {}
+    for tag, single in (("f8", False), ("f4", True)):
+        out_dir = tmp_path / tag
+        gen_rof_maps(
+            rof_path,
+            ocn_path,
+            out_dir,
+            "m",
+            rmax=50,
+            fold=100,
+            single_precision=single,
+        )
+        # read the _full companion: it is the one that carries every float
+        # variable, so it exercises the downcast on more than just S
+        nc = netCDF4.Dataset(get_full_map_filepath(get_nn_map_filepath("m", out_dir)))
+        try:
+            dtypes[tag] = {n: v.dtype for n, v in nc.variables.items()}
+        finally:
+            nc.close()
+        # and the CESM-facing file, which must survive the nccopy -6 conversion
+        nc = netCDF4.Dataset(get_nn_map_filepath("m", out_dir))
+        try:
+            assert nc.data_model == "NETCDF3_64BIT_OFFSET"
+            expected = np.float32 if single else np.float64
+            assert nc.variables["S"].dtype == expected
+        finally:
+            nc.close()
+
+    assert dtypes["f8"].keys() == dtypes["f4"].keys()
+    floats = [n for n, d in dtypes["f8"].items() if np.issubdtype(d, np.floating)]
+    assert floats, "expected some float variables to downcast"
+    for name, dtype in dtypes["f4"].items():
+        if name in floats:
+            assert dtype == np.float32, f"{name} is {dtype}, expected float32"
+        else:
+            assert dtype == dtypes["f8"][name] == np.int32, name
+
+
+def test_write_mapping_file_rejects_full_without_minimal(tmp_path):
+    """A full_map_filename alongside minimal=False would be a byte-for-byte
+    duplicate of filename, so it's an error rather than a silent waste of disk."""
+    src_grid = Grid(
+        resolution=1.0, xstart=0.0, lenx=3.0, ystart=0.0, leny=2.0, name="src_dup"
+    )
+    dst_grid = Grid(
+        resolution=1.0, xstart=0.0, lenx=2.0, ystart=0.0, leny=2.0, name="dst_dup"
+    )
+    src_path = _write_esmf_mesh(src_grid, tmp_path / "src.nc")
+    dst_path = _write_esmf_mesh(dst_grid, tmp_path / "dst.nc")
+    weights_coo = sp.coo_matrix(([1.0, 1.0], ([0, 1], [0, 1])), shape=(4, 6))
+
+    with pytest.raises(ValueError, match="only meaningful with minimal=True"):
+        write_mapping_file(
+            src_mesh=str(src_path),
+            dst_mesh=str(dst_path),
+            filename=tmp_path / "out.nc",
+            weights_coo=weights_coo,
+            full_map_filename=tmp_path / "out_full.nc",
+        )
 
 
 def test_regrid_with_subsampling_time_dim(get_simple_grid):
