@@ -13,6 +13,7 @@ from mom6_forge.mapping import (
     regrid_with_subsampling,
     write_mapping_file,
     _lon_window,
+    _construct_vertex_coords,
     gen_rof_maps,
     get_nn_map_filepath,
 )
@@ -568,3 +569,100 @@ def test_pad_weights_for_esmf_rejects_unfixable_size(monkeypatch):
 
     with pytest.raises(ValueError, match=r"2\*\*33"):
         mapping._pad_weights_for_esmf(_Fake(), None, None)
+
+
+# ---------------------------------------------------------------------------
+# _construct_vertex_coords vectorization
+# ---------------------------------------------------------------------------
+
+
+def _construct_vertex_coords_loop(mesh):
+    """The per-element Python loop _construct_vertex_coords replaced, kept here as
+    the reference implementation to compare the vectorized version against."""
+    xv_data = np.full((len(mesh.centerCoords.data), 4), np.nan)
+    yv_data = np.full((len(mesh.centerCoords.data), 4), np.nan)
+
+    element_conn = mesh.elementConn.data - 1
+    node_coords = mesh.nodeCoords.data
+
+    for e, nodes in enumerate(element_conn):
+        if np.isnan(nodes[3]):
+            valid_nodes = nodes[:3][~np.isnan(nodes[:3])].astype(int)
+            xv_data[e, :3] = node_coords[valid_nodes, 0]
+            xv_data[e, 3] = xv_data[e, 2]
+            yv_data[e, :3] = node_coords[valid_nodes, 1]
+            yv_data[e, 3] = yv_data[e, 2]
+        else:
+            valid_nodes = nodes.astype(int)
+            xv_data[e, :] = node_coords[valid_nodes, 0]
+            yv_data[e, :] = node_coords[valid_nodes, 1]
+
+    return xv_data, yv_data
+
+
+def _mixed_element_mesh():
+    """Two quads and one triangle, so both connectivity shapes are exercised.
+    A triangle carries NaN in its 4th slot; ESMF meshes written from a supergrid
+    are all-quad, so this shape only shows up in a hand-built or unstructured
+    mesh."""
+    node_coords = np.array(
+        [
+            [0.0, 0.0],
+            [1.0, 0.0],
+            [2.0, 0.0],
+            [0.0, 1.0],
+            [1.0, 1.0],
+            [2.0, 1.0],
+            [1.0, 2.0],
+        ]
+    )
+    element_conn = np.array(
+        [
+            [1.0, 2.0, 5.0, 4.0],  # quad
+            [2.0, 3.0, 6.0, 5.0],  # quad
+            [4.0, 5.0, 7.0, np.nan],  # triangle
+        ]
+    )
+    return xr.Dataset(
+        {
+            "nodeCoords": (("nodeCount", "coordDim"), node_coords),
+            "elementConn": (("elementCount", "maxNodePElement"), element_conn),
+            "centerCoords": (
+                ("elementCount", "coordDim"),
+                np.array([[0.5, 0.5], [1.5, 0.5], [0.67, 1.33]]),
+            ),
+        }
+    )
+
+
+def test_construct_vertex_coords_matches_loop_on_mixed_elements():
+    """The vectorized gather must reproduce the loop exactly, triangles included:
+    a triangle's 4th vertex is vertex 2 duplicated, not the placeholder node the
+    gather reads for it."""
+    mesh = _mixed_element_mesh()
+
+    xv, yv = _construct_vertex_coords(mesh)
+    xv_ref, yv_ref = _construct_vertex_coords_loop(mesh)
+
+    assert np.array_equal(xv, xv_ref)
+    assert np.array_equal(yv, yv_ref)
+    # the triangle's duplicated vertex, spelled out
+    assert xv[2, 3] == xv[2, 2] == 1.0
+    assert yv[2, 3] == yv[2, 2] == 2.0
+
+
+def test_construct_vertex_coords_matches_loop_on_real_mesh(tmp_path):
+    """Same equivalence on an all-quad mesh as written by Supergrid.to_esmf_mesh,
+    where elementConn is integer-typed rather than float-with-NaN."""
+    grid = Grid(
+        resolution=1.0, xstart=10.0, lenx=4.0, ystart=-2.0, leny=4.0, name="vtx"
+    )
+    mesh_path = _write_esmf_mesh(grid, tmp_path / "vtx.nc")
+
+    with xr.open_dataset(mesh_path) as mesh:
+        xv, yv = _construct_vertex_coords(mesh)
+        xv_ref, yv_ref = _construct_vertex_coords_loop(mesh)
+
+    assert xv.shape == (16, 4)
+    assert np.array_equal(xv, xv_ref)
+    assert np.array_equal(yv, yv_ref)

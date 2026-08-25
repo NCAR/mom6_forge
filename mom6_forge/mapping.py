@@ -173,23 +173,23 @@ def _construct_vertex_coords(mesh):
         The vertex coordinates in the y-direction.
     """
 
-    xv_data = np.full((len(mesh.centerCoords.data), 4), np.nan)
-    yv_data = np.full((len(mesh.centerCoords.data), 4), np.nan)
-
     element_conn = mesh.elementConn.data - 1  # one-based to zero-based indexing
     node_coords = mesh.nodeCoords.data
 
-    for e, nodes in enumerate(element_conn):
-        if np.isnan(nodes[3]):
-            valid_nodes = nodes[:3][~np.isnan(nodes[:3])].astype(int)
-            xv_data[e, :3] = node_coords[valid_nodes, 0]
-            xv_data[e, 3] = xv_data[e, 2]
-            yv_data[e, :3] = node_coords[valid_nodes, 1]
-            yv_data[e, 3] = yv_data[e, 2]
-        else:
-            valid_nodes = nodes.astype(int)
-            xv_data[e, :] = node_coords[valid_nodes, 0]
-            yv_data[e, :] = node_coords[valid_nodes, 1]
+    # Triangular elements store NaN in the 4th connectivity slot (nodes 0-2
+    # are always valid); gather all four slots at once, replacing NaN with a
+    # placeholder index of 0, then overwrite the placeholder for triangles by
+    # duplicating vertex 2 - matching the fan-out a Python loop would do, but
+    # vectorized. This runs over the full source mesh (tens of millions of
+    # elements for the production ROF mesh), so vectorization matters here.
+    is_tri = np.isnan(element_conn[:, 3])
+    conn_safe = np.where(np.isnan(element_conn), 0, element_conn).astype(int)
+
+    xv_data = node_coords[conn_safe, 0]
+    yv_data = node_coords[conn_safe, 1]
+
+    xv_data[is_tri, 3] = xv_data[is_tri, 2]
+    yv_data[is_tri, 3] = yv_data[is_tri, 2]
 
     return xv_data, yv_data
 
