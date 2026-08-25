@@ -3,6 +3,7 @@ import numpy as np
 import scipy.sparse as sp
 import pytest
 from pathlib import Path
+from mom6_forge import mapping
 from mom6_forge.mapping import (
     compute_cressman_weights,
     dst_to_source,
@@ -505,3 +506,65 @@ def test_map_overlap_masking_is_latitude_translation_invariant(tmp_path):
         f"is getting a ~0..359 latitude bbox again, so map_overlap masks nothing "
         f"in latitude"
     )
+
+
+# ---------------------------------------------------------------------------
+# ESMF_FactorRead float32 PET-split padding
+# ---------------------------------------------------------------------------
+
+
+def test_pad_weights_for_esmf_is_noop_below_threshold():
+    """Below 2**24 the float32 PET split in ESMF_FactorRead is provably exact,
+    so nothing is added - a small map must come out byte-for-byte as built."""
+    S = xr.DataArray(np.array([0.5, 0.25, 0.25]), dims=["n_s"])
+    row = xr.DataArray(np.array([7, 7, 9], dtype="i4"), dims=["n_s"])
+    col = xr.DataArray(np.array([3, 4, 5], dtype="i4"), dims=["n_s"])
+
+    S2, row2, col2 = mapping._pad_weights_for_esmf(S, row, col)
+
+    assert S2.sizes["n_s"] == 3
+    assert np.array_equal(S2.values, S.values)
+    assert np.array_equal(row2.values, row.values)
+    assert np.array_equal(col2.values, col.values)
+
+
+def test_pad_weights_for_esmf_aligns_and_stays_inert(monkeypatch):
+    """Above the threshold n_s is rounded up to a multiple of 1024 with
+    zero-weight entries that reuse the first real (row, col) pair.
+
+    Reusing an existing pair matters: a pair the map does not otherwise use
+    would pull an extra source cell into the route handle, and 0 * NaN would
+    then poison its destination cell. ESMF sums duplicate index pairs.
+    """
+    monkeypatch.setattr(mapping, "_ESMF_FACTORREAD_EXACT_MAX", 4)
+    n = 1500
+    S = xr.DataArray(np.linspace(0.1, 0.9, n), dims=["n_s"])
+    row = xr.DataArray(np.arange(1, n + 1, dtype="i4"), dims=["n_s"])
+    col = xr.DataArray(np.arange(101, 101 + n, dtype="i4"), dims=["n_s"])
+
+    S2, row2, col2 = mapping._pad_weights_for_esmf(S, row, col)
+
+    assert S2.sizes["n_s"] == 2048
+    assert S2.sizes["n_s"] % mapping._N_S_ALIGNMENT == 0
+    # the real weights are untouched, and the pad contributes nothing
+    assert np.array_equal(S2.values[:n], S.values)
+    assert (S2.values[n:] == 0).all()
+    assert S2.values.sum() == pytest.approx(S.values.sum())
+    # the pad introduces no source or destination cell the map didn't already use
+    assert (row2.values[n:] == row.values[0]).all()
+    assert (col2.values[n:] == col.values[0]).all()
+    assert set(np.unique(row2.values)) == set(np.unique(row.values))
+    assert set(np.unique(col2.values)) == set(np.unique(col.values))
+    assert row2.dtype == row.dtype and col2.dtype == col.dtype
+
+
+def test_pad_weights_for_esmf_rejects_unfixable_size(monkeypatch):
+    """Past 2**33 a 1024 alignment no longer lands on an exact float32 value, so
+    padding cannot make the split safe - fail loudly rather than pretend."""
+    monkeypatch.setattr(mapping, "_ESMF_FACTORREAD_EXACT_MAX", 4)
+
+    class _Fake:
+        sizes = {"n_s": 2**33 + 7}
+
+    with pytest.raises(ValueError, match=r"2\*\*33"):
+        mapping._pad_weights_for_esmf(_Fake(), None, None)

@@ -194,6 +194,74 @@ def _construct_vertex_coords(mesh):
     return xv_data, yv_data
 
 
+# ESMF_FactorRead.F90 splits the weight list across PETs with
+#
+#     esplit    = floor(real(nElements) / real(petCount))
+#     remainder = nElements - esplit*petCount
+#     lb        = localPet*esplit + remainder + 1
+#
+# where `real` is the default REAL, i.e. float32. Above 2**24 that cannot hold
+# n_s exactly; when it rounds *up*, esplit*petCount overshoots n_s, `remainder`
+# goes negative, and PET 0 hands netCDF a negative start index. The run dies in
+# datainitialize with "ESMF_FactorRead netCDF Status Return Error" (checked
+# against ESMF v8.9.1). It has nothing to do with the file's format - classic,
+# cdf5 and netCDF4 all fail the same way.
+#
+# n_s <= 2**24 is provably safe: the quotient can only round across an integer
+# boundary when |n_s/petCount - m| < ulp/2 for some integer m, and since
+# |n_s - m*petCount| >= 1 that needs n_s > 2**24. Past that, rounding n_s up to a
+# multiple of 1024 keeps it exactly representable in float32 (for n_s < 2**33)
+# and makes n_s divisible by every power-of-two petCount up to 1024, which drives
+# `remainder` to exactly 0.
+#
+# This does NOT cover every petCount - a petCount that does not divide n_s can
+# still round badly (for n_s = 400,669,696, 87 of the first 4096 counts do,
+# including 24 and 30). Power-of-two mediator layouts, which is what CESM uses,
+# are safe. Remove all of this once ESMF does the split in integer arithmetic.
+_ESMF_FACTORREAD_EXACT_MAX = 2**24
+_N_S_ALIGNMENT = 1024
+_N_S_ALIGNMENT_MAX = 2**33
+
+
+def _pad_weights_for_esmf(S, row, col):
+    """Pad the weight list so ESMF_FactorRead's float32 PET split stays valid.
+
+    Appends zero-weight entries that reuse the first real (row, col) pair, so
+    the sparse mat-vec is unchanged and the route handle's set of source and
+    destination cells is exactly what it already was. A pair the map does not
+    otherwise use would pull an extra source cell into the communication
+    pattern, and 0 * NaN would then poison its destination cell.
+
+    ESMF sums duplicate index pairs - verified against esmpy 8.9.1, where an
+    unpadded file, one padded with identical pairs and one padded with distinct
+    pairs all produced bit-identical output.
+    """
+    n_s = S.sizes["n_s"]
+    if n_s <= _ESMF_FACTORREAD_EXACT_MAX or n_s % _N_S_ALIGNMENT == 0:
+        return S, row, col
+    if n_s >= _N_S_ALIGNMENT_MAX:
+        raise ValueError(
+            f"n_s = {n_s:,} is at or above 2**33, where an alignment of "
+            f"{_N_S_ALIGNMENT} no longer guarantees an exact float32 value; "
+            "ESMF_FactorRead's PET split cannot be made safe by padding here."
+        )
+    n_pad = -(-n_s // _N_S_ALIGNMENT) * _N_S_ALIGNMENT - n_s
+    print(
+        f"  padding n_s {n_s:,} -> {n_s + n_pad:,} (+{n_pad} zero-weight entries) "
+        "to keep ESMF_FactorRead's float32 PET split valid"
+    )
+    pad = lambda da, fill: xr.DataArray(
+        np.concatenate([da.data, np.full(n_pad, fill, dtype=da.dtype)]),
+        dims=["n_s"],
+        attrs=da.attrs,
+    )
+    return (
+        pad(S, 0),
+        pad(row, row.data[0]),
+        pad(col, col.data[0]),
+    )
+
+
 def write_mapping_file(
     src_mesh,
     dst_mesh,
@@ -475,9 +543,9 @@ def write_mapping_file(
 
     # Drop NaN values from S, col, and row
     non_nan_indices = np.where(~np.isnan(S))[0]
-    S_new = S[non_nan_indices]
-    row_new = row[non_nan_indices]
-    col_new = col[non_nan_indices]
+    S_new, row_new, col_new = _pad_weights_for_esmf(
+        S[non_nan_indices], row[non_nan_indices], col[non_nan_indices]
+    )
 
     # Create the dataset and write to a netCDF file
     # ------------------------------------------------
