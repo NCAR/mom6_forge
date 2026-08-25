@@ -584,6 +584,23 @@ def write_mapping_file(
     )
 
 
+def _lon_window(lon):
+    """Longitude window covered by `lon`, as ``(start, width)`` in degrees.
+
+    The window runs `width` degrees east from `start`, so membership is
+    ``np.mod(x - start, 360) <= width``, which needs no special case for a window
+    that crosses 0 degrees. It is the complement of the largest circular gap
+    between the sorted longitudes. For a global mesh every gap is one grid
+    spacing, so the window is 360 degrees minus one spacing, as before.
+    """
+    lon = np.unique(normalize_deg(np.asarray(lon, dtype=float)))
+    if lon.size == 1:
+        return float(lon[0]), 0.0
+    gaps = np.diff(np.append(lon, lon[0] + 360.0))
+    widest = int(np.argmax(gaps))
+    return float(lon[(widest + 1) % lon.size]), float(360.0 - gaps[widest])
+
+
 def generate_ESMF_map_via_xesmf(
     src_mesh_path,
     dst_mesh_path,
@@ -640,18 +657,18 @@ def generate_ESMF_map_via_xesmf(
         assert (
             "degrees" in dst_mesh["centerCoords"].attrs["units"]
         ), "get_mesh_dimensions() expects centerCoords in degrees"
-        dst_mesh_lon = normalize_deg(dst_mesh["nodeCoords"].data[:, 0])
-        dst_mesh_lat = normalize_deg(dst_mesh["nodeCoords"].data[:, 1])
-        lon_min, lon_max = dst_mesh_lon.min(), dst_mesh_lon.max()
-        lat_min, lat_max = dst_mesh_lat.min(), dst_mesh_lat.max()
+        # min()/max() of normalized longitudes is near-global for a destination
+        # that crosses or touches 0 degrees, so use a circular window instead.
+        lon_start, lon_width = _lon_window(dst_mesh["nodeCoords"].data[:, 0])
 
-        # normalize source grid coordinates
-        src_lon = normalize_deg(src_grid["lon"].data)
-        src_lat = normalize_deg(src_grid["lat"].data)
+        # Compare latitudes raw: normalizing them splits a domain that crosses
+        # the equator into 0..a and 360-b..360, and then nothing is masked.
+        dst_mesh_lat = dst_mesh["nodeCoords"].data[:, 1]
+        lat_min, lat_max = dst_mesh_lat.min(), dst_mesh_lat.max()
+        src_lat = src_grid["lat"].data
 
         src_grid["mask"].data = np.where(
-            (src_lon < lon_min)
-            | (src_lon > lon_max)
+            (np.mod(src_grid["lon"].data - lon_start, 360.0) > lon_width)
             | (src_lat < lat_min)
             | (src_lat > lat_max),
             0,
