@@ -261,11 +261,10 @@ def write_mapping_file(
             weights_coo, coo_matrix
         ), "weights_coo must be a scipy sparse COO matrix"
 
-    # From 1D ESMF mesh to 2D grid
-    from mom6_forge.topo import Topo
-
-    src_topo = Topo.from_esmf_mesh(src_mesh)
-    dst_topo = Topo.from_esmf_mesh(dst_mesh)
+    # Only the (ny, nx) shape of each mesh is needed below - get it directly
+    # from element connectivity, without reconstructing full mesh geometry.
+    src_nx, src_ny = get_mesh_dimensions(src_mesh)
+    dst_nx, dst_ny = get_mesh_dimensions(dst_mesh)
 
     # 1/3: Source Domain Fields
     # -------------------
@@ -332,7 +331,7 @@ def write_mapping_file(
     )
 
     src_grid_dims = xr.DataArray(
-        np.array(src_topo.tmask.shape[::-1]).astype(np.int32),
+        np.array([src_nx, src_ny]).astype(np.int32),
         dims=["src_grid_rank"],
         # attrs={
         #    'long_name': 'dimensions of the source grid',
@@ -340,12 +339,12 @@ def write_mapping_file(
     )
 
     nj_a = xr.DataArray(
-        [i + 1 for i in range(src_topo.tmask.shape[0])],
+        [i + 1 for i in range(src_ny)],
         dims=["nj_a"],
     )
 
     ni_a = xr.DataArray(
-        [i + 1 for i in range(src_topo.tmask.shape[1])],
+        [i + 1 for i in range(src_nx)],
         dims=["ni_a"],
     )
 
@@ -414,7 +413,7 @@ def write_mapping_file(
     )
 
     dst_grid_dims = xr.DataArray(
-        np.array(dst_topo.tmask.shape[::-1]).astype(np.int32),
+        np.array([dst_nx, dst_ny]).astype(np.int32),
         dims=["dst_grid_rank"],
         # dst_grid_dimsattrs={
         #    'long_name': 'dimensions of the destination grid',
@@ -422,12 +421,12 @@ def write_mapping_file(
     )
 
     nj_b = xr.DataArray(
-        [i + 1 for i in range(dst_topo.tmask.shape[0])],
+        [i + 1 for i in range(dst_ny)],
         dims=["nj_b"],
     )
 
     ni_b = xr.DataArray(
-        [i + 1 for i in range(dst_topo.tmask.shape[1])],
+        [i + 1 for i in range(dst_nx)],
         dims=["ni_b"],
     )
 
