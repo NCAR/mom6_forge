@@ -1,5 +1,6 @@
 import xarray as xr
 import numpy as np
+import netCDF4
 import scipy.sparse as sp
 import pytest
 from pathlib import Path
@@ -16,6 +17,7 @@ from mom6_forge.mapping import (
     _construct_vertex_coords,
     gen_rof_maps,
     get_nn_map_filepath,
+    get_smoothed_map_filepath,
 )
 from mom6_forge._supergrid import haversine
 from mom6_forge.grid import Grid
@@ -666,3 +668,163 @@ def test_construct_vertex_coords_matches_loop_on_real_mesh(tmp_path):
     assert xv.shape == (16, 4)
     assert np.array_equal(xv, xv_ref)
     assert np.array_equal(yv, yv_ref)
+
+
+# ---------------------------------------------------------------------------
+# Compressed netCDF4 mapping-file writes
+# ---------------------------------------------------------------------------
+
+
+def _small_map(tmp_path, filename, **kwargs):
+    """Write a mapping file from a tiny 3x2 source and 2x2 destination mesh."""
+    src_grid = Grid(
+        resolution=1.0, xstart=0.0, lenx=3.0, ystart=0.0, leny=2.0, name="src_fmt"
+    )
+    dst_grid = Grid(
+        resolution=1.0, xstart=0.0, lenx=2.0, ystart=0.0, leny=2.0, name="dst_fmt"
+    )
+    src_path = _write_esmf_mesh(src_grid, tmp_path / "src.nc")
+    dst_path = _write_esmf_mesh(dst_grid, tmp_path / "dst.nc")
+
+    out_path = tmp_path / filename
+    write_mapping_file(
+        src_mesh=str(src_path),
+        dst_mesh=str(dst_path),
+        filename=out_path,
+        weights_coo=sp.coo_matrix(([1.0, 1.0], ([0, 1], [0, 1])), shape=(4, 6)),
+        **kwargs,
+    )
+    return out_path
+
+
+def test_write_mapping_file_writes_netcdf4_without_fill_values(tmp_path):
+    """Mapping files go out as NETCDF4 rather than the traditional NETCDF3_64BIT.
+    ESMF reads "row"/"col"/"S" through plain nf90_get_var with no format check
+    anywhere in the path, so libnetcdf resolves the format and a netCDF4 file
+    reads identically - verified in a live CESM run over a full factorial of
+    format x index dtype x _FillValue, all bit-identical across 159 mediator
+    fields. _FillValue is suppressed: these are dense arrays with no missing
+    entries, and a fill attribute on them is noise some readers turn into NaNs."""
+    out_path = _small_map(tmp_path, "out.nc")
+
+    nc = netCDF4.Dataset(out_path)
+    try:
+        assert nc.data_model == "NETCDF4"
+        for name, var in nc.variables.items():
+            assert "_FillValue" not in var.ncattrs(), name
+    finally:
+        nc.close()
+
+
+def test_write_mapping_file_downcasts_every_integer(tmp_path):
+    """Every integer variable comes out as int32, coordinate or not. `nj_a`/
+    `ni_a`/`nj_b`/`ni_b` are coordinate variables (their DataArray name matches
+    their sole dimension), so an encoding loop scoped to `ds.data_vars` silently
+    skips them and leaves them as int64 - which is how this was found. Nothing in
+    a mapping file needs 64-bit indices, and int32 halves `row` and `col`, the
+    two largest integer arrays."""
+    out_path = _small_map(tmp_path, "out.nc")
+
+    nc = netCDF4.Dataset(out_path)
+    try:
+        for name, var in nc.variables.items():
+            if np.issubdtype(var.dtype, np.integer):
+                assert var.dtype == np.int32, f"{name} is {var.dtype}, expected int32"
+    finally:
+        nc.close()
+
+
+def test_write_mapping_file_deflates_large_vars_only(tmp_path):
+    """Deflate is applied to the arrays big enough for it to pay off, and skipped
+    on the handful of tiny index/grid-dims arrays where chunking is pure
+    overhead."""
+    src_grid = Grid(
+        resolution=0.5, xstart=0.0, lenx=40.0, ystart=0.0, leny=40.0, name="src_defl"
+    )
+    dst_grid = Grid(
+        resolution=1.0, xstart=0.0, lenx=2.0, ystart=0.0, leny=2.0, name="dst_defl"
+    )
+    src_path = _write_esmf_mesh(src_grid, tmp_path / "src.nc")
+    dst_path = _write_esmf_mesh(dst_grid, tmp_path / "dst.nc")
+
+    write_mapping_file(
+        src_mesh=str(src_path),
+        dst_mesh=str(dst_path),
+        filename=tmp_path / "out.nc",
+        weights_coo=sp.coo_matrix(([1.0, 1.0], ([0, 1], [0, 1])), shape=(4, 6400)),
+    )
+
+    nc = netCDF4.Dataset(tmp_path / "out.nc")
+    try:
+        # src side is 80x80 = 6400 elements, over the deflate threshold
+        assert nc.variables["xc_a"].filters()["zlib"] is True
+        assert nc.variables["mask_a"].filters()["zlib"] is True
+        # dst side is 2x2 and the grid-dims arrays are length 2 - far below it
+        assert nc.variables["dst_grid_dims"].filters()["zlib"] is False
+        assert nc.variables["xc_b"].filters()["zlib"] is False
+    finally:
+        nc.close()
+
+
+def test_write_mapping_file_single_precision(tmp_path):
+    """single_precision halves every float variable's on-disk width and leaves the
+    integer indices alone. A float32 S is still a valid ESMF weight file:
+    ESMF_FactorRead reads it into a real(R8) buffer and netCDF converts on read.
+    It is also what makes deflate effective, by collapsing the number of distinct
+    weight values."""
+    dtypes = {}
+    for tag, single in (("f8", False), ("f4", True)):
+        out_dir = tmp_path / tag
+        out_dir.mkdir()
+        out_path = _small_map(out_dir, "out.nc", single_precision=single)
+        nc = netCDF4.Dataset(out_path)
+        try:
+            dtypes[tag] = {n: v.dtype for n, v in nc.variables.items()}
+            assert nc.variables["S"].dtype == (np.float32 if single else np.float64)
+        finally:
+            nc.close()
+
+    assert dtypes["f8"].keys() == dtypes["f4"].keys()
+    floats = [n for n, d in dtypes["f8"].items() if np.issubdtype(d, np.floating)]
+    assert floats, "expected some float variables to downcast"
+    for name, dtype in dtypes["f4"].items():
+        if name in floats:
+            assert dtype == np.float32, f"{name} is {dtype}, expected float32"
+        else:
+            assert dtype == dtypes["f8"][name] == np.int32, name
+
+
+def test_gen_rof_maps_defaults_to_single_precision(tmp_path):
+    """gen_rof_maps writes single precision by default - the production runoff
+    maps are where the size matters. The variable set is unchanged either way, so
+    a map still describes its own grids."""
+    rof_grid = Grid(
+        resolution=1.0, xstart=10.0, lenx=10.0, ystart=25.0, leny=10.0, name="rof_sp"
+    )
+    ocn_grid = Grid(
+        resolution=1.0, xstart=13.0, lenx=3.0, ystart=28.0, leny=3.0, name="ocn_sp"
+    )
+    rof_path = _write_esmf_mesh(rof_grid, tmp_path / "rof.nc")
+    ocn_path = _write_esmf_mesh(ocn_grid, tmp_path / "ocn.nc")
+
+    out_dir = tmp_path / "out"
+    gen_rof_maps(rof_path, ocn_path, out_dir, "m", rmax=50, fold=100)
+
+    for path in (
+        get_nn_map_filepath("m", out_dir),
+        get_smoothed_map_filepath("m", out_dir, 50, 100),
+    ):
+        nc = netCDF4.Dataset(path)
+        try:
+            assert nc.data_model == "NETCDF4", path.name
+            assert nc.variables["S"].dtype == np.float32, path.name
+            assert nc.variables["row"].dtype == np.int32, path.name
+            # the descriptive geometry is still there - deflate makes it nearly free
+            assert {"xc_a", "yc_a", "mask_a", "area_a", "src_grid_dims"}.issubset(
+                nc.variables
+            )
+            assert {"xc_b", "yc_b", "mask_b", "area_b", "dst_grid_dims"}.issubset(
+                nc.variables
+            )
+        finally:
+            nc.close()
