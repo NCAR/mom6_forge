@@ -528,6 +528,34 @@ def write_mapping_file(
     )
 
 
+def _lon_window(lon):
+    """Longitude window covered by `lon`, as ``(start, width)`` in degrees.
+
+    The window runs `width` degrees east from `start`, so testing membership is
+    ``np.mod(x - start, 360) <= width`` and needs no special case for a window
+    that crosses the 0/360 seam.
+
+    Taking ``min()``/``max()`` of normalized longitudes is what this replaces, and
+    it is wrong for any mesh touching the seam. ``normalize_deg`` is
+    ``mod(x + 360, 360)``, so a node at exactly lon 360 becomes 0 - which then *is*
+    the minimum, while 359.92 is the maximum. A mesh spanning 350..360 reports
+    0.00..359.00, i.e. nearly the whole globe, and `map_overlap` masking below
+    stops doing anything in longitude.
+
+    The window is instead the complement of the largest *gap* between successive
+    longitudes, taken circularly. For a fully periodic mesh every gap equals the
+    grid spacing, so the widest is arbitrary and the window comes back as
+    360 minus one spacing - the same near-global answer min/max gave, which is
+    what a global mesh wants.
+    """
+    lon = np.unique(normalize_deg(np.asarray(lon, dtype=float)))
+    if lon.size == 1:
+        return float(lon[0]), 0.0
+    gaps = np.diff(np.append(lon, lon[0] + 360.0))
+    widest = int(np.argmax(gaps))
+    return float(lon[(widest + 1) % lon.size]), float(360.0 - gaps[widest])
+
+
 def generate_ESMF_map_via_xesmf(
     src_mesh_path,
     dst_mesh_path,
@@ -573,19 +601,26 @@ def generate_ESMF_map_via_xesmf(
         ), "centerCoords must have 'units' attribute"
         assert (
             "degrees" in dst_mesh["centerCoords"].attrs["units"]
-        ), "get_mesh_dimensions() expects centerCoords in degrees"
-        dst_mesh_lon = normalize_deg(dst_mesh["nodeCoords"].data[:, 0])
-        dst_mesh_lat = normalize_deg(dst_mesh["nodeCoords"].data[:, 1])
-        lon_min, lon_max = dst_mesh_lon.min(), dst_mesh_lon.max()
-        lat_min, lat_max = dst_mesh_lat.min(), dst_mesh_lat.max()
+        ), "map_overlap masking expects centerCoords in degrees"
+        # Longitude goes through _lon_window, which stays correct for a
+        # destination touching the 0/360 seam; min()/max() of normalized
+        # longitudes does not.
+        lon_start, lon_width = _lon_window(dst_mesh["nodeCoords"].data[:, 0])
 
-        # normalize source grid coordinates
-        src_lon = normalize_deg(src_grid["lon"].data)
-        src_lat = normalize_deg(src_grid["lat"].data)
+        # Latitude must NOT be normalized. Wrapping both sides through
+        # normalize_deg is self-consistent for a destination lying entirely in
+        # one hemisphere, which is why this went unspotted - but not for one
+        # straddling the equator. Its latitudes then split into two clusters
+        # (357..360 and 0..3 for a -3..3 domain), so min()/max() collapse to ~0
+        # and ~359 and the latitude test stops masking anything: the regrid runs
+        # against the source mesh's whole latitude range. On the test
+        # configuration that is 92 weights where the domain calls for 24.
+        dst_mesh_lat = dst_mesh["nodeCoords"].data[:, 1]
+        lat_min, lat_max = dst_mesh_lat.min(), dst_mesh_lat.max()
+        src_lat = src_grid["lat"].data
 
         src_grid["mask"].data = np.where(
-            (src_lon < lon_min)
-            | (src_lon > lon_max)
+            (np.mod(src_grid["lon"].data - lon_start, 360.0) > lon_width)
             | (src_lat < lat_min)
             | (src_lat > lat_max),
             0,

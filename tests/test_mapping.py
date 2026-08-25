@@ -11,6 +11,9 @@ from mom6_forge.mapping import (
     _make_subgrid_points,
     regrid_with_subsampling,
     write_mapping_file,
+    _lon_window,
+    gen_rof_maps,
+    get_nn_map_filepath,
 )
 from mom6_forge._supergrid import haversine
 from mom6_forge.grid import Grid
@@ -402,3 +405,103 @@ def test_write_mapping_file_uses_shape_lookup_not_full_reconstruction(
     ds = xr.open_dataset(out_path)
     assert list(ds["src_grid_dims"].values) == [3, 2]
     assert list(ds["dst_grid_dims"].values) == [2, 2]
+
+
+# ---------------------------------------------------------------------------
+# map_overlap masking: 0/360 seam and equator-straddling destinations
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "lon, expected",
+    [
+        # a regional window, nowhere near the seam
+        (np.arange(10.0, 21.0), (10.0, 10.0)),
+        # the same window ending exactly on lon 360, where normalize_deg sends
+        # the last node to 0 and min()/max() reported 0.00..359.00
+        (np.arange(350.0, 361.0), (350.0, 10.0)),
+        # written the other way round, as negative longitudes
+        (np.arange(-10.0, 1.0), (350.0, 10.0)),
+        # a single point has no width
+        (np.array([42.0]), (42.0, 0.0)),
+        # fully periodic: every gap is the grid spacing, so the window is the
+        # whole globe bar one spacing - what min()/max() also gave for it
+        (np.arange(0.0, 360.0), (1.0, 359.0)),
+    ],
+)
+def test_lon_window(lon, expected):
+    start, width = _lon_window(lon)
+    assert (start, width) == pytest.approx(expected)
+
+
+def test_map_overlap_masking_is_longitude_rotation_invariant(tmp_path):
+    """map_overlap must mask the same way whether or not the domain touches lon 360.
+
+    The source mesh is uniform in longitude, so two destination windows of equal
+    width must select equally many source cells no matter where they sit. Before
+    the fix the seam window's bbox came back as ~0..359, masked nothing, and
+    mapped nearly the whole source mesh - 261 entries against the interior
+    window's 90.
+    """
+    rof_grid = Grid(
+        resolution=1.0, xstart=330.0, lenx=30.0, ystart=-5.0, leny=10.0, name="rof_rot"
+    )
+    rof_path = _write_esmf_mesh(rof_grid, tmp_path / "rof_rot.nc")
+
+    counts = {}
+    # "seam" ends on exactly lon 360; "interior" is the same width, 10 deg west.
+    for tag, xstart in (("seam", 350.0), ("interior", 340.0)):
+        ocn_grid = Grid(
+            resolution=1.0, xstart=xstart, lenx=10.0, ystart=-3.0, leny=6.0, name=tag
+        )
+        ocn_path = _write_esmf_mesh(ocn_grid, tmp_path / f"ocn_{tag}.nc")
+        out_dir = tmp_path / f"out_{tag}"
+        gen_rof_maps(rof_path, ocn_path, out_dir, f"map_{tag}", rmax=50, fold=100)
+        with xr.open_dataset(get_nn_map_filepath(f"map_{tag}", out_dir)) as ds:
+            counts[tag] = int(ds["S"].size)
+
+    assert counts["interior"] > 0, "interior destination should map some source cells"
+    assert counts["seam"] == counts["interior"], (
+        f"equal-width domains must map equally many source cells regardless of "
+        f"where they sit in longitude, got {counts} - the domain touching lon 360 "
+        f"is getting a near-global window again, so map_overlap masks nothing"
+    )
+
+
+def test_map_overlap_masking_is_latitude_translation_invariant(tmp_path):
+    """map_overlap must mask by true latitude, not by a mod-360 wrap of it.
+
+    The old code ran both the destination bbox and the source latitudes through
+    normalize_deg. That is self-consistent for a destination lying entirely in one
+    hemisphere - which is why it went unspotted - but not for one straddling the
+    equator: a -3..3 destination normalizes into two clusters, 357..360 and 0..3,
+    so min()/max() collapse to ~0 and ~359 and the latitude test masks nothing at
+    all.
+
+    The source mesh is uniform in latitude, so three destination windows of equal
+    height must select equally many source cells wherever they sit. Before the fix
+    the equator-straddling window mapped 92 entries against the other two's 24.
+    """
+    rof_grid = Grid(
+        resolution=1.0, xstart=10.0, lenx=10.0, ystart=-12.0, leny=24.0, name="rof_lat"
+    )
+    rof_path = _write_esmf_mesh(rof_grid, tmp_path / "rof_lat.nc")
+
+    counts = {}
+    for tag, ystart in (("straddle", -3.0), ("north", 3.0), ("south", -9.0)):
+        ocn_grid = Grid(
+            resolution=1.0, xstart=13.0, lenx=4.0, ystart=ystart, leny=6.0, name=tag
+        )
+        ocn_path = _write_esmf_mesh(ocn_grid, tmp_path / f"ocn_{tag}.nc")
+        out_dir = tmp_path / f"out_{tag}"
+        gen_rof_maps(rof_path, ocn_path, out_dir, f"map_{tag}", rmax=50, fold=100)
+        with xr.open_dataset(get_nn_map_filepath(f"map_{tag}", out_dir)) as ds:
+            counts[tag] = int(ds["S"].size)
+
+    assert counts["north"] > 0, "northern destination should map some source cells"
+    assert counts["straddle"] == counts["north"] == counts["south"], (
+        f"equal-height domains must map equally many source cells regardless of "
+        f"where they sit in latitude, got {counts} - the equator-straddling domain "
+        f"is getting a ~0..359 latitude bbox again, so map_overlap masks nothing "
+        f"in latitude"
+    )
