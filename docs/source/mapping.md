@@ -1,27 +1,62 @@
 # Regridding & Mapping
 
-`mom6_forge.mapping` provides the lower-level regridding machinery that powers
-bathymetry ingestion (`Topo.set_from_dataset`, `Topo.set_depth_from_xesmf`,
-`Topo.direct_cressman_interp`) and the generation of coupler mapping files
-between component grids (e.g. runoff-to-ocean). Most users will not call it
-directly — the `Topo` methods described in {doc}`quickstart` are the
-recommended entry points for bathymetry — but it is useful to understand what
-is happening underneath, and it is needed directly for generating coupler
-mapping files outside of the bathymetry workflow. See {doc}`bathymetry_workflow`
-for the reasoning behind when each regridding strategy below is chosen.
+`mom6_forge.mapping` is the regridding machinery behind bathymetry ingestion
+(`Topo.set_from_dataset` and friends — see {doc}`bathymetry_workflow`) and
+coupler mapping-file generation. Most users won't call it directly for
+bathymetry, but it's the direct entry point for generating mapping files
+outside that workflow — most notably river-runoff-to-ocean mapping.
 
 ## ESMF Meshes
 
-Most functions in this module operate on ESMF mesh files (see {term}`ESMF
-mesh`) rather than raw lon/lat arrays, since ESMF meshes are the format
-expected by the NUOPC coupler and by `xESMF`/`ESMPy`. `grid_from_esmf_mesh`
-converts a (possibly unstructured/flattened) ESMF mesh back into a 2D grid
-dataset of longitude, latitude, and mask, suitable for use with `xESMF`.
+Most functions here operate on ESMF mesh files (see {term}`ESMF mesh`), the
+format expected by the NUOPC coupler and by `xESMF`/`ESMPy`.
+`grid_from_esmf_mesh` converts one back into a 2D lon/lat/mask grid dataset
+for use with `xESMF`.
+
+## Runoff Mapping
+
+`gen_rof_maps` builds the mapping file(s) MOM6 needs to route river runoff
+from a runoff (ROF) mesh onto the ocean grid:
+
+```python
+from mom6_forge.mapping import gen_rof_maps
+
+gen_rof_maps(
+    rof_mesh_path="rof_ESMF_mesh.nc",
+    ocn_mesh_path="ocean_ESMF_mesh.nc",
+    output_dir="maps/",
+    mapping_file_prefix="rx1_to_my_ocean",
+    rmax=300.0,  # smoothing radius, km
+    fold=600.0,  # smoothing decay length, km
+)
+```
+
+It always produces a nearest-neighbor map (`rx1_to_my_ocean_nn.nc`), which
+routes each runoff cell straight into its nearest ocean cell — the problem
+with this alone is that it dumps an entire river's freshwater into a single
+coastal cell, which is rarely physical.
+
+Passing `rmax`/`fold` additionally produces a **smoothed** nearest-neighbor
+map (`rx1_to_my_ocean_nnsm.nc`) that spreads each injection across nearby
+ocean cells instead of a single point:
+
+* `rmax` (km) is the cutoff radius — only ocean cells within this distance of
+  the injection point receive any of it.
+* `fold` (km) is the decay length of the smoothing kernel,
+  `weight = exp(-distance / fold)` — a smaller `fold` concentrates the
+  injection near the coast, a larger one spreads it further before decaying.
+
+Leave both `None` to skip smoothing and get only the nearest-neighbor map.
+Rather than guessing values, `get_suggested_smoothing_params(ocn_mesh_path)`
+derives a reasonable `rmax`/`fold` pair from the ocean mesh's own average
+resolution (`rmax ≈ 5x` the average cell size, `fold = 2x rmax`), and
+`gen_rof_maps` itself warns if a much larger `rmax` is passed than that,
+since it can blow up compute time and memory.
 
 ## Generating a Mapping File
 
-To generate a reusable ESMF mapping (weights) file between two component
-grids:
+For any other component-to-component mapping, `generate_ESMF_map_via_xesmf`
+builds a reusable weights file:
 
 ```python
 from mom6_forge.mapping import generate_ESMF_map_via_xesmf
@@ -34,67 +69,41 @@ generate_ESMF_map_via_xesmf(
 )
 ```
 
-`generate_ESMF_map_via_esmpy` provides the same functionality using `ESMPy`
-directly instead of `xESMF`, which can be preferable in MPI/HPC contexts.
-
-For river-runoff-to-ocean mapping specifically, `gen_rof_maps` generates both
-a nearest-neighbor and a smoothed nearest-neighbor mapping file in one call:
-
-```python
-from mom6_forge.mapping import gen_rof_maps
-
-gen_rof_maps(
-    rof_mesh_path="rof_ESMF_mesh.nc",
-    ocn_mesh_path="ocean_ESMF_mesh.nc",
-    output_dir="maps/",
-    mapping_file_prefix="rx1_to_my_ocean",
-    rmax=300.0,  # smoothing radius, km
-    fold=1.0,
-)
-```
-
-Note that ocean-runoff mapping still requires a {term}`SCRIP grid` file
-(`Topo.write_scrip_grid`), even in configurations that otherwise use ESMF
-meshes exclusively.
+`generate_ESMF_map_via_esmpy` does the same via `ESMPy` directly, which can
+be preferable in MPI/HPC contexts.
 
 ## Regridding a Dataset
 
-`regrid_dataset_via_xesmf` regrids an arbitrary dataset onto a destination
-grid using `xESMF` (bilinear by default), and can reuse a previously computed
-weights file via `weights_path`/`reuse_weights=True` instead of recomputing
-weights on every call.
+`regrid_dataset_via_xesmf` regrids a dataset onto a destination grid via
+`xESMF` (bilinear by default), reusing a precomputed weights file via
+`weights_path`/`reuse_weights=True` if given.
 
 ## Cressman Interpolation
 
-When ingesting a source dataset that is much finer-resolution than the model
-grid, a simple bilinear regrid tends to smear the coastline by letting nearby
-land elevations contaminate ocean depths. `regrid_dataset_via_cressman` and
-the underlying
-`compute_cressman_weights` implement a mask-aware Cressman distance-weighted
-interpolation, mirroring the `interp_smooth.f90` program from the `tx2_3`
-high-resolution topography workflow. For each destination ocean cell, source
-ocean points within a smoothing radius `L = smooth_scl * sqrt(cell_area)` are
-averaged with weight
+A plain bilinear regrid smears the coastline when the source is much
+finer-resolution than the model grid, letting land elevations bleed into
+nearby ocean depths. `regrid_dataset_via_cressman` avoids this: for each
+destination ocean cell, source ocean points within radius
+`L = smooth_scl * sqrt(cell_area)` are averaged with weight
 
 ```{math}
 w = \left(\frac{L^2 - r^2}{L^2 + r^2}\right)^c
 ```
 
-where `r` is the great-circle distance and `c` is `cressman_exp`. Only ocean
-source points contribute, so estimates near the coast are not contaminated by
-land elevations. Destination cells that receive no source coverage within `L`
-are left for a fallback iterative-fill pass (see
-`mom6_forge.utils.iterative_fill`).
+(`r` = great-circle distance, `c` = `cressman_exp`), mirroring tx2_3's
+`interp_smooth.f90`. Only ocean points contribute, so coastal depths aren't
+land-contaminated; cells with no coverage within `L` fall back to
+`mom6_forge.utils.iterative_fill`.
 
-This is exposed directly on `Topo` via `direct_cressman_interp()`, and is one
-of the two depth methods `Topo.set_from_dataset` can choose automatically
-(see {doc}`quickstart`). For a worked, from-scratch walkthrough of the math
-and weight computation, see the `8_cressman_interpolation.ipynb` notebook.
+This is exposed on `Topo` via `direct_cressman_interp()`, one of the two
+depth methods `Topo.set_from_dataset` can pick automatically (see
+{doc}`bathymetry_workflow`). For a full walkthrough, see
+`8_cressman_interpolation.ipynb`.
 
 ## Subsampling Statistics
 
-When the source dataset is much finer than the model grid, `regrid_with_subsampling`
-and the `Topo.compute_stats`/`Topo.set_depth_from_stats` methods compute
-per-cell statistics (mean depth, ocean fraction, etc.) over sub-sampled source
-points rather than relying on a single interpolated value — this is the
-"stats-based" mask/depth path referenced in {doc}`quickstart`.
+When the source is much finer than the grid, `regrid_with_subsampling` and
+`Topo.compute_stats`/`set_depth_from_stats` compute per-cell statistics (mean
+depth, ocean fraction, etc.) over sub-sampled points instead of relying on a
+single interpolated value — the "stats-based" path in
+{doc}`bathymetry_workflow`.
