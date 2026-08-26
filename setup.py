@@ -32,6 +32,7 @@ setuptools.setup(
         "sphinx>=8.1,<9.2.0",
         "sphinx_rtd_theme>=3.0,<3.2.0",
         "nbsphinx>=0.9.8,<0.10.0",
+        "myst-parser>=4.0,<5.1.0",
         "black>=24.1,<26.4.0",
         "pytest>=8.0,<9.1.0",
         "pytest-cov>=7.0,<7.2.0",
