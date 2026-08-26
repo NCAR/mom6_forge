@@ -1,4 +1,4 @@
-# Topo & The Widgets!
+# UI  Widgets
 
 This document explains the widget modules in `mom6_forge`.
 
@@ -23,7 +23,7 @@ selected via radio buttons before any grid is defined.
 
 **Lat/Lon Corners**
 
-Click two diagonal corners on the map.  A uniform-degree `Grid` is created
+Drag a rectangle on the map.  A uniform-degree `Grid` is created
 from the bounding box.  After creation, five degree sliders appear
 (`xstart`, `ystart`, `lenx`, `leny`, `resolution`) for live
 adjustment.
@@ -236,4 +236,4 @@ We would use straight git functions, but the topo file itself is handled indepen
 
 See also the demonstration notebook:
 
-[6_demo_editors.ipynb](https://github.com/NCAR/mom6_forge/blob/master/notebooks/6_demo_editors.ipynb)
+[7_demo_editors.ipynb](https://github.com/NCAR/mom6_forge/blob/master/notebooks/7_demo_editors.ipynb)

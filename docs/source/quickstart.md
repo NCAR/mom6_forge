@@ -348,7 +348,7 @@ or coarser than the model grid and picks accordingly:
 * On a coarse source relative to the grid, it derives an ocean-fraction mask
   from sub-sampling statistics and fills depth via Cressman distance-weighted
   interpolation (mirroring the `tx2_3` high-resolution topography workflow —
-  see the {doc}`mapping` guide and the `10_cressman_interpolation.ipynb`
+  see the {doc}`mapping` guide and the `8_cressman_interpolation.ipynb`
   notebook for details).
 
 Both the masking method (`mask_method`: `'naturalearth'`, `'ocean_frac'`,
@@ -492,7 +492,7 @@ domain configurators can be used for tasks such as:
 * Creating Vertical Grids: Specifying the vertical layering of the ocean model.
 
 Check out the notebook for examples of these advanced features: 
-[6_demo_editors.ipynb](https://github.com/NCAR/mom6_forge/blob/master/notebooks/6_demo_editors.ipynb)
+[7_demo_editors.ipynb](https://github.com/NCAR/mom6_forge/blob/master/notebooks/7_demo_editors.ipynb)
 
 ## Further steps
 

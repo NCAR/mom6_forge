@@ -39,9 +39,9 @@ See the tutorial notebooks in [`notebooks/`](notebooks/) for guided examples:
 3. [Custom Bathymetry](notebooks/3_custom_bathy.ipynb) — Generate bathymetry from topography data
 4. [Ingest Land Mask](notebooks/4_ingest_landmask.ipynb) — Apply an external land mask
 5. [Modify Existing](notebooks/5_modify_existing.ipynb) — Modify an existing grid/bathymetry
-6. [Demo Editors](notebooks/6_demo_editors.ipynb) — Interactive bathymetry editing tools
-7. [Coarsen Existing](notebooks/6_coarsen_existing.ipynb) — Create a coarser version of an existing MOM6 grid
-8. [Cressman Interpolation](notebooks/10_cressman_interpolation.ipynb) — Deep dive into the Cressman distance-weighted interpolation used for bathymetry
+6. [Coarsen Existing](notebooks/6_coarsen_existing.ipynb) — Create a coarser version of an existing MOM6 grid
+7. [Demo Editors](notebooks/7_demo_editors.ipynb) — Interactive bathymetry editing tools
+8. [Cressman Interpolation](notebooks/8_cressman_interpolation.ipynb) — Deep dive into the Cressman distance-weighted interpolation used for bathymetry
 
 ## Requirements
 
