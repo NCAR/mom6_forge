@@ -11,7 +11,7 @@ https://docs.conda.io/en/latest/miniconda.html
 First, clone the `mom6_forge` GitHub repository as follows:
 
 ```bash
-git clone --recursive https://github.com/NCAR/mom6_forge.git
+git clone https://github.com/NCAR/mom6_forge.git
 ```
 
 Then, `cd` into your newly checked out `mom6_forge` clone and run the
