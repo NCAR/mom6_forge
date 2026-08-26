@@ -7,7 +7,8 @@ between component grids (e.g. runoff-to-ocean). Most users will not call it
 directly — the `Topo` methods described in {doc}`quickstart` are the
 recommended entry points for bathymetry — but it is useful to understand what
 is happening underneath, and it is needed directly for generating coupler
-mapping files outside of the bathymetry workflow.
+mapping files outside of the bathymetry workflow. See {doc}`bathymetry_workflow`
+for the reasoning behind when each regridding strategy below is chosen.
 
 ## ESMF Meshes
 
@@ -65,9 +66,10 @@ weights on every call.
 
 ## Cressman Interpolation
 
-For coarse-to-fine bathymetry ingestion, where a simple bilinear regrid would
-smear the coastline by letting nearby land elevations contaminate ocean
-depths, `regrid_dataset_via_cressman` and the underlying
+When ingesting a source dataset that is much finer-resolution than the model
+grid, a simple bilinear regrid tends to smear the coastline by letting nearby
+land elevations contaminate ocean depths. `regrid_dataset_via_cressman` and
+the underlying
 `compute_cressman_weights` implement a mask-aware Cressman distance-weighted
 interpolation, mirroring the `interp_smooth.f90` program from the `tx2_3`
 high-resolution topography workflow. For each destination ocean cell, source
