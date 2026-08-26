@@ -471,21 +471,6 @@ writes it out:
 topo.write_scrip_grid("my_ocean_scrip.nc")
 ```
 
-### *Chlorophyll (Shortwave Penetration) Data*
-
-MOM6's shortwave radiation penetration scheme can be driven by a chlorophyll
-climatology. `mom6_forge.chl` provides helpers for preparing this input on a
-model grid: `interpolate_and_fill_seawifs` interpolates and gap-fills a
-SeaWiFS chlorophyll dataset onto the model's tracer grid, and
-`gen_chl_empty_dataset` generates an empty placeholder climatology file with
-the correct structure.
-
-```python
-from mom6_forge.chl import interpolate_and_fill_seawifs
-
-interpolate_and_fill_seawifs(grid, topo, "processed_seawifs.nc", output_path="chl_a.nc")
-```
-
 ## Step 6: Editing Grids and Bathymetry
 
 Beyond creating standard grids and simple topographies, mom6_forge provides advanced tools

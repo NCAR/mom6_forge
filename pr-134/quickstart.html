@@ -78,7 +78,6 @@
 <li class="toctree-l3"><a class="reference internal" href="#esmf-mesh-file"><em>ESMF Mesh file</em></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ww3-wavewatch-iii-input-files"><em>WW3 (WaveWatch III) Input Files</em></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#scrip-grid-file"><em>SCRIP Grid File</em></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#chlorophyll-shortwave-penetration-data"><em>Chlorophyll (Shortwave Penetration) Data</em></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#step-6-editing-grids-and-bathymetry">Step 6: Editing Grids and Bathymetry</a></li>
@@ -553,20 +552,6 @@ most purposes, but a SCRIP file is still needed to generate custom
 ocean-runoff mapping files (see <a class="reference internal" href="mapping.html"><span class="doc">Regridding &amp; Mapping</span></a>). The <code class="docutils literal notranslate"><span class="pre">write_scrip_grid</span></code> method
 writes it out:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">write_scrip_grid</span><span class="p">(</span><span class="s2">"my_ocean_scrip.nc"</span><span class="p">)</span>
-</pre></div>
-</div>
-</section>
-<section id="chlorophyll-shortwave-penetration-data">
-<h3><em>Chlorophyll (Shortwave Penetration) Data</em><a class="headerlink" href="#chlorophyll-shortwave-penetration-data" title="Link to this heading"></a></h3>
-<p>MOM6’s shortwave radiation penetration scheme can be driven by a chlorophyll
-climatology. <code class="docutils literal notranslate"><span class="pre">mom6_forge.chl</span></code> provides helpers for preparing this input on a
-model grid: <code class="docutils literal notranslate"><span class="pre">interpolate_and_fill_seawifs</span></code> interpolates and gap-fills a
-SeaWiFS chlorophyll dataset onto the model’s tracer grid, and
-<code class="docutils literal notranslate"><span class="pre">gen_chl_empty_dataset</span></code> generates an empty placeholder climatology file with
-the correct structure.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mom6_forge.chl</span><span class="w"> </span><span class="kn">import</span> <span class="n">interpolate_and_fill_seawifs</span>
-
-<span class="n">interpolate_and_fill_seawifs</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">topo</span><span class="p">,</span> <span class="s2">"processed_seawifs.nc"</span><span class="p">,</span> <span class="n">output_path</span><span class="o">=</span><span class="s2">"chl_a.nc"</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>
