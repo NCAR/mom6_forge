@@ -20,7 +20,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Regridding &amp; Mapping" href="mapping.html" />
+    <link rel="next" title="Bathymetry Workflow" href="bathymetry_workflow.html" />
     <link rel="prev" title="Installation" href="installation.html" /> 
 </head>
 
@@ -85,6 +85,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#further-steps">Further steps</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="bathymetry_workflow.html">Bathymetry Workflow</a></li>
 <li class="toctree-l1"><a class="reference internal" href="mapping.html">Regridding &amp; Mapping</a></li>
 <li class="toctree-l1"><a class="reference internal" href="notebooks.html">Notebooks</a></li>
 <li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
@@ -435,23 +436,28 @@ the source dataset’s resolution compares to the model grid’s:</p>
 <span class="p">)</span>
 </pre></div>
 </div>
-<p>By default, <code class="docutils literal notranslate"><span class="pre">set_from_dataset</span></code> diagnoses whether the source dataset is finer
-or coarser than the model grid and picks accordingly:</p>
+<p>By default, <code class="docutils literal notranslate"><span class="pre">set_from_dataset</span></code> diagnoses whether the source dataset is much
+finer-resolution than the model grid and picks accordingly:</p>
 <ul class="simple">
-<li><p>On a fine source relative to the grid, it uses a Natural Earth land mask and
-a direct xESMF regrid of depth.</p></li>
-<li><p>On a coarse source relative to the grid, it derives an ocean-fraction mask
-from sub-sampling statistics and fills depth via Cressman distance-weighted
-interpolation (mirroring the <code class="docutils literal notranslate"><span class="pre">tx2_3</span></code> high-resolution topography workflow —
-see the <a class="reference internal" href="mapping.html"><span class="doc">Regridding &amp; Mapping</span></a> guide and the <code class="docutils literal notranslate"><span class="pre">8_cressman_interpolation.ipynb</span></code>
-notebook for details).</p></li>
+<li><p>If the grid is coarse relative to the source (each cell spans many source
+pixels — the model resolution is 12x or more coarser than the dataset’s),
+it derives an ocean-fraction mask from sub-sampling statistics and fills
+depth via Cressman distance-weighted interpolation (mirroring the <code class="docutils literal notranslate"><span class="pre">tx2_3</span></code>
+high-resolution topography workflow).</p></li>
+<li><p>Otherwise (the grid and source are closer in resolution, or the grid is
+finer than the source), it uses a Natural Earth land mask and a direct
+xESMF regrid of depth.</p></li>
 </ul>
+<p>See the <a class="reference internal" href="bathymetry_workflow.html"><span class="doc">Bathymetry Workflow</span></a> guide for the full decision flow (including
+how to override each choice independently) and the <a class="reference internal" href="mapping.html"><span class="doc">Regridding &amp; Mapping</span></a> guide and
+<code class="docutils literal notranslate"><span class="pre">8_cressman_interpolation.ipynb</span></code> notebook for the Cressman math.</p>
 <p>Both the masking method (<code class="docutils literal notranslate"><span class="pre">mask_method</span></code>: <code class="docutils literal notranslate"><span class="pre">'naturalearth'</span></code>, <code class="docutils literal notranslate"><span class="pre">'ocean_frac'</span></code>,
 <code class="docutils literal notranslate"><span class="pre">'dataset'</span></code>, or <code class="docutils literal notranslate"><span class="pre">'manual'</span></code>) and the depth method (<code class="docutils literal notranslate"><span class="pre">depth_method</span></code>: <code class="docutils literal notranslate"><span class="pre">'stats'</span></code>,
 <code class="docutils literal notranslate"><span class="pre">'cressman'</span></code>, or <code class="docutils literal notranslate"><span class="pre">'xesmf'</span></code>) can be overridden explicitly instead of relying on
 the automatic diagnosis. This is still an opinionated, multi-step workflow —
 inspect the resulting mask and depth afterward, and adjust manually (e.g., via
-<code class="docutils literal notranslate"><span class="pre">TopoEditor</span></code>) as needed.</p>
+<code class="docutils literal notranslate"><span class="pre">TopoEditor</span></code>) as needed. For the reasoning behind this workflow and how it
+relates to NCAR’s global bathymetry pipeline, see <a class="reference internal" href="bathymetry_workflow.html"><span class="doc">Bathymetry Workflow</span></a>.</p>
 </section>
 <section id="channel-width-constraints">
 <h3><em>Channel Width Constraints</em><a class="headerlink" href="#channel-width-constraints" title="Link to this heading"></a></h3>
@@ -596,7 +602,7 @@ model configuration. See: <a class="reference external" href="https://github.com
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="installation.html" class="btn btn-neutral float-left" title="Installation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="mapping.html" class="btn btn-neutral float-right" title="Regridding &amp; Mapping" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="bathymetry_workflow.html" class="btn btn-neutral float-right" title="Bathymetry Workflow" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

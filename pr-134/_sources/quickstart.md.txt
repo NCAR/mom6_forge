@@ -340,23 +340,29 @@ topo.set_from_dataset(
 )
 ```
 
-By default, `set_from_dataset` diagnoses whether the source dataset is finer
-or coarser than the model grid and picks accordingly:
+By default, `set_from_dataset` diagnoses whether the source dataset is much
+finer-resolution than the model grid and picks accordingly:
 
-* On a fine source relative to the grid, it uses a Natural Earth land mask and
-  a direct xESMF regrid of depth.
-* On a coarse source relative to the grid, it derives an ocean-fraction mask
-  from sub-sampling statistics and fills depth via Cressman distance-weighted
-  interpolation (mirroring the `tx2_3` high-resolution topography workflow —
-  see the {doc}`mapping` guide and the `8_cressman_interpolation.ipynb`
-  notebook for details).
+* If the grid is coarse relative to the source (each cell spans many source
+  pixels — the model resolution is 12x or more coarser than the dataset's),
+  it derives an ocean-fraction mask from sub-sampling statistics and fills
+  depth via Cressman distance-weighted interpolation (mirroring the `tx2_3`
+  high-resolution topography workflow).
+* Otherwise (the grid and source are closer in resolution, or the grid is
+  finer than the source), it uses a Natural Earth land mask and a direct
+  xESMF regrid of depth.
+
+See the {doc}`bathymetry_workflow` guide for the full decision flow (including
+how to override each choice independently) and the {doc}`mapping` guide and
+`8_cressman_interpolation.ipynb` notebook for the Cressman math.
 
 Both the masking method (`mask_method`: `'naturalearth'`, `'ocean_frac'`,
 `'dataset'`, or `'manual'`) and the depth method (`depth_method`: `'stats'`,
 `'cressman'`, or `'xesmf'`) can be overridden explicitly instead of relying on
 the automatic diagnosis. This is still an opinionated, multi-step workflow —
 inspect the resulting mask and depth afterward, and adjust manually (e.g., via
-`TopoEditor`) as needed.
+`TopoEditor`) as needed. For the reasoning behind this workflow and how it
+relates to NCAR's global bathymetry pipeline, see {doc}`bathymetry_workflow`.
 
 ### *Channel Width Constraints*
 
