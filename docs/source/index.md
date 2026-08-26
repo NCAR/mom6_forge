@@ -15,6 +15,7 @@ to learn about the `mom6_forge` tool.
 
 installation
 quickstart
+mapping
 notebooks
 glossary
 widgets
@@ -25,6 +26,13 @@ widgets
 :caption: Python API:
 
 api/modules
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Contributing:
+
+contributing
 ```
 
 ## Indices and tables

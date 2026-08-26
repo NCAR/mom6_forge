@@ -1,6 +1,6 @@
 # Quickstart Guide
 
-`mom6_tools` library can be utilized via its Python API, i.e., directly within Python
+`mom6_forge` library can be utilized via its Python API, i.e., directly within Python
 scripts or within Jupyter notebooks. In this quickstart guide, we describe how
 the tool can be utilized within a Jupyter Notebook, but the majority of
 these instructions apply to Python scripts as well.
@@ -71,6 +71,45 @@ displace_pole : bool, optional
 
 Note that tripolar and displaced pole grids cannot yet be created from scratch,
 but existing tripolar and displaced pole grids can be modified via mom6_forge.
+
+Instead of specifying `nx`/`ny` directly, they can be derived from a target
+`resolution` (in the grid's axis units):
+
+```python
+grid = Grid(lenx=20.0, leny=10.0, resolution=0.25, xstart=270.0, ystart=10.0)
+```
+
+### *Alternative Grid Constructors*
+
+Beyond the uniform-degree grid shown above, `Grid` provides several alternative
+constructors for domains that aren't naturally expressed as `nx`/`ny`/`lenx`/`leny`:
+
+* `Grid.from_center(center_lat, center_lon, width_m, height_m, resolution_m, angle_deg=0.0)`
+  — builds a rectangular grid centred at a geographic point using an azimuthal
+  equidistant projection, optionally rotated `angle_deg` degrees clockwise from
+  north. Useful for aligning a regional domain with a coastline or estuary.
+* `Grid.from_projection(crs, x_min, x_max, y_min, y_max, resolution_m)`
+  — builds a uniform grid in a given `pyproj` CRS (e.g. a polar stereographic or
+  Lambert conformal projection) and reprojects it to geographic coordinates,
+  remaining accurate at high latitudes.
+* `Grid.from_supergrid(path)` — loads a grid from an existing MOM6 supergrid file.
+* `Grid.from_esmf_mesh(path)` — loads a grid from an existing ESMF mesh file.
+
+Example:
+
+```python
+grid = Grid.from_center(
+    center_lat=44.9,
+    center_lon=-63.5,
+    width_m=400_000,
+    height_m=250_000,
+    resolution_m=5_000,
+    angle_deg=30.0,
+)
+```
+
+These constructors are also available interactively through the `GridCreator`
+widget — see {doc}`widgets`.
 
 ### *Avoiding singularity points*
 
@@ -143,7 +182,71 @@ the new x and y coordinates of the supergrid. Running the `update_supergrid`
 method of a `Grid` instance automatically updates all other grid metrics listed
 above.
 
-## Step 3: Create Bathymetry
+## Step 3: Create the Vertical Grid
+
+`mom6_forge` also provides a `VGrid` class to define the vertical layering of
+the ocean model, independently of the horizontal `Grid`.
+
+```python
+from mom6_forge.vgrid import VGrid
+```
+
+A vertical grid is fundamentally an array of layer thicknesses (`dz`, in
+meters). `VGrid` provides two constructors for generating common vertical
+spacings, plus a way to load one from an existing file.
+
+### *Uniform Vertical Grid*
+
+```python
+vgrid = VGrid.uniform(nk=75, depth=6000.0)
+```
+
+`nk` is the number of vertical levels and `depth` is the total depth of the
+water column (meters). The bottom layer's thickness is adjusted slightly so
+that the sum of all layers exactly equals `depth`.
+
+### *Hyperbolic (Stretched) Vertical Grid*
+
+To concentrate resolution near the surface, use a hyperbolic-tangent profile,
+where `ratio` is the target ratio of the bottom layer's thickness to the top
+layer's thickness:
+
+```python
+vgrid = VGrid.hyperbolic(nk=75, depth=6000.0, ratio=10.0)
+```
+
+### *Loading from an Existing File*
+
+```python
+vgrid = VGrid.from_file(
+    "existing_vgrid.nc",
+    variable_name="dz",
+    variable_type="layer_thickness",  # or "cell_center" or "cell_interface"
+)
+```
+
+### *Attributes*
+
+* `vgrid.dz`: array of layer thicknesses (meters)
+* `vgrid.nk`: number of vertical levels
+* `vgrid.depth`: total water column depth (meters)
+* `vgrid.zl`: array of layer-center depths (meters)
+* `vgrid.zi`: array of layer-interface depths (meters), size `nk + 1`
+
+### *Writing the Vertical Grid File*
+
+```python
+vgrid.write("my_vgrid.nc")
+```
+
+`vgrid.write_z_file("my_vgrid_z.nc")` writes an alternative file containing
+the interface (`zi`) and center (`zl`) depths directly, rather than
+thicknesses.
+
+Like horizontal grids, vertical grids can also be created and edited
+interactively via the `VGridCreator` widget — see {doc}`widgets`.
+
+## Step 4: Create Bathymetry
 
 After having generated the horizontal grid, we can now create an associated bathymetry
 object as follows:
@@ -218,7 +321,78 @@ topo.apply_ridge(height=200, width=8, lon=240, ilat=(10,80) )
 
 Example notebook: [3_custom_bathy.ipynb](https://github.com/NCAR/mom6_forge/blob/master/notebooks/3_custom_bathy.ipynb)
 
-## Step 4: Write Model Input Files
+### *Bathymetry from a Real Dataset*
+
+For regional or realistic configurations, bathymetry is usually derived from
+an observational dataset (e.g., GEBCO) rather than an idealized shape. The
+`Topo.set_from_dataset` method is a high-level, opinionated workflow that sets
+both the depth and the land/ocean mask from a source dataset in a single
+call, automatically choosing a masking and interpolation strategy based on how
+the source dataset's resolution compares to the model grid's:
+
+```python
+topo.set_from_dataset(
+    bathymetry_path="GEBCO_2023.nc",
+    longitude_coordinate_name="lon",
+    latitude_coordinate_name="lat",
+    vertical_coordinate_name="elevation",
+    fill_channels=True,
+)
+```
+
+By default, `set_from_dataset` diagnoses whether the source dataset is finer
+or coarser than the model grid and picks accordingly:
+
+* On a fine source relative to the grid, it uses a Natural Earth land mask and
+  a direct xESMF regrid of depth.
+* On a coarse source relative to the grid, it derives an ocean-fraction mask
+  from sub-sampling statistics and fills depth via Cressman distance-weighted
+  interpolation (mirroring the `tx2_3` high-resolution topography workflow —
+  see the {doc}`mapping` guide and the `10_cressman_interpolation.ipynb`
+  notebook for details).
+
+Both the masking method (`mask_method`: `'naturalearth'`, `'ocean_frac'`,
+`'dataset'`, or `'manual'`) and the depth method (`depth_method`: `'stats'`,
+`'cressman'`, or `'xesmf'`) can be overridden explicitly instead of relying on
+the automatic diagnosis. This is still an opinionated, multi-step workflow —
+inspect the resulting mask and depth afterward, and adjust manually (e.g., via
+`TopoEditor`) as needed.
+
+### *Channel Width Constraints*
+
+Some straits and channels are too narrow to be resolved at a given grid
+resolution, but still need to permit flow in MOM6. `ChannelWidth` and
+`ChannelWidthList` (in `mom6_forge.channel_width`) record effective
+channel-width overrides that are applied on top of the bathymetry at runtime,
+rather than by editing the depth/mask fields themselves:
+
+```python
+from mom6_forge.channel_width import ChannelWidth, ChannelWidthList
+
+channel_widths = ChannelWidthList()
+channel_widths.add(
+    ChannelWidth(
+        component="U_width",
+        lon1=-6.50, lon2=-4.75,
+        lat1=35.60, lat2=36.30,
+        width=12000.0,
+        place="Strait of Gibraltar",
+    )
+)
+```
+
+A `ChannelWidthList` can be passed directly to the `Topo` constructor
+(`Topo(grid, min_depth=10.0, channel_widths=channel_widths)`) or loaded from
+an existing ASCII file (`ChannelWidthList(filepath="channel_widths.txt")`).
+Unlike depth/mask edits, channel width constraints are **not** tracked by the
+`Topo` version-control history (see {doc}`widgets`) — they must be written out
+separately:
+
+```python
+topo.channel_widths.write("channel_widths.txt")
+```
+
+## Step 5: Write Model Input Files
 
 The final step of `mom6_forge` workflow is to write out the netcdf files containing grid
 and bathymetry data. These files are to be read in by CESM and MOM6 during runtime.
@@ -268,7 +442,45 @@ of the `Topo` class writes out the ESMF mesh file in netcdf format.
 topo.write_esmf_mesh("my_esmf_mesh.nc")
 ```
 
-## Step 5: Editing Grids and Bathymetry
+### *WW3 (WaveWatch III) Input Files*
+
+If the configuration includes a WaveWatch III wave component, the
+`write_ww3_input` method of the `Topo` class writes the text-based WW3 grid
+input files (`ww3_grid.inp`, and the `<grid_alias>_x.inp`, `<grid_alias>_y.inp`,
+`<grid_alias>_mapsta.inp`, `<grid_alias>_bottom.inp` files) that WW3's
+`mod_def` creator reads before runtime.
+
+```python
+topo.write_ww3_input("ww3_input/", grid_alias="my_grid")
+```
+
+### *SCRIP Grid File*
+
+Modern CESM configurations use ESMF mesh files rather than SCRIP files for
+most purposes, but a SCRIP file is still needed to generate custom
+ocean-runoff mapping files (see {doc}`mapping`). The `write_scrip_grid` method
+writes it out:
+
+```python
+topo.write_scrip_grid("my_ocean_scrip.nc")
+```
+
+### *Chlorophyll (Shortwave Penetration) Data*
+
+MOM6's shortwave radiation penetration scheme can be driven by a chlorophyll
+climatology. `mom6_forge.chl` provides helpers for preparing this input on a
+model grid: `interpolate_and_fill_seawifs` interpolates and gap-fills a
+SeaWiFS chlorophyll dataset onto the model's tracer grid, and
+`gen_chl_empty_dataset` generates an empty placeholder climatology file with
+the correct structure.
+
+```python
+from mom6_forge.chl import interpolate_and_fill_seawifs
+
+interpolate_and_fill_seawifs(grid, topo, "processed_seawifs.nc", output_path="chl_a.nc")
+```
+
+## Step 6: Editing Grids and Bathymetry
 
 Beyond creating standard grids and simple topographies, mom6_forge provides advanced tools
 for interactively editing and creating complex model domains. These features are designed to

@@ -11,7 +11,7 @@ classes—`VGrid`, `Grid`, and `Topo`—to help with creating vertical grids
 
 The creators act as visual wrappers around the constructors of their respective
 classes, providing sliders and visualizations. They automatically generate
-folders called `VgridLibrary` and `GridLibrary` to store created grids.
+folders called `VGridLibrary` and `GridLibrary` to store created grids.
 The currently selected grid is directly accessible as an object inside each
 creator.
 
@@ -89,6 +89,29 @@ accidentally committed.
 On **Load**, all creation parameters are restored from the file's metadata, so
 the **Recreate** button works immediately after loading a projected grid without
 any additional clicks.
+
+### VGridCreator
+
+`VGridCreator` is a control-panel-and-plot widget for building a `VGrid`
+interactively: a live plot on the right shows each layer's center depth as a
+horizontal line, updating as the controls on the left change.
+
+A **Type** toggle switches between `Uniform` and `Hyperbolic` vertical grids
+(see {doc}`quickstart`). **Levels** and **Depth (m)** sliders set `nk` and
+`depth`; a **Top/Bottom Ratio** slider (enabled only in `Hyperbolic` mode)
+sets the ratio of bottom to top layer thickness. If a `Topo` instance is
+passed to the constructor (`VGridCreator(topo=topo)`), a warning is shown
+whenever the chosen depth is shallower than that topo's `max_depth`, since the
+vertical grid needs to extend at least to the deepest point of the bathymetry.
+
+**VGridLibrary**
+
+Like `GridCreator`, `VGridCreator` has a **Library** section for saving and
+loading named vertical grids. Enter a name and message and click **Save
+VGrid** to write `VgridLibrary/vgrid_<name>.nc`; the dropdown lists
+previously saved vgrids (most recent first) with their name, depth, and level
+count for **Load**. The `Reset` button reverts the current session's edits
+back to the vgrid the widget was constructed with.
 
 ## Topo & TopoEditor Edits
 
