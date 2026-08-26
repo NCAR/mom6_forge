@@ -1,0 +1,325 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coarsen an existing MOM6 grid &mdash; mom6_forge 0.3.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/nbsphinx-code-cells.css?v=2aa19091" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=4621528c"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Object Configurators in mom6_forge" href="6_demo_editors.html" />
+    <link rel="prev" title="Modify existing MOM6 grid" href="5_modify_existing.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            mom6_forge
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../mapping.html">Regridding &amp; Mapping</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../notebooks.html">Notebooks</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="10_cressman_interpolation.html">Cressman Interpolation Deep Dive</a></li>
+<li class="toctree-l2"><a class="reference internal" href="1_spherical_grid.html">Spherical grid with an idealized bathymetry</a></li>
+<li class="toctree-l2"><a class="reference internal" href="2_equatorial_res.html">Spherical grid with equatorial refinement</a></li>
+<li class="toctree-l2"><a class="reference internal" href="3_custom_bathy.html">Spherical grid with custom bathymetry and ridges</a></li>
+<li class="toctree-l2"><a class="reference internal" href="4_ingest_landmask.html">Applying an existing land fraction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="5_modify_existing.html">Modify existing MOM6 grid</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Coarsen an existing MOM6 grid</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#1.-Import-Modules">1. Import Modules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#2.-Create-a-MOM6-grid-object-from-an-existing-supergrid">2. Create a MOM6 grid object from an existing supergrid</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#3.-Read-the-bathymetry">3. Read the bathymetry</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#3.-Coarsen-the-grid-and-topography:">3. Coarsen the grid and topography:</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#4.-Modify-Depth">4. Modify Depth</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#5.-Save-the-grid-and-bathymetry-files">5. Save the grid and bathymetry files</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="6_demo_editors.html">Object Configurators in mom6_forge</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../widgets.html">Topo &amp; The Widgets!</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Python API:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api/modules.html">mom6_forge</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contributing:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">mom6_forge</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../notebooks.html">Notebooks</a></li>
+      <li class="breadcrumb-item active">Coarsen an existing MOM6 grid</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/notebooks/6_coarsen_existing.ipynb.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="Coarsen-an-existing-MOM6-grid">
+<h1>Coarsen an existing MOM6 grid<a class="headerlink" href="#Coarsen-an-existing-MOM6-grid" title="Link to this heading"></a></h1>
+<p>In this notebook, we create a coarse versions of an existing MOM6 grid, tx2_3v2. Setting CX=5 below results in a grid with ~3 degree resolution, while setting it to 15 results in a grid with ~10 degree resolution.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[1]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># CX: Coarsening factor</span>
+
+<span class="c1"># CX, grid_name = 15, 'tx10deg'  # 10-degree resolution</span>
+<span class="n">CX</span><span class="p">,</span> <span class="n">grid_name</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span> <span class="s1">'tx3deg'</span>  <span class="c1"># 3-degree resolution</span>
+</pre></div>
+</div>
+</div>
+<section id="1.-Import-Modules">
+<h2>1. Import Modules<a class="headerlink" href="#1.-Import-Modules" title="Link to this heading"></a></h2>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[2]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%%capture</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">xarray</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">xr</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mom6_bathy.grid</span><span class="w"> </span><span class="kn">import</span> <span class="n">Grid</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mom6_bathy.topo</span><span class="w"> </span><span class="kn">import</span> <span class="n">Topo</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[3]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">datestamp</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">'%Y%m</span><span class="si">%d</span><span class="s1">'</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</section>
+<section id="2.-Create-a-MOM6-grid-object-from-an-existing-supergrid">
+<h2>2. Create a MOM6 grid object from an existing supergrid<a class="headerlink" href="#2.-Create-a-MOM6-grid-object-from-an-existing-supergrid" title="Link to this heading"></a></h2>
+<p>tx2_3v2 is the current MOM6-CESM workhorse grid (0.66deg, tripolar).</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[4]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">grid_orig</span> <span class="o">=</span> <span class="n">Grid</span><span class="o">.</span><span class="n">from_supergrid</span><span class="p">(</span><span class="s1">'/glade/p/cesmdata/inputdata/ocn/mom/tx2_3v2/ocean_hgrid_221123.nc'</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</section>
+<section id="3.-Read-the-bathymetry">
+<h2>3. Read the bathymetry<a class="headerlink" href="#3.-Read-the-bathymetry" title="Link to this heading"></a></h2>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[5]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">topo_orig</span> <span class="o">=</span> <span class="n">Topo</span><span class="o">.</span><span class="n">from_topo_file</span><span class="p">(</span><span class="n">grid_orig</span><span class="p">,</span> <span class="s1">'/glade/p/cesmdata/inputdata/ocn/mom/tx2_3v2/ocean_topo_tx2_3v2_240501.nc'</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</section>
+<section id="3.-Coarsen-the-grid-and-topography:">
+<h2>3. Coarsen the grid and topography:<a class="headerlink" href="#3.-Coarsen-the-grid-and-topography:" title="Link to this heading"></a></h2>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[6]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span> <span class="o">=</span> <span class="n">topo_orig</span><span class="p">[::</span><span class="n">CX</span><span class="p">,</span> <span class="p">::</span><span class="n">CX</span><span class="p">]</span>
+<span class="n">grid</span> <span class="o">=</span> <span class="n">topo</span><span class="o">.</span><span class="n">_grid</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[7]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">depth</span><span class="o">.</span><span class="n">shape</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[7]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+(96, 108)
+</pre></div></div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[8]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">depth</span><span class="o">.</span><span class="n">plot</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[8]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+&lt;matplotlib.collections.QuadMesh at 0x7f9498efc090&gt;
+</pre></div></div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="../_images/notebooks_6_coarsen_existing_12_1.png" src="../_images/notebooks_6_coarsen_existing_12_1.png" />
+</div>
+</div>
+</section>
+<section id="4.-Modify-Depth">
+<h2>4. Modify Depth<a class="headerlink" href="#4.-Modify-Depth" title="Link to this heading"></a></h2>
+<p><strong>Important:</strong> After coarsening the grid, use the Topo Editor widget to erase disconnected basins. Carefully inspect the domain and make necessary adjustments to ensure physical consistency. For example, you may need to connect North and South America to prevent unintended ocean passages or isolated water bodies.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[9]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> ipympl
+<span class="kn">from</span><span class="w"> </span><span class="nn">mom6_bathy.topo_editor</span><span class="w"> </span><span class="kn">import</span> <span class="n">TopoEditor</span>
+<span class="n">TopoEditor</span><span class="p">(</span><span class="n">topo</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[9]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<script type="application/vnd.jupyter.widget-view+json">{"model_id": "d6bd814bae1b4101b1e52f0ae4c6d24e", "version_major": 2, "version_minor": 0}</script></div>
+</div>
+</section>
+<section id="5.-Save-the-grid-and-bathymetry-files">
+<h2>5. Save the grid and bathymetry files<a class="headerlink" href="#5.-Save-the-grid-and-bathymetry-files" title="Link to this heading"></a></h2>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[10]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># MOM6 supergrid file:</span>
+<span class="n">grid</span><span class="o">.</span><span class="n">write_supergrid</span><span class="p">(</span><span class="sa">f</span><span class="s2">"./ocean_hgrid_</span><span class="si">{</span><span class="n">grid_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">datestamp</span><span class="si">}</span><span class="s2">.nc"</span><span class="p">)</span>
+
+<span class="c1"># MOM6 topography file:</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_topo</span><span class="p">(</span><span class="sa">f</span><span class="s2">"./ocean_topog_</span><span class="si">{</span><span class="n">grid_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">datestamp</span><span class="si">}</span><span class="s2">.nc"</span><span class="p">)</span>
+
+<span class="c1"># CICE grid file:</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_cice_grid</span><span class="p">(</span><span class="sa">f</span><span class="s2">"./cice_grid_</span><span class="si">{</span><span class="n">grid_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">datestamp</span><span class="si">}</span><span class="s2">.nc"</span><span class="p">)</span>
+
+<span class="c1"># SCRIP grid file (for runoff remapping, if needed):</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_scrip_grid</span><span class="p">(</span><span class="sa">f</span><span class="s2">"./scrip_grid_</span><span class="si">{</span><span class="n">grid_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">datestamp</span><span class="si">}</span><span class="s2">.nc"</span><span class="p">)</span>
+
+<span class="c1"># ESMF mesh file:</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_esmf_mesh</span><span class="p">(</span><span class="sa">f</span><span class="s2">"./ESMF_mesh_</span><span class="si">{</span><span class="n">grid_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">datestamp</span><span class="si">}</span><span class="s2">.nc"</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[11]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Also coarsen chlorophyl and salt restoring input files:</span>
+
+<span class="n">chl_orig</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">open_dataset</span><span class="p">(</span><span class="s1">'/glade/p/cesmdata/inputdata/ocn/mom/tx2_3v2/seawifs-clim-1997-2010-tx2_3v2.230416.nc'</span><span class="p">)</span>
+<span class="n">chl</span> <span class="o">=</span> <span class="n">chl_orig</span><span class="o">.</span><span class="n">isel</span><span class="p">(</span><span class="n">LON</span><span class="o">=</span><span class="nb">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">CX</span><span class="p">),</span> <span class="n">LAT</span><span class="o">=</span><span class="nb">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">CX</span><span class="p">))</span>
+<span class="n">chl</span><span class="o">.</span><span class="n">to_netcdf</span><span class="p">(</span><span class="sa">f</span><span class="s2">"./seawifs-clim-1997-2010-</span><span class="si">{</span><span class="n">grid_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">datestamp</span><span class="si">}</span><span class="s2">.nc"</span><span class="p">)</span>
+
+<span class="n">salt_orig</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">open_dataset</span><span class="p">(</span><span class="s1">'/glade/p/cesmdata/inputdata/ocn/mom/tx2_3v2/state_restore_tx2_3_20230416.nc'</span><span class="p">)</span>
+<span class="n">salt</span> <span class="o">=</span> <span class="n">salt_orig</span><span class="o">.</span><span class="n">isel</span><span class="p">(</span><span class="n">LON</span><span class="o">=</span><span class="nb">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">CX</span><span class="p">),</span> <span class="n">LAT</span><span class="o">=</span><span class="nb">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">CX</span><span class="p">))</span>
+<span class="n">salt</span><span class="o">.</span><span class="n">to_netcdf</span><span class="p">(</span><span class="sa">f</span><span class="s2">"./state_restore_</span><span class="si">{</span><span class="n">grid_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">datestamp</span><span class="si">}</span><span class="s2">.nc"</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>
+</pre></div>
+</div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="5_modify_existing.html" class="btn btn-neutral float-left" title="Modify existing MOM6 grid" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="6_demo_editors.html" class="btn btn-neutral float-right" title="Object Configurators in mom6_forge" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, NCAR.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
