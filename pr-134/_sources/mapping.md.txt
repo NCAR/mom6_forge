@@ -87,7 +87,7 @@ are left for a fallback iterative-fill pass (see
 This is exposed directly on `Topo` via `direct_cressman_interp()`, and is one
 of the two depth methods `Topo.set_from_dataset` can choose automatically
 (see {doc}`quickstart`). For a worked, from-scratch walkthrough of the math
-and weight computation, see the `10_cressman_interpolation.ipynb` notebook.
+and weight computation, see the `8_cressman_interpolation.ipynb` notebook.
 
 ## Subsampling Statistics
 

@@ -23,8 +23,8 @@
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Spherical grid with an idealized bathymetry" href="1_spherical_grid.html" />
-    <link rel="prev" title="Notebooks" href="../notebooks.html" /> 
+    <link rel="next" title="Glossary" href="../glossary.html" />
+    <link rel="prev" title="Object Configurators in mom6_forge" href="7_demo_editors.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -52,6 +52,13 @@
 <li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quickstart Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../mapping.html">Regridding &amp; Mapping</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="../notebooks.html">Notebooks</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="1_spherical_grid.html">Spherical grid with an idealized bathymetry</a></li>
+<li class="toctree-l2"><a class="reference internal" href="2_equatorial_res.html">Spherical grid with equatorial refinement</a></li>
+<li class="toctree-l2"><a class="reference internal" href="3_custom_bathy.html">Spherical grid with custom bathymetry and ridges</a></li>
+<li class="toctree-l2"><a class="reference internal" href="4_ingest_landmask.html">Applying an existing land fraction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="5_modify_existing.html">Modify existing MOM6 grid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="6_coarsen_existing.html">Coarsen an existing MOM6 grid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="7_demo_editors.html">Object Configurators in mom6_forge</a></li>
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Cressman Interpolation Deep Dive</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#What-is-Cressman-interpolation?">What is Cressman interpolation?</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#1.-Setup">1. Setup</a></li>
@@ -64,17 +71,10 @@
 <li class="toctree-l3"><a class="reference internal" href="#Summary">Summary</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="1_spherical_grid.html">Spherical grid with an idealized bathymetry</a></li>
-<li class="toctree-l2"><a class="reference internal" href="2_equatorial_res.html">Spherical grid with equatorial refinement</a></li>
-<li class="toctree-l2"><a class="reference internal" href="3_custom_bathy.html">Spherical grid with custom bathymetry and ridges</a></li>
-<li class="toctree-l2"><a class="reference internal" href="4_ingest_landmask.html">Applying an existing land fraction</a></li>
-<li class="toctree-l2"><a class="reference internal" href="5_modify_existing.html">Modify existing MOM6 grid</a></li>
-<li class="toctree-l2"><a class="reference internal" href="6_coarsen_existing.html">Coarsen an existing MOM6 grid</a></li>
-<li class="toctree-l2"><a class="reference internal" href="6_demo_editors.html">Object Configurators in mom6_forge</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../widgets.html">Topo &amp; The Widgets!</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../widgets.html">UI  Widgets</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Python API:</span></p>
 <ul>
@@ -102,7 +102,7 @@
           <li class="breadcrumb-item"><a href="../notebooks.html">Notebooks</a></li>
       <li class="breadcrumb-item active">Cressman Interpolation Deep Dive</li>
       <li class="wy-breadcrumbs-aside">
-            <a href="../_sources/notebooks/10_cressman_interpolation.ipynb.txt" rel="nofollow"> View page source</a>
+            <a href="../_sources/notebooks/8_cressman_interpolation.ipynb.txt" rel="nofollow"> View page source</a>
       </li>
   </ul>
   <hr/>
@@ -237,7 +237,7 @@ Setup complete.
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/notebooks_10_cressman_interpolation_6_0.png" src="../_images/notebooks_10_cressman_interpolation_6_0.png" />
+<img alt="../_images/notebooks_8_cressman_interpolation_6_0.png" src="../_images/notebooks_8_cressman_interpolation_6_0.png" />
 </div>
 </div>
 <p>The weight is 1.0 at the cell centre (<span class="math notranslate nohighlight">\(r=0\)</span>) and 0.0 at the cutoff (<span class="math notranslate nohighlight">\(r=L\)</span>). Higher <code class="docutils literal notranslate"><span class="pre">cressman_exp</span></code> makes the function more peaked — more weight is given to nearby pixels, and the kernel decays more sharply.</p>
@@ -279,7 +279,7 @@ Setup complete.
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/notebooks_10_cressman_interpolation_8_0.png" src="../_images/notebooks_10_cressman_interpolation_8_0.png" />
+<img alt="../_images/notebooks_8_cressman_interpolation_8_0.png" src="../_images/notebooks_8_cressman_interpolation_8_0.png" />
 </div>
 </div>
 <div class="nboutput nblast docutils container">
@@ -467,7 +467,7 @@ See: https://matplotlib.org/stable/tutorials/intermediate/legend_guide.html#impl
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/notebooks_10_cressman_interpolation_12_1.png" src="../_images/notebooks_10_cressman_interpolation_12_1.png" />
+<img alt="../_images/notebooks_8_cressman_interpolation_12_1.png" src="../_images/notebooks_8_cressman_interpolation_12_1.png" />
 </div>
 </div>
 </section>
@@ -582,7 +582,7 @@ Attributes:
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/notebooks_10_cressman_interpolation_15_1.png" src="../_images/notebooks_10_cressman_interpolation_15_1.png" />
+<img alt="../_images/notebooks_8_cressman_interpolation_15_1.png" src="../_images/notebooks_8_cressman_interpolation_15_1.png" />
 </div>
 </div>
 <div class="nbinput docutils container">
@@ -679,7 +679,7 @@ Iterations needed: 1
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/notebooks_10_cressman_interpolation_18_1.png" src="../_images/notebooks_10_cressman_interpolation_18_1.png" />
+<img alt="../_images/notebooks_8_cressman_interpolation_18_1.png" src="../_images/notebooks_8_cressman_interpolation_18_1.png" />
 </div>
 </div>
 </section>
@@ -798,7 +798,7 @@ Cressman weights written to /glade/derecho/scratch/manishrv/tmp/tmppx1l48md/weig
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/notebooks_10_cressman_interpolation_20_8.png" src="../_images/notebooks_10_cressman_interpolation_20_8.png" />
+<img alt="../_images/notebooks_8_cressman_interpolation_20_8.png" src="../_images/notebooks_8_cressman_interpolation_20_8.png" />
 </div>
 </div>
 <p>Higher <code class="docutils literal notranslate"><span class="pre">smooth_scl</span></code> averages over more source pixels — useful for very coarse grids but can smooth out real bathymetric features. The tx2_3 default is <code class="docutils literal notranslate"><span class="pre">smooth_scl=2.0</span></code>.</p>
@@ -823,8 +823,8 @@ Cressman weights written to /glade/derecho/scratch/manishrv/tmp/tmppx1l48md/weig
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="../notebooks.html" class="btn btn-neutral float-left" title="Notebooks" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="1_spherical_grid.html" class="btn btn-neutral float-right" title="Spherical grid with an idealized bathymetry" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="7_demo_editors.html" class="btn btn-neutral float-left" title="Object Configurators in mom6_forge" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../glossary.html" class="btn btn-neutral float-right" title="Glossary" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

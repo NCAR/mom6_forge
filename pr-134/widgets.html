@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Topo &amp; The Widgets! &mdash; mom6_forge 0.3.1 documentation</title>
+  <title>UI Widgets &mdash; mom6_forge 0.3.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
@@ -50,7 +50,7 @@
 <li class="toctree-l1"><a class="reference internal" href="mapping.html">Regridding &amp; Mapping</a></li>
 <li class="toctree-l1"><a class="reference internal" href="notebooks.html">Notebooks</a></li>
 <li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Topo &amp; The Widgets!</a><ul>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">UI  Widgets</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#creators">Creators</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#gridcreator">GridCreator</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#vgridcreator">VGridCreator</a></li>
@@ -87,7 +87,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Topo &amp; The Widgets!</li>
+      <li class="breadcrumb-item active">UI  Widgets</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/widgets.md.txt" rel="nofollow"> View page source</a>
       </li>
@@ -97,8 +97,8 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="topo-the-widgets">
-<h1>Topo &amp; The Widgets!<a class="headerlink" href="#topo-the-widgets" title="Link to this heading"></a></h1>
+  <section id="ui-widgets">
+<h1>UI  Widgets<a class="headerlink" href="#ui-widgets" title="Link to this heading"></a></h1>
 <p>This document explains the widget modules in <code class="docutils literal notranslate"><span class="pre">mom6_forge</span></code>.</p>
 <p><code class="docutils literal notranslate"><span class="pre">mom6_forge</span></code> comes with three UI modules/classes that wrap the three main
 classes—<code class="docutils literal notranslate"><span class="pre">VGrid</span></code>, <code class="docutils literal notranslate"><span class="pre">Grid</span></code>, and <code class="docutils literal notranslate"><span class="pre">Topo</span></code>—to help with creating vertical grids
@@ -117,7 +117,7 @@ creator.</p>
 interactive cartopy map on the right.  It supports three creation modes,
 selected via radio buttons before any grid is defined.</p>
 <p><strong>Lat/Lon Corners</strong></p>
-<p>Click two diagonal corners on the map.  A uniform-degree <code class="docutils literal notranslate"><span class="pre">Grid</span></code> is created
+<p>Drag a rectangle on the map.  A uniform-degree <code class="docutils literal notranslate"><span class="pre">Grid</span></code> is created
 from the bounding box.  After creation, five degree sliders appear
 (<code class="docutils literal notranslate"><span class="pre">xstart</span></code>, <code class="docutils literal notranslate"><span class="pre">ystart</span></code>, <code class="docutils literal notranslate"><span class="pre">lenx</span></code>, <code class="docutils literal notranslate"><span class="pre">leny</span></code>, <code class="docutils literal notranslate"><span class="pre">resolution</span></code>) for live
 adjustment.</p>
@@ -320,7 +320,7 @@ This means that <strong>any topo using the same grid</strong> will share the sam
 <p>All of the git versioning (undo, redo, reset, checkout, tag, create branch) is handled by the TopoCommandManager, which can be accessed as the class variable “tcm”. The code for this manager resides in the command_manager class.
 We would use straight git functions, but the topo file itself is handled independently of the commits. (In the future, expect this to use icechunk)</p>
 <p>See also the demonstration notebook:</p>
-<p><a class="reference external" href="https://github.com/NCAR/mom6_forge/blob/master/notebooks/6_demo_editors.ipynb">6_demo_editors.ipynb</a></p>
+<p><a class="reference external" href="https://github.com/NCAR/mom6_forge/blob/master/notebooks/7_demo_editors.ipynb">7_demo_editors.ipynb</a></p>
 </section>
 </section>
 

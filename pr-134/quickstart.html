@@ -88,7 +88,7 @@
 <li class="toctree-l1"><a class="reference internal" href="mapping.html">Regridding &amp; Mapping</a></li>
 <li class="toctree-l1"><a class="reference internal" href="notebooks.html">Notebooks</a></li>
 <li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
-<li class="toctree-l1"><a class="reference internal" href="widgets.html">Topo &amp; The Widgets!</a></li>
+<li class="toctree-l1"><a class="reference internal" href="widgets.html">UI  Widgets</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Python API:</span></p>
 <ul>
@@ -223,7 +223,7 @@ remaining accurate at high latitudes.</p></li>
 </pre></div>
 </div>
 <p>These constructors are also available interactively through the <code class="docutils literal notranslate"><span class="pre">GridCreator</span></code>
-widget — see <a class="reference internal" href="widgets.html"><span class="doc">Topo &amp; The Widgets!</span></a>.</p>
+widget — see <a class="reference internal" href="widgets.html"><span class="doc">UI  Widgets</span></a>.</p>
 </section>
 <section id="avoiding-singularity-points">
 <h3><em>Avoiding singularity points</em><a class="headerlink" href="#avoiding-singularity-points" title="Link to this heading"></a></h3>
@@ -350,7 +350,7 @@ layer’s thickness:</p>
 the interface (<code class="docutils literal notranslate"><span class="pre">zi</span></code>) and center (<code class="docutils literal notranslate"><span class="pre">zl</span></code>) depths directly, rather than
 thicknesses.</p>
 <p>Like horizontal grids, vertical grids can also be created and edited
-interactively via the <code class="docutils literal notranslate"><span class="pre">VGridCreator</span></code> widget — see <a class="reference internal" href="widgets.html"><span class="doc">Topo &amp; The Widgets!</span></a>.</p>
+interactively via the <code class="docutils literal notranslate"><span class="pre">VGridCreator</span></code> widget — see <a class="reference internal" href="widgets.html"><span class="doc">UI  Widgets</span></a>.</p>
 </section>
 </section>
 <section id="step-4-create-bathymetry">
@@ -443,7 +443,7 @@ a direct xESMF regrid of depth.</p></li>
 <li><p>On a coarse source relative to the grid, it derives an ocean-fraction mask
 from sub-sampling statistics and fills depth via Cressman distance-weighted
 interpolation (mirroring the <code class="docutils literal notranslate"><span class="pre">tx2_3</span></code> high-resolution topography workflow —
-see the <a class="reference internal" href="mapping.html"><span class="doc">Regridding &amp; Mapping</span></a> guide and the <code class="docutils literal notranslate"><span class="pre">10_cressman_interpolation.ipynb</span></code>
+see the <a class="reference internal" href="mapping.html"><span class="doc">Regridding &amp; Mapping</span></a> guide and the <code class="docutils literal notranslate"><span class="pre">8_cressman_interpolation.ipynb</span></code>
 notebook for details).</p></li>
 </ul>
 <p>Both the masking method (<code class="docutils literal notranslate"><span class="pre">mask_method</span></code>: <code class="docutils literal notranslate"><span class="pre">'naturalearth'</span></code>, <code class="docutils literal notranslate"><span class="pre">'ocean_frac'</span></code>,
@@ -478,7 +478,7 @@ rather than by editing the depth/mask fields themselves:</p>
 (<code class="docutils literal notranslate"><span class="pre">Topo(grid,</span> <span class="pre">min_depth=10.0,</span> <span class="pre">channel_widths=channel_widths)</span></code>) or loaded from
 an existing ASCII file (<code class="docutils literal notranslate"><span class="pre">ChannelWidthList(filepath=&quot;channel_widths.txt&quot;)</span></code>).
 Unlike depth/mask edits, channel width constraints are <strong>not</strong> tracked by the
-<code class="docutils literal notranslate"><span class="pre">Topo</span></code> version-control history (see <a class="reference internal" href="widgets.html"><span class="doc">Topo &amp; The Widgets!</span></a>) — they must be written out
+<code class="docutils literal notranslate"><span class="pre">Topo</span></code> version-control history (see <a class="reference internal" href="widgets.html"><span class="doc">UI  Widgets</span></a>) — they must be written out
 separately:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">channel_widths</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">"channel_widths.txt"</span><span class="p">)</span>
 </pre></div>
@@ -577,7 +577,7 @@ domain configurators can be used for tasks such as:</p>
 <li><p>Creating Vertical Grids: Specifying the vertical layering of the ocean model.</p></li>
 </ul>
 <p>Check out the notebook for examples of these advanced features:
-<a class="reference external" href="https://github.com/NCAR/mom6_forge/blob/master/notebooks/6_demo_editors.ipynb">6_demo_editors.ipynb</a></p>
+<a class="reference external" href="https://github.com/NCAR/mom6_forge/blob/master/notebooks/7_demo_editors.ipynb">7_demo_editors.ipynb</a></p>
 </section>
 <section id="further-steps">
 <h2>Further steps<a class="headerlink" href="#further-steps" title="Link to this heading"></a></h2>
