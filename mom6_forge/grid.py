@@ -873,119 +873,113 @@ class Grid:
         j, i = np.unravel_index(indices, self.tlat.shape)
         return int(j), int(i)
 
-    def plot(self, property_name):
-        """
-        Plot a given grid property using cartopy.
-        Warning: cartopy module must be installed seperately
-
-        Parameters
-        ----------
-        property_name : str
-            The name of the grid property to plot, e.g., 'tlat'.
-        """
-
-        import matplotlib.pyplot as plt
-
+    def plot(self):
         try:
             import cartopy.crs as ccrs
+            import cartopy.feature as cfeature
         except ImportError:
             print(
                 "Cannot import the cartopy library, which is required to run this method."
             )
             return
-
-        if property_name not in self.__dict__:
-            print("ERROR: not a valid MOM6 grid property")
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError:
+            print(
+                "Cannot import the matplotlib library, which is required to run this method."
+            )
             return
 
-        data = self.__dict__[property_name]
+        step = (
+            np.max([self.nx, self.ny]) // 20
+        )  # Plot 20 self lines in the dimention with the most points
+        central_longitude = np.mean([self.tlon.min(), self.tlon.max()])
 
-        # determine staggering
-        if data.shape == self.tlon.shape:
-            lons, lats = self.tlon, self.tlat
-        elif data.shape == self.ulon.shape:
-            lons, lats = self.ulon, self.ulat
-        elif data.shape == self.vlon.shape:
-            lons, lats = self.vlon, self.vlat
-        elif data.shape == self.qlon.shape:
-            lons, lats = self.qlon, self.qlat
-        else:
-            print("ERROR: cannot determine property staggering")
-            return
+        fig = plt.figure(figsize=(10, 10))
+        # ax = plt.axes(projection=ccrs.PlateCarree())
+        ax = plt.axes(projection=ccrs.PlateCarree(central_longitude=central_longitude))
+        # lines of constant j (along nx)
+        for j in range(0, self.ny, step):
+            ax.plot(
+                self.tlon[j, :],
+                self.tlat[j, :],
+                color="k",
+                linewidth=0.5,
+                transform=ccrs.PlateCarree(),
+                alpha=0.5,
+            )
 
-        data = self.__dict__[property_name]
-
-        fig = plt.figure()  # figsize=(10, 5))
-        ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
-        ax.pcolormesh(
-            lons,
-            lats,
-            data,
-            transform=ccrs.PlateCarree(central_longitude=-180),
-            cmap="nipy_spectral",
-        )
-        ax.gridlines(
-            crs=ccrs.PlateCarree(),
-            draw_labels=True,
-            linewidth=2,
-            color="gray",
+        ax.plot(
+            self.tlon[-1, :],
+            self.tlat[-1, :],
+            color="r",
+            linewidth=0.9,
+            transform=ccrs.PlateCarree(),
             alpha=0.5,
-            linestyle="--",
         )
-        # ax.coastlines()
-        ax.set_global()
-        plt.show()
+        ax.plot(
+            self.tlon[0, :],
+            self.tlat[0, :],
+            color="r",
+            linewidth=0.9,
+            transform=ccrs.PlateCarree(),
+            alpha=0.5,
+        )
 
-    def plot_cross_section(self, property_name, iy=None, ix=None):
-        """
-        Plot the cross-section of a given grid metric.
+        # lines of constant i (along ny)
+        for i in range(0, self.nx, step):
+            ax.plot(
+                self.tlon[:, i],
+                self.tlat[:, i],
+                color="k",
+                linewidth=0.5,
+                transform=ccrs.PlateCarree(),
+                alpha=0.5,
+            )
+        ax.plot(
+            self.tlon[:, -1],
+            self.tlat[:, -1],
+            color="r",
+            linewidth=0.9,
+            transform=ccrs.PlateCarree(),
+            alpha=0.5,
+        )
+        ax.plot(
+            self.tlon[:, 0],
+            self.tlat[:, 0],
+            color="r",
+            linewidth=0.9,
+            transform=ccrs.PlateCarree(),
+            alpha=0.5,
+        )
 
-        Parameters
-        ----------
-        property_name : str
-            The name of the grid property to plot, e.g., 'tlat'.
-        iy: int
-            y-index of the cross section
-        ix: int
-            x-inted of the cross section
-        """
+        ax.coastlines()
+        ax.add_feature(cfeature.OCEAN, facecolor="lightblue", zorder=0, alpha=0.3)
+        x_extent = [self.tlon.min(), self.tlon.max()]
+        y_extent = [self.tlat.min(), self.tlat.max()]
 
-        import matplotlib.pyplot as plt
+        ax.set_extent(
+            [
+                x_extent[0] - 0.2 * self.lenx,
+                x_extent[1] + 0.2 * self.lenx,
+                y_extent[0] - 0.2 * self.leny,
+                y_extent[1] + 0.2 * self.leny,
+            ],
+            crs=ccrs.PlateCarree(),
+        )
 
-        assert (iy is None) or (ix is None), "Cannot provide both iy and ix"
-
-        if property_name not in self.__dict__:
-            print("ERROR: not a valid MOM6 grid property")
-            return
-
-        data = self.__dict__[property_name]
-
-        # determine staggering
-        if data.shape == self.tlon.shape:
-            lons, lats = self.tlon, self.tlat
-        elif data.shape == self.ulon.shape:
-            lons, lats = self.ulon, self.ulat
-        elif data.shape == self.vlon.shape:
-            lons, lats = self.vlon, self.vlat
-        elif data.shape == self.qlon.shape:
-            lons, lats = self.qlon, self.qlat
-        else:
-            print("ERROR: cannot determine property staggering")
-            return
-
-        data = self.__dict__[property_name]
-
-        fig, ax = plt.subplots()
-        if iy:
-            ax.set(xlabel="latitude", ylabel=property_name, title=property_name)
-            ax.plot(lats[:, iy], data[:, iy])
-        elif ix:
-            ax.set(xlabel="longitude", ylabel=property_name, title=property_name)
-            ax.plot(lons[ix, :], data[ix, :])
-        ax.grid()
-
-        fig.savefig("test.png")
-        plt.show()
+        gl = ax.gridlines(draw_labels=True, alpha=0)
+        gl.top_labels = False
+        gl.right_labels = False
+        if self.name != None:
+            ax.set_title(str(self.name).replace("_", " "))
+        ax.text(
+            x_extent[0] - 0.1 * self.lenx,
+            y_extent[0] - 0.1 * self.leny,
+            f"(Only displaying every {step} grid lines)",
+            transform=ccrs.PlateCarree(),
+        )
+        return fig
 
     def update_supergrid(self, xdat: np.array, ydat: np.array, grid_type=None) -> None:
         """
