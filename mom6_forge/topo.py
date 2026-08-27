@@ -2030,6 +2030,50 @@ class Topo:
             format="NETCDF3_64BIT",
         )
 
+    def _compute_ww3_mapsta(self):
+        """
+        Compute the WW3 mapsta status-code array for this grid.
+
+        Status codes follow WW3's convention: 0 = land, 1 = interior sea
+        point, 2 = active boundary point. Ocean cells on the grid perimeter
+        are flagged as active boundary points; ww3_grid promotes exactly
+        these points to boundary points via the "Input boundary points"
+        list in ww3_grid.inp (see write_ww3_input). A reentrant (cyclic-x)
+        edge has no physical boundary, so the east/west edges are only
+        flagged when the grid is not cyclic in x. Tripolar grids are
+        rejected outright (see assertion below): write_ww3_input's closure
+        logic has no 'TRPL' case, so the north/south edges are always
+        treated as physical boundaries here, which would be wrong for a
+        tripolar grid's pole fold.
+
+        Raises
+        ------
+        AssertionError
+            If the grid is tripolar.
+
+        Returns
+        -------
+        numpy.ndarray
+            (ny, nx) integer array of WW3 mapsta status codes.
+        """
+        assert not self._grid.is_tripolar(self._grid._supergrid), (
+            "write_ww3_input does not support tripolar grids: the pole fold "
+            "would be misidentified as an open boundary."
+        )
+
+        tmask = self.tmask.data  # (ny, nx), 1=ocean, 0=land
+        mapsta = tmask.astype(int).copy()
+
+        is_boundary = np.zeros_like(mapsta, dtype=bool)
+        is_boundary[0, :] = True
+        is_boundary[-1, :] = True
+        if not self._grid.supergrid.is_cyclic_x:
+            is_boundary[:, 0] = True
+            is_boundary[:, -1] = True
+
+        mapsta[is_boundary & (tmask == 1)] = 2
+        return mapsta
+
     def write_ww3_input(self, file_dir, grid_alias):
         """
         Write the text-based WW3 input files ww3_grid.inp, [grid_alias]_x.inp, [grid_alias]_y.inp,
@@ -2063,9 +2107,6 @@ class Topo:
 
         tlon = self._grid.tlon.data  # (ny, nx), degrees
         tlat = self._grid.tlat.data  # (ny, nx), degrees
-        # Define ocean cells from the land/sea mask so the depth and status files
-        # stay consistent even if the mask has been edited.
-        tmask = self.tmask.data  # (ny, nx), 1=ocean, 0=land
         depth_m = self.masked_depth.data
 
         x_file = f"{grid_alias}_x.inp"
@@ -2086,10 +2127,9 @@ class Topo:
         # ww3_tp2.5 (regtests/ww3_tp2.5/input/depth.361x361.IDLA1.dat).
         _write_rows(bottom_file, lambda j, i: f"{depth_m[j, i]:.8f}", sep=" ")
 
-        # --- map status file (1=ocean, 0=land) ---
-        # TODO: WW3 also supports mapsta codes 2 (active boundary), 3 (excluded),
-        # and negative values (ice). Extend when nested/boundary-forced runs are needed.
-        _write_rows(mapsta_file, lambda j, i: str(int(tmask[j, i])), sep=" ")
+        # --- map status file (0=land, 1=interior sea, 2=active boundary) ---
+        mapsta = self._compute_ww3_mapsta()
+        _write_rows(mapsta_file, lambda j, i: str(int(mapsta[j, i])), sep=" ")
 
         # --- Write ww3_grid.inp ---
         # Use IDLA=1 (bottom-to-top) and IDFM=1 (free format) to match the
@@ -2150,6 +2190,13 @@ class Topo:
             f.write(f"  22 1.0 0.0 1 1 '(....)' 'NAME' '{y_file}'\n")
             f.write(
                 f"  -0.1 {self._min_depth:.2f} 23 -1. 1 1 '(....)' 'NAME' '{bottom_file}'\n"
+            )
+            f.write(
+                "$ Input boundary points and excluded points -------------------------- $\n"
+                "$ The first line identifies where to get the map data, by unit number\n"
+                "$ IDLA and IDFM, format for formatted read, FROM and filename\n"
+                "$ if FROM = ’PART’, then segmented data is read from below, else\n"
+                "$ the data is read from file as with the other inputs (as INTEGER)\n"
             )
             f.write(f"  24 1 1 '(....)' 'NAME' '{mapsta_file}'\n")
             f.write(
