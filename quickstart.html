@@ -318,7 +318,7 @@ and bathymetry data. These files are to be read in by CESM and MOM6 during runti
 <p>The <code class="docutils literal notranslate"><span class="pre">write_supergrid</span></code> method of a <code class="docutils literal notranslate"><span class="pre">Grid</span></code> instance writes out the MOM6 supergrid file
 in netcdf format. The <code class="docutils literal notranslate"><span class="pre">GRID_FILE</span></code> parameter in <code class="docutils literal notranslate"><span class="pre">MOM_input</span></code> file can then be set to
 the path of the supergrid file written by the <code class="docutils literal notranslate"><span class="pre">Grid</span></code> instance.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">grid</span><span class="o">.</span><span class="n">write_supergrid</span><span class="p">(</span><span class="s2">&quot;my_ocean_hgrid.nc&quot;</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">grid</span><span class="o">.</span><span class="n">write_supergrid</span><span class="p">(</span><span class="s2">"my_ocean_hgrid.nc"</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>The supergrid file is the only input file that is written by the <cite>Grid</cite> class. All other
@@ -330,7 +330,7 @@ written by the <cite>Topo</cite> class.</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">write_topo</span></code> method of the <code class="docutils literal notranslate"><span class="pre">Topo</span></code> class writes out the MOM6 bathymetry file in netcdf format.
 <code class="docutils literal notranslate"><span class="pre">TOPO_FILE</span></code> parameter in <code class="docutils literal notranslate"><span class="pre">MOM_input</span></code> file can then be set to the path of the topography file
 written by the <code class="docutils literal notranslate"><span class="pre">Topo</span></code> instance.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">write_topo</span><span class="p">(</span><span class="s2">&quot;my_ocean_topog.nc&quot;</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">write_topo</span><span class="p">(</span><span class="s2">"my_ocean_topog.nc"</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>
@@ -339,7 +339,7 @@ written by the <code class="docutils literal notranslate"><span class="pre">Topo
 <p>If the model is to be run with the CICE component, the <code class="docutils literal notranslate"><span class="pre">write_cice_grid</span></code> method of the
 <code class="docutils literal notranslate"><span class="pre">Topo</span></code> class writes out the CICE grid file in netcdf format. The relevant CICE namelist
 parameters can then be updated to read in the CICE grid file written by the <code class="docutils literal notranslate"><span class="pre">Topo</span></code> instance.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">write_cice_grid</span><span class="p">(</span><span class="s2">&quot;my_cice_grid.nc&quot;</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">write_cice_grid</span><span class="p">(</span><span class="s2">"my_cice_grid.nc"</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>
@@ -349,7 +349,7 @@ parameters can then be updated to read in the CICE grid file written by the <cod
 ESMF mesh file is required when running CESM. The ESMF mesh file is used
 by the NUOPC coupler to acquire grid and mask information. The <code class="docutils literal notranslate"><span class="pre">write_esmf_mesh</span></code> method
 of the <code class="docutils literal notranslate"><span class="pre">Topo</span></code> class writes out the ESMF mesh file in netcdf format.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">write_esmf_mesh</span><span class="p">(</span><span class="s2">&quot;my_esmf_mesh.nc&quot;</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">write_esmf_mesh</span><span class="p">(</span><span class="s2">"my_esmf_mesh.nc"</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>

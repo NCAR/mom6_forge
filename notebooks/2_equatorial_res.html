@@ -193,7 +193,7 @@
 <span class="n">r_f_mapped</span> <span class="o">=</span> <span class="n">interp_func</span><span class="p">(</span><span class="n">grid</span><span class="o">.</span><span class="n">supergrid</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span><span class="mi">0</span><span class="p">])</span>
 <span class="n">r_f_mapped</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">r_f_mapped</span> <span class="o">&lt;</span> <span class="mf">1.0</span><span class="p">,</span> <span class="n">r_f_mapped</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">)</span>
 <span class="n">r_f_mapped</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">r_f_mapped</span> <span class="o">&gt;</span> <span class="n">f</span><span class="p">,</span> <span class="n">r_f_mapped</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
-<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">r_y</span><span class="p">,</span> <span class="n">r_f</span><span class="p">,</span> <span class="s1">&#39;o&#39;</span><span class="p">,</span> <span class="n">grid</span><span class="o">.</span><span class="n">supergrid</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span><span class="mi">0</span><span class="p">],</span> <span class="n">r_f_mapped</span><span class="p">,</span> <span class="s1">&#39;-&#39;</span><span class="p">);</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">r_y</span><span class="p">,</span> <span class="n">r_f</span><span class="p">,</span> <span class="s1">'o'</span><span class="p">,</span> <span class="n">grid</span><span class="o">.</span><span class="n">supergrid</span><span class="o">.</span><span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span><span class="mi">0</span><span class="p">],</span> <span class="n">r_f_mapped</span><span class="p">,</span> <span class="s1">'-'</span><span class="p">);</span>
 </pre></div>
 </div>
 </div>
@@ -332,19 +332,19 @@
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># MOM6 supergrid file:</span>
-<span class="n">grid</span><span class="o">.</span><span class="n">write_supergrid</span><span class="p">(</span><span class="s2">&quot;./ocean_hgrid_2.nc&quot;</span><span class="p">)</span>
+<span class="n">grid</span><span class="o">.</span><span class="n">write_supergrid</span><span class="p">(</span><span class="s2">"./ocean_hgrid_2.nc"</span><span class="p">)</span>
 
 <span class="c1"># MOM6 topography file:</span>
-<span class="n">topo</span><span class="o">.</span><span class="n">write_topo</span><span class="p">(</span><span class="s2">&quot;./ocean_topog_2.nc&quot;</span><span class="p">)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_topo</span><span class="p">(</span><span class="s2">"./ocean_topog_2.nc"</span><span class="p">)</span>
 
 <span class="c1"># CICE grid file:</span>
-<span class="n">topo</span><span class="o">.</span><span class="n">write_cice_grid</span><span class="p">(</span><span class="s2">&quot;./cice_grid_2.nc&quot;</span><span class="p">)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_cice_grid</span><span class="p">(</span><span class="s2">"./cice_grid_2.nc"</span><span class="p">)</span>
 
 <span class="c1"># SCRIP grid file (for runoff remapping, if needed):</span>
-<span class="n">topo</span><span class="o">.</span><span class="n">write_scrip_grid</span><span class="p">(</span><span class="s2">&quot;./scrip_grid_2.nc&quot;</span><span class="p">)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_scrip_grid</span><span class="p">(</span><span class="s2">"./scrip_grid_2.nc"</span><span class="p">)</span>
 
 <span class="c1"># ESMF mesh file:</span>
-<span class="n">topo</span><span class="o">.</span><span class="n">write_esmf_mesh</span><span class="p">(</span><span class="s2">&quot;./ESMF_mesh_2.nc&quot;</span><span class="p">)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_esmf_mesh</span><span class="p">(</span><span class="s2">"./ESMF_mesh_2.nc"</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>

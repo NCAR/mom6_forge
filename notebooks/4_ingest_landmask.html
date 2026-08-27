@@ -181,7 +181,7 @@
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">xarray</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">xr</span>
-<span class="n">ds_land</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">open_dataset</span><span class="p">(</span><span class="s2">&quot;/glade/work/altuntas/cesm.input/vcg/fill_indianocean.nc&quot;</span><span class="p">)</span>
+<span class="n">ds_land</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">open_dataset</span><span class="p">(</span><span class="s2">"/glade/work/altuntas/cesm.input/vcg/fill_indianocean.nc"</span><span class="p">)</span>
 <span class="n">ds_land</span><span class="o">.</span><span class="n">landfrac</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="mi">7</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -194,10 +194,10 @@
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">generate_mask_from_landfrac_file</span><span class="p">(</span>
-    <span class="n">landfrac_filepath</span> <span class="o">=</span> <span class="s2">&quot;/glade/work/altuntas/cesm.input/vcg/fill_indianocean.nc&quot;</span><span class="p">,</span>
-    <span class="n">landfrac_name</span> <span class="o">=</span> <span class="s2">&quot;landfrac&quot;</span><span class="p">,</span>
-    <span class="n">xcoord_name</span> <span class="o">=</span> <span class="s2">&quot;lon&quot;</span><span class="p">,</span>
-    <span class="n">ycoord_name</span> <span class="o">=</span> <span class="s2">&quot;lat&quot;</span>
+    <span class="n">landfrac_filepath</span> <span class="o">=</span> <span class="s2">"/glade/work/altuntas/cesm.input/vcg/fill_indianocean.nc"</span><span class="p">,</span>
+    <span class="n">landfrac_name</span> <span class="o">=</span> <span class="s2">"landfrac"</span><span class="p">,</span>
+    <span class="n">xcoord_name</span> <span class="o">=</span> <span class="s2">"lon"</span><span class="p">,</span>
+    <span class="n">ycoord_name</span> <span class="o">=</span> <span class="s2">"lat"</span>
 <span class="p">)</span>
 
 <span class="n">topo</span><span class="o">.</span><span class="n">tmask</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="mi">7</span><span class="p">)</span>
@@ -216,10 +216,10 @@
 
 <span class="c1"># re-apply land frac with a different cutoff</span>
 <span class="n">topo</span><span class="o">.</span><span class="n">generate_mask_from_landfrac_file</span><span class="p">(</span>
-    <span class="n">landfrac_filepath</span> <span class="o">=</span> <span class="s2">&quot;/glade/work/altuntas/cesm.input/vcg/fill_indianocean.nc&quot;</span><span class="p">,</span>
-    <span class="n">landfrac_name</span> <span class="o">=</span> <span class="s2">&quot;landfrac&quot;</span><span class="p">,</span>
-    <span class="n">xcoord_name</span> <span class="o">=</span> <span class="s2">&quot;lon&quot;</span><span class="p">,</span>
-    <span class="n">ycoord_name</span> <span class="o">=</span> <span class="s2">&quot;lat&quot;</span><span class="p">,</span>
+    <span class="n">landfrac_filepath</span> <span class="o">=</span> <span class="s2">"/glade/work/altuntas/cesm.input/vcg/fill_indianocean.nc"</span><span class="p">,</span>
+    <span class="n">landfrac_name</span> <span class="o">=</span> <span class="s2">"landfrac"</span><span class="p">,</span>
+    <span class="n">xcoord_name</span> <span class="o">=</span> <span class="s2">"lon"</span><span class="p">,</span>
+    <span class="n">ycoord_name</span> <span class="o">=</span> <span class="s2">"lat"</span><span class="p">,</span>
     <span class="n">cutoff_frac</span> <span class="o">=</span> <span class="mf">0.3</span> <span class="c1">### reduce the cutoff from 0.5 to 0.3</span>
 <span class="p">)</span>
 
@@ -236,19 +236,19 @@
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># MOM6 supergrid file:</span>
-<span class="n">grid</span><span class="o">.</span><span class="n">write_supergrid</span><span class="p">(</span><span class="s2">&quot;./ocean_hgrid_4.nc&quot;</span><span class="p">)</span>
+<span class="n">grid</span><span class="o">.</span><span class="n">write_supergrid</span><span class="p">(</span><span class="s2">"./ocean_hgrid_4.nc"</span><span class="p">)</span>
 
 <span class="c1"># MOM6 topography file:</span>
-<span class="n">topo</span><span class="o">.</span><span class="n">write_topo</span><span class="p">(</span><span class="s2">&quot;./ocean_topog_4.nc&quot;</span><span class="p">)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_topo</span><span class="p">(</span><span class="s2">"./ocean_topog_4.nc"</span><span class="p">)</span>
 
 <span class="c1"># CICE grid file:</span>
-<span class="n">topo</span><span class="o">.</span><span class="n">write_cice_grid</span><span class="p">(</span><span class="s2">&quot;./cice_grid_4.nc&quot;</span><span class="p">)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_cice_grid</span><span class="p">(</span><span class="s2">"./cice_grid_4.nc"</span><span class="p">)</span>
 
 <span class="c1"># SCRIP grid file (for runoff remapping, if needed):</span>
-<span class="n">topo</span><span class="o">.</span><span class="n">write_scrip_grid</span><span class="p">(</span><span class="s2">&quot;./scrip_grid_4.nc&quot;</span><span class="p">)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_scrip_grid</span><span class="p">(</span><span class="s2">"./scrip_grid_4.nc"</span><span class="p">)</span>
 
 <span class="c1"># ESMF mesh file:</span>
-<span class="n">topo</span><span class="o">.</span><span class="n">write_esmf_mesh</span><span class="p">(</span><span class="s2">&quot;./ESMF_mesh_4.nc&quot;</span><span class="p">)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_esmf_mesh</span><span class="p">(</span><span class="s2">"./ESMF_mesh_4.nc"</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>

@@ -111,8 +111,8 @@
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># CX: Coarsening factor</span>
 
-<span class="c1"># CX, grid_name = 15, &#39;tx10deg&#39;  # 10-degree resolution</span>
-<span class="n">CX</span><span class="p">,</span> <span class="n">grid_name</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span> <span class="s1">&#39;tx3deg&#39;</span>  <span class="c1"># 3-degree resolution</span>
+<span class="c1"># CX, grid_name = 15, 'tx10deg'  # 10-degree resolution</span>
+<span class="n">CX</span><span class="p">,</span> <span class="n">grid_name</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span> <span class="s1">'tx3deg'</span>  <span class="c1"># 3-degree resolution</span>
 </pre></div>
 </div>
 </div>
@@ -134,7 +134,7 @@
 <div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[3]:
 </pre></div>
 </div>
-<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">datestamp</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%Y%m</span><span class="si">%d</span><span class="s1">&#39;</span><span class="p">)</span>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">datestamp</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">'%Y%m</span><span class="si">%d</span><span class="s1">'</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
@@ -146,7 +146,7 @@
 <div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[4]:
 </pre></div>
 </div>
-<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">grid_orig</span> <span class="o">=</span> <span class="n">Grid</span><span class="o">.</span><span class="n">from_supergrid</span><span class="p">(</span><span class="s1">&#39;/glade/p/cesmdata/inputdata/ocn/mom/tx2_3v2/ocean_hgrid_221123.nc&#39;</span><span class="p">)</span>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">grid_orig</span> <span class="o">=</span> <span class="n">Grid</span><span class="o">.</span><span class="n">from_supergrid</span><span class="p">(</span><span class="s1">'/glade/p/cesmdata/inputdata/ocn/mom/tx2_3v2/ocean_hgrid_221123.nc'</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
@@ -157,7 +157,7 @@
 <div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[5]:
 </pre></div>
 </div>
-<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">topo_orig</span> <span class="o">=</span> <span class="n">Topo</span><span class="o">.</span><span class="n">from_topo_file</span><span class="p">(</span><span class="n">grid_orig</span><span class="p">,</span> <span class="s1">&#39;/glade/p/cesmdata/inputdata/ocn/mom/tx2_3v2/ocean_topo_tx2_3v2_240501.nc&#39;</span><span class="p">)</span>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">topo_orig</span> <span class="o">=</span> <span class="n">Topo</span><span class="o">.</span><span class="n">from_topo_file</span><span class="p">(</span><span class="n">grid_orig</span><span class="p">,</span> <span class="s1">'/glade/p/cesmdata/inputdata/ocn/mom/tx2_3v2/ocean_topo_tx2_3v2_240501.nc'</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
@@ -243,19 +243,19 @@
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># MOM6 supergrid file:</span>
-<span class="n">grid</span><span class="o">.</span><span class="n">write_supergrid</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;./ocean_hgrid_</span><span class="si">{</span><span class="n">grid_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">datestamp</span><span class="si">}</span><span class="s2">.nc&quot;</span><span class="p">)</span>
+<span class="n">grid</span><span class="o">.</span><span class="n">write_supergrid</span><span class="p">(</span><span class="sa">f</span><span class="s2">"./ocean_hgrid_</span><span class="si">{</span><span class="n">grid_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">datestamp</span><span class="si">}</span><span class="s2">.nc"</span><span class="p">)</span>
 
 <span class="c1"># MOM6 topography file:</span>
-<span class="n">topo</span><span class="o">.</span><span class="n">write_topo</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;./ocean_topog_</span><span class="si">{</span><span class="n">grid_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">datestamp</span><span class="si">}</span><span class="s2">.nc&quot;</span><span class="p">)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_topo</span><span class="p">(</span><span class="sa">f</span><span class="s2">"./ocean_topog_</span><span class="si">{</span><span class="n">grid_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">datestamp</span><span class="si">}</span><span class="s2">.nc"</span><span class="p">)</span>
 
 <span class="c1"># CICE grid file:</span>
-<span class="n">topo</span><span class="o">.</span><span class="n">write_cice_grid</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;./cice_grid_</span><span class="si">{</span><span class="n">grid_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">datestamp</span><span class="si">}</span><span class="s2">.nc&quot;</span><span class="p">)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_cice_grid</span><span class="p">(</span><span class="sa">f</span><span class="s2">"./cice_grid_</span><span class="si">{</span><span class="n">grid_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">datestamp</span><span class="si">}</span><span class="s2">.nc"</span><span class="p">)</span>
 
 <span class="c1"># SCRIP grid file (for runoff remapping, if needed):</span>
-<span class="n">topo</span><span class="o">.</span><span class="n">write_scrip_grid</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;./scrip_grid_</span><span class="si">{</span><span class="n">grid_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">datestamp</span><span class="si">}</span><span class="s2">.nc&quot;</span><span class="p">)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_scrip_grid</span><span class="p">(</span><span class="sa">f</span><span class="s2">"./scrip_grid_</span><span class="si">{</span><span class="n">grid_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">datestamp</span><span class="si">}</span><span class="s2">.nc"</span><span class="p">)</span>
 
 <span class="c1"># ESMF mesh file:</span>
-<span class="n">topo</span><span class="o">.</span><span class="n">write_esmf_mesh</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;./ESMF_mesh_</span><span class="si">{</span><span class="n">grid_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">datestamp</span><span class="si">}</span><span class="s2">.nc&quot;</span><span class="p">)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_esmf_mesh</span><span class="p">(</span><span class="sa">f</span><span class="s2">"./ESMF_mesh_</span><span class="si">{</span><span class="n">grid_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">datestamp</span><span class="si">}</span><span class="s2">.nc"</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
@@ -265,13 +265,13 @@
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Also coarsen chlorophyl and salt restoring input files:</span>
 
-<span class="n">chl_orig</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">open_dataset</span><span class="p">(</span><span class="s1">&#39;/glade/p/cesmdata/inputdata/ocn/mom/tx2_3v2/seawifs-clim-1997-2010-tx2_3v2.230416.nc&#39;</span><span class="p">)</span>
+<span class="n">chl_orig</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">open_dataset</span><span class="p">(</span><span class="s1">'/glade/p/cesmdata/inputdata/ocn/mom/tx2_3v2/seawifs-clim-1997-2010-tx2_3v2.230416.nc'</span><span class="p">)</span>
 <span class="n">chl</span> <span class="o">=</span> <span class="n">chl_orig</span><span class="o">.</span><span class="n">isel</span><span class="p">(</span><span class="n">LON</span><span class="o">=</span><span class="nb">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">CX</span><span class="p">),</span> <span class="n">LAT</span><span class="o">=</span><span class="nb">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">CX</span><span class="p">))</span>
-<span class="n">chl</span><span class="o">.</span><span class="n">to_netcdf</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;./seawifs-clim-1997-2010-</span><span class="si">{</span><span class="n">grid_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">datestamp</span><span class="si">}</span><span class="s2">.nc&quot;</span><span class="p">)</span>
+<span class="n">chl</span><span class="o">.</span><span class="n">to_netcdf</span><span class="p">(</span><span class="sa">f</span><span class="s2">"./seawifs-clim-1997-2010-</span><span class="si">{</span><span class="n">grid_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">datestamp</span><span class="si">}</span><span class="s2">.nc"</span><span class="p">)</span>
 
-<span class="n">salt_orig</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">open_dataset</span><span class="p">(</span><span class="s1">&#39;/glade/p/cesmdata/inputdata/ocn/mom/tx2_3v2/state_restore_tx2_3_20230416.nc&#39;</span><span class="p">)</span>
+<span class="n">salt_orig</span> <span class="o">=</span> <span class="n">xr</span><span class="o">.</span><span class="n">open_dataset</span><span class="p">(</span><span class="s1">'/glade/p/cesmdata/inputdata/ocn/mom/tx2_3v2/state_restore_tx2_3_20230416.nc'</span><span class="p">)</span>
 <span class="n">salt</span> <span class="o">=</span> <span class="n">salt_orig</span><span class="o">.</span><span class="n">isel</span><span class="p">(</span><span class="n">LON</span><span class="o">=</span><span class="nb">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">CX</span><span class="p">),</span> <span class="n">LAT</span><span class="o">=</span><span class="nb">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">CX</span><span class="p">))</span>
-<span class="n">salt</span><span class="o">.</span><span class="n">to_netcdf</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;./state_restore_</span><span class="si">{</span><span class="n">grid_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">datestamp</span><span class="si">}</span><span class="s2">.nc&quot;</span><span class="p">)</span>
+<span class="n">salt</span><span class="o">.</span><span class="n">to_netcdf</span><span class="p">(</span><span class="sa">f</span><span class="s2">"./state_restore_</span><span class="si">{</span><span class="n">grid_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">datestamp</span><span class="si">}</span><span class="s2">.nc"</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>

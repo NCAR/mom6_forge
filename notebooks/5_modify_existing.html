@@ -124,7 +124,7 @@
 <div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[2]:
 </pre></div>
 </div>
-<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">grid</span> <span class="o">=</span> <span class="n">Grid</span><span class="o">.</span><span class="n">from_supergrid</span><span class="p">(</span><span class="s1">&#39;/glade/p/cesmdata/inputdata/ocn/mom/tx2_3v2/ocean_hgrid_221123.nc&#39;</span><span class="p">)</span>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">grid</span> <span class="o">=</span> <span class="n">Grid</span><span class="o">.</span><span class="n">from_supergrid</span><span class="p">(</span><span class="s1">'/glade/p/cesmdata/inputdata/ocn/mom/tx2_3v2/ocean_hgrid_221123.nc'</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
@@ -135,7 +135,7 @@
 <div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[3]:
 </pre></div>
 </div>
-<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span> <span class="o">=</span> <span class="n">Topo</span><span class="o">.</span><span class="n">from_topo_file</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="s1">&#39;/glade/p/cesmdata/inputdata/ocn/mom/tx2_3v2/ocean_topog_230413.nc&#39;</span><span class="p">)</span>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span> <span class="o">=</span> <span class="n">Topo</span><span class="o">.</span><span class="n">from_topo_file</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="s1">'/glade/p/cesmdata/inputdata/ocn/mom/tx2_3v2/ocean_topog_230413.nc'</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
@@ -167,19 +167,19 @@
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># MOM6 supergrid file:</span>
-<span class="n">grid</span><span class="o">.</span><span class="n">write_supergrid</span><span class="p">(</span><span class="s2">&quot;./ocean_hgrid_t232_modified.nc&quot;</span><span class="p">)</span>
+<span class="n">grid</span><span class="o">.</span><span class="n">write_supergrid</span><span class="p">(</span><span class="s2">"./ocean_hgrid_t232_modified.nc"</span><span class="p">)</span>
 
 <span class="c1"># MOM6 topography file:</span>
-<span class="n">topo</span><span class="o">.</span><span class="n">write_topo</span><span class="p">(</span><span class="s2">&quot;./ocean_topog_t232_modified.nc&quot;</span><span class="p">)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_topo</span><span class="p">(</span><span class="s2">"./ocean_topog_t232_modified.nc"</span><span class="p">)</span>
 
 <span class="c1"># CICE grid file:</span>
-<span class="n">topo</span><span class="o">.</span><span class="n">write_cice_grid</span><span class="p">(</span><span class="s2">&quot;./cice_grid_t232_modified.nc&quot;</span><span class="p">)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_cice_grid</span><span class="p">(</span><span class="s2">"./cice_grid_t232_modified.nc"</span><span class="p">)</span>
 
 <span class="c1"># SCRIP grid file (for runoff remapping, if needed):</span>
-<span class="n">topo</span><span class="o">.</span><span class="n">write_scrip_grid</span><span class="p">(</span><span class="s2">&quot;./scrip_grid_t232_modified.nc&quot;</span><span class="p">)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_scrip_grid</span><span class="p">(</span><span class="s2">"./scrip_grid_t232_modified.nc"</span><span class="p">)</span>
 
 <span class="c1"># ESMF mesh file:</span>
-<span class="n">topo</span><span class="o">.</span><span class="n">write_esmf_mesh</span><span class="p">(</span><span class="s2">&quot;./ESMF_mesh_t232_modified.nc&quot;</span><span class="p">)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_esmf_mesh</span><span class="p">(</span><span class="s2">"./ESMF_mesh_t232_modified.nc"</span><span class="p">)</span>
 </pre></div>
 </div>
 </div>
