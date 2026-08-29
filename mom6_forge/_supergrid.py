@@ -637,6 +637,19 @@ class SupergridBase:
         )
         return pseudo_supergrid
 
+    def expand(self, n_cells=1) -> "SupergridBase":
+        """
+        Return a new supergrid padded by ``n_cells`` T-cells of linear
+        extrapolation on every side (a halo), by repeatedly applying
+        :func:`_create_expanded_supergrid` (each call pads by half a T-cell
+        per side) and rebuilding full grid metrics from the resulting x/y.
+        """
+        x, y = self.x, self.y
+        for _ in range(2 * n_cells):
+            padded = self._create_expanded_supergrid(x, y)
+            x, y = padded.x.values, padded.y.values
+        return SupergridBase._init_from_xy(x, y, grid_type=self.grid_type)
+
 
 class UniformSphericalSupergrid(SupergridBase):
     """MOM6-style supergrid with constant-degree spacing (lon/lat grid)."""
