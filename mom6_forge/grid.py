@@ -830,12 +830,14 @@ class Grid:
             dims=["ny", "nx"],
             attrs={"name": "angle q-grid makes with latitude line", "units": "degrees"},
         )
-        # T area
+        # T area: each T-cell spans a 2x2 block of supergrid cells, so its area
+        # is the sum of all four quadrants -- lower-left, lower-right, upper-left
+        # and upper-right.
         self.tarea = xr.DataArray(
             sg.area[::2, ::2]
-            + sg.area[1::2, 1::2]
             + sg.area[::2, 1::2]
-            + sg.area[::2, 1::2],
+            + sg.area[1::2, ::2]
+            + sg.area[1::2, 1::2],
             dims=["ny", "nx"],
             attrs={"name": "area of t-cells", "units": "meters^2"},
         )
