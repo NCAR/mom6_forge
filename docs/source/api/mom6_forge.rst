@@ -4,14 +4,6 @@ mom6\_forge package
 Submodules
 ----------
 
-mom6\_forge.chl module
-----------------------
-
-.. automodule:: mom6_forge.chl
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 mom6\_forge.command\_manager module
 -----------------------------------
 
