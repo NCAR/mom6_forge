@@ -1,6 +1,7 @@
 import xarray as xr
 import numpy as np
 import scipy.sparse as sp
+import pytest
 from pathlib import Path
 from mom6_forge.mapping import (
     compute_cressman_weights,
@@ -9,8 +10,10 @@ from mom6_forge.mapping import (
     regrid_dataset_via_cressman,
     _make_subgrid_points,
     regrid_with_subsampling,
+    write_mapping_file,
 )
 from mom6_forge._supergrid import haversine
+from mom6_forge.grid import Grid
 
 
 def make_synthetic_grids():
@@ -356,3 +359,46 @@ def test_regrid_with_subsampling_time_dim(get_simple_grid):
         assert np.allclose(
             ds["data"].values[t], expected_spatial
         ), f"Regridded data at t={t} does not match expected values."
+
+
+# ---------------------------------------------------------------------------
+# write_mapping_file mesh-shape lookup
+# ---------------------------------------------------------------------------
+
+
+def _write_esmf_mesh(grid, path):
+    grid.supergrid.to_esmf_mesh(str(path), mask="all_unmasked")
+    return path
+
+
+def test_write_mapping_file_uses_shape_lookup_not_full_reconstruction(
+    tmp_path, monkeypatch
+):
+    """write_mapping_file only ever needs each mesh's (nx, ny) shape - it must not
+    reconstruct full mesh geometry (Topo.from_esmf_mesh) just to get that shape."""
+    src_grid = Grid(
+        resolution=1.0, xstart=0.0, lenx=3.0, ystart=0.0, leny=2.0, name="src_shape"
+    )
+    dst_grid = Grid(
+        resolution=1.0, xstart=0.0, lenx=2.0, ystart=0.0, leny=2.0, name="dst_shape"
+    )
+    src_path = _write_esmf_mesh(src_grid, tmp_path / "src.nc")
+    dst_path = _write_esmf_mesh(dst_grid, tmp_path / "dst.nc")
+
+    def _boom(*args, **kwargs):
+        raise AssertionError("write_mapping_file must not call Topo.from_esmf_mesh")
+
+    monkeypatch.setattr("mom6_forge.topo.Topo.from_esmf_mesh", _boom)
+
+    weights_coo = sp.coo_matrix(([1.0, 1.0], ([0, 1], [0, 1])), shape=(4, 6))
+    out_path = tmp_path / "out.nc"
+    write_mapping_file(
+        src_mesh=str(src_path),
+        dst_mesh=str(dst_path),
+        filename=out_path,
+        weights_coo=weights_coo,
+    )
+
+    ds = xr.open_dataset(out_path)
+    assert list(ds["src_grid_dims"].values) == [3, 2]
+    assert list(ds["dst_grid_dims"].values) == [2, 2]

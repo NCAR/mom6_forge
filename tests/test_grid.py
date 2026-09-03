@@ -12,8 +12,35 @@ import xarray as xr
 import pytest
 from mom6_forge.grid import Grid
 from mom6_forge.topo import Topo
+from mom6_forge._supergrid import SupergridBase
 from utils import on_cisl_machine
 import os
+
+
+def _rotated_supergrid_grid(
+    rotation_deg, name="curv", nx=10, ny=10, d=0.1, center=10.0
+):
+    """Build a Grid whose supergrid is uniformly rotated, i.e. curvilinear."""
+    theta = np.deg2rad(rotation_deg)
+    nxp, nyp = 2 * nx + 1, 2 * ny + 1
+    I, J = np.meshgrid((np.arange(nxp) - nx) * d, (np.arange(nyp) - ny) * d)
+    x = center + I * np.cos(theta) - J * np.sin(theta)
+    y = center + I * np.sin(theta) + J * np.cos(theta)
+    sg = SupergridBase._init_from_xy(x, y)
+    return Grid.from_supergrid_ds(sg.to_ds(), name=name)
+
+
+def _sheared_supergrid_grid(
+    shear, name="sheared", nx=10, ny=10, d=0.1, x0=280.0, y0=10.0
+):
+    """Build a Grid where each column's longitude drifts by ``shear`` deg per
+    supergrid row, i.e. nearly- but not-quite rectangular."""
+    nxp, nyp = 2 * nx + 1, 2 * ny + 1
+    jj, ii = np.meshgrid(np.arange(nyp), np.arange(nxp), indexing="ij")
+    x = x0 + ii * d + jj * shear
+    y = y0 + jj * d
+    sg = SupergridBase._init_from_xy(x, y)
+    return Grid.from_supergrid_ds(sg.to_ds(), name=name)
 
 
 def test_is_tripolar():
@@ -213,7 +240,7 @@ if __name__ == "__main__":
 
 def test_get_rectangular_segment_info(get_rect_grid):
     grid = get_rect_grid
-    res = Grid.get_bounding_boxes_of_rectangular_grid(grid)
+    res = Grid.get_bounding_boxes(grid)
     assert "east" in res.keys()
     assert "west" in res.keys()
     assert "north" in res.keys()
@@ -266,6 +293,20 @@ def test_grid_get_indices(simple_2by2_grid):
 
 def test_grid_is_rectangular(simple_2by2_grid):
     assert simple_2by2_grid.is_rectangular()
+
+
+def test_grid_is_rectangular_false_for_curvilinear():
+    # A uniformly rotated (30 deg) supergrid is curvilinear, not lat-lon.
+    assert not _rotated_supergrid_grid(30.0).is_rectangular()
+
+
+def test_grid_is_rectangular_uses_absolute_tolerance():
+    # Each column's longitude drifts ~0.02 deg/row at lon~280. With a *relative*
+    # tolerance this drift would be swamped by the large longitude magnitude and
+    # the grid wrongly judged rectangular; an absolute tolerance catches it.
+    grid = _sheared_supergrid_grid(shear=0.02)
+    assert grid.is_rectangular(atol=1.0)  # loose absolute tol -> accepted
+    assert not grid.is_rectangular(atol=1e-3)  # tight absolute tol -> rejected
 
 
 def test_grid_slice(simple_2by2_grid):
@@ -335,3 +376,36 @@ def test_bench_grid_construction(benchmark):
         leny=10.0,
         name="bench",
     )
+
+
+# ---------------------------------------------------------------------------
+# Grid.from_esmf_mesh tests
+# ---------------------------------------------------------------------------
+
+
+def test_grid_from_esmf_mesh_non_cyclic(tmp_path, get_rect_grid):
+    mesh_path = str(tmp_path / "non_cyclic.nc")
+    get_rect_grid.supergrid.to_esmf_mesh(mesh_path, mask="all_unmasked")
+    grid2 = Grid.from_esmf_mesh(mesh_path)
+    assert isinstance(grid2, Grid)
+    assert grid2.nx == get_rect_grid.nx
+    assert grid2.ny == get_rect_grid.ny
+    assert not grid2.cyclic_x
+
+
+def test_grid_from_esmf_mesh_cyclic(tmp_path, get_simple_global_grid):
+    mesh_path = str(tmp_path / "cyclic.nc")
+    get_simple_global_grid.supergrid.to_esmf_mesh(mesh_path, mask="all_unmasked")
+    grid2 = Grid.from_esmf_mesh(mesh_path)
+    assert isinstance(grid2, Grid)
+    assert grid2.nx == get_simple_global_grid.nx
+    assert grid2.ny == get_simple_global_grid.ny
+    assert grid2.cyclic_x
+
+
+def test_grid_from_esmf_mesh_coords_preserved(tmp_path, get_rect_grid):
+    mesh_path = str(tmp_path / "coords.nc")
+    get_rect_grid.supergrid.to_esmf_mesh(mesh_path, mask="all_unmasked")
+    grid2 = Grid.from_esmf_mesh(mesh_path)
+    np.testing.assert_allclose(grid2.tlon.values, get_rect_grid.tlon.values, atol=1e-6)
+    np.testing.assert_allclose(grid2.tlat.values, get_rect_grid.tlat.values, atol=1e-6)
