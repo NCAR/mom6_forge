@@ -1054,6 +1054,61 @@ def get_smoothed_map_filepath(mapping_file_prefix, output_dir, rmax, fold):
     return nnsm_map_filepath
 
 
+def _check_runoff_conserved(weights, area_a, area_b, label, rtol=1e-9):
+    """Verify a mapping redistributes runoff without creating or losing any.
+
+    Every source cell generates runoff in proportion to its own area, so for
+    each source cell j the area-weighted total arriving in the ocean must equal
+    that area::
+
+        sum_i S[i, j] * area_b[i] == area_a[j]
+
+    which is one sparse matrix-vector product, ``weights.T @ area_b``. This
+    holds to ~1e-15 in practice for both the nearest-neighbor and the smoothed
+    map -- smoothing moves runoff around but must not change how much there is.
+
+    Source cells that map nowhere at all are reported but not treated as an
+    error: a mesh may legitimately contain cells with no reachable ocean
+    neighbor, and the weights alone cannot distinguish those from cells whose
+    runoff was dropped by mistake.
+
+    Parameters
+    ----------
+    weights : scipy.sparse matrix, shape (n_b, n_a)
+        Mapping weights, destination cells by source cells.
+    area_a, area_b : np.ndarray
+        Source and destination cell areas.
+
+    Raises
+    ------
+    ValueError
+        If a mapped source cell's runoff is not conserved to within `rtol`
+        (naming the worst offender), or if nothing is mapped at all.
+    """
+    received = np.asarray(weights.T.dot(area_b)).ravel()
+
+    active = received > 0
+    if not active.any():
+        raise ValueError(f"{label} map maps no runoff at all.")
+
+    err = np.abs(received[active] / area_a[active] - 1.0)
+    worst = float(err.max())
+    if worst > rtol:
+        cell = int(np.flatnonzero(active)[np.argmax(err)])
+        raise ValueError(
+            f"{label} map does not conserve runoff. Source cell {cell} has area "
+            f"{area_a[cell]:.6e} but {received[cell]:.6e} reaches the ocean "
+            f"(relative error {worst:.3e}, tolerance {rtol:.0e})."
+        )
+
+    unmapped = int(area_a.size - active.sum())
+    note = f", {unmapped:,} map nowhere" if unmapped else ""
+    print(
+        f"  Runoff conserved to {worst:.1e} across "
+        f"{int(active.sum()):,} source cells{note}."
+    )
+
+
 def gen_rof_maps(
     rof_mesh_path,
     ocn_mesh_path,
@@ -1115,6 +1170,19 @@ def gen_rof_maps(
     print(f"  Generated nearest mapping file in {(t1:=time()) - t0:.2f} seconds at:")
     print(f"  {nn_map_filepath}")
 
+    nn_map = xr.open_dataset(nn_map_filepath)
+    rof_nx, rof_ny = len(nn_map.ni_a), len(nn_map.nj_a)
+    ocn_nx, ocn_ny = len(nn_map.ni_b), len(nn_map.nj_b)
+    area_a = nn_map["area_a"].data
+    area_b = nn_map["area_b"].data
+
+    # Sparse form of the nearest-neighbor weights, reused below for smoothing.
+    S_coo = coo_matrix(
+        (nn_map.S.data, (nn_map.row.data - 1, nn_map.col.data - 1)),
+        shape=(ocn_nx * ocn_ny, rof_nx * rof_ny),
+    )
+    _check_runoff_conserved(S_coo, area_a, area_b, "nearest neighbor")
+
     # Compute and apply smoothing weights
     if rmax is not None:
 
@@ -1124,7 +1192,6 @@ def gen_rof_maps(
         )
         print(f"  rmax = {rmax} km, fold = {fold} km")
 
-        nn_map = xr.open_dataset(nn_map_filepath)
         avg_dst_res_km = get_avg_resolution_km(ocn_mesh_path)
         if rmax > avg_dst_res_km * 10:
             print(
@@ -1140,23 +1207,12 @@ def gen_rof_maps(
             mesh_ds=ocn_mesh, rmax=rmax, fold=fold, coastline_masking=True
         )
 
-        # mesh dimensions
-        rof_nx = len(nn_map.ni_a)
-        rof_ny = len(nn_map.nj_a)
-        ocn_nx = len(nn_map.ni_b)
-        ocn_ny = len(nn_map.nj_b)
-
-        # Create a COO matrix of the mapping weights
-        S_coo = coo_matrix(
-            (nn_map.S.data, (nn_map.row.data - 1, nn_map.col.data - 1)),
-            shape=(ocn_nx * ocn_ny, rof_nx * rof_ny),
-        )
-
         # Apply smoothing to the mapping weights:
         S_smooth = sw.dot(S_coo)
         assert isinstance(
             S_smooth, csr_matrix
         ), "S_smooth should be a csr_matrix after multiplication"
+        _check_runoff_conserved(S_smooth, area_a, area_b, "smoothed")
         S_smooth = S_smooth.tocoo()  # Convert to COO format again
 
         nnsm_map_filepath = get_smoothed_map_filepath(

@@ -521,3 +521,39 @@ def test_gen_rof_maps_end_to_end(tmp_path):
     )
     nn.close()
     sm.close()
+
+
+# ---------------------------------------------------------------------------
+# _check_runoff_conserved
+# ---------------------------------------------------------------------------
+
+
+def _toy_weights(scale=1.0, drop_last=False):
+    """A conserving (n_b, n_a) mapping; `scale` perturbs one source cell."""
+    area_a = np.array([2.0, 3.0, 5.0])
+    area_b = np.array([1.0, 1.0, 2.0, 4.0])
+    row = col = np.arange(3)  # each source cell -> one destination cell
+    S = area_a[col] / area_b[row]
+    S[0] *= scale
+    if drop_last:  # source cell 2 maps nowhere
+        row, col, S = row[:-1], col[:-1], S[:-1]
+    return sp.coo_matrix((S, (row, col)), shape=(4, 3)), area_a, area_b
+
+
+def test_check_runoff_conserved(capsys):
+    """Conserving maps pass, missing runoff and empty maps raise, and cells
+    that map nowhere are reported rather than treated as failures."""
+    mapping._check_runoff_conserved(*_toy_weights(), "toy")
+
+    with pytest.raises(ValueError, match="does not conserve runoff"):
+        mapping._check_runoff_conserved(*_toy_weights(scale=0.99), "toy")
+
+    _, area_a, area_b = _toy_weights()
+    with pytest.raises(ValueError, match="maps no runoff at all"):
+        mapping._check_runoff_conserved(sp.coo_matrix((4, 3)), area_a, area_b, "toy")
+
+    # Real meshes have unmapped cells -- glo -> tx0.1 drops two polar rows --
+    # so this must be visible without being fatal.
+    capsys.readouterr()
+    mapping._check_runoff_conserved(*_toy_weights(drop_last=True), "toy")
+    assert "1 map nowhere" in capsys.readouterr().out
