@@ -11,6 +11,8 @@ from scipy.spatial import cKDTree
 from scipy.sparse import csc_matrix, coo_matrix, csr_matrix
 import xesmf as xe
 import cf_xarray
+from collections import deque
+from math import sqrt as _sqrt
 
 MPI = None
 rank = lambda: MPI.COMM_WORLD.Get_rank() if MPI else 0
@@ -74,6 +76,29 @@ def grid_from_esmf_mesh(mesh: xr.Dataset | str | Path) -> "Grid":
     )
 
     return ds
+
+
+def flatten_to_mesh(field_2d):
+    """Flatten a 2D horizontal grid field back to a 1D ESMF mesh array.
+
+    This is the exact inverse of the reshape applied in func:`grid_from_esmf_mesh`:
+    both use row-major (C) order, so element indices are preserved.
+
+    Parameters
+    ----------
+    field_2d : np.ndarray or xr.DataArray
+        2D array with dimensions ``(nlat, nlon)`` representing any grid
+        quantity (mask, lon, lat, a custom field, etc.).
+
+    Returns
+    -------
+    field_1d : np.ndarray
+        1D array whose length equals ``nlat * nlon``, with values in the
+        same element ordering as the original ESMF mesh arrays.
+    """
+    if isinstance(field_2d, xr.DataArray):
+        field_2d = field_2d.data
+    return field_2d.reshape(-1, order="C")
 
 
 def extract_coastline_mask(horiz_grid):
@@ -173,25 +198,50 @@ def _construct_vertex_coords(mesh):
         The vertex coordinates in the y-direction.
     """
 
-    xv_data = np.full((len(mesh.centerCoords.data), 4), np.nan)
-    yv_data = np.full((len(mesh.centerCoords.data), 4), np.nan)
-
     element_conn = mesh.elementConn.data - 1  # one-based to zero-based indexing
     node_coords = mesh.nodeCoords.data
 
-    for e, nodes in enumerate(element_conn):
-        if np.isnan(nodes[3]):
-            valid_nodes = nodes[:3][~np.isnan(nodes[:3])].astype(int)
-            xv_data[e, :3] = node_coords[valid_nodes, 0]
-            xv_data[e, 3] = xv_data[e, 2]
-            yv_data[e, :3] = node_coords[valid_nodes, 1]
-            yv_data[e, 3] = yv_data[e, 2]
-        else:
-            valid_nodes = nodes.astype(int)
-            xv_data[e, :] = node_coords[valid_nodes, 0]
-            yv_data[e, :] = node_coords[valid_nodes, 1]
+    if np.issubdtype(element_conn.dtype, np.floating):
+        is_tri = np.isnan(element_conn[:, 3])
+    else:
+        is_tri = np.zeros(len(element_conn), dtype=bool)
+
+    conn = element_conn.copy()
+    conn[is_tri, 3] = conn[is_tri, 2]
+    conn = conn.astype(np.intp)
+
+    xv_data = node_coords[conn, 0]
+    yv_data = node_coords[conn, 1]
 
     return xv_data, yv_data
+
+
+# Cell areas, keyed by the mesh file they were computed from.
+# Only the areas are cached, not the vertex coordinates they derive from.
+# Those are eight times larger and, since _construct_vertex_coords is
+# vectorized, cheap to rebuild. Bounded to the two meshes in play.
+_CELL_AREA_CACHE = {}
+_CELL_AREA_CACHE_SIZE = 2
+
+
+def _cached_cell_areas(mesh, xv_data, yv_data):
+    """Return cell areas for a mesh, reusing a cached result when the same
+    mesh file has already been processed.
+
+    The returned array is shared with previous callers and must not be
+    modified. Only pass vertex coordinates derived from ``mesh`` itself.
+    """
+    source = mesh.encoding.get("source") if isinstance(mesh, xr.Dataset) else None
+    if source is not None and source in _CELL_AREA_CACHE:
+        return _CELL_AREA_CACHE[source]
+
+    areas = cell_area_rad(xv_data, yv_data)
+
+    if source is not None:
+        while len(_CELL_AREA_CACHE) >= _CELL_AREA_CACHE_SIZE:
+            _CELL_AREA_CACHE.pop(next(iter(_CELL_AREA_CACHE)))
+        _CELL_AREA_CACHE[source] = areas
+    return areas
 
 
 def write_mapping_file(
@@ -288,6 +338,7 @@ def write_mapping_file(
     )
 
     xv_a_data, yv_a_data = _construct_vertex_coords(src_mesh)
+    area_a_data = _cached_cell_areas(src_mesh, xv_a_data, yv_a_data)
 
     xv_a = xr.DataArray(
         xv_a_data,
@@ -316,7 +367,7 @@ def write_mapping_file(
     )
 
     area_a = xr.DataArray(
-        cell_area_rad(xv_a, yv_a),
+        area_a_data,
         dims=["n_a"],
         attrs={"long_name": "area of cell (input)", "units": "radians^2"},
     )
@@ -370,6 +421,7 @@ def write_mapping_file(
     )
 
     xv_b_data, yv_b_data = _construct_vertex_coords(dst_mesh)
+    area_b_data = _cached_cell_areas(dst_mesh, xv_b_data, yv_b_data)
 
     xv_b = xr.DataArray(
         xv_b_data,
@@ -398,7 +450,7 @@ def write_mapping_file(
     )
 
     area_b = xr.DataArray(
-        cell_area_rad(xv_b, yv_b),
+        area_b_data,
         dims=["n_b"],
         attrs={"long_name": "area of cell (output)", "units": "radians^2"},
     )
@@ -447,7 +499,11 @@ def write_mapping_file(
         row_data = weights_coo.row + 1
 
     if area_normalization:
-        w.data *= area_a.data[col_data - 1] / area_b.data[row_data - 1]
+        area_scale = area_a.data[col_data - 1] / area_b.data[row_data - 1]
+        if hasattr(w, "data"):
+            w.data *= area_scale
+        else:
+            w *= area_scale
 
     S = xr.DataArray(
         w.data,
@@ -523,7 +579,7 @@ def write_mapping_file(
 
     ds.to_netcdf(
         filename,
-        format="NETCDF3_64BIT",
+        format="NETCDF4_CLASSIC",
         encoding={var: {"_FillValue": None} for var in ds.data_vars},
     )
 
@@ -535,6 +591,7 @@ def generate_ESMF_map_via_xesmf(
     method,
     area_normalization=False,
     map_overlap=True,
+    coastline_masking=False,
 ):
     """Generate an ESMF mapping file using xesmf.
 
@@ -553,10 +610,19 @@ def generate_ESMF_map_via_xesmf(
     map_overlap : bool
         If True, only map the overlapping area between the source and destination meshes, i.e.,
         zero out the mask in the source mesh that falls outside the rectangle defined by the destination mesh.
+    coastline_masking : bool
+        If True, apply coastline masking to the destination mesh.
     """
 
     src_grid = grid_from_esmf_mesh(src_mesh_path)
     dst_grid = grid_from_esmf_mesh(dst_mesh_path)
+
+    # update the mask to cover only the coastline area for better nearest neighbor mapping results:
+    if coastline_masking:
+        coastline_mask = extract_coastline_mask(dst_grid)
+        dst_grid["mask"].data = np.where(
+            coastline_mask.data == 1, dst_grid["mask"].data, 0
+        )
 
     # from dst mesh, find the lower left corner and upper right corner
     # then, in the src mesh, zero out the mask falling outside of this rectangle
@@ -709,7 +775,9 @@ def generate_ESMF_map_via_esmpy(
     )
 
 
-def compute_smoothing_weights(mesh_ds, rmax, fold=1.0, xv_data=None, yv_data=None):
+def compute_smoothing_weights(
+    mesh_ds, rmax, fold=1.0, xv_data=None, yv_data=None, coastline_masking=False
+):
     """Compute smoothing weights for a given mesh dataset, using a radius in kilometers.
 
     Parameters
@@ -724,21 +792,30 @@ def compute_smoothing_weights(mesh_ds, rmax, fold=1.0, xv_data=None, yv_data=Non
         The x-coordinates of the vertices. If not provided, they will be computed from the mesh dataset.
     yv_data : np.ndarray, optional
         The y-coordinates of the vertices. If not provided, they will be computed from the mesh dataset.
+    coastline_masking : bool, optional
+        If True, apply smoothing only to the cells adjacent to the coastline.
 
     Returns
     -------
-    weights : scipy.sparse.coo_matrix
-        The computed smoothing weights in coordinate (COO) format.
+    weights : scipy.sparse.csr_matrix
+        The computed smoothing weights in compressed sparse row (CSR) format.
     """
 
     if not isinstance(mesh_ds, xr.Dataset):
         raise ValueError("mesh_ds must be an xarray Dataset.")
+    if rmax <= 0:
+        raise ValueError("rmax must be > 0 km.")
+    if fold <= 0:
+        raise ValueError("fold must be > 0 km.")
 
     # Extract coordinates and mask
     coords = mesh_ds["centerCoords"].values
     if xv_data is None or yv_data is None:
         xv_data, yv_data = _construct_vertex_coords(mesh_ds)
-    areas = cell_area_rad(xv_data, yv_data)
+        areas = _cached_cell_areas(mesh_ds, xv_data, yv_data)
+    else:
+        # Caller-supplied vertices may not match the mesh file; don't cache.
+        areas = cell_area_rad(xv_data, yv_data)
     mask = mesh_ds["elementMask"].values
     mask_bool = mask != 0
 
@@ -755,31 +832,175 @@ def compute_smoothing_weights(mesh_ds, rmax, fold=1.0, xv_data=None, yv_data=Non
     z = R_earth * np.sin(lat)
     xyz = np.stack([x, y, z], axis=1)
 
-    # Build KDTree in 3D Cartesian space
-    tree = cKDTree(xyz)
-    indices = tree.query_ball_tree(tree, rmax)
-
     row_indices, col_indices, data = [], [], []
 
-    for i, neighbors in enumerate(indices):
-        if not mask_bool[i]:
+    grid = grid_from_esmf_mesh(mesh_ds)
+    coastline_mask_bool = None
+    if coastline_masking:
+        coastline_mask = extract_coastline_mask(grid)
+        coastline_mask_bool = flatten_to_mesh(coastline_mask == 1).astype(bool)
+
+    dst_is_cyclic_x = is_mesh_cyclic_x(mesh_ds)
+    nx = grid.sizes["nlon"]
+
+    # index of the cell to the left of cell i:
+    left = np.arange(len(coords)) - 1
+    row_starts = np.arange(0, len(coords), nx)
+    if dst_is_cyclic_x:
+        left[row_starts] = row_starts + nx - 1  # wrap within each row
+    else:
+        left[row_starts] = -1  # mark out-of-bounds at row boundaries
+
+    # index of the cell to the right of cell i:
+    right = np.arange(len(coords)) + 1
+    row_ends = np.arange(nx - 1, len(coords), nx)
+    if dst_is_cyclic_x:
+        right[row_ends] = row_ends - nx + 1  # wrap within each row
+    else:
+        right[row_ends] = -1  # mark out-of-bounds at row boundaries
+
+    # index of the cell above cell i:
+    top = np.arange(len(coords)) - nx
+    top[top < 0] = -1  # mark out-of-bounds indices with -1
+
+    # index of the cell below cell i:
+    bottom = np.arange(len(coords)) + nx
+    bottom[bottom >= len(coords)] = -1  # mark out-of-bounds indices with -1
+
+    # Diagonal neighbors (composed from cardinal neighbors)
+    n_cells = len(coords)
+    top_left = np.full(n_cells, -1, dtype=np.int64)
+    top_right = np.full(n_cells, -1, dtype=np.int64)
+    bot_left = np.full(n_cells, -1, dtype=np.int64)
+    bot_right = np.full(n_cells, -1, dtype=np.int64)
+    has_top = top != -1
+    has_bot = bottom != -1
+    top_left[has_top] = left[top[has_top]]
+    top_right[has_top] = right[top[has_top]]
+    bot_left[has_bot] = left[bottom[has_bot]]
+    bot_right[has_bot] = right[bottom[has_bot]]
+
+    # Precompute CSR adjacency structure (8-connectivity).
+    # Equivalent to appending each cell's non-(-1) neighbors in the order
+    # (left, right, top, bottom, top_left, top_right, bot_left, bot_right),
+    # but built with numpy rather than a per-cell Python loop.
+    all_neighbors = np.stack(
+        [left, right, top, bottom, top_left, top_right, bot_left, bot_right],
+        axis=1,
+    )
+    valid = all_neighbors != -1
+    adj_offset = np.zeros(n_cells + 1, dtype=np.int64)
+    adj_offset[1:] = np.cumsum(valid.sum(axis=1))
+    adj_flat = all_neighbors[valid].astype(np.int64)
+
+    # Convert inner-loop arrays to Python lists for fast scalar access
+    # (avoids numpy scalar overhead on indexing, hashing, and comparison)
+    xyz_x = xyz[:, 0].tolist()
+    xyz_y = xyz[:, 1].tolist()
+    xyz_z = xyz[:, 2].tolist()
+    adj_flat = adj_flat.tolist()
+    adj_offset = adj_offset.tolist()
+    mask_list = mask_bool.tolist()
+
+    two_R = 2 * R_earth
+    sqrt = _sqrt
+
+    # Precompute chord-distance threshold for crow's-fly BFS cutoff
+    chord_rmax_sq = (two_R * np.sin(rmax / two_R)) ** 2
+
+    # Progress reporting
+    n_active = int(np.sum(mask_bool))
+    progress_interval = max(n_active // 10, 1)
+    cells_processed = 0
+
+    for i in range(n_cells):
+
+        if not mask_list[i]:
             continue
-        neighbors = np.array(neighbors)
-        neighbors = neighbors[mask_bool[neighbors]]
-        row_indices.extend([i] * len(neighbors))
-        col_indices.extend(neighbors)
-        # Compute great-circle distances in km
-        d_xyz = xyz[i] - xyz[neighbors]
-        # Chord length
-        chord = np.linalg.norm(d_xyz, axis=1)
-        # Convert chord length to arc length (distance on sphere)
-        arc = 2 * R_earth * np.arcsin(np.clip(chord / (2 * R_earth), 0, 1))
+
+        if coastline_masking:
+            # Only apply smoothing to cells adjacent to the coastline
+            if not coastline_mask_bool[i]:
+                row_indices.append(i)
+                col_indices.append(i)
+                data.append(1.0)
+                cells_processed += 1
+                if cells_processed % progress_interval == 0:
+                    print(
+                        f"  smoothing weights: {100 * cells_processed // n_active}% ({cells_processed}/{n_active} cells)"
+                    )
+                continue
+
+        # Cache origin xyz for crow's-fly distance checks
+        xi = xyz_x[i]
+        yi = xyz_y[i]
+        zi = xyz_z[i]
+
+        # BFS with crow's-fly cutoff (circular region) and chord path distance for weights.
+        # For adjacent grid cells, chord ≈ arc distance (error < 0.03% per hop at 1° resolution).
+        # q entries: (cell_index, cumulative_chord_path_distance)
+        q = deque([(i, 0.0)])
+        discovered = {i: 0.0}  # cell -> shortest chord path distance from origin
+        nbr_indices = [i]
+        nbr_path_dist = [0.0]
+        while q:
+            current, current_dist = q.popleft()
+
+            # Iterate over precomputed adjacency (8-connectivity)
+            start = adj_offset[current]
+            end = adj_offset[current + 1]
+            cx = xyz_x[current]
+            cy = xyz_y[current]
+            cz = xyz_z[current]
+            for j in range(start, end):
+                neighbor = adj_flat[j]
+                if neighbor not in discovered and mask_list[neighbor]:
+                    nx_ = xyz_x[neighbor]
+                    ny_ = xyz_y[neighbor]
+                    nz_ = xyz_z[neighbor]
+                    # Crow's-fly distance from origin for BFS cutoff (circular)
+                    dx = xi - nx_
+                    dy = yi - ny_
+                    dz = zi - nz_
+                    if dx * dx + dy * dy + dz * dz <= chord_rmax_sq:
+                        # One-hop chord distance (≈ arc for adjacent cells)
+                        hx = cx - nx_
+                        hy = cy - ny_
+                        hz = cz - nz_
+                        path_dist = current_dist + sqrt(hx * hx + hy * hy + hz * hz)
+                        discovered[neighbor] = path_dist
+                        q.append((neighbor, path_dist))
+                        nbr_indices.append(neighbor)
+                        nbr_path_dist.append(path_dist)
+
+        if len(nbr_indices) == 0:
+            row_indices.append(i)
+            col_indices.append(i)
+            data.append(1.0)
+            cells_processed += 1
+            if cells_processed % progress_interval == 0:
+                print(
+                    f"  smoothing weights: {100 * cells_processed // n_active}% ({cells_processed}/{n_active} cells)"
+                )
+            continue
+
+        # Compute weights from path distances (topology-aware)
+        neighbor_idx = np.array(nbr_indices, dtype=np.int64)
+        arc = np.array(nbr_path_dist)
         weights_data = np.exp(-arc / fold)
-        # Normalize by area
-        weights_data /= np.sum(weights_data * (areas[neighbors] / areas[i]))
+        weights_data /= np.sum(weights_data * (areas[neighbor_idx] / areas[i]))
+
+        row_indices.extend(neighbor_idx)
+        col_indices.extend([i] * len(nbr_indices))
         data.extend(weights_data)
 
-    weights = coo_matrix(
+        cells_processed += 1
+        if cells_processed % progress_interval == 0:
+            print(
+                f"  smoothing weights: {100 * cells_processed // n_active}% ({cells_processed}/{n_active} cells)"
+            )
+
+    weights = csr_matrix(
         (data, (row_indices, col_indices)), shape=(len(coords), len(coords))
     )
     return weights
@@ -834,7 +1055,12 @@ def get_smoothed_map_filepath(mapping_file_prefix, output_dir, rmax, fold):
 
 
 def gen_rof_maps(
-    rof_mesh_path, ocn_mesh_path, output_dir, mapping_file_prefix, rmax=None, fold=None
+    rof_mesh_path,
+    ocn_mesh_path,
+    output_dir,
+    mapping_file_prefix,
+    rmax=None,
+    fold=None,
 ):
     """Generate (1) nearest neighbor and (2) smoothed nearest neighbor mapping files
     from a runoff mesh to an ocean mesh.
@@ -883,6 +1109,7 @@ def gen_rof_maps(
         mapping_file=nn_map_filepath,
         method="nearest_d2s",
         area_normalization=True,
+        coastline_masking=True,
     )
 
     print(f"  Generated nearest mapping file in {(t1:=time()) - t0:.2f} seconds at:")
@@ -910,9 +1137,7 @@ def gen_rof_maps(
         ocn_mesh = xr.open_dataset(ocn_mesh_path)
 
         sw = compute_smoothing_weights(
-            mesh_ds=ocn_mesh,
-            rmax=rmax,
-            fold=fold,
+            mesh_ds=ocn_mesh, rmax=rmax, fold=fold, coastline_masking=True
         )
 
         # mesh dimensions
@@ -927,11 +1152,11 @@ def gen_rof_maps(
             shape=(ocn_nx * ocn_ny, rof_nx * rof_ny),
         )
 
-        # Apply smoothing by multiplying (transpose of) S_coo and smoothing weights (and taking transpose again):
-        S_smooth = S_coo.transpose().dot(sw).transpose()
+        # Apply smoothing to the mapping weights:
+        S_smooth = sw.dot(S_coo)
         assert isinstance(
-            S_smooth, csc_matrix
-        ), "S_smooth should be a csc_matrix after multiplication"
+            S_smooth, csr_matrix
+        ), "S_smooth should be a csr_matrix after multiplication"
         S_smooth = S_smooth.tocoo()  # Convert to COO format again
 
         nnsm_map_filepath = get_smoothed_map_filepath(

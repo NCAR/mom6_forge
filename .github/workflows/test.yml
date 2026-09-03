@@ -32,6 +32,18 @@ jobs:
         run: |
           git config --global user.email "runner@example.com"
           git config --global user.name "CI Runner"
+
+      # CESM input data (ESMF meshes) used by the mapping integration tests.
+      # ~28 MB, fetched once and reused; the key changes only when the file
+      # manifest in tests/utils.py does.
+      - name: Cache CESM input data
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mom6_forge/inputdata
+          key: cesm-inputdata-${{ hashFiles('tests/utils.py') }}
+          restore-keys: |
+            cesm-inputdata-
+
       - name: Run pytest
         shell: bash -l {0}
         run: |
