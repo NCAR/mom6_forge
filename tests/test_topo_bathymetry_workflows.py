@@ -148,6 +148,48 @@ def test_set_depth_from_stats(get_rect_topo_without_vc, synthetic_bathy_file):
     ).all()
 
 
+# ---------------------------------------------------------------------------
+# Benchmarks — run with: pytest tests/ --benchmark-only
+# Normal CI passes --benchmark-disable so these are zero-overhead no-ops.
+# ---------------------------------------------------------------------------
+
+
+def test_bench_set_from_dataset(benchmark, tmp_path):
+    """Regression gate: set_from_dataset on a synthetic grid.
+
+    Uses pedantic mode with per-round setup so stats caching never inflates
+    subsequent rounds.
+    """
+    import numpy as np
+    import xarray as xr
+
+    bathy_path = str(tmp_path / "bench_bathy.nc")
+    lon = np.linspace(169.5, 173.5, 17)
+    lat = np.linspace(-3.5, 0.5, 17)
+    xr.Dataset(
+        {"elevation": (["lat", "lon"], np.full((17, 17), -1000.0))},
+        coords={"lon": lon, "lat": lat},
+    ).to_netcdf(bathy_path)
+
+    def setup():
+        grid = Grid(
+            resolution=1.0, xstart=170.0, lenx=3.0, ystart=-3.0, leny=3.0, name="bench"
+        )
+        topo = Topo(grid, min_depth=10, git=False)
+        topo.set_flat(1000)
+        return (topo,), {}
+
+    def run(topo):
+        topo.set_from_dataset(
+            bathymetry_path=bathy_path,
+            longitude_coordinate_name="lon",
+            latitude_coordinate_name="lat",
+            vertical_coordinate_name="elevation",
+        )
+
+    benchmark.pedantic(run, setup=setup, rounds=5, warmup_rounds=1)
+
+
 def test_diagnose_resolution_below_threshold(
     get_rect_topo_without_vc, synthetic_bathy_file
 ):

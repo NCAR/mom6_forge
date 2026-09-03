@@ -1,0 +1,75 @@
+name: Benchmarks
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Micromamba
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: environment.yml
+          cache-environment: true
+          cache-downloads: true
+          micromamba-version: "latest"
+          create-args: python=3.11
+
+      - name: Set git identity
+        run: |
+          git config --global user.email "runner@example.com"
+          git config --global user.name "CI Runner"
+
+      - name: Run benchmarks
+        shell: bash -l {0}
+        run: |
+          pytest tests/ --benchmark-only \
+            --benchmark-json=benchmark_results.json \
+            --benchmark-min-rounds=3 \
+            --benchmark-warmup=on \
+            -v
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ github.sha }}
+          path: benchmark_results.json
+
+      - name: Check for regressions
+        shell: bash -l {0}
+        run: |
+          python - <<'EOF'
+          import json, sys
+
+          current = json.load(open("benchmark_results.json"))
+          baseline = json.load(open("tests/benchmark_baseline.json"))
+
+          if not baseline.get("benchmarks"):
+              print("Baseline is empty — skipping regression check. Run locally and commit tests/benchmark_baseline.json.")
+              sys.exit(0)
+
+          THRESHOLD = 1.10
+          by_name = {b["name"]: b["stats"]["mean"] for b in baseline["benchmarks"]}
+          regressions = []
+
+          for b in current["benchmarks"]:
+              name = b["name"]
+              if name not in by_name:
+                  continue
+              ratio = b["stats"]["mean"] / by_name[name]
+              if ratio > THRESHOLD:
+                  regressions.append((name, by_name[name], b["stats"]["mean"], ratio))
+
+          if regressions:
+              print("REGRESSIONS (>30% slower than baseline):")
+              for name, base, curr, ratio in regressions:
+                  print(f"  {name}: {base*1000:.1f}ms -> {curr*1000:.1f}ms ({ratio:.0%})")
+              sys.exit(1)
+
+          print("No regressions detected.")
+          EOF

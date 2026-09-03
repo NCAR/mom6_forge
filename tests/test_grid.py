@@ -360,6 +360,25 @@ def test_grid_from_center():
 
 
 # ---------------------------------------------------------------------------
+# Benchmarks — run with: pytest tests/ --benchmark-only
+# Normal CI passes --benchmark-disable so these are zero-overhead no-ops.
+# ---------------------------------------------------------------------------
+
+
+def test_bench_grid_construction(benchmark):
+    """Regression gate: supergrid construction for a 40×40 cell regional domain."""
+    benchmark(
+        Grid,
+        resolution=0.25,
+        xstart=0.0,
+        lenx=10.0,
+        ystart=0.0,
+        leny=10.0,
+        name="bench",
+    )
+
+
+# ---------------------------------------------------------------------------
 # Grid.from_esmf_mesh tests
 # ---------------------------------------------------------------------------
 
