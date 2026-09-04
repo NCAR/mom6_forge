@@ -1,3 +1,4 @@
+import pytest
 import xarray as xr
 import numpy as np
 import scipy.sparse as sp
@@ -117,6 +118,7 @@ def test_compute_cressman_weights_correctness():
     ), f"Weights not monotonically decreasing with distance:\n  distances={sorted_distances}\n  weights={sorted_weights}"
 
 
+@pytest.mark.slow
 def test_regrid_dataset_via_cressman_smoke(tmp_path):
     src_ds, dst_ds = make_synthetic_grids()
 
@@ -285,6 +287,7 @@ def test_smoke_seams_and_global_make_subgrid_points(
     )
 
 
+@pytest.mark.slow
 def test_regrid_with_subsampling(get_simple_grid):
     # Test with a simple 2x2 grid and 2 sub-points per cell with data that lands exactly on the sub points (subtracted by 0.1 to show snapping to sub points)
     nx_sub = ny_sub = 2
@@ -320,6 +323,7 @@ def test_regrid_with_subsampling(get_simple_grid):
     ), "Regridded data does not match expected values."
 
 
+@pytest.mark.slow
 def test_regrid_with_subsampling_time_dim(get_simple_grid):
     nx_sub = ny_sub = 2
     grid = get_simple_grid

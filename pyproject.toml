@@ -4,7 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
 markers = [
+    "slow: tests that are slow due to heavy imports (e.g. xesmf/ESMF) — excluded from CI by default",
     "benchmark: performance/regression tests requiring GLADE data (opt-in, run with -m benchmark)",
 ]
+addopts = "-m 'not slow'"
 testpaths = ["tests"]
 pythonpath = ["tests"]
