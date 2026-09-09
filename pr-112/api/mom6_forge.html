@@ -200,6 +200,8 @@ arrays to define the spatial grid and includes a fixed climatological time axis.
 <li><p><strong>output_path</strong> (<em>str</em><em> or </em><em>Path</em>) – Path to save the output NetCDF file.</p></li>
 <li><p><strong>lon</strong> (<em>array-like</em>) – 1D array of longitude values (in degrees east) defining the spatial X-axis.</p></li>
 <li><p><strong>lat</strong> (<em>array-like</em>) – 1D array of latitude values (in degrees north) defining the spatial Y-axis.</p></li>
+<li><p><strong>fill_value</strong> (<em>float</em><em>, </em><em>optional</em>) – Placeholder value CHL_A is initialized with, and the value written as its
+<code class="docutils literal notranslate"><span class="pre">missing_value</span></code> attribute. Default is -1e34.</p></li>
 <li><p><strong>calendar</strong> (<em>str</em><em>, </em><em>optional</em>) – Calendar the TIME axis is built for, case-insensitive. One of “noleap”,
 “no_leap”, “365_day”, “365_days”, “gregorian” or “standard”; anything
 else raises <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code>. Default is “noleap”.</p></li>
@@ -214,7 +216,7 @@ else raises <code class="docutils literal notranslate"><span class="pre">NotImpl
 </dl>
 <p class="rubric">Notes</p>
 <ul class="simple">
-<li><p>The CHL_A variable is filled with the placeholder value -1e34.</p></li>
+<li><p>The CHL_A variable is filled entirely with <code class="docutils literal notranslate"><span class="pre">fill_value</span></code>.</p></li>
 <li><p>The TIME dimension is fixed and marked as unlimited in the NetCDF file.</p></li>
 <li><p>TIME values are the midpoint of each month in a climatological year of the
 requested calendar, so the axis and the calendar attribute agree.</p></li>
