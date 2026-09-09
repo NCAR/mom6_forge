@@ -97,6 +97,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.mapping.compute_smoothing_weights"><code class="docutils literal notranslate"><span class="pre">compute_smoothing_weights()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.mapping.dst_to_source"><code class="docutils literal notranslate"><span class="pre">dst_to_source()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.mapping.extract_coastline_mask"><code class="docutils literal notranslate"><span class="pre">extract_coastline_mask()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.mapping.flatten_to_mesh"><code class="docutils literal notranslate"><span class="pre">flatten_to_mesh()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.mapping.gen_rof_maps"><code class="docutils literal notranslate"><span class="pre">gen_rof_maps()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.mapping.generate_ESMF_map_via_esmpy"><code class="docutils literal notranslate"><span class="pre">generate_ESMF_map_via_esmpy()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.mapping.generate_ESMF_map_via_xesmf"><code class="docutils literal notranslate"><span class="pre">generate_ESMF_map_via_xesmf()</span></code></a></li>
@@ -1339,7 +1340,7 @@ source ocean point within <code class="docutils literal notranslate"><span class
 
 <dl class="py function">
 <dt class="sig sig-object py" id="mom6_forge.mapping.compute_smoothing_weights">
-<span class="sig-prename descclassname"><span class="pre">mom6_forge.mapping.</span></span><span class="sig-name descname"><span class="pre">compute_smoothing_weights</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mesh_ds</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xv_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">yv_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.mapping.compute_smoothing_weights" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">mom6_forge.mapping.</span></span><span class="sig-name descname"><span class="pre">compute_smoothing_weights</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mesh_ds</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rmax</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xv_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">yv_data</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coastline_masking</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.mapping.compute_smoothing_weights" title="Link to this definition"></a></dt>
 <dd><p>Compute smoothing weights for a given mesh dataset, using a radius in kilometers.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1349,13 +1350,14 @@ source ocean point within <code class="docutils literal notranslate"><span class
 <li><p><strong>fold</strong> (<em>float</em>) – Fold factor (km) determining the strength of smoothing based on distance.</p></li>
 <li><p><strong>xv_data</strong> (<em>np.ndarray</em><em>, </em><em>optional</em>) – The x-coordinates of the vertices. If not provided, they will be computed from the mesh dataset.</p></li>
 <li><p><strong>yv_data</strong> (<em>np.ndarray</em><em>, </em><em>optional</em>) – The y-coordinates of the vertices. If not provided, they will be computed from the mesh dataset.</p></li>
+<li><p><strong>coastline_masking</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, apply smoothing only to the cells adjacent to the coastline.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>weights</strong> – The computed smoothing weights in coordinate (COO) format.</p>
+<dd class="field-even"><p><strong>weights</strong> – The computed smoothing weights in compressed sparse row (CSR) format.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>scipy.sparse.coo_matrix</p>
+<dd class="field-odd"><p>scipy.sparse.csr_matrix</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1388,6 +1390,27 @@ This dataset may be obtained from the grid_from_esmf_mesh function by passing an
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>xr.DataArray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mom6_forge.mapping.flatten_to_mesh">
+<span class="sig-prename descclassname"><span class="pre">mom6_forge.mapping.</span></span><span class="sig-name descname"><span class="pre">flatten_to_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">field_2d</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.mapping.flatten_to_mesh" title="Link to this definition"></a></dt>
+<dd><p>Flatten a 2D horizontal grid field back to a 1D ESMF mesh array.</p>
+<p>This is the exact inverse of the reshape applied in func:<cite>grid_from_esmf_mesh</cite>:
+both use row-major (C) order, so element indices are preserved.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>field_2d</strong> (<em>np.ndarray</em><em> or </em><em>xr.DataArray</em>) – 2D array with dimensions <code class="docutils literal notranslate"><span class="pre">(nlat,</span> <span class="pre">nlon)</span></code> representing any grid
+quantity (mask, lon, lat, a custom field, etc.).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>field_1d</strong> – 1D array whose length equals <code class="docutils literal notranslate"><span class="pre">nlat</span> <span class="pre">*</span> <span class="pre">nlon</span></code>, with values in the
+same element ordering as the original ESMF mesh arrays.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>np.ndarray</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1431,7 +1454,7 @@ from a runoff mesh to an ocean mesh.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="mom6_forge.mapping.generate_ESMF_map_via_xesmf">
-<span class="sig-prename descclassname"><span class="pre">mom6_forge.mapping.</span></span><span class="sig-name descname"><span class="pre">generate_ESMF_map_via_xesmf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">src_mesh_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dst_mesh_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mapping_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">area_normalization</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">map_overlap</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.mapping.generate_ESMF_map_via_xesmf" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">mom6_forge.mapping.</span></span><span class="sig-name descname"><span class="pre">generate_ESMF_map_via_xesmf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">src_mesh_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dst_mesh_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mapping_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">area_normalization</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">map_overlap</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coastline_masking</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.mapping.generate_ESMF_map_via_xesmf" title="Link to this definition"></a></dt>
 <dd><p>Generate an ESMF mapping file using xesmf.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -1443,6 +1466,7 @@ from a runoff mesh to an ocean mesh.</p>
 <li><p><strong>area_normalization</strong> (<em>bool</em>) – Whether to apply area normalization to the weights.</p></li>
 <li><p><strong>map_overlap</strong> (<em>bool</em>) – If True, only map the overlapping area between the source and destination meshes, i.e.,
 zero out the mask in the source mesh that falls outside the rectangle defined by the destination mesh.</p></li>
+<li><p><strong>coastline_masking</strong> (<em>bool</em>) – If True, apply coastline masking to the destination mesh.</p></li>
 </ul>
 </dd>
 </dl>
