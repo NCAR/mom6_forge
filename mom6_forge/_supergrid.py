@@ -18,7 +18,7 @@ from typing import Optional
 
 _DEFAULT_RADIUS = 6.371e6  # mean radius of the Earth (IUGG), in metres
 from pyproj import CRS, Transformer
-from mom6_forge.utils import normalize_deg
+from mom6_forge.utils import normalize_deg, is_mesh_cyclic_x, get_mesh_dimensions
 
 
 class SupergridBase:
@@ -31,6 +31,21 @@ class SupergridBase:
             normalize_deg(self.x[:, -1]),
             rtol=1e-5,
         )
+
+    @property
+    def is_tripolar(self):
+        nlines = 0
+        _, nx = self.x.shape
+        within_line = False
+        for i in range(0, nx - 1):
+            if not within_line:
+                if self.x[-1, i] == self.x[-1, i + 1]:
+                    within_line = True
+                    nlines += 1
+            else:
+                if self.x[-1, i] != self.x[-1, i + 1]:
+                    within_line = False
+        return nlines == 3
 
     @property
     def lenx(self):
@@ -209,6 +224,491 @@ class SupergridBase:
         )
 
         return ds
+
+    @staticmethod
+    def _collapse_pole_node_rows(
+        node_coords, element_conn, node_row_width, start_index=1, tol=1e-10
+    ):
+        """Collapse a full coincident pole node row into a single shared node.
+
+        When a logically-rectangular lat-lon grid reaches a geographic pole, the
+        first (south) or last (north) node row consists of nodes that are
+        geometrically the same point (lat = -90 or +90) but carry distinct
+        longitudes. ESMF treats these as separate coincident nodes, which defeats
+        its pole-aware regridding (e.g. POLEMETHOD_ALLAVG). This helper merges such
+        a row into one shared node and remaps the element connectivity accordingly.
+        Affected cells keep four connectivity entries (degenerate quads with a
+        repeated apex), so ``numElementConn`` stays 4.
+
+        Parameters
+        ----------
+        node_coords : np.ndarray, shape (nnodes, 2)
+            Node (lon, lat) coordinates in degrees, row-major (south row first).
+        element_conn : np.ndarray, shape (ncells, maxNodePElement)
+            Element connectivity using ``start_index``-based node ids.
+        node_row_width : int
+            Number of nodes per logical row (``nx`` for cyclic, ``nx+1`` otherwise).
+        start_index : int, optional
+            Base index of ``element_conn`` (1 for ESMF meshes). Default 1.
+        tol : float, optional
+            Absolute tolerance (degrees) for detecting nodes at a pole. Default 1e-10.
+
+        Returns
+        -------
+        new_node_coords : np.ndarray
+            Node table with the redundant pole-row nodes removed.
+        new_element_conn : np.ndarray
+            Connectivity remapped onto ``new_node_coords`` (same dtype/start_index).
+        collapsed : list of (str, int)
+            One ``(pole_name, n_merged)`` entry per pole that was collapsed; empty
+            if neither edge row lies on a pole (i.e. this was a no-op).
+        """
+
+        lat = node_coords[:, 1]
+        nnodes = node_coords.shape[0]
+        remap = np.arange(nnodes)  # old idx -> representative old idx
+        keep = np.ones(nnodes, dtype=bool)
+        collapsed = []
+
+        south_row = np.arange(0, node_row_width)
+        north_row = np.arange(nnodes - node_row_width, nnodes)
+        for row, pole_val, name in (
+            (south_row, -90.0, "south"),
+            (north_row, 90.0, "north"),
+        ):
+            # Only collapse when the *whole* edge row sits on the pole.
+            if row.size > 1 and np.all(np.isclose(lat[row], pole_val, atol=tol)):
+                rep = row[0]  # keep the first node of the fan
+                remap[row] = rep
+                keep[row[1:]] = False
+                collapsed.append((name, int(row.size)))
+
+        if not collapsed:
+            return node_coords, element_conn, []
+
+        # Compact the kept nodes and build an old->new index map.
+        old_to_new = np.cumsum(keep) - 1  # new 0-based index for kept nodes
+        final_old_to_new = old_to_new[remap]  # collapsed nodes -> their rep's new index
+
+        new_node_coords = node_coords[keep]
+        conn0 = element_conn - start_index
+        new_element_conn = (final_old_to_new[conn0] + start_index).astype(
+            element_conn.dtype
+        )
+
+        return new_node_coords, new_element_conn, collapsed
+
+    @staticmethod
+    def _expand_pole_node_rows(node_lon, node_lat, node_row_width, tol=1e-10):
+        """Re-expand a collapsed pole node into a full row of nodes.
+
+        Partial inverse of :meth:`_collapse_pole_node_rows` for the node table,
+        used when reading a mesh back: it restores the rectangular
+        ``(ny+1, node_row_width)`` node layout that the reshape logic in
+        :meth:`reconstruct_from_esmf_mesh` requires. Longitudes for the restored
+        row are taken from the adjacent interior node row -- each column of a
+        logically-rectangular lat-lon grid shares one longitude, so this recovers
+        the original values exactly for such grids.
+
+        Parameters
+        ----------
+        node_lon, node_lat : np.ndarray, shape (nnodes,)
+            Flattened node longitudes and latitudes, row-major (south row first).
+        node_row_width : int
+            Number of nodes per logical row (``nx`` for cyclic, ``nx+1`` otherwise).
+        tol : float, optional
+            Absolute tolerance (degrees) for detecting nodes at a pole. Default 1e-10.
+
+        Returns
+        -------
+        node_lon, node_lat : np.ndarray
+            Node arrays with any collapsed pole row restored.
+        expanded : list of str
+            Names of the poles that were expanded; empty if this was a no-op.
+        """
+
+        w = node_row_width
+        expanded = []
+        if w <= 1:
+            return node_lon, node_lat, expanded
+
+        # South pole: the apex is node 0, with the interior row right after it.
+        if (
+            node_lat.size > w
+            and np.isclose(abs(node_lat[0]), 90.0, atol=tol)
+            and not np.isclose(node_lat[1], node_lat[0], atol=tol)
+        ):
+            apex_lat = node_lat[0]
+            lon_row = node_lon[1 : 1 + w]  # interior row above the apex
+            node_lon = np.concatenate([lon_row, node_lon[1:]])
+            node_lat = np.concatenate([np.full(w, apex_lat), node_lat[1:]])
+            expanded.append("south")
+
+        # North pole: the apex is the final node, with the interior row before it.
+        if (
+            node_lat.size > w
+            and np.isclose(abs(node_lat[-1]), 90.0, atol=tol)
+            and not np.isclose(node_lat[-2], node_lat[-1], atol=tol)
+        ):
+            apex_lat = node_lat[-1]
+            lon_row = node_lon[-1 - w : -1]  # interior row below the apex
+            node_lon = np.concatenate([node_lon[:-1], lon_row])
+            node_lat = np.concatenate([node_lat[:-1], np.full(w, apex_lat)])
+            expanded.append("north")
+
+        return node_lon, node_lat, expanded
+
+    def to_esmf_mesh(self, file_path, mask, title=None):
+        """
+        Write the supergrid as an ESMF mesh file.
+
+        Parameters
+        ----------
+        file_path : str
+            Path to write the ESMF mesh NetCDF file.
+        mask : 2D array or "all_unmasked"
+            Element mask in MOM6/ESMF convention (1=ocean/unmasked, 0=land/masked).
+            Pass the literal string "all_unmasked" to write a mask of all ones.
+        title : str, optional
+            Optional title global attribute.
+        """
+
+        # --- Pull corner and center points from supergrid ---
+        # Supergrid layout: corners at even indices, centers at odd indices
+        # qlon has shape (ny+1, nx+1); for cyclic grids the last column is the wrap-around
+        qlon = self.x[::2, ::2]
+        qlat = self.y[::2, ::2]
+        tlon = self.x[1::2, 1::2]  # shape (ny, nx)
+        tlat = self.y[1::2, 1::2]
+
+        ny, nx = tlon.shape
+        ncells = ny * nx
+
+        # --- Element area: sum the 4 supergrid sub-cells that make each MOM6 cell ---
+        # self.area has shape (2*ny, 2*nx); sub-cells are at even pairs
+        sub_area = self.area.reshape(ny, 2, nx, 2)
+        tarea = sub_area.sum(axis=(1, 3))  # shape (ny, nx)
+
+        # --- Node coordinates ---
+        # Flatten corner arrays. Handle cyclic x: ESMF needs the wrap-around
+        # column dropped since connectivity encodes the periodicity.
+
+        # --- Element connectivity (1-based) ---
+        i0 = 1  # ESMF start index
+
+        # Width of a logical node row, set per branch. Left None for the tripolar
+        # branch to disable the pole-row collapse (its folded north seam has bespoke
+        # connectivity that must not be touched); the other branches set it.
+        pole_node_row_width = None
+
+        if self.is_tripolar:
+            # Tripolar fold: top row of nodes is collapsed — the second half
+            # of the top row folds back, so we drop the redundant nodes.
+            qlon_flat = qlon[:, :-1].flatten()[: -(nx // 2 - 1)]
+            qlat_flat = qlat[:, :-1].flatten()[: -(nx // 2 - 1)]
+            nnodes = len(qlon_flat)
+            assert nnodes + (nx // 2 - 1) == nx * (ny + 1)
+
+            def get_element_conn(i):
+                is_final_column = (i + 1) % nx == 0
+                on_top_row = i // nx == ny - 1
+                on_second_half_of_stitch = on_top_row and (i % nx) >= nx // 2
+
+                ll = i0 + i % nx + (i // nx) * nx
+
+                lr = ll + 1
+                if is_final_column:
+                    lr -= nx
+
+                ur = lr + nx
+                if on_second_half_of_stitch and not is_final_column:
+                    ur -= 2 * (i % nx + 1 - nx // 2)
+
+                ul = ll + nx
+                if on_second_half_of_stitch:
+                    ul = ur + 1
+
+                return [ll, lr, ur, ul]
+
+        elif self.is_cyclic_x:
+            # Wrap-around: last column of elements connects back to column 0
+            qlon_flat = (
+                qlon[:, :-1].flatten() if qlon.shape[1] == nx + 1 else qlon.flatten()
+            )
+            qlat_flat = (
+                qlat[:, :-1].flatten() if qlat.shape[1] == nx + 1 else qlat.flatten()
+            )
+            nnodes = len(qlon_flat)
+            pole_node_row_width = nx
+
+            def get_element_conn(i):
+                row, col = divmod(i, nx)
+                ll = i0 + col + row * nx
+                lr = i0 + (col + 1) % nx + row * nx
+                ur = i0 + (col + 1) % nx + (row + 1) * nx
+                ul = i0 + col + (row + 1) * nx
+                return [ll, lr, ur, ul]
+
+        else:
+            qlon_flat = qlon.flatten()
+            qlat_flat = qlat.flatten()
+            nnodes = len(qlon_flat)
+            pole_node_row_width = nx + 1
+
+            def get_element_conn(i):
+                row, col = divmod(i, nx)
+                ll = i0 + col + row * (nx + 1)
+                lr = i0 + col + 1 + row * (nx + 1)
+                ur = i0 + col + 1 + (row + 1) * (nx + 1)
+                ul = i0 + col + (row + 1) * (nx + 1)
+                return [ll, lr, ur, ul]
+
+        node_coords = np.column_stack((qlon_flat, qlat_flat))
+        element_conn = np.array(
+            [get_element_conn(i) for i in range(ncells)], dtype=np.int32
+        )
+
+        # Collapse a pole-coincident edge node row into a single shared node (needed
+        # by ESMF for pole-aware regridding). A no-op unless a full edge row lies on
+        # a pole; skipped entirely for tripolar grids (width is None).
+        collapsed = []
+        if pole_node_row_width is not None:
+            node_coords, element_conn, collapsed = self._collapse_pole_node_rows(
+                node_coords, element_conn, pole_node_row_width, start_index=i0
+            )
+            for name, n_merged in collapsed:
+                print(
+                    f"Collapsed {n_merged} coincident {name}-pole nodes into a "
+                    "single shared node (for ESMF pole detection)."
+                )
+
+        # --- Build dataset ---
+        ds = xr.Dataset()
+
+        ds.attrs["gridType"] = "unstructured mesh"
+        ds.attrs["date_created"] = datetime.now().isoformat()
+        ds.attrs["grid_topology"] = (
+            "tripolar"
+            if self.is_tripolar
+            else "cyclic" if self.is_cyclic_x else "non_cyclic"
+        )
+        if title:
+            ds.attrs["title"] = title
+        if collapsed:
+            ds.attrs["history"] = (
+                f"{datetime.now().isoformat()}: collapsed pole node rows to "
+                "a single node per pole for ESMF pole detection"
+            )
+
+        ds["nodeCoords"] = xr.DataArray(
+            node_coords,
+            dims=["nodeCount", "coordDim"],
+            attrs={"units": self.axis_units},
+        )
+
+        ds["centerCoords"] = xr.DataArray(
+            np.column_stack((tlon.flatten(), tlat.flatten())),
+            dims=["elementCount", "coordDim"],
+            attrs={"units": self.axis_units},
+        )
+
+        ds["numElementConn"] = xr.DataArray(
+            np.full(ncells, 4, dtype=np.int8),
+            dims=["elementCount"],
+            attrs={"long_name": "Number of nodes per element"},
+        )
+
+        ds["elementConn"] = xr.DataArray(
+            element_conn,
+            dims=["elementCount", "maxNodePElement"],
+            attrs={
+                "long_name": "Node indices that define the element connectivity",
+                "start_index": np.int32(i0),
+            },
+        )
+
+        ds["elementArea"] = xr.DataArray(
+            tarea.flatten(),
+            dims=["elementCount"],
+            attrs={"units": "m2"},
+        )
+
+        if isinstance(mask, str) and mask == "all_unmasked":
+            esmf_mask = np.ones((ny, nx), dtype=np.int32)
+        else:
+            esmf_mask = np.asarray(mask).astype(np.int32)
+        ds["elementMask"] = xr.DataArray(
+            esmf_mask.flatten(),
+            dims=["elementCount"],
+        )
+
+        all_vars_encoding = {
+            var: {"_FillValue": None} for var in ds.data_vars
+        }  # disable _FillValue for all variables to avoid issues in ESMF
+
+        ds.to_netcdf(file_path, format="NETCDF3_64BIT", encoding=all_vars_encoding)
+
+    @classmethod
+    def reconstruct_from_esmf_mesh(
+        cls, file_path, radius=_DEFAULT_RADIUS, return_mask=False
+    ):
+        """
+        Approximate a SupergridBase from an ESMF mesh file.
+
+        .. warning::
+            This is **not** a lossless round-trip. The ESMF mesh format stores only
+            corner (q) points and cell-center (t) points. Edge midpoints (u/v-points)
+            are re-derived here by linear interpolation of adjacent corners, so the
+            reconstructed supergrid will differ from the original for any non-uniform
+            grid. Metrics (dx, dy, area, angle_dx) are also recomputed from the
+            recovered coordinates rather than read from file. If you need the exact
+            original supergrid, load it from the source supergrid NetCDF file.
+
+        Parameters
+        ----------
+        file_path : str or xr.Dataset
+            Path to an ESMF mesh NetCDF file written by to_esmf_mesh(), or an already-opened Dataset.
+        radius : float, optional
+            Sphere radius in metres used for metric calculations.
+        return_mask : bool, optional
+            If True, also return the element mask as a 2D numpy array in MOM6 convention
+            (1=ocean/unmasked, 0=land/masked). Raises ValueError if the mesh has no elementMask.
+            Default False.
+
+        Returns
+        -------
+        SupergridBase or tuple(SupergridBase, np.ndarray)
+            Approximate supergrid with q-points and t-points recovered exactly,
+            u/v-points linearly interpolated, and metrics recomputed. If return_mask=True,
+            returns (supergrid, mask).
+        """
+
+        if isinstance(file_path, xr.Dataset):
+            ds = file_path
+        else:
+            ds = xr.open_dataset(file_path)
+
+        topology = ds.attrs.get("grid_topology", None)
+        is_cyclic = is_mesh_cyclic_x(ds)
+        nx, ny = get_mesh_dimensions(ds)
+
+        # --- Recover corner (q) points from nodeCoords ---
+        node_lon = ds["nodeCoords"].values[:, 0]
+        node_lat = ds["nodeCoords"].values[:, 1]
+        axis_units = ds["nodeCoords"].attrs.get("units", "degrees")
+
+        if topology != "tripolar":
+            # to_esmf_mesh() collapses a pole-coincident edge node row to a single
+            # shared node; restore the full row so the reshapes below line up.
+            node_lon, node_lat, _ = cls._expand_pole_node_rows(
+                node_lon, node_lat, nx if is_cyclic else nx + 1
+            )
+
+        if topology == "tripolar":
+            # Nodes stored without wrap column and with fold duplicates removed.
+            # Rows 0..ny-1 have nx nodes each; top row has nx//2+1 nodes stored
+            # (the fold point is a mirror line, so the nodes past nx//2 are exact
+            # duplicates of the nodes before it and were dropped).
+            # Recover the missing nx//2-1 nodes by mirroring: qlon[ny, nx//2+j] = qlon[ny, nx//2-j],
+            # adding 360 where needed so the row stays monotonically increasing.
+            rows_except_top_lon = node_lon[: ny * nx].reshape(ny, nx)
+            rows_except_top_lat = node_lat[: ny * nx].reshape(ny, nx)
+            top_stored_lon = node_lon[ny * nx :]  # length nx//2 + 1
+            top_stored_lat = node_lat[ny * nx :]
+
+            top_full_lon = np.empty(nx)
+            top_full_lat = np.empty(nx)
+            top_full_lon[: nx // 2 + 1] = top_stored_lon
+            top_full_lat[: nx // 2 + 1] = top_stored_lat
+            # Fold: right-half values mirror the left half reversed.
+            # Values below the fold-point longitude need +360 to stay on the
+            # upper branch and preserve the monotone-increasing top row.
+            fold_lon = top_stored_lon[nx // 2]
+            mirrors = top_stored_lon[nx // 2 - 1 : 0 : -1]  # reversed, length nx//2-1
+            top_full_lon[nx // 2 + 1 :] = np.where(
+                mirrors < fold_lon, mirrors + 360.0, mirrors
+            )
+            top_full_lat[nx // 2 + 1 :] = top_stored_lat[nx // 2 - 1 : 0 : -1]
+
+            qlon_inner = np.vstack([rows_except_top_lon, top_full_lon[np.newaxis, :]])
+            qlat_inner = np.vstack([rows_except_top_lat, top_full_lat[np.newaxis, :]])
+            # Tripolar grids are periodic in x — add wrap column
+            qlon = np.hstack([qlon_inner, qlon_inner[:, :1] + 360.0])
+            qlat = np.hstack([qlat_inner, qlat_inner[:, :1]])
+        elif is_cyclic:
+            # nodes stored without wrap column; add it back by repeating column 0
+            qlon_inner = node_lon.reshape(ny + 1, nx)
+            qlat_inner = node_lat.reshape(ny + 1, nx)
+            qlon = np.hstack([qlon_inner, qlon_inner[:, :1] + 360.0])
+            qlat = np.hstack([qlat_inner, qlat_inner[:, :1]])
+        else:
+            qlon = node_lon.reshape(ny + 1, nx + 1)
+            qlat = node_lat.reshape(ny + 1, nx + 1)
+
+        if return_mask:
+            if "elementMask" not in ds:
+                raise ValueError(
+                    "return_mask=True but no elementMask variable found in dataset"
+                )
+            mask = ds["elementMask"].values.reshape(ny, nx)
+
+        # --- Recover center (t) points from centerCoords ---
+        tlon = ds["centerCoords"].values[:, 0].reshape(ny, nx)
+        tlat = ds["centerCoords"].values[:, 1].reshape(ny, nx)
+
+        # --- Interpolate edge midpoints ---
+        # U-points: midpoint of west/east edges (between vertically adjacent corners)
+        ulon = 0.5 * (qlon[:-1, :] + qlon[1:, :])  # shape (ny, nx+1)
+        ulat = 0.5 * (qlat[:-1, :] + qlat[1:, :])
+
+        # V-points: midpoint of south/north edges (between horizontally adjacent corners)
+        vlon = 0.5 * (qlon[:, :-1] + qlon[:, 1:])  # shape (ny+1, nx)
+        vlat = 0.5 * (qlat[:, :-1] + qlat[:, 1:])
+
+        # --- Assemble full supergrid (2*ny+1, 2*nx+1) ---
+        # Layout:
+        #   even rows, even cols -> q points (corners)
+        #   even rows, odd  cols -> v points (N/S edge midpoints)
+        #   odd  rows, even cols -> u points (E/W edge midpoints)
+        #   odd  rows, odd  cols -> t points (centers)
+        sny = 2 * ny + 1
+        snx = 2 * nx + 1
+
+        x = np.empty((sny, snx))
+        y = np.empty((sny, snx))
+
+        x[::2, ::2] = qlon
+        x[::2, 1::2] = vlon
+        x[1::2, ::2] = ulon
+        x[1::2, 1::2] = tlon
+
+        y[::2, ::2] = qlat
+        y[::2, 1::2] = vlat
+        y[1::2, ::2] = ulat
+        y[1::2, 1::2] = tlat
+
+        # --- Recompute metrics ---
+        dx, dy = cls._calc_dx_dy(x, y, R=radius)
+        area = cls._calc_area(x, y, R=radius)
+        angle_dx = cls.calc_supergrid_rotation_angles_using_expanded_supergrid_method(
+            x, y
+        )
+
+        supergrid = cls(
+            x,
+            y,
+            dx,
+            dy,
+            area,
+            angle_dx,
+            axis_units,
+            grid_type="from_esmf_mesh",
+        )
+
+        if not return_mask:
+            return supergrid
+        else:
+            return supergrid, mask
 
     @classmethod
     def from_ds(cls, ds: xr.Dataset) -> "SupergridBase":

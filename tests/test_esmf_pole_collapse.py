@@ -1,8 +1,8 @@
-"""Tests for the pole-node-row collapse in ``Topo.write_esmf_mesh``.
+"""Tests for the pole-node-row collapse in ``SupergridBase.to_esmf_mesh``.
 
 When a regular lat-lon grid reaches a pole, its first/last node row is a fan
 of nodes all at lat ±90 (distinct longitudes). ESMF treats these as separate
-coincident nodes, defeating its pole-aware regridding. ``write_esmf_mesh``
+coincident nodes, defeating its pole-aware regridding. ``to_esmf_mesh``
 collapses such a *full* edge row into a single shared node per pole.
 """
 
@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
+from mom6_forge._supergrid import SupergridBase
 from mom6_forge.grid import Grid
 from mom6_forge.topo import Topo
 
@@ -58,7 +59,7 @@ def test_collapse_fires(south_lats, north_lats, expected, start_index):
     resolved corner geometry are all preserved."""
     nc = _nodes_two_rows(4, south_lats, north_lats)
     conn = _CONN_1BASED - (1 - start_index)  # shift base to start_index
-    new_nc, new_conn, collapsed = Topo._collapse_pole_node_rows(
+    new_nc, new_conn, collapsed = SupergridBase._collapse_pole_node_rows(
         nc, conn, node_row_width=4, start_index=start_index
     )
 
@@ -95,7 +96,7 @@ def test_collapse_is_noop(south_lats, north_lats):
     """Anything short of a *full* edge row on the pole leaves the mesh intact."""
     nc = _nodes_two_rows(4, south_lats, north_lats)
     conn = _CONN_1BASED.copy()
-    new_nc, new_conn, collapsed = Topo._collapse_pole_node_rows(nc, conn, 4)
+    new_nc, new_conn, collapsed = SupergridBase._collapse_pole_node_rows(nc, conn, 4)
     assert collapsed == []
     assert new_nc.shape == nc.shape
     assert np.array_equal(new_conn, conn)
@@ -145,7 +146,8 @@ def test_write_esmf_mesh_pole_handling(tmp_path, kw, width, collapses):
     assert set(np.unique(m.numElementConn.values)) == {4}
     # geometry comes from the grid and must be untouched by any collapse
     assert np.allclose(m.centerCoords.values[:, 0], grid.tlon.data.flatten())
-    assert np.allclose(m.elementArea.values, grid.tarea.data.flatten())
+    sg_area = grid.supergrid.area.reshape(ny, 2, nx, 2).sum(axis=(1, 3))
+    assert np.allclose(m.elementArea.values, sg_area.flatten())
 
     if collapses:
         # one shared node per pole: nodeCount = width*(ny+1) - 2*(width-1)
@@ -168,7 +170,9 @@ def test_tripolar_branch_skips_collapse(tmp_path, monkeypatch):
     grid, topo = _make_topo(
         nx=8, ny=6, lenx=360.0, leny=180.0, ystart=-90.0, cyclic_x=True, name="tri"
     )
-    monkeypatch.setattr(Grid, "is_tripolar", staticmethod(lambda supergrid: True))
+    monkeypatch.setattr(
+        type(grid.supergrid), "is_tripolar", property(lambda self: True)
+    )
     p = str(tmp_path / "mesh.nc")
     topo.write_esmf_mesh(p)
     m = xr.open_dataset(p)
@@ -176,3 +180,38 @@ def test_tripolar_branch_skips_collapse(tmp_path, monkeypatch):
     assert "history" not in m.attrs  # collapse skipped
     conn = m.elementConn.values.astype(int)
     assert conn.min() >= 1 and conn.max() <= m.sizes["nodeCount"]
+
+
+@pytest.mark.parametrize(
+    "kw",
+    [
+        dict(nx=8, ny=6, lenx=360.0, leny=180.0, ystart=-90.0, cyclic_x=True),
+        dict(
+            nx=8,
+            ny=6,
+            lenx=180.0,
+            leny=180.0,
+            xstart=0.0,
+            ystart=-90.0,
+            cyclic_x=False,
+        ),
+        dict(nx=8, ny=6, lenx=360.0, leny=120.0, ystart=-60.0, cyclic_x=True),
+    ],
+    ids=["cyclic_pole", "noncyclic_pole", "midlatitude_noop"],
+)
+def test_reconstruct_roundtrip_through_collapse(tmp_path, kw):
+    """reconstruct_from_esmf_mesh must re-expand the collapsed pole rows and
+    recover the original q- and t-points exactly."""
+    grid, topo = _make_topo(name="g", **kw)
+    p = str(tmp_path / "mesh.nc")
+    topo.write_esmf_mesh(p)
+
+    sg = grid.supergrid
+    sg2 = SupergridBase.reconstruct_from_esmf_mesh(p)
+
+    assert sg2.x.shape == sg.x.shape
+    # corners (q) and centers (t) are stored in the mesh, so they must be exact
+    assert np.array_equal(sg2.x[::2, ::2], sg.x[::2, ::2])
+    assert np.array_equal(sg2.y[::2, ::2], sg.y[::2, ::2])
+    assert np.array_equal(sg2.x[1::2, 1::2], sg.x[1::2, 1::2])
+    assert np.array_equal(sg2.y[1::2, 1::2], sg.y[1::2, 1::2])

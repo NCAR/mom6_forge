@@ -3,8 +3,8 @@ import pytest
 
 
 @pytest.fixture
-def gen_MinDepthCommand(get_rect_topo):
-    topo = get_rect_topo
+def gen_MinDepthCommand(get_rect_topo_without_vc):
+    topo = get_rect_topo_without_vc
     command = MinDepthEditCommand(topo, "min_depth", 10.0, 0.0)
     return command
 
@@ -30,8 +30,8 @@ def test_serialize_deserialize_MinDepthCommand(gen_MinDepthCommand):
 
 
 @pytest.fixture
-def gen_DepthEditCommand(get_rect_topo):
-    topo = get_rect_topo
+def gen_DepthEditCommand(get_rect_topo_without_vc):
+    topo = get_rect_topo_without_vc
     j, i = 1, 2
     new_val = 10
     old_val = topo.depth[j, i]
@@ -59,8 +59,8 @@ def test_serialize_deserialize_DepthEditCommand(gen_DepthEditCommand):
 
 
 @pytest.fixture
-def gen_MaskEditCommand(get_rect_topo):
-    topo = get_rect_topo
+def gen_MaskEditCommand(get_rect_topo_without_vc):
+    topo = get_rect_topo_without_vc
     ny, nx = topo._grid.ny, topo._grid.nx
     indices = [(0, 0), (0, 1), (1, 0)]
     new_values = [1, 1, 0]
@@ -91,8 +91,8 @@ def test_serialize_deserialize_MaskEditCommand(gen_MaskEditCommand):
     assert rdc.new_values == command.old_values
 
 
-def test_ClearMaskCommand_init_and_execute(get_rect_topo):
-    topo = get_rect_topo
+def test_ClearMaskCommand_init_and_execute(get_rect_topo_without_vc):
+    topo = get_rect_topo_without_vc
     ny, nx = topo._grid.ny, topo._grid.nx
 
     # Set a mask first
