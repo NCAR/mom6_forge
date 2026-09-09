@@ -277,7 +277,9 @@ class SupergridBase:
             (north_row, 90.0, "north"),
         ):
             # Only collapse when the *whole* edge row sits on the pole.
-            if row.size > 1 and np.all(np.isclose(lat[row], pole_val, atol=tol)):
+            if row.size > 1 and np.all(
+                np.isclose(lat[row], pole_val, rtol=0, atol=tol)
+            ):
                 rep = row[0]  # keep the first node of the fan
                 remap[row] = rep
                 keep[row[1:]] = False
@@ -299,12 +301,14 @@ class SupergridBase:
         return new_node_coords, new_element_conn, collapsed
 
     @staticmethod
-    def _expand_pole_node_rows(node_lon, node_lat, node_row_width, tol=1e-10):
+    def _expand_pole_node_rows(
+        node_lon, node_lat, node_row_width, n_node_rows, tol=1e-10
+    ):
         """Re-expand a collapsed pole node into a full row of nodes.
 
         Partial inverse of :meth:`_collapse_pole_node_rows` for the node table,
         used when reading a mesh back: it restores the rectangular
-        ``(ny+1, node_row_width)`` node layout that the reshape logic in
+        ``(n_node_rows, node_row_width)`` node layout that the reshape logic in
         :meth:`reconstruct_from_esmf_mesh` requires. Longitudes for the restored
         row are taken from the adjacent interior node row -- each column of a
         logically-rectangular lat-lon grid shares one longitude, so this recovers
@@ -316,6 +320,8 @@ class SupergridBase:
             Flattened node longitudes and latitudes, row-major (south row first).
         node_row_width : int
             Number of nodes per logical row (``nx`` for cyclic, ``nx+1`` otherwise).
+        n_node_rows : int
+            Number of logical node rows in the uncollapsed table (``ny+1``).
         tol : float, optional
             Absolute tolerance (degrees) for detecting nodes at a pole. Default 1e-10.
 
@@ -332,24 +338,36 @@ class SupergridBase:
         if w <= 1:
             return node_lon, node_lat, expanded
 
+        # Number of collapsed pole rows, from the node count alone.
+        missing = w * n_node_rows - node_lat.size
+        if missing <= 0 or missing % (w - 1) != 0:
+            return node_lon, node_lat, expanded
+        n_collapsed = missing // (w - 1)
+        if n_collapsed > 2:
+            return node_lon, node_lat, expanded
+
+        def _is_apex(i, j):
+            # Node i sits on a pole and its neighbour j in the adjacent row does
+            # not share its latitude, i.e. node i is a collapsed fan's apex.
+            return np.isclose(
+                abs(node_lat[i]), 90.0, rtol=0, atol=tol
+            ) and not np.isclose(node_lat[j], node_lat[i], rtol=0, atol=tol)
+
         # South pole: the apex is node 0, with the interior row right after it.
-        if (
-            node_lat.size > w
-            and np.isclose(abs(node_lat[0]), 90.0, atol=tol)
-            and not np.isclose(node_lat[1], node_lat[0], atol=tol)
-        ):
+        # North pole: the apex is the final node, with the interior row before it.
+        at_south = node_lat.size > w and _is_apex(0, 1)
+        at_north = node_lat.size > w and _is_apex(-1, -2)
+        if int(at_south) + int(at_north) != n_collapsed:
+            return node_lon, node_lat, expanded
+
+        if at_south:
             apex_lat = node_lat[0]
             lon_row = node_lon[1 : 1 + w]  # interior row above the apex
             node_lon = np.concatenate([lon_row, node_lon[1:]])
             node_lat = np.concatenate([np.full(w, apex_lat), node_lat[1:]])
             expanded.append("south")
 
-        # North pole: the apex is the final node, with the interior row before it.
-        if (
-            node_lat.size > w
-            and np.isclose(abs(node_lat[-1]), 90.0, atol=tol)
-            and not np.isclose(node_lat[-2], node_lat[-1], atol=tol)
-        ):
+        if at_north:
             apex_lat = node_lat[-1]
             lon_row = node_lon[-1 - w : -1]  # interior row below the apex
             node_lon = np.concatenate([node_lon[:-1], lon_row])
@@ -601,7 +619,7 @@ class SupergridBase:
             # to_esmf_mesh() collapses a pole-coincident edge node row to a single
             # shared node; restore the full row so the reshapes below line up.
             node_lon, node_lat, _ = cls._expand_pole_node_rows(
-                node_lon, node_lat, nx if is_cyclic else nx + 1
+                node_lon, node_lat, nx if is_cyclic else nx + 1, ny + 1
             )
 
         if topology == "tripolar":
