@@ -176,6 +176,10 @@ def gen_chl_empty_dataset(output_path, lon, lat, fill_value=-1.0e34, calendar="n
     lat : array-like
         1D array of latitude values (in degrees north) defining the spatial Y-axis.
 
+    fill_value : float, optional
+        Placeholder value CHL_A is initialized with, and the value written as its
+        ``missing_value`` attribute. Default is -1e34.
+
     calendar : str, optional
         Calendar the TIME axis is built for, case-insensitive. One of "noleap",
         "no_leap", "365_day", "365_days", "gregorian" or "standard"; anything
@@ -188,7 +192,7 @@ def gen_chl_empty_dataset(output_path, lon, lat, fill_value=-1.0e34, calendar="n
 
     Notes
     -----
-    - The CHL_A variable is filled with the placeholder value -1e34.
+    - The CHL_A variable is filled entirely with ``fill_value``.
     - The TIME dimension is fixed and marked as unlimited in the NetCDF file.
     - TIME values are the midpoint of each month in a climatological year of the
       requested calendar, so the axis and the calendar attribute agree.
@@ -228,8 +232,8 @@ def gen_chl_empty_dataset(output_path, lon, lat, fill_value=-1.0e34, calendar="n
     time = month_starts + month_lengths / 2.0
 
     # === Placeholder data for CHL_A (all fill values) ===
-    fill_value = np.float32(-1.0e34)
-    chl_a_data = np.empty((len(time), len(lat), len(lon)), dtype=np.float32)
+    fill_value = np.float32(fill_value)
+    chl_a_data = np.full((len(time), len(lat), len(lon)), fill_value, dtype=np.float32)
 
     # === xarray Dataset ===
     ds = xr.Dataset(
