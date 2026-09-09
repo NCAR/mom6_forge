@@ -14,6 +14,9 @@ from mom6_forge.mapping import (
 )
 from mom6_forge._supergrid import haversine
 from mom6_forge.grid import Grid
+from mom6_forge import mapping
+
+from utils import fetch_inputdata
 
 
 def make_synthetic_grids():
@@ -402,3 +405,155 @@ def test_write_mapping_file_uses_shape_lookup_not_full_reconstruction(
     ds = xr.open_dataset(out_path)
     assert list(ds["src_grid_dims"].values) == [3, 2]
     assert list(ds["dst_grid_dims"].values) == [2, 2]
+
+
+# ---------------------------------------------------------------------------
+# flatten_to_mesh
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "field_2d, expected",
+    [
+        (np.array([[1, 2, 3], [4, 5, 6]]), [1, 2, 3, 4, 5, 6]),
+        (
+            xr.DataArray(np.array([[10, 20], [30, 40]]), dims=("nlat", "nlon")),
+            [10, 20, 30, 40],
+        ),
+    ],
+)
+def test_flatten_to_mesh(field_2d, expected):
+    """Row-major (C) ordering, for numpy and DataArray input alike."""
+    result = mapping.flatten_to_mesh(field_2d)
+    assert isinstance(result, np.ndarray)
+    np.testing.assert_array_equal(result, expected)
+
+
+# ---------------------------------------------------------------------------
+# grid_from_esmf_mesh / flatten_to_mesh roundtrip  (integration, real mesh)
+# ---------------------------------------------------------------------------
+
+
+def test_grid_from_esmf_mesh_flatten_to_mesh_mask_roundtrip():
+    """grid_from_esmf_mesh followed by flatten_to_mesh must recover the
+    original elementMask exactly."""
+    mesh = xr.open_dataset(fetch_inputdata("share/meshes/gx1v7_151008_ESMFmesh.nc"))
+
+    original_mask_1d = mesh["elementMask"].values  # shape (n_elements,)
+
+    # 1D -> 2D
+    grid_2d = mapping.grid_from_esmf_mesh(mesh)
+    mask_2d = grid_2d["mask"]  # xr.DataArray, shape (ny, nx)
+
+    # 2D -> 1D using the standardized helper
+    recovered_mask_1d = mapping.flatten_to_mesh(mask_2d)
+
+    assert recovered_mask_1d.shape == original_mask_1d.shape, (
+        f"Shape mismatch: got {recovered_mask_1d.shape}, "
+        f"expected {original_mask_1d.shape}"
+    )
+    np.testing.assert_array_equal(
+        recovered_mask_1d,
+        original_mask_1d,
+        err_msg="Roundtrip 1D->2D->1D changed elementMask values",
+    )
+
+
+# ---------------------------------------------------------------------------
+# gen_rof_maps end-to-end  (integration, real meshes)
+# ---------------------------------------------------------------------------
+
+
+def test_gen_rof_maps_end_to_end(tmp_path):
+    """Full runoff mapping pipeline on rx1 -> gx1v7.
+
+    Covers generate_ESMF_map_via_xesmf with coastline masking,
+    compute_smoothing_weights (topography-aware BFS) and write_mapping_file.
+    """
+    rof_mesh = fetch_inputdata("share/meshes/rx1_nomask_181022_ESMFmesh.nc")
+    ocn_mesh = fetch_inputdata("share/meshes/gx1v7_151008_ESMFmesh.nc")
+    mapping.gen_rof_maps(
+        rof_mesh, ocn_mesh, tmp_path, "rx1_to_g17", rmax=500.0, fold=500.0
+    )
+
+    nn = xr.open_dataset(tmp_path / "rx1_to_g17_nn.nc")
+    sm = xr.open_dataset(tmp_path / "rx1_to_g17_r500_f500_nnsm.nc")
+    n_dst = int(np.prod(nn["dst_grid_dims"].values))
+    n_src = int(np.prod(nn["src_grid_dims"].values))
+
+    for ds, label in ((nn, "nearest neighbor"), (sm, "smoothed")):
+        row, col, S = ds["row"].values, ds["col"].values, ds["S"].values
+        # Mapping files are 1-based and must stay inside the grids.
+        assert row.min() >= 1 and row.max() <= n_dst, label
+        assert col.min() >= 1 and col.max() <= n_src, label
+        assert np.all(np.isfinite(S)) and np.all(S >= 0.0), label
+
+    # Coastline masking means the nearest-neighbor map may only target ocean
+    # cells adjacent to the coast.
+    ocn = xr.open_dataset(ocn_mesh)
+    coastal = mapping.flatten_to_mesh(
+        mapping.extract_coastline_mask(mapping.grid_from_esmf_mesh(ocn)) == 1
+    ).astype(bool)
+    ocn.close()
+    assert coastal[nn["row"].values - 1].all(), "nn map targets a non-coastal cell"
+
+    # Smoothing spreads each runoff cell over a neighborhood...
+    assert sm["S"].size > nn["S"].size
+
+    # ...but must not create or destroy any runoff: per source cell, the
+    # area-weighted total is unchanged.
+    area_b = nn["area_b"].values
+
+    def totals(ds):
+        return np.bincount(
+            ds["col"].values - 1,
+            weights=ds["S"].values * area_b[ds["row"].values - 1],
+            minlength=n_src,
+        )
+
+    tot_nn, tot_sm = totals(nn), totals(sm)
+    active = tot_nn > 0
+    np.testing.assert_allclose(
+        tot_sm[active],
+        tot_nn[active],
+        rtol=1e-10,
+        err_msg="smoothing did not conserve area-weighted runoff",
+    )
+    nn.close()
+    sm.close()
+
+
+# ---------------------------------------------------------------------------
+# _check_runoff_conserved
+# ---------------------------------------------------------------------------
+
+
+def _toy_weights(scale=1.0, drop_last=False):
+    """A conserving (n_b, n_a) mapping; `scale` perturbs one source cell."""
+    area_a = np.array([2.0, 3.0, 5.0])
+    area_b = np.array([1.0, 1.0, 2.0, 4.0])
+    row = col = np.arange(3)  # each source cell -> one destination cell
+    S = area_a[col] / area_b[row]
+    S[0] *= scale
+    if drop_last:  # source cell 2 maps nowhere
+        row, col, S = row[:-1], col[:-1], S[:-1]
+    return sp.coo_matrix((S, (row, col)), shape=(4, 3)), area_a, area_b
+
+
+def test_check_runoff_conserved(capsys):
+    """Conserving maps pass, missing runoff and empty maps raise, and cells
+    that map nowhere are reported rather than treated as failures."""
+    mapping._check_runoff_conserved(*_toy_weights(), "toy")
+
+    with pytest.raises(ValueError, match="does not conserve runoff"):
+        mapping._check_runoff_conserved(*_toy_weights(scale=0.99), "toy")
+
+    _, area_a, area_b = _toy_weights()
+    with pytest.raises(ValueError, match="maps no runoff at all"):
+        mapping._check_runoff_conserved(sp.coo_matrix((4, 3)), area_a, area_b, "toy")
+
+    # Real meshes have unmapped cells -- glo -> tx0.1 drops two polar rows --
+    # so this must be visible without being fatal.
+    capsys.readouterr()
+    mapping._check_runoff_conserved(*_toy_weights(drop_last=True), "toy")
+    assert "1 map nowhere" in capsys.readouterr().out
