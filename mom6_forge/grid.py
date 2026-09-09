@@ -113,8 +113,8 @@ class Grid:
             assert (
                 resolution is not None
             ), "resolution must be provided if nx and ny are not"
-            nx = int(lenx / resolution)
-            ny = int(leny / resolution)
+            nx = int(round(lenx / resolution))
+            ny = int(round(leny / resolution))
 
         if type == "rectilinear_cartesian" and resolution is None:
             raise ValueError(
