@@ -1064,7 +1064,8 @@ with longitude/latitude magnitude.</p>
 <dd><p>Check if the given supergrid x coordinates form a tripolar grid.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>supergrid</strong> (<em>SupergridBase</em>) – Supergrid to check if tripolar.</p>
+<dd class="field-odd"><p><strong>supergrid</strong> (<em>xr.Dataset</em><em> or </em><em>xr.DataArray</em><em> or </em><em>np.array</em><em> or </em><em>SupergridBase</em>) – Supergrid to check if tripolar. Anything carrying a 2D <code class="docutils literal notranslate"><span class="pre">x</span></code>
+coordinate array will do, matching is_cyclic_x above.</p>
 </dd>
 </dl>
 </dd></dl>
