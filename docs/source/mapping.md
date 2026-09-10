@@ -37,7 +37,7 @@ with this alone is that it dumps an entire river's freshwater into a single
 coastal cell, which is rarely physical.
 
 Passing `rmax`/`fold` additionally produces a **smoothed** nearest-neighbor
-map (`rx1_to_my_ocean_nnsm.nc`) that spreads each injection across nearby
+map (`rx1_to_my_ocean_r300_f600_nnsm.nc`) that spreads each injection across nearby
 ocean cells instead of a single point:
 
 * `rmax` (km) is the cutoff radius — only ocean cells within this distance of
