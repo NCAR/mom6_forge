@@ -6,6 +6,10 @@ channels:
   
 dependencies:
   - python>=3.11.10,<3.14
+  # Serial ESMF. The mpi_* builds call MPI_Init on first use, which
+  # intermittently aborts on GitHub runners and kills pytest with SIGTERM
+  # (exit 143). mom6_forge only uses ESMF serially, via xesmf.
+  - esmf=*=nompi_*
   - xesmf>=0.8.10,<1.0.0
   - pip
   - pip:
