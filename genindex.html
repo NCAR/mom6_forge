@@ -5,14 +5,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Index &mdash; mom6_forge 0.1 documentation</title>
+  <title>Index &mdash; mom6_forge 0.3.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=2709fde1"></script>
+      <script src="_static/documentation_options.js?v=4621528c"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
@@ -44,13 +44,19 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bathymetry_workflow.html">Bathymetry Workflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mapping.html">Regridding &amp; Mapping</a></li>
 <li class="toctree-l1"><a class="reference internal" href="notebooks.html">Notebooks</a></li>
 <li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
-<li class="toctree-l1"><a class="reference internal" href="widgets.html">Topo &amp; The Widgets!</a></li>
+<li class="toctree-l1"><a class="reference internal" href="widgets.html">UI  Widgets</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Python API:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="api/modules.html">mom6_forge</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contributing:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 </ul>
 
         </div>
@@ -110,6 +116,8 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.topo_editor.TopoEditor.active_cells">active_cells (mom6_forge.topo_editor.TopoEditor property)</a>
 </li>
+      <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidthList.add">add() (mom6_forge.channel_width.ChannelWidthList method)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.command_manager.CommandManager.add_to_history">add_to_history() (mom6_forge.command_manager.CommandManager method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.angle">angle (mom6_forge.grid.Grid attribute)</a>
@@ -142,9 +150,19 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.utils.cell_area_rad">cell_area_rad() (in module mom6_forge.utils)</a>
 </li>
+      <li><a href="glossary.html#term-channel-width-constraint"><strong>channel width constraint</strong></a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidthList.channels">channels (mom6_forge.channel_width.ChannelWidthList attribute)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidth">ChannelWidth (class in mom6_forge.channel_width)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidthList">ChannelWidthList (class in mom6_forge.channel_width)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.check_supergrid">check_supergrid() (mom6_forge.grid.Grid static method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.command_manager.TopoCommandManager.checkout">checkout() (mom6_forge.command_manager.TopoCommandManager method)</a>
+</li>
+      <li><a href="glossary.html#term-CICE-grid"><strong>CICE grid</strong></a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.clear_user_mask">clear_user_mask() (mom6_forge.topo.Topo method)</a>
 
@@ -160,12 +178,14 @@
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.command_manager.CommandType">CommandType (class in mom6_forge.command_manager)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.command_manager.CommandManager.commit">commit() (mom6_forge.command_manager.CommandManager method)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidth.component">component (mom6_forge.channel_width.ChannelWidth attribute)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.mapping.compute_cressman_weights">compute_cressman_weights() (in module mom6_forge.mapping)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.mapping.compute_smoothing_weights">compute_smoothing_weights() (in module mom6_forge.mapping)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.compute_stats">compute_stats() (mom6_forge.topo.Topo method)</a>
@@ -191,6 +211,8 @@
 </li>
       </ul></li>
       <li><a href="api/mom6_forge.html#mom6_forge.command_manager.CommandManager.create_branch">create_branch() (mom6_forge.command_manager.CommandManager method)</a>
+</li>
+      <li><a href="glossary.html#term-Cressman-interpolation"><strong>Cressman interpolation</strong></a>
 </li>
   </ul></td>
 </tr></table>
@@ -220,11 +242,13 @@
         <li><a href="api/mom6_forge.html#mom6_forge.edit_command.MinDepthEditCommand.deserialize">(mom6_forge.edit_command.MinDepthEditCommand class method)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.diagnose_resolution">diagnose_resolution() (mom6_forge.topo.Topo method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.direct_cressman_interp">direct_cressman_interp() (mom6_forge.topo.Topo method)</a>
+</li>
+      <li><a href="glossary.html#term-displaced-pole-grid"><strong>displaced pole grid</strong></a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.mapping.dst_to_source">dst_to_source() (in module mom6_forge.mapping)</a>
 </li>
@@ -258,14 +282,16 @@
         <li><a href="api/mom6_forge.html#mom6_forge.topo_editor.TopoEditor.erase_disconnected_basin">(mom6_forge.topo_editor.TopoEditor method)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.erase_selected_basin">erase_selected_basin() (mom6_forge.topo.Topo method)</a>
 
       <ul>
         <li><a href="api/mom6_forge.html#mom6_forge.topo_editor.TopoEditor.erase_selected_basin">(mom6_forge.topo_editor.TopoEditor method)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="glossary.html#term-ESMF-mesh"><strong>ESMF mesh</strong></a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.command_manager.CommandManager.execute">execute() (mom6_forge.command_manager.CommandManager method)</a>
 
       <ul>
@@ -286,6 +312,8 @@
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.mapping.flatten_to_mesh">flatten_to_mesh() (in module mom6_forge.mapping)</a>
 </li>
+      <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidthList.FMT_OUT">FMT_OUT (mom6_forge.channel_width.ChannelWidthList attribute)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.from_center">from_center() (mom6_forge.grid.Grid class method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.from_esmf_mesh">from_esmf_mesh() (mom6_forge.grid.Grid class method)</a>
@@ -297,6 +325,8 @@
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.vgrid.VGrid.from_file">from_file() (mom6_forge.vgrid.VGrid class method)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidth.from_line">from_line() (mom6_forge.channel_width.ChannelWidth class method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.from_projection">from_projection() (mom6_forge.grid.Grid class method)</a>
 </li>
@@ -327,6 +357,8 @@
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.generate_mask_from_naturalearth">generate_mask_from_naturalearth() (mom6_forge.topo.Topo method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.generate_mask_from_stats_ocean_frac">generate_mask_from_stats_ocean_frac() (mom6_forge.topo.Topo method)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidthList.get_all">get_all() (mom6_forge.channel_width.ChannelWidthList method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.utils.get_avg_resolution">get_avg_resolution() (in module mom6_forge.utils)</a>
 </li>
@@ -416,6 +448,10 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.land_fillval">land_fillval (mom6_forge.topo.Topo property)</a>
 </li>
+      <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidth.lat1">lat1 (mom6_forge.channel_width.ChannelWidth attribute)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidth.lat2">lat2 (mom6_forge.channel_width.ChannelWidth attribute)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.lenx">lenx (mom6_forge.grid.Grid property)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.leny">leny (mom6_forge.grid.Grid property)</a>
@@ -424,11 +460,17 @@
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidthList.load">load() (mom6_forge.channel_width.ChannelWidthList method)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid_creator.GridCreator.load_grid">load_grid() (mom6_forge.grid_creator.GridCreator method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.command_manager.CommandManager.load_history">load_history() (mom6_forge.command_manager.CommandManager method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.vgrid_creator.VGridCreator.load_vgrid">load_vgrid() (mom6_forge.vgrid_creator.VGridCreator method)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidth.lon1">lon1 (mom6_forge.channel_width.ChannelWidth attribute)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidth.lon2">lon2 (mom6_forge.channel_width.ChannelWidth attribute)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.utils.longitude_slicer">longitude_slicer() (in module mom6_forge.utils)</a>
 </li>
@@ -455,6 +497,8 @@
 
       <ul>
         <li><a href="api/mom6_forge.html#module-mom6_forge">mom6_forge</a>
+</li>
+        <li><a href="api/mom6_forge.html#module-mom6_forge.channel_width">mom6_forge.channel_width</a>
 </li>
         <li><a href="api/mom6_forge.html#module-mom6_forge.command_manager">mom6_forge.command_manager</a>
 </li>
@@ -489,14 +533,21 @@
 </li>
       </ul></li>
       <li>
+    mom6_forge.channel_width
+
+      <ul>
+        <li><a href="api/mom6_forge.html#module-mom6_forge.channel_width">module</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li>
     mom6_forge.command_manager
 
       <ul>
         <li><a href="api/mom6_forge.html#module-mom6_forge.command_manager">module</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     mom6_forge.edit_command
 
@@ -628,14 +679,16 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.command_manager.CommandManager.parse_commit_message">parse_commit_message() (mom6_forge.command_manager.CommandManager method)</a>
 </li>
+      <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidth.place">place (mom6_forge.channel_width.ChannelWidth attribute)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.plot">plot() (mom6_forge.grid.Grid method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.plot_cross_section">plot_cross_section() (mom6_forge.grid.Grid method)</a>
 </li>
-      <li><a href="api/mom6_forge.html#mom6_forge.plotting.plot_esmf_mesh">plot_esmf_mesh() (in module mom6_forge.plotting)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/mom6_forge.html#mom6_forge.plotting.plot_esmf_mesh">plot_esmf_mesh() (in module mom6_forge.plotting)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid_creator.GridCreator.plot_grid">plot_grid() (mom6_forge.grid_creator.GridCreator method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.vgrid_creator.VGridCreator.plot_vgrid">plot_vgrid() (mom6_forge.vgrid_creator.VGridCreator method)</a>
@@ -728,6 +781,8 @@
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.vgrid_creator.VGridCreator.save_vgrid">save_vgrid() (mom6_forge.vgrid_creator.VGridCreator method)</a>
 </li>
+      <li><a href="glossary.html#term-SCRIP-grid"><strong>SCRIP grid</strong></a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.send_entire_depth_change_to_tcm">send_entire_depth_change_to_tcm() (mom6_forge.topo.Topo method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.edit_command.ClearMaskCommand.serialize">serialize() (mom6_forge.edit_command.ClearMaskCommand method)</a>
@@ -804,11 +859,13 @@
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.edit_command.to_native">to_native() (in module mom6_forge.edit_command)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.edit_command.to_native_tuple">to_native_tuple() (in module mom6_forge.edit_command)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo">Topo (class in mom6_forge.topo)</a>
+</li>
+      <li><a href="glossary.html#term-TOPO_CONFIG"><strong>TOPO_CONFIG</strong></a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.command_manager.TopoCommandManager">TopoCommandManager (class in mom6_forge.command_manager)</a>
 </li>
@@ -817,6 +874,8 @@
       <li><a href="api/mom6_forge.html#mom6_forge.command_manager.CommandManager.touch_history">touch_history() (mom6_forge.command_manager.CommandManager method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo_editor.TopoEditor.trigger_refresh">trigger_refresh() (mom6_forge.topo_editor.TopoEditor method)</a>
+</li>
+      <li><a href="glossary.html#term-tripolar-grid"><strong>tripolar grid</strong></a>
 </li>
   </ul></td>
 </tr></table>
@@ -878,18 +937,24 @@
 <h2 id="W">W</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="api/mom6_forge.html#mom6_forge.vgrid.VGrid.write">write() (mom6_forge.vgrid.VGrid method)</a>
+      <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidth.width">width (mom6_forge.channel_width.ChannelWidth attribute)</a>
 </li>
+      <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidthList.write">write() (mom6_forge.channel_width.ChannelWidthList method)</a>
+
+      <ul>
+        <li><a href="api/mom6_forge.html#mom6_forge.vgrid.VGrid.write">(mom6_forge.vgrid.VGrid method)</a>
+</li>
+      </ul></li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.write_cice_grid">write_cice_grid() (mom6_forge.topo.Topo method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.write_esmf_mesh">write_esmf_mesh() (mom6_forge.topo.Topo method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.command_manager.CommandManager.write_history">write_history() (mom6_forge.command_manager.CommandManager method)</a>
 </li>
-      <li><a href="api/mom6_forge.html#mom6_forge.mapping.write_mapping_file">write_mapping_file() (in module mom6_forge.mapping)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/mom6_forge.html#mom6_forge.mapping.write_mapping_file">write_mapping_file() (in module mom6_forge.mapping)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.write_scrip_grid">write_scrip_grid() (mom6_forge.topo.Topo method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.write_supergrid">write_supergrid() (mom6_forge.grid.Grid method)</a>

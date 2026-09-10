@@ -6,14 +6,14 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Topo &amp; The Widgets! &mdash; mom6_forge 0.1 documentation</title>
+  <title>UI Widgets &mdash; mom6_forge 0.3.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=2709fde1"></script>
+      <script src="_static/documentation_options.js?v=4621528c"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
@@ -47,11 +47,14 @@
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bathymetry_workflow.html">Bathymetry Workflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mapping.html">Regridding &amp; Mapping</a></li>
 <li class="toctree-l1"><a class="reference internal" href="notebooks.html">Notebooks</a></li>
 <li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Topo &amp; The Widgets!</a><ul>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">UI  Widgets</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#creators">Creators</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#gridcreator">GridCreator</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#vgridcreator">VGridCreator</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#topo-topoeditor-edits">Topo &amp; TopoEditor Edits</a></li>
@@ -65,6 +68,10 @@
 <p class="caption" role="heading"><span class="caption-text">Python API:</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="api/modules.html">mom6_forge</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contributing:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 </ul>
 
         </div>
@@ -81,9 +88,9 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Topo &amp; The Widgets!</li>
+      <li class="breadcrumb-item active">UI  Widgets</li>
       <li class="wy-breadcrumbs-aside">
-            <a href="_sources/widgets.rst.txt" rel="nofollow"> View page source</a>
+            <a href="_sources/widgets.md.txt" rel="nofollow"> View page source</a>
       </li>
   </ul>
   <hr/>
@@ -91,8 +98,8 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="topo-the-widgets">
-<h1>Topo &amp; The Widgets!<a class="headerlink" href="#topo-the-widgets" title="Link to this heading"></a></h1>
+  <section id="ui-widgets">
+<h1>UI  Widgets<a class="headerlink" href="#ui-widgets" title="Link to this heading"></a></h1>
 <p>This document explains the widget modules in <code class="docutils literal notranslate"><span class="pre">mom6_forge</span></code>.</p>
 <p><code class="docutils literal notranslate"><span class="pre">mom6_forge</span></code> comes with three UI modules/classes that wrap the three main
 classes—<code class="docutils literal notranslate"><span class="pre">VGrid</span></code>, <code class="docutils literal notranslate"><span class="pre">Grid</span></code>, and <code class="docutils literal notranslate"><span class="pre">Topo</span></code>—to help with creating vertical grids
@@ -102,7 +109,7 @@ classes—<code class="docutils literal notranslate"><span class="pre">VGrid</sp
 <h2>Creators<a class="headerlink" href="#creators" title="Link to this heading"></a></h2>
 <p>The creators act as visual wrappers around the constructors of their respective
 classes, providing sliders and visualizations. They automatically generate
-folders called <code class="docutils literal notranslate"><span class="pre">VgridLibrary</span></code> and <code class="docutils literal notranslate"><span class="pre">GridLibrary</span></code> to store created grids.
+folders called <code class="docutils literal notranslate"><span class="pre">VGridLibrary</span></code> and <code class="docutils literal notranslate"><span class="pre">GridLibrary</span></code> to store created grids.
 The currently selected grid is directly accessible as an object inside each
 creator.</p>
 <section id="gridcreator">
@@ -111,7 +118,7 @@ creator.</p>
 interactive cartopy map on the right.  It supports three creation modes,
 selected via radio buttons before any grid is defined.</p>
 <p><strong>Lat/Lon Corners</strong></p>
-<p>Click two diagonal corners on the map.  A uniform-degree <code class="docutils literal notranslate"><span class="pre">Grid</span></code> is created
+<p>Drag a rectangle on the map.  A uniform-degree <code class="docutils literal notranslate"><span class="pre">Grid</span></code> is created
 from the bounding box.  After creation, five degree sliders appear
 (<code class="docutils literal notranslate"><span class="pre">xstart</span></code>, <code class="docutils literal notranslate"><span class="pre">ystart</span></code>, <code class="docutils literal notranslate"><span class="pre">lenx</span></code>, <code class="docutils literal notranslate"><span class="pre">leny</span></code>, <code class="docutils literal notranslate"><span class="pre">resolution</span></code>) for live
 adjustment.</p>
@@ -178,6 +185,26 @@ accidentally committed.</p>
 <p>On <strong>Load</strong>, all creation parameters are restored from the file’s metadata, so
 the <strong>Recreate</strong> button works immediately after loading a projected grid without
 any additional clicks.</p>
+</section>
+<section id="vgridcreator">
+<h3>VGridCreator<a class="headerlink" href="#vgridcreator" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">VGridCreator</span></code> is a control-panel-and-plot widget for building a <code class="docutils literal notranslate"><span class="pre">VGrid</span></code>
+interactively: a live plot on the right shows each layer’s center depth as a
+horizontal line, updating as the controls on the left change.</p>
+<p>A <strong>Type</strong> toggle switches between <code class="docutils literal notranslate"><span class="pre">Uniform</span></code> and <code class="docutils literal notranslate"><span class="pre">Hyperbolic</span></code> vertical grids
+(see <a class="reference internal" href="quickstart.html"><span class="doc">Quickstart Guide</span></a>). <strong>Levels</strong> and <strong>Depth (m)</strong> sliders set <code class="docutils literal notranslate"><span class="pre">nk</span></code> and
+<code class="docutils literal notranslate"><span class="pre">depth</span></code>; a <strong>Top/Bottom Ratio</strong> slider (enabled only in <code class="docutils literal notranslate"><span class="pre">Hyperbolic</span></code> mode)
+sets the ratio of bottom to top layer thickness. If a <code class="docutils literal notranslate"><span class="pre">Topo</span></code> instance is
+passed to the constructor (<code class="docutils literal notranslate"><span class="pre">VGridCreator(topo=topo)</span></code>), a warning is shown
+whenever the chosen depth is shallower than that topo’s <code class="docutils literal notranslate"><span class="pre">max_depth</span></code>, since the
+vertical grid needs to extend at least to the deepest point of the bathymetry.</p>
+<p><strong>VGridLibrary</strong></p>
+<p>Like <code class="docutils literal notranslate"><span class="pre">GridCreator</span></code>, <code class="docutils literal notranslate"><span class="pre">VGridCreator</span></code> has a <strong>Library</strong> section for saving and
+loading named vertical grids. Enter a name and message and click <strong>Save
+VGrid</strong> to write <code class="docutils literal notranslate"><span class="pre">VgridLibrary/vgrid_&lt;name&gt;.nc</span></code>; the dropdown lists
+previously saved vgrids (most recent first) with their name, depth, and level
+count for <strong>Load</strong>. The <code class="docutils literal notranslate"><span class="pre">Reset</span></code> button reverts the current session’s edits
+back to the vgrid the widget was constructed with.</p>
 </section>
 </section>
 <section id="topo-topoeditor-edits">
@@ -283,7 +310,7 @@ may break state management.</p>
 </section>
 <section id="nuances-initialization-naming-etc">
 <h2>Nuances (Initialization, Naming, etc.)<a class="headerlink" href="#nuances-initialization-naming-etc" title="Link to this heading"></a></h2>
-<p>Folders are named after the hash of the grid’s <code class="docutils literal notranslate"><span class="pre">tlon</span></code> variable.
+<p>Folders are named after the hash of the grid’s <code class="docutils literal notranslate"><span class="pre">tlon</span></code> variable.<br />
 This means that <strong>any topo using the same grid</strong> will share the same folder.</p>
 <p>You can initialize <code class="docutils literal notranslate"><span class="pre">Topo</span></code> in three ways:</p>
 <ol class="arabic simple">
@@ -294,7 +321,7 @@ This means that <strong>any topo using the same grid</strong> will share the sam
 <p>All of the git versioning (undo, redo, reset, checkout, tag, create branch) is handled by the TopoCommandManager, which can be accessed as the class variable “tcm”. The code for this manager resides in the command_manager class.
 We would use straight git functions, but the topo file itself is handled independently of the commits. (In the future, expect this to use icechunk)</p>
 <p>See also the demonstration notebook:</p>
-<p><a class="reference external" href="https://github.com/NCAR/mom6_forge/blob/master/notebooks/6_demo_editors.ipynb">6_demo_editors.ipynb</a></p>
+<p><a class="reference external" href="https://github.com/NCAR/mom6_forge/blob/master/notebooks/7_demo_editors.ipynb">7_demo_editors.ipynb</a></p>
 </section>
 </section>
 

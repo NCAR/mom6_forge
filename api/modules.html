@@ -6,14 +6,14 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>mom6_forge &mdash; mom6_forge 0.1 documentation</title>
+  <title>mom6_forge &mdash; mom6_forge 0.3.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
 
   
       <script src="../_static/jquery.js?v=5d32c60e"></script>
       <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="../_static/documentation_options.js?v=2709fde1"></script>
+      <script src="../_static/documentation_options.js?v=4621528c"></script>
       <script src="../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
@@ -21,7 +21,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="mom6_forge package" href="mom6_forge.html" />
-    <link rel="prev" title="Topo &amp; The Widgets!" href="../widgets.html" /> 
+    <link rel="prev" title="UI Widgets" href="../widgets.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -47,9 +47,11 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../bathymetry_workflow.html">Bathymetry Workflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../mapping.html">Regridding &amp; Mapping</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../notebooks.html">Notebooks</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../widgets.html">Topo &amp; The Widgets!</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../widgets.html">UI  Widgets</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Python API:</span></p>
 <ul class="current">
@@ -57,6 +59,10 @@
 <li class="toctree-l2"><a class="reference internal" href="mom6_forge.html">mom6_forge package</a></li>
 </ul>
 </li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contributing:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../contributing.html">Contributing</a></li>
 </ul>
 
         </div>
@@ -75,7 +81,7 @@
       <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
       <li class="breadcrumb-item active">mom6_forge</li>
       <li class="wy-breadcrumbs-aside">
-            <a href="../_sources/api/modules.rst.txt" rel="nofollow"> View page source</a>
+            <a href="../_sources/api/modules.md.txt" rel="nofollow"> View page source</a>
       </li>
   </ul>
   <hr/>
@@ -89,6 +95,29 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="mom6_forge.html">mom6_forge package</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#module-mom6_forge.channel_width">mom6_forge.channel_width module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.channel_width.ChannelWidth"><code class="docutils literal notranslate"><span class="pre">ChannelWidth</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.channel_width.ChannelWidth.component"><code class="docutils literal notranslate"><span class="pre">ChannelWidth.component</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.channel_width.ChannelWidth.from_line"><code class="docutils literal notranslate"><span class="pre">ChannelWidth.from_line()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.channel_width.ChannelWidth.lat1"><code class="docutils literal notranslate"><span class="pre">ChannelWidth.lat1</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.channel_width.ChannelWidth.lat2"><code class="docutils literal notranslate"><span class="pre">ChannelWidth.lat2</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.channel_width.ChannelWidth.lon1"><code class="docutils literal notranslate"><span class="pre">ChannelWidth.lon1</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.channel_width.ChannelWidth.lon2"><code class="docutils literal notranslate"><span class="pre">ChannelWidth.lon2</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.channel_width.ChannelWidth.place"><code class="docutils literal notranslate"><span class="pre">ChannelWidth.place</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.channel_width.ChannelWidth.width"><code class="docutils literal notranslate"><span class="pre">ChannelWidth.width</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.channel_width.ChannelWidthList"><code class="docutils literal notranslate"><span class="pre">ChannelWidthList</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.channel_width.ChannelWidthList.FMT_OUT"><code class="docutils literal notranslate"><span class="pre">ChannelWidthList.FMT_OUT</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.channel_width.ChannelWidthList.add"><code class="docutils literal notranslate"><span class="pre">ChannelWidthList.add()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.channel_width.ChannelWidthList.channels"><code class="docutils literal notranslate"><span class="pre">ChannelWidthList.channels</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.channel_width.ChannelWidthList.get_all"><code class="docutils literal notranslate"><span class="pre">ChannelWidthList.get_all()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.channel_width.ChannelWidthList.load"><code class="docutils literal notranslate"><span class="pre">ChannelWidthList.load()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.channel_width.ChannelWidthList.write"><code class="docutils literal notranslate"><span class="pre">ChannelWidthList.write()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="mom6_forge.html#module-mom6_forge.command_manager">mom6_forge.command_manager module</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandManager"><code class="docutils literal notranslate"><span class="pre">CommandManager</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="mom6_forge.html#mom6_forge.command_manager.CommandManager.add_to_history"><code class="docutils literal notranslate"><span class="pre">CommandManager.add_to_history()</span></code></a></li>
@@ -400,7 +429,7 @@
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="../widgets.html" class="btn btn-neutral float-left" title="Topo &amp; The Widgets!" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../widgets.html" class="btn btn-neutral float-left" title="UI Widgets" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="mom6_forge.html" class="btn btn-neutral float-right" title="mom6_forge package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
