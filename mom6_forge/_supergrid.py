@@ -650,6 +650,19 @@ class SupergridBase:
         is_cyclic = is_mesh_cyclic_x(ds)
         nx, ny = get_mesh_dimensions(ds)
 
+        # to_esmf_mesh records the topology, but meshes written by other tools (the
+        # CESM tx2_3v3 mesh, for one) carry no such attribute. Read it off the node
+        # count instead of assuming a plain lat-lon layout.
+        inferred_topology = topology is None
+        if inferred_topology:
+            n_nodes = ds["nodeCoords"].shape[0]
+            if not is_cyclic:
+                topology = "non_cyclic"
+            elif nx >= 2 and n_nodes == nx * (ny + 1) - (nx // 2 - 1):
+                topology = "tripolar"
+            else:
+                topology = "cyclic"
+
         # --- Recover corner (q) points from nodeCoords ---
         node_lon = ds["nodeCoords"].values[:, 0]
         node_lat = ds["nodeCoords"].values[:, 1]
@@ -772,6 +785,14 @@ class SupergridBase:
             axis_units,
             grid_type="from_esmf_mesh",
         )
+
+        if inferred_topology and supergrid.is_tripolar != (topology == "tripolar"):
+            raise ValueError(
+                f"Inferred a {topology!r} topology from the mesh's node count, but "
+                f"the reconstructed supergrid reports is_tripolar="
+                f"{supergrid.is_tripolar}. Set a 'grid_topology' global attribute "
+                "on the mesh to state the topology explicitly."
+            )
 
         if not return_mask:
             return supergrid

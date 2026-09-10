@@ -368,6 +368,31 @@ def test_tripolar_mesh_matches_reference(tripolar_mesh, reference_tripolar_mesh)
     np.testing.assert_allclose(our_area_sum, ref_area_sum, rtol=1e-4)
 
 
+@pytest.mark.parametrize(
+    "mesh_fixture", ["cyclic_mesh", "non_cyclic_mesh", "tripolar_mesh"]
+)
+def test_reconstruct_infers_missing_grid_topology(mesh_fixture, request):
+    """A mesh lacking grid_topology, as ESMF meshes from other tools are,
+    reconstructs the same as one carrying it."""
+    mesh = request.getfixturevalue(mesh_fixture)
+    expected = SupergridBase.reconstruct_from_esmf_mesh(mesh)
+
+    stripped = mesh.copy()
+    del stripped.attrs["grid_topology"]
+    inferred = SupergridBase.reconstruct_from_esmf_mesh(stripped)
+
+    np.testing.assert_array_equal(inferred.x, expected.x)
+    np.testing.assert_array_equal(inferred.y, expected.y)
+
+
+def test_reconstruct_rejects_mis_inferred_topology(tripolar_mesh):
+    """A node count matching no layout is caught, not reshaped on regardless."""
+    mesh = tripolar_mesh.copy().isel(nodeCount=slice(None, -1))
+    del mesh.attrs["grid_topology"]
+    with pytest.raises((ValueError, AssertionError)):
+        SupergridBase.reconstruct_from_esmf_mesh(mesh)
+
+
 def test_tripolar_roundtrip(tripolar_sg, tmp_path):
     """reconstruct_from_esmf_mesh should recover corner and center coords exactly for tx2_3v3."""
     path = tmp_path / "tripolar.nc"
