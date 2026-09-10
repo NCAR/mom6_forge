@@ -301,6 +301,46 @@ class SupergridBase:
         return new_node_coords, new_element_conn, collapsed
 
     @staticmethod
+    def _unwrap_lon_rows(qlon):
+        """Remove the [0, 360) branch cut from each row of a q-longitude array.
+
+        ESMF mesh files normalize node longitudes to [0, 360), which puts a
+        discontinuity inside the row whenever the grid's first node column does
+        not sit on the prime meridian -- the ERA5 N640 mesh, for instance, starts
+        at 359.859375 and jumps to 0.140625 in the next column. Such a row cannot
+        be used as a supergrid coordinate: the edge midpoints interpolated from it
+        in :meth:`reconstruct_from_esmf_mesh` land on the far side of the globe,
+        which corrupts the metrics (dx, dy, area) of the cells straddling the cut
+        and can even make their areas negative.
+
+        Adding whole multiples of 360 to the offending entries makes each row
+        monotonic again without moving any point on the sphere. Rows that are
+        already free of a cut are returned bit-for-bit unchanged, so this is a
+        no-op for grids whose node longitudes start at (or near) zero.
+
+        Parameters
+        ----------
+        qlon : np.ndarray, shape (nrows, ncols)
+            Node longitudes in degrees, one logical node row per row.
+
+        Returns
+        -------
+        np.ndarray
+            ``qlon`` with each row made monotonically increasing.
+        """
+
+        unwrapped = np.unwrap(qlon, period=360.0, axis=-1)
+        # np.unwrap pins the first entry and lifts the rest, which would leave a
+        # row that merely started late (ERA5's 359.859375) sitting almost a full
+        # turn high. Drop each row back onto the branch it arrived on so the
+        # reconstructed grid keeps the input's longitude range.
+        turns = np.round(
+            (unwrapped.mean(axis=-1, keepdims=True) - qlon.mean(axis=-1, keepdims=True))
+            / 360.0
+        )
+        return unwrapped - 360.0 * turns
+
+    @staticmethod
     def _expand_pole_node_rows(
         node_lon, node_lat, node_row_width, n_node_rows, tol=1e-10
     ):
@@ -648,19 +688,21 @@ class SupergridBase:
             )
             top_full_lat[nx // 2 + 1 :] = top_stored_lat[nx // 2 - 1 : 0 : -1]
 
-            qlon_inner = np.vstack([rows_except_top_lon, top_full_lon[np.newaxis, :]])
+            qlon_inner = cls._unwrap_lon_rows(
+                np.vstack([rows_except_top_lon, top_full_lon[np.newaxis, :]])
+            )
             qlat_inner = np.vstack([rows_except_top_lat, top_full_lat[np.newaxis, :]])
             # Tripolar grids are periodic in x — add wrap column
             qlon = np.hstack([qlon_inner, qlon_inner[:, :1] + 360.0])
             qlat = np.hstack([qlat_inner, qlat_inner[:, :1]])
         elif is_cyclic:
             # nodes stored without wrap column; add it back by repeating column 0
-            qlon_inner = node_lon.reshape(ny + 1, nx)
+            qlon_inner = cls._unwrap_lon_rows(node_lon.reshape(ny + 1, nx))
             qlat_inner = node_lat.reshape(ny + 1, nx)
             qlon = np.hstack([qlon_inner, qlon_inner[:, :1] + 360.0])
             qlat = np.hstack([qlat_inner, qlat_inner[:, :1]])
         else:
-            qlon = node_lon.reshape(ny + 1, nx + 1)
+            qlon = cls._unwrap_lon_rows(node_lon.reshape(ny + 1, nx + 1))
             qlat = node_lat.reshape(ny + 1, nx + 1)
 
         if return_mask:
@@ -673,6 +715,14 @@ class SupergridBase:
         # --- Recover center (t) points from centerCoords ---
         tlon = ds["centerCoords"].values[:, 0].reshape(ny, nx)
         tlat = ds["centerCoords"].values[:, 1].reshape(ny, nx)
+
+        # Centers are stored normalized to [0, 360) just like the nodes, so shift
+        # each one into the same 360-degree branch as its own four corners (which
+        # _unwrap_lon_rows may have moved). Without this the supergrid mixes
+        # branches, and the degree differences behind dx come out ~360 too large.
+        # A no-op wherever a center already agrees with its corners.
+        qmid = 0.25 * (qlon[:-1, :-1] + qlon[:-1, 1:] + qlon[1:, :-1] + qlon[1:, 1:])
+        tlon = tlon + 360.0 * np.round((qmid - tlon) / 360.0)
 
         # --- Interpolate edge midpoints ---
         # U-points: midpoint of west/east edges (between vertically adjacent corners)
