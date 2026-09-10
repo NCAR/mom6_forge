@@ -1127,9 +1127,11 @@ def angle_between(v1, v2, v3):
     norm_v1xv2 = np.sqrt(vecdot(v1xv2, v1xv2))
     norm_v1xv3 = np.sqrt(vecdot(v1xv3, v1xv3))
 
-    cosangle = vecdot(v1xv2, v1xv3) / (norm_v1xv2 * norm_v1xv3)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        cosangle = vecdot(v1xv2, v1xv3) / (norm_v1xv2 * norm_v1xv3)
 
-    return np.arccos(cosangle)
+    # Thin cells can push the cosine a few ulps out of range; arccos would NaN.
+    return np.arccos(np.clip(cosangle, -1.0, 1.0))
 
 
 def vecdot(v1, v2):
@@ -1233,6 +1235,34 @@ def quadrilateral_areas(lat, lon, R=1):
     )
 
 
+def _vertices_coincide(va, vb):
+    """Return a boolean mask of where 3-vectors ``va`` and ``vb`` are the same point."""
+
+    return np.all(va == vb, axis=-1)
+
+
+def spherical_triangle_area(v1, v2, v3):
+    """Return the area of the spherical triangle ``v1``-``v2``-``v3`` (3-vectors),
+    via the excess of its angle sum over pi. A repeated vertex gives zero, not NaN.
+    """
+
+    R = np.sqrt(vecdot(v1, v1))
+
+    area = (
+        angle_between(v1, v2, v3)
+        + angle_between(v2, v3, v1)
+        + angle_between(v3, v1, v2)
+        - np.pi
+    ) * R**2
+
+    degenerate = (
+        _vertices_coincide(v1, v2)
+        | _vertices_coincide(v2, v3)
+        | _vertices_coincide(v3, v1)
+    )
+    return np.where(degenerate, 0.0, area)
+
+
 def quadrilateral_area(v1, v2, v3, v4):
     """Return the area of a spherical quadrilateral on the unit sphere that
     has vertices on the 3-vectors ``v1``, ``v2``, ``v3``, ``v4``
@@ -1278,7 +1308,24 @@ def quadrilateral_area(v1, v2, v3, v4):
     a3 = angle_between(v3, v4, v2)
     a4 = angle_between(v4, v1, v3)
 
-    return (a1 + a2 + a3 + a4 - 2 * np.pi) * R**2
+    area = (a1 + a2 + a3 + a4 - 2 * np.pi) * R**2
+
+    # A repeated vertex (from the tripolar fold seam or a collapsed pole row)
+    # makes the quad a triangle, leaving two angles undefined and the excess NaN.
+    # Redo just those cells; well-formed ones keep their value bit-for-bit.
+    dup12 = _vertices_coincide(v1, v2)
+    dup23 = _vertices_coincide(v2, v3)
+    degenerate = dup12 | dup23 | _vertices_coincide(v3, v4) | _vertices_coincide(v4, v1)
+
+    if np.any(degenerate):
+        area = np.where(degenerate, 0.0, area)  # also drops the NaNs
+        # Drop the duplicate: v1==v2 -> (v1,v3,v4), v2==v3 -> (v1,v2,v4), else (v1,v2,v3).
+        keep2 = np.where(dup12[..., np.newaxis], v3, v2)
+        keep3 = np.where((dup12 | dup23)[..., np.newaxis], v4, v3)
+        area = np.where(degenerate, spherical_triangle_area(v1, keep2, keep3), area)
+
+    # A diagonal repeat leaves no triangle at all.
+    return np.where(_vertices_coincide(v1, v3) | _vertices_coincide(v2, v4), 0.0, area)
 
 
 def mom6_angle_calculation_method(

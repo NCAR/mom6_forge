@@ -407,3 +407,37 @@ def test_tripolar_roundtrip(tripolar_sg, tmp_path):
     np.testing.assert_array_equal(sg2.y[::2, ::2], tripolar_sg.y[::2, ::2])
     np.testing.assert_array_equal(sg2.x[1::2, 1::2], tripolar_sg.x[1::2, 1::2])
     np.testing.assert_array_equal(sg2.y[1::2, 1::2], tripolar_sg.y[1::2, 1::2])
+
+
+# --------------------------------------------------------------------------- #
+# Degenerate (triangular) quadrilaterals
+# --------------------------------------------------------------------------- #
+def test_quadrilateral_area_with_repeated_vertex_is_triangle_area():
+    """A quad with a doubled vertex is a spherical triangle, not a NaN.
+
+    The tripolar fold seam and a collapsed pole row both produce coincident nodes.
+    """
+    R = 6371e3
+    v1 = latlon_to_cartesian(0, 0, R)
+    v2 = latlon_to_cartesian(0, 90, R)
+    v3 = latlon_to_cartesian(90, 0, R)
+    octant = 4 * np.pi * R**2 / 8
+
+    for quad in [
+        (v1, v2, v3, v3),
+        (v1, v1, v2, v3),
+        (v1, v2, v2, v3),
+        (v1, v2, v3, v1),
+    ]:
+        np.testing.assert_allclose(quadrilateral_area(*quad), octant, rtol=1e-12)
+
+
+def test_quadrilateral_areas_no_nan_with_collapsed_row():
+    """A grid row collapsed to a single point yields finite, non-negative areas."""
+    lat = np.array([[0.0, 0.0, 0.0], [30.0, 30.0, 30.0], [90.0, 90.0, 90.0]])
+    lon = np.array([[0.0, 60.0, 120.0], [0.0, 60.0, 120.0], [0.0, 0.0, 0.0]])
+
+    areas = quadrilateral_areas(lat, lon, 6371e3)
+
+    assert np.all(np.isfinite(areas))
+    assert np.all(areas >= 0)
