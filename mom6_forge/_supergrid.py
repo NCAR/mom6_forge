@@ -34,18 +34,23 @@ class SupergridBase:
 
     @property
     def is_tripolar(self):
-        nlines = 0
-        _, nx = self.x.shape
-        within_line = False
-        for i in range(0, nx - 1):
-            if not within_line:
-                if self.x[-1, i] == self.x[-1, i + 1]:
-                    within_line = True
-                    nlines += 1
-            else:
-                if self.x[-1, i] != self.x[-1, i + 1]:
-                    within_line = False
-        return nlines == 3
+        return SupergridBase.x_is_tripolar(self.x)
+
+    @staticmethod
+    def x_is_tripolar(x) -> bool:
+        """Return whether an ``x`` coordinate array is that of a tripolar grid.
+
+        A tripolar grid's top row runs along the seam joining its two poles, so
+        the longitude there holds steady over three stretches of the row. ``x``
+        can come from a supergrid or straight from an hgrid dataset.
+        """
+
+        x = np.asarray(x)
+        same_as_next = x[-1, :-1] == x[-1, 1:]
+        # count the stretches, i.e. the places where one starts
+        starts = same_as_next.copy()
+        starts[1:] &= ~same_as_next[:-1]
+        return int(np.count_nonzero(starts)) == 3
 
     @property
     def lenx(self):
