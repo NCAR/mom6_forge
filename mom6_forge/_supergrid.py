@@ -1235,39 +1235,50 @@ def quadrilateral_areas(lat, lon, R=1):
     )
 
 
-def _vertices_coincide(va, vb):
-    """Return a boolean mask of where 3-vectors ``va`` and ``vb`` are the same point."""
+def _central_angle(u, v):
+    """Return the angle between two points on a sphere, seen from its center.
 
-    return np.all(va == vb, axis=-1)
+    ``u`` and ``v`` are 3-vectors and the angle is in radians. This uses atan2
+    rather than the arccosine of a dot product, which loses most of its accuracy
+    when the two points are close together.
+    """
+
+    cross = np.cross(u, v)
+    return np.arctan2(np.sqrt(vecdot(cross, cross)), vecdot(u, v))
 
 
 def spherical_triangle_area(v1, v2, v3):
-    """Return the area of the spherical triangle ``v1``-``v2``-``v3`` (3-vectors),
-    via the excess of its angle sum over pi. A repeated vertex gives zero, not NaN.
+    """Return the area of a triangle on a sphere, given its three corners.
+
+    The corners ``v1``, ``v2`` and ``v3`` are 3-vectors. The area is found with
+    l'Huilier's theorem, which stays accurate however thin the triangle is.
+    If two corners are the same point the triangle has no area, and the result is
+    zero rather than NaN.
     """
 
     R = np.sqrt(vecdot(v1, v1))
 
-    area = (
-        angle_between(v1, v2, v3)
-        + angle_between(v2, v3, v1)
-        + angle_between(v3, v1, v2)
-        - np.pi
-    ) * R**2
+    a = _central_angle(v2, v3)
+    b = _central_angle(v3, v1)
+    c = _central_angle(v1, v2)
+    s = 0.5 * (a + b + c)
 
-    degenerate = (
-        _vertices_coincide(v1, v2)
-        | _vertices_coincide(v2, v3)
-        | _vertices_coincide(v3, v1)
+    tans = (
+        np.tan(0.5 * s)
+        * np.tan(0.5 * (s - a))
+        * np.tan(0.5 * (s - b))
+        * np.tan(0.5 * (s - c))
     )
-    return np.where(degenerate, 0.0, area)
+    # Rounding can leave this product slightly negative for a flat triangle.
+    return 4.0 * np.arctan(np.sqrt(np.maximum(tans, 0.0))) * R**2
 
 
 def quadrilateral_area(v1, v2, v3, v4):
-    """Return the area of a spherical quadrilateral on the unit sphere that
-    has vertices on the 3-vectors ``v1``, ``v2``, ``v3``, ``v4``
-    (counter-clockwise orientation is implied). The area is computed via
-    the excess of the sum of the spherical angles of the quadrilateral from 2π.
+    """Return the area of a four-sided cell on a sphere, given its corners.
+
+    The corners are the 3-vectors ``v1``, ``v2``, ``v3``, ``v4``, taken in
+    counter-clockwise order. The cell is cut along a diagonal and the two
+    triangles are added up (see :func:`spherical_triangle_area`).
 
     Example:
 
@@ -1301,31 +1312,11 @@ def quadrilateral_area(v1, v2, v3, v4):
     ):
         raise ValueError("vectors provided must have the same length")
 
-    R = np.sqrt(vecdot(v1, v1))
-
-    a1 = angle_between(v1, v2, v4)
-    a2 = angle_between(v2, v3, v1)
-    a3 = angle_between(v3, v4, v2)
-    a4 = angle_between(v4, v1, v3)
-
-    area = (a1 + a2 + a3 + a4 - 2 * np.pi) * R**2
-
-    # A repeated vertex (from the tripolar fold seam or a collapsed pole row)
-    # makes the quad a triangle, leaving two angles undefined and the excess NaN.
-    # Redo just those cells; well-formed ones keep their value bit-for-bit.
-    dup12 = _vertices_coincide(v1, v2)
-    dup23 = _vertices_coincide(v2, v3)
-    degenerate = dup12 | dup23 | _vertices_coincide(v3, v4) | _vertices_coincide(v4, v1)
-
-    if np.any(degenerate):
-        area = np.where(degenerate, 0.0, area)  # also drops the NaNs
-        # Drop the duplicate: v1==v2 -> (v1,v3,v4), v2==v3 -> (v1,v2,v4), else (v1,v2,v3).
-        keep2 = np.where(dup12[..., np.newaxis], v3, v2)
-        keep3 = np.where((dup12 | dup23)[..., np.newaxis], v4, v3)
-        area = np.where(degenerate, spherical_triangle_area(v1, keep2, keep3), area)
-
-    # A diagonal repeat leaves no triangle at all.
-    return np.where(_vertices_coincide(v1, v3) | _vertices_coincide(v2, v4), 0.0, area)
+    # Cut the quadrilateral along a diagonal and add the two halves; areas add up
+    # on a sphere just as they do on a plane. Each half is still handled correctly
+    # if the quadrilateral has collapsed into a triangle, which is what a collapsed
+    # pole row and the tripolar fold seam both produce.
+    return spherical_triangle_area(v1, v2, v3) + spherical_triangle_area(v1, v3, v4)
 
 
 def mom6_angle_calculation_method(

@@ -441,3 +441,36 @@ def test_quadrilateral_areas_no_nan_with_collapsed_row():
 
     assert np.all(np.isfinite(areas))
     assert np.all(areas >= 0)
+
+
+def test_quadrilateral_area_of_sliver():
+    """A very thin cell still gets an accurate, positive area.
+
+    The old formula added up the four corner angles and subtracted 2*pi, which
+    loses all its precision on the sliver-shaped cells along a tripolar fold and
+    used to hand back large negative areas for them.
+    """
+    R = 6371e3
+    lat1, lat2, lon1, dlon = 49.7, 49.72, -287.0, 1e-9
+    corner = lambda la, lo: np.array(latlon_to_cartesian(la, lo, R))
+
+    # a spherical rectangle's area is known exactly
+    exact = (
+        R**2 * np.deg2rad(dlon) * (np.sin(np.deg2rad(lat2)) - np.sin(np.deg2rad(lat1)))
+    )
+    area = quadrilateral_area(
+        corner(lat1, lon1),
+        corner(lat1, lon1 + dlon),
+        corner(lat2, lon1 + dlon),
+        corner(lat2, lon1),
+    )
+    np.testing.assert_allclose(area, exact, rtol=1e-3)
+
+    # a sub-cell taken from the tx2_3v3 Arctic fold, which computed as -2.1e12
+    fold_cell = [
+        (49.701392, -287.0),
+        (49.720101, -286.792302),
+        (49.720127, -286.791940),
+        (49.710161, -287.0),
+    ]
+    assert quadrilateral_area(*[corner(la, lo) for la, lo in fold_cell]) > 0
