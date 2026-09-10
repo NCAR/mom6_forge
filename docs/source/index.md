@@ -7,7 +7,7 @@
 
 `mom6_forge` is a Python tool to generate MOM6 horizontal grid and bathymetry files
 to be used within the **"CESM Simpler Models"** framework. Follow the links below
-to learn about the `mom6_forge` tool.
+to learn more about available tools.
 
 ```{toctree}
 :maxdepth: 2
@@ -15,6 +15,8 @@ to learn about the `mom6_forge` tool.
 
 installation
 quickstart
+bathymetry_workflow
+mapping
 notebooks
 glossary
 widgets
@@ -25,6 +27,13 @@ widgets
 :caption: Python API:
 
 api/modules
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Contributing:
+
+contributing
 ```
 
 ## Indices and tables
