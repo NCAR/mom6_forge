@@ -40,7 +40,14 @@ def test_write_ww3_input_array_contents(get_rect_topo_without_vc, tmp_path):
 
     # Flat ocean: positive depth everywhere, all cells wet.
     assert np.allclose(bottom, 1000.0)
-    assert (mapsta == 1).all()
+
+    # Non-cyclic grid: perimeter ocean cells are active boundary points (2),
+    # interior cells are ordinary sea points (1).
+    assert (mapsta[0, :] == 2).all()
+    assert (mapsta[-1, :] == 2).all()
+    assert (mapsta[:, 0] == 2).all()
+    assert (mapsta[:, -1] == 2).all()
+    assert (mapsta[1:-1, 1:-1] == 1).all()
 
 
 def test_write_ww3_input_grid_control_file(get_rect_topo_without_vc, tmp_path):
@@ -81,9 +88,34 @@ def test_write_ww3_input_masked_cells_are_land(get_rect_topo_without_vc, tmp_pat
         assert mapsta[j, i] == 0
         assert bottom[j, i] == 0.0
 
-    # mapsta is exactly the land/sea mask, and depth is zero wherever land.
-    assert np.array_equal(mapsta, topo.tmask.data)
+    # mapsta is 0 exactly where the land/sea mask is land (ocean cells are
+    # either interior sea points (1) or active boundary points (2)), and
+    # depth is zero wherever land.
+    assert np.array_equal(mapsta == 0, topo.tmask.data == 0)
     assert (bottom[mapsta == 0] == 0.0).all()
+
+
+def test_write_ww3_input_cyclic_grid_has_no_east_west_boundary(
+    get_simple_global_grid, tmp_path
+):
+    """A grid that is reentrant in x (e.g. a global band) has no physical
+    east/west boundary, so only the north/south edges should be flagged as
+    active boundary points (2) in mapsta; east/west edge cells remain
+    ordinary interior sea points (1)."""
+    from mom6_forge.topo import Topo
+
+    grid = get_simple_global_grid
+    topo = Topo(grid, min_depth=0, git=False)
+    topo.set_flat(1000)
+    alias = grid.name
+
+    topo.write_ww3_input(tmp_path, grid_alias=alias)
+    mapsta = np.loadtxt(tmp_path / f"{alias}_mapsta.inp")
+
+    assert (mapsta[0, :] == 2).all()
+    assert (mapsta[-1, :] == 2).all()
+    assert (mapsta[1:-1, 0] == 1).all()
+    assert (mapsta[1:-1, -1] == 1).all()
 
 
 def test_write_ww3_input_after_reconstruction_from_files(
