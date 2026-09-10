@@ -4,10 +4,10 @@ mom6\_forge package
 Submodules
 ----------
 
-mom6\_forge.chl module
-----------------------
+mom6\_forge.channel\_width module
+----------------------------------
 
-.. automodule:: mom6_forge.chl
+.. automodule:: mom6_forge.channel_width
    :members:
    :undoc-members:
    :show-inheritance:
