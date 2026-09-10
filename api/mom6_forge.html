@@ -57,11 +57,6 @@
 <li class="toctree-l1 current"><a class="reference internal" href="modules.html">mom6_forge</a><ul class="current">
 <li class="toctree-l2 current"><a class="current reference internal" href="#">mom6_forge package</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#module-mom6_forge.chl">mom6_forge.chl module</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.chl.gen_chl_empty_dataset"><code class="docutils literal notranslate"><span class="pre">gen_chl_empty_dataset()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.chl.interpolate_and_fill_seawifs"><code class="docutils literal notranslate"><span class="pre">interpolate_and_fill_seawifs()</span></code></a></li>
-</ul>
-</li>
 <li class="toctree-l3"><a class="reference internal" href="#module-mom6_forge.command_manager">mom6_forge.command_manager module</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.command_manager.CommandManager"><code class="docutils literal notranslate"><span class="pre">CommandManager</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.command_manager.CommandType"><code class="docutils literal notranslate"><span class="pre">CommandType</span></code></a></li>
@@ -184,78 +179,6 @@
 <h1>mom6_forge package<a class="headerlink" href="#mom6-forge-package" title="Link to this heading"></a></h1>
 <section id="submodules">
 <h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading"></a></h2>
-</section>
-<section id="module-mom6_forge.chl">
-<span id="mom6-forge-chl-module"></span><h2>mom6_forge.chl module<a class="headerlink" href="#module-mom6_forge.chl" title="Link to this heading"></a></h2>
-<dl class="py function">
-<dt class="sig sig-object py" id="mom6_forge.chl.gen_chl_empty_dataset">
-<span class="sig-prename descclassname"><span class="pre">mom6_forge.chl.</span></span><span class="sig-name descname"><span class="pre">gen_chl_empty_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">output_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lon</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lat</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fill_value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1e+34</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">calendar</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'noleap'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.chl.gen_chl_empty_dataset" title="Link to this definition"></a></dt>
-<dd><p>Generate an empty NetCDF dataset for SeaWiFS chlorophyll climatology and save it to disk.</p>
-<p>This function creates a synthetic xarray dataset with a CHL_A variable (monthly mean chlorophyll)
-initialized entirely with fill values. The dataset uses the provided longitude and latitude
-arrays to define the spatial grid and includes a fixed climatological time axis.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>output_path</strong> (<em>str</em><em> or </em><em>Path</em>) – Path to save the output NetCDF file.</p></li>
-<li><p><strong>lon</strong> (<em>array-like</em>) – 1D array of longitude values (in degrees east) defining the spatial X-axis.</p></li>
-<li><p><strong>lat</strong> (<em>array-like</em>) – 1D array of latitude values (in degrees north) defining the spatial Y-axis.</p></li>
-<li><p><strong>fill_value</strong> (<em>float</em><em>, </em><em>optional</em>) – Placeholder value CHL_A is initialized with, and the value written as its
-<code class="docutils literal notranslate"><span class="pre">missing_value</span></code> attribute. Default is -1e34.</p></li>
-<li><p><strong>calendar</strong> (<em>str</em><em>, </em><em>optional</em>) – Calendar the TIME axis is built for, case-insensitive. One of “noleap”,
-“no_leap”, “365_day”, “365_days”, “gregorian” or “standard”; anything
-else raises <code class="docutils literal notranslate"><span class="pre">NotImplementedError</span></code>. Default is “noleap”.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>ds</strong> – The generated empty dataset containing the CHL_A variable and coordinate metadata.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>xarray.Dataset</p>
-</dd>
-</dl>
-<p class="rubric">Notes</p>
-<ul class="simple">
-<li><p>The CHL_A variable is filled entirely with <code class="docutils literal notranslate"><span class="pre">fill_value</span></code>.</p></li>
-<li><p>The TIME dimension is fixed and marked as unlimited in the NetCDF file.</p></li>
-<li><p>TIME values are the midpoint of each month in a climatological year of the
-requested calendar, so the axis and the calendar attribute agree.</p></li>
-<li><p>This dataset structure mimics that of SeaWiFS chlorophyll climatology products and is intended
-as a template or placeholder.</p></li>
-</ul>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="mom6_forge.chl.interpolate_and_fill_seawifs">
-<span class="sig-prename descclassname"><span class="pre">mom6_forge.chl.</span></span><span class="sig-name descname"><span class="pre">interpolate_and_fill_seawifs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid"><span class="pre">Grid</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">topo</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#mom6_forge.topo.Topo" title="mom6_forge.topo.Topo"><span class="pre">Topo</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">processed_seawifs_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">calendar</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'noleap'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.chl.interpolate_and_fill_seawifs" title="Link to this definition"></a></dt>
-<dd><p>Interpolate and fill SeaWiFS chlorophyll data to a model grid and save to NetCDF.</p>
-<p>This function takes gridded SeaWiFS chlorophyll data, interpolates it onto a
-super-sampled model grid, applies ocean masking, fills missing values, and writes
-the processed data to a NetCDF file. Global attributes are added to the output
-dataset to document provenance and authorship.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>grid</strong> (<a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid"><em>Grid</em></a>) – Model grid object containing tracer longitude and latitude arrays (<cite>grid.tlon</cite>, <cite>grid.tlat</cite>)
-and other grid arrays (<cite>grid.qlon</cite>, <cite>grid.qlat</cite>, <cite>grid.nx</cite>, <cite>grid.ny</cite>).</p></li>
-<li><p><strong>topo</strong> (<a class="reference internal" href="#mom6_forge.topo.Topo" title="mom6_forge.topo.Topo"><em>Topo</em></a>) – Topography object containing the ocean mask (<cite>topo.tmask</cite>).</p></li>
-<li><p><strong>processed_seawifs_path</strong> (<em>Path</em><em> or </em><em>str</em>) – Path to the preprocessed SeaWiFS chlorophyll dataset.</p></li>
-<li><p><strong>output_path</strong> (<em>Path</em><em> or </em><em>str</em><em>, </em><em>optional</em>) – Path to save the output NetCDF file. If not provided, it is created in the same
-directory as <cite>processed_seawifs_path</cite> using the grid name.</p></li>
-<li><p><strong>calendar</strong> (<em>str</em><em>, </em><em>optional</em>) – Calendar the output time axis is built for, case-insensitive. Default is
-“noleap”. See <cite>gen_chl_empty_dataset</cite>.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>A dataset containing the interpolated and filled chlorophyll concentration with
-appropriate global attributes and coordinate variables.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>xarray.Dataset</p>
-</dd>
-</dl>
-</dd></dl>
-
 </section>
 <section id="module-mom6_forge.command_manager">
 <span id="mom6-forge-command-manager-module"></span><h2>mom6_forge.command_manager module<a class="headerlink" href="#module-mom6_forge.command_manager" title="Link to this heading"></a></h2>
