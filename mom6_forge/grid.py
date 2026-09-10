@@ -113,8 +113,8 @@ class Grid:
             assert (
                 resolution is not None
             ), "resolution must be provided if nx and ny are not"
-            nx = int(lenx / resolution)
-            ny = int(leny / resolution)
+            nx = int(round(lenx / resolution))
+            ny = int(round(leny / resolution))
 
         if type == "rectilinear_cartesian" and resolution is None:
             raise ValueError(
@@ -357,11 +357,12 @@ class Grid:
 
         Parameters
         ----------
-        supergrid : SupergridBase
-            Supergrid to check if tripolar.
+        supergrid : xr.Dataset or xr.DataArray or np.array or SupergridBase
+            Supergrid to check if tripolar. Anything carrying a 2D ``x``
+            coordinate array will do, matching is_cyclic_x above.
         """
 
-        return supergrid.is_tripolar
+        return SupergridBase.x_is_tripolar(supergrid.x)
 
     def is_rectangular(self, atol=1e-3) -> bool:
         """Check if the grid is a rectangular lat-lon grid by comparing the
