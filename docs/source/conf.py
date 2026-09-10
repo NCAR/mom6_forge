@@ -35,10 +35,17 @@ extensions = [
     "sphinx_rtd_theme",
     "sphinx.ext.napoleon",
     "nbsphinx",
+    "myst_parser",
 ]
 
 # Never re-execute notebooks during docs build — use existing cell outputs.
 nbsphinx_execute = "never"
+
+# Hand-written pages are MyST Markdown; sphinx-apidoc still emits .rst.
+source_suffix = {
+    ".rst": "restructuredtext",
+    ".md": "markdown",
+}
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
