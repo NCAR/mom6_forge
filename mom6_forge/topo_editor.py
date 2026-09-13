@@ -340,7 +340,12 @@ class TopoEditor(widgets.HBox):
             transform=ccrs.PlateCarree(),
         )
         self.ax.set_extent(
-            [lon_min, lon_max, float(self.topo._grid.qlat.min()), float(self.topo._grid.qlat.max())],
+            [
+                lon_min,
+                lon_max,
+                float(self.topo._grid.qlat.min()),
+                float(self.topo._grid.qlat.max()),
+            ],
             crs=ccrs.PlateCarree(),
         )
 
