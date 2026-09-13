@@ -956,6 +956,27 @@ class SupergridBase:
         )
         return pseudo_supergrid
 
+    def expand(self, n_cells=1) -> "SupergridBase":
+        """
+        Return a new supergrid padded by ``n_cells`` T-cells of linear
+        extrapolation on every side (a halo), by repeatedly applying
+        :func:`_create_expanded_supergrid` (each call pads by half a T-cell
+        per side) and rebuilding full grid metrics from the resulting x/y.
+        """
+        if self.is_cyclic_x or self.is_tripolar:
+            raise NotImplementedError(
+                "expand() is not supported for cyclic or tripolar grids"
+            )
+        assert n_cells >= 1, "n_cells must be a positive integer"
+        x, y = self.x, self.y
+        for _ in range(2 * n_cells):
+            padded = self._create_expanded_supergrid(x, y)
+            x, y = padded.x.values, padded.y.values
+        assert -90 <= y.min() and y.max() <= 90, (
+            "Expanded supergrid exceeds ±90 degrees latitude; check the input grid and expansion width."
+        )
+        return type(self)._init_from_xy(x, y, grid_type=self.grid_type)
+
 
 class UniformSphericalSupergrid(SupergridBase):
     """MOM6-style supergrid with constant-degree spacing (lon/lat grid)."""
