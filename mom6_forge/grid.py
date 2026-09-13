@@ -414,13 +414,8 @@ class Grid:
         ), "Cannot compute bounding boxes for cyclic grids"
 
         def _lon_lat_bounds(lon_values, lat_values):
-            # Re-center this edge's own longitudes around one of its own points
-            # before taking min/max, same trick _init_from_xy uses for a whole
-            # grid: an edge that merely crosses a seam becomes a tight,
-            # contiguous range instead of a misleadingly huge raw span. A
-            # domain that genuinely surrounds a pole can't be tightened this
-            # way -- every longitude is legitimately present, so the wrapped
-            # span stays > 180 and we fall back to the honest full range.
+            # Re-center around one of this edge's own points before min/max,
+            # so a seam crossing gives a tight range, not a huge raw span.
             center = np.ravel(lon_values)[np.ravel(lon_values).size // 2]
             wrapped = modulo_around_point(lon_values, center, 360)
             lon_min, lon_max = float(wrapped.min()), float(wrapped.max())
