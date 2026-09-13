@@ -12,6 +12,7 @@ from mom6_forge._supergrid import (
     SupergridBase,
     UniformSphericalSupergrid,
     _max_adjacent_diff,
+    haversine,
 )
 
 EXTENT_LEN, EXTENT_LAT_MIN, EXTENT_LEN_Y = 20.0, -5.0, 10.0  # degrees
@@ -94,6 +95,39 @@ def test_longitude_is_continuous_and_bounded(grid_type, seam, builder):
     assert (
         span < 360.0 + 1e-6
     ), f"{grid_type}/{seam}: longitude span of {span:.2f} degrees looks unbounded"
+
+
+def test_projected_supergrid_dx_dy_sane_when_pole_inside_domain():
+    """ProjectedSupergrid.from_crs/from_center must produce physically sane dx/dy
+    even when the domain's pole (the origin, for EPSG:3995) sits inside it -- the
+    row/column of supergrid nodes straddling the pole necessarily crosses the
+    antimeridian branch cut internally, which corrupted dx by orders of magnitude
+    under the old smallangle-based calculation."""
+    resolution_m = 100_000.0
+    sg = ProjectedSupergrid.from_crs(
+        "EPSG:3995", -300_000, 300_000, -300_000, 300_000, resolution_m=resolution_m
+    )
+
+    # No node-to-node metric should be wildly larger than the requested resolution:
+    # the old (broken) calculation produced dx values off by ~2-3 orders of magnitude
+    # at the seam crossing the pole.
+    assert np.all(sg.dx > 0)
+    assert np.all(sg.dy > 0)
+    assert sg.dx.max() < 5 * resolution_m
+    assert sg.dy.max() < 5 * resolution_m
+    assert np.all(sg.area > 0)
+
+    # Cross-check dx directly against haversine ground truth for the row of nodes
+    # passing right through the pole (the worst case for the old bug).
+    mid_row = sg.x.shape[0] // 2
+    expected_dx = haversine(
+        sg.y[mid_row, :-1],
+        sg.x[mid_row, :-1],
+        sg.y[mid_row, 1:],
+        sg.x[mid_row, 1:],
+        R=6.371e6,
+    )
+    np.testing.assert_allclose(sg.dx[mid_row], expected_dx)
 
 
 def test_global_cyclic_grid_still_spans_exactly_360():
