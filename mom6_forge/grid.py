@@ -113,8 +113,8 @@ class Grid:
             assert (
                 resolution is not None
             ), "resolution must be provided if nx and ny are not"
-            nx = int(lenx / resolution)
-            ny = int(leny / resolution)
+            nx = int(round(lenx / resolution))
+            ny = int(round(leny / resolution))
 
         if type == "rectilinear_cartesian" and resolution is None:
             raise ValueError(
@@ -357,30 +357,12 @@ class Grid:
 
         Parameters
         ----------
-        supergrid : xr.DataArray or np.array or SupergridBase
-            Supergrid to check if tripolar.
+        supergrid : xr.Dataset or xr.DataArray or np.array or SupergridBase
+            Supergrid to check if tripolar. Anything carrying a 2D ``x``
+            coordinate array will do, matching is_cyclic_x above.
         """
 
-        nlines = (
-            0  # number of lines along the top row,
-            # (i.e., 2 or more cells with the same x coordinate)
-        )
-
-        ny, nx = supergrid.x.shape
-
-        within_line = False
-        for i in range(0, nx - 1):
-            if not within_line:
-                if supergrid.x[-1, i] == supergrid.x[-1, i + 1]:
-                    within_line = True
-                    nlines += 1
-            else:
-                if supergrid.x[-1, i] != supergrid.x[-1, i + 1]:
-                    within_line = False
-
-        # If there are 3 lines (i.e., 2 or more cells with the same x coordinate),
-        # the grid is tripolar
-        return nlines == 3
+        return SupergridBase.x_is_tripolar(supergrid.x)
 
     def is_rectangular(self, atol=1e-3) -> bool:
         """Check if the grid is a rectangular lat-lon grid by comparing the
@@ -425,27 +407,19 @@ class Grid:
                 • "ic" (full domain for initial conditions)
         """
         if type(hgrid) == Grid:
-            # assert hgrid.is_rectangular()  # not valid for polar-projected grids (pole inside domain)
             hgrid = hgrid._supergrid.to_ds()
-            assert not Grid.is_cyclic_x(hgrid)
-        else:
-            grid_check = Grid.from_supergrid_ds(hgrid)
-            # assert grid_check.is_rectangular()  # not valid for polar-projected grids (pole inside domain)
-            assert not Grid.is_cyclic_x(hgrid)
+        assert not Grid.is_cyclic_x(
+            hgrid
+        ), "Cannot compute bounding boxes for cyclic grids"
 
         def _lon_lat_bounds(lon_values, lat_values):
             lon_min, lon_max = float(lon_values.min()), float(lon_values.max())
-            # A raw min/max span over 180 degrees almost always means this edge
-            # crosses the antimeridian (unavoidable for a box that fully encircles
-            # a pole) rather than genuinely spanning most of the globe. Left as-is,
-            # lon_max frequently lands exactly on 180.0, which downstream lon
-            # normalization (mapping to (-180, 180]) collapses to -180.0 -- flipping
-            # the antimeridian-crossing sign check and causing the data query to
-            # grab only a thin sliver near +-180 instead of the true wraparound
-            # range. Widen explicitly to the full range instead, which downstream
-            # antimeridian-crossing handling already treats correctly.
+            # A raw min/max span over 180 degrees means this edge crosses the
+            # antimeridian (unavoidable for a box that fully encircles a pole)
+            # rather than genuinely spanning most of the globe -- represent it
+            # honestly as the full longitude range rather than a narrow raw span.
             if lon_max - lon_min > 180:
-                lon_min, lon_max = -180.0, 179.999
+                lon_min, lon_max = -180.0, 180.0
             return {
                 "lon_min": lon_min,
                 "lon_max": lon_max,
@@ -579,6 +553,26 @@ class Grid:
             else os.path.basename(path)
         )
         return Grid.from_supergrid_ds(ds, name)
+
+    @classmethod
+    def from_esmf_mesh(cls, path: str, name: Optional[str] = None) -> "Grid":
+        """Create a Grid instance from a supergrid file.
+
+        Parameters
+        ----------
+        path : str
+            Path to the supergrid file to be written
+        name : str, optional
+            Name of the new grid. If provided, it will be used as the name of the grid.
+            If not provided, the name will be derived from the file name.
+
+        Returns
+        -------
+        Grid
+            The Grid instance created from the supergrid file.
+        """
+        sg = SupergridBase.reconstruct_from_esmf_mesh(path)
+        return Grid.from_supergrid_ds(sg.to_ds(), name)
 
     @classmethod
     def from_supergrid_ds(cls, ds: xr.Dataset, name: Optional[str] = None) -> "Grid":
