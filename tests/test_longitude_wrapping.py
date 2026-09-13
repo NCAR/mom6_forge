@@ -1,14 +1,7 @@
-"""Every supergrid builder must produce continuous, bounded longitude,
-regardless of where the domain sits relative to the two 360-degree seams:
-the Prime Meridian (0/360 wrap) and the antimeridian (+/-180 wrap).
-
-GRID_MATRIX exercises all 4 builders x 3 seam positions (12 grids) against
-the two invariants SupergridBase.__init__ enforces: no discontinuous jump
-between adjacent nodes, and no unbounded/implausible longitude range.
-Domains within 0.1 degrees of a pole are exempt from both -- see
-test_init_validation_exempts_pole_adjacent_latitude -- since every longitude
-converges there; a jump is a geometric singularity, not a wrap bug.
-"""
+"""Every supergrid builder must produce continuous, bounded longitude at both
+360-degree seams (Prime Meridian and antimeridian). GRID_MATRIX covers all
+4 builders x 3 seam positions; poles are exempt (longitude legitimately
+converges there)."""
 
 import numpy as np
 import pytest
@@ -36,8 +29,7 @@ def _rectilinear_cartesian(lon_min):
     )
 
 
-# EPSG:3995 (Arctic polar stereographic) directions, found by sweeping angle
-# around the pole: +x -> lon=90, +y -> lon=180 (antimeridian), -y -> lon=0 (PM).
+# EPSG:3995 (Arctic polar stereographic): +x -> lon=90, +y -> lon=180, -y -> lon=0.
 _CRS_OFFSETS = {
     "regular": dict(x=(3_200_000, 3_800_000), y=(-300_000, 300_000)),
     "pm_seam": dict(x=(-300_000, 300_000), y=(-3_800_000, -3_200_000)),
@@ -62,9 +54,7 @@ def _projected_from_center(center_lon):
     )
 
 
-# lon_min/center_lon per seam: regular = away from either seam, pm_seam =
-# straddles 0/360 (extent grids use the >360 overflow form), dateline_seam =
-# straddles +/-180.
+# regular = away from either seam, pm_seam = straddles 0/360, dateline_seam = straddles +/-180.
 GRID_MATRIX = [
     ("uniform_spherical", "regular", lambda: _uniform_spherical(15.0)),
     ("uniform_spherical", "pm_seam", lambda: _uniform_spherical(350.0)),

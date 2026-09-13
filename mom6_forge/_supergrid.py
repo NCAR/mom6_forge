@@ -22,8 +22,7 @@ from mom6_forge.utils import normalize_deg, is_mesh_cyclic_x, get_mesh_dimension
 
 
 def _max_adjacent_diff(x):
-    """Largest absolute difference between horizontally or vertically adjacent
-    values of a 2D array. Used to detect a raw dateline-wrap discontinuity."""
+    """Largest abs diff between adjacent values of a 2D array (detects dateline jumps)."""
     max_diff = 0.0
     if x.shape[1] > 1:
         max_diff = max(max_diff, np.abs(np.diff(x, axis=1)).max())
@@ -101,27 +100,13 @@ class SupergridBase:
         self.axis_units = axis_units
         self.grid_type = grid_type
 
-    # Domains that reach this close to a pole legitimately surround every
-    # longitude (the pole is the one point where all meridians meet), so no
-    # wrap can make them continuous -- this is a real geometric singularity,
-    # not a wrap bug, and the validation below must leave such domains alone.
+    # Near a pole, every longitude legitimately converges, so wrap checks don't apply there.
     _POLE_ADJACENT_LAT = 89.9
 
     @staticmethod
     def _validate_longitude_continuity(x, y, max_span=360.0, max_adjacent_jump=180.0):
-        """Guard against the two dateline-wrapping failure modes this class must never produce.
-
-        1. A discontinuous jump between adjacent supergrid nodes (e.g. 179 next to
-           -179), which corrupts dx/dy/area/angle_dx since those are computed by
-           differencing adjacent x values.
-        2. Longitude values sitting at an implausible absolute offset (e.g. left in
-           the thousands of degrees by an upstream unit bug) or an unbounded span,
-           either of which indicates x was never wrapped/normalized at all.
-
-        A legitimate global, cyclic-in-x grid has span == 360 exactly (or a hair
-        over due to floating point), which is why the span check has a small
-        tolerance rather than being a strict `< 360`.
-        """
+        """Guard against unwrapped/discontinuous longitude values that would corrupt
+        dx/dy/area/angle_dx (computed by differencing adjacent x values)."""
         if np.abs(y).max() >= SupergridBase._POLE_ADJACENT_LAT:
             return
 
@@ -132,10 +117,8 @@ class SupergridBase:
                 f"Longitude span is {span:.4f} degrees (> {max_span}); x looks "
                 "unwrapped/unbounded rather than a valid regional or global domain."
             )
-        # Every value must independently sit within [-180, 540]: the fix targets
-        # a domain center within [0, 360) and, with span capped at 360, no
-        # individual value can legitimately fall outside 180 degrees either
-        # side of that -- i.e. [0 - 180, 360 + 180).
+        # x is expected centered within [0, 360) with span <= 360, so valid values
+        # can't fall outside 180 degrees either side of that: [-180, 540).
         low_bound, high_bound = -180.0, 540.0
         if x.max() > high_bound + tol or x.min() < low_bound - tol:
             raise ValueError(
@@ -236,30 +219,12 @@ class SupergridBase:
         # Clamp to valid geographic range (floating-point overshoot from projection in some cases)
         y = np.clip(y, -90.0, 90.0)
 
-        # Longitude must be continuous before dx/dy/area/angle are computed by
-        # differencing adjacent x values: a raw dateline-wrap discontinuity (e.g.
-        # adjacent values of 179 and -179) corrupts those calculations at the seam.
-        # Skip entirely for domains that reach a pole: every longitude legitimately
-        # converges there, so no wrap can (or should) make them continuous.
+        # Fix raw dateline-wrap discontinuities in x before differencing for dx/dy/area/angle.
+        # Skipped near poles, where every longitude legitimately converges.
         if np.abs(y).max() < SupergridBase._POLE_ADJACENT_LAT:
             center_lon = x[x.shape[0] // 2, x.shape[1] // 2]
-            # The per-element modulo is only needed (and only invoked) when the
-            # raw array actually contains a within-domain discontinuity (e.g. a
-            # raw PROJ transform whose +/-180 branch cut falls inside this
-            # domain) -- calling it unconditionally would round-trip every
-            # already-fine value through a floating-point modulo, introducing
-            # noise into arrays that never needed touching. Wrap around the
-            # grid's own center point rather than a fixed reference (e.g.
-            # Greenwich) so a domain straddling any seam is never split by the
-            # wrap itself.
             if _max_adjacent_diff(x) > 180.0:
                 x = modulo_around_point(x, center_lon, 360)
-            # Re-centering by a whole multiple of 360 is always safe (it can't
-            # introduce a new discontinuity, and shifting by exactly 0 is a
-            # bit-identical no-op) so this always runs, to land the field in
-            # the conventional [0, 360) range. Only a domain that itself
-            # straddles that seam (e.g. centered near the Prime Meridian)
-            # spills outside it, since no shift avoids that.
             x = x - np.floor(center_lon / 360) * 360
 
         # dx, dy, area: use base class consistent calculation methods
