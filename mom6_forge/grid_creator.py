@@ -692,9 +692,13 @@ class GridCreator(widgets.HBox):
         self._create_grid_from_center(x, y)
 
     def _create_grid_from_clicks(self, x1, y1, x2, y2):
-        xstart = min(x1, x2)
+        # Take the shorter arc between the two longitudes, not a plain
+        # min/max, so a rectangle drawn across the dateline seam isn't
+        # treated as the huge region on the far side of the world.
+        lon_diff = ((x2 - x1 + 180) % 360) - 180
+        xstart = x1 if lon_diff >= 0 else x2
+        lenx = abs(lon_diff)
         ystart = min(y1, y2)
-        lenx = abs(x2 - x1)
         leny = abs(y2 - y1)
         resolution = max(lenx, leny) / 20  # ~20 cells across the larger dimension
 
@@ -792,7 +796,14 @@ class GridCreator(widgets.HBox):
             return
         if not self._move_center_button.value:
             return
-        lon, lat = event.xdata, event.ydata
+        # event.xdata is native to the axes' (possibly shifted) projection —
+        # add central_longitude back to get true longitude.
+        current_lon_0 = (
+            self._current_map_proj.proj4_params.get("lon_0", 0.0)
+            if isinstance(self._current_map_proj, ccrs.PlateCarree)
+            else 0.0
+        )
+        lon, lat = event.xdata + current_lon_0, event.ydata
         self.ax.plot(lon, lat, "r+", markersize=10, transform=ccrs.PlateCarree())
         self.fig.canvas.draw_idle()
         self._move_center_button.value = False  # triggers _on_move_center_toggle OFF
@@ -871,15 +882,48 @@ class GridCreator(widgets.HBox):
         finally:
             self._in_redraw = False
 
+    def _map_extent_for_grid(self):
+        """Compute (central_longitude, [lon_min, lon_max, lat_min, lat_max])
+        for displaying ``self.grid``.
+
+        A plain PlateCarree() axes only zooms in correctly on a domain
+        crossing +/-180 (e.g. [170, 190]) if central_longitude is moved to
+        the domain's own center; otherwise it silently falls back to the
+        whole globe. Detect a true crossing by checking whether shifting
+        each end independently into (-180, 180] preserves the domain's
+        width — an ordinary out-of-range domain like [278, 282] passes
+        this and needs no shift.
+        """
+        lon_min, lon_max = float(self.grid.qlon.min()), float(self.grid.qlon.max())
+        lat_min, lat_max = float(self.grid.qlat.min()), float(self.grid.qlat.max())
+        norm_min = ((lon_min + 180.0) % 360.0) - 180.0
+        norm_max = ((lon_max + 180.0) % 360.0) - 180.0
+        if np.isclose(norm_max - norm_min, lon_max - lon_min):
+            central_longitude = 0.0
+        else:
+            central_longitude = 0.5 * (lon_min + lon_max)
+        return central_longitude, [lon_min, lon_max, lat_min, lat_max]
+
     def plot_grid(self):
         self._in_redraw = True
         try:
-            self._draw_map_content()
-            lon_min, lon_max = float(self.grid.qlon.min()), float(self.grid.qlon.max())
-            lat_min, lat_max = float(self.grid.qlat.min()), float(self.grid.qlat.max())
-            self.ax.set_extent(
-                [lon_min, lon_max, lat_min, lat_max], crs=ccrs.PlateCarree()
+            central_longitude, extent = self._map_extent_for_grid()
+            lon_min, lon_max, lat_min, lat_max = extent
+            current_lon_0 = (
+                self._current_map_proj.proj4_params.get("lon_0", 0.0)
+                if isinstance(self._current_map_proj, ccrs.PlateCarree)
+                else None
             )
+            if current_lon_0 is not None and not np.isclose(
+                current_lon_0, central_longitude
+            ):
+                # Changing central_longitude requires a new GeoAxes.
+                self._set_map_projection(
+                    ccrs.PlateCarree(central_longitude=central_longitude), extent
+                )
+            else:
+                self._draw_map_content()
+                self.ax.set_extent(extent, crs=ccrs.PlateCarree())
             self._draw_scale_bar(lon_min, lon_max, lat_min, lat_max)
             self.fig.canvas.draw_idle()
         finally:
