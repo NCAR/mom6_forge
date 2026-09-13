@@ -9,6 +9,7 @@ from mom6_forge._supergrid import (
     RectilinearCartesianSupergrid,
     ProjectedSupergrid,
     SupergridBase,
+    modulo_around_point,
 )
 from mom6_forge.utils import normalize_deg
 
@@ -412,36 +413,34 @@ class Grid:
             hgrid
         ), "Cannot compute bounding boxes for cyclic grids"
 
-        init_result = {
-            "lon_min": float(hgrid.x.min()),
-            "lon_max": float(hgrid.x.max()),
-            "lat_min": float(hgrid.y.min()),
-            "lat_max": float(hgrid.y.max()),
-        }
-        east_result = {
-            "lon_min": float(hgrid.x.isel(nxp=-1).min()),
-            "lon_max": float(hgrid.x.isel(nxp=-1).max()),
-            "lat_min": float(hgrid.y.isel(nxp=-1).min()),
-            "lat_max": float(hgrid.y.isel(nxp=-1).max()),
-        }
-        west_result = {
-            "lon_min": float(hgrid.x.isel(nxp=0).min()),
-            "lon_max": float(hgrid.x.isel(nxp=0).max()),
-            "lat_min": float(hgrid.y.isel(nxp=0).min()),
-            "lat_max": float(hgrid.y.isel(nxp=0).max()),
-        }
-        south_result = {
-            "lon_min": float(hgrid.x.isel(nyp=0).min()),
-            "lon_max": float(hgrid.x.isel(nyp=0).max()),
-            "lat_min": float(hgrid.y.isel(nyp=0).min()),
-            "lat_max": float(hgrid.y.isel(nyp=0).max()),
-        }
-        north_result = {
-            "lon_min": float(hgrid.x.isel(nyp=-1).min()),
-            "lon_max": float(hgrid.x.isel(nyp=-1).max()),
-            "lat_min": float(hgrid.y.isel(nyp=-1).min()),
-            "lat_max": float(hgrid.y.isel(nyp=-1).max()),
-        }
+        def _lon_lat_bounds(lon_values, lat_values):
+            # Re-center around one of this edge's own points before min/max,
+            # so a seam crossing gives a tight range, not a huge raw span.
+            center = np.ravel(lon_values)[np.ravel(lon_values).size // 2]
+            wrapped = modulo_around_point(lon_values, center, 360)
+            lon_min, lon_max = float(wrapped.min()), float(wrapped.max())
+            if lon_max - lon_min > 180:
+                lon_min, lon_max = -180.0, 180.0
+            return {
+                "lon_min": lon_min,
+                "lon_max": lon_max,
+                "lat_min": float(lat_values.min()),
+                "lat_max": float(lat_values.max()),
+            }
+
+        init_result = _lon_lat_bounds(hgrid.x.values, hgrid.y.values)
+        east_result = _lon_lat_bounds(
+            hgrid.x.isel(nxp=-1).values, hgrid.y.isel(nxp=-1).values
+        )
+        west_result = _lon_lat_bounds(
+            hgrid.x.isel(nxp=0).values, hgrid.y.isel(nxp=0).values
+        )
+        south_result = _lon_lat_bounds(
+            hgrid.x.isel(nyp=0).values, hgrid.y.isel(nyp=0).values
+        )
+        north_result = _lon_lat_bounds(
+            hgrid.x.isel(nyp=-1).values, hgrid.y.isel(nyp=-1).values
+        )
         return {
             "east": east_result,
             "west": west_result,

@@ -21,6 +21,16 @@ from pyproj import CRS, Transformer
 from mom6_forge.utils import normalize_deg, is_mesh_cyclic_x, get_mesh_dimensions
 
 
+def _max_adjacent_diff(x):
+    """Largest abs diff between adjacent values of a 2D array (detects dateline jumps)."""
+    max_diff = 0.0
+    if x.shape[1] > 1:
+        max_diff = max(max_diff, np.abs(np.diff(x, axis=1)).max())
+    if x.shape[0] > 1:
+        max_diff = max(max_diff, np.abs(np.diff(x, axis=0)).max())
+    return max_diff
+
+
 class SupergridBase:
     """Base class defining the MOM6-style supergrid interface."""
 
@@ -79,6 +89,8 @@ class SupergridBase:
         grid_type : str
             the type of grid being created
         """
+        if axis_units == "degrees":
+            self._validate_longitude_continuity(x, y)
         self.x = x
         self.y = y
         self.dx = dx
@@ -87,6 +99,40 @@ class SupergridBase:
         self.angle_dx = angle_dx
         self.axis_units = axis_units
         self.grid_type = grid_type
+
+    # Near a pole, every longitude legitimately converges, so wrap checks don't apply there.
+    _POLE_ADJACENT_LAT = 89.9
+
+    @staticmethod
+    def _validate_longitude_continuity(x, y, max_span=360.0, max_adjacent_jump=180.0):
+        """Guard against unwrapped/discontinuous longitude values that would corrupt
+        dx/dy/area/angle_dx (computed by differencing adjacent x values)."""
+        if np.abs(y).max() >= SupergridBase._POLE_ADJACENT_LAT:
+            return
+
+        tol = 1e-6
+        span = x.max() - x.min()
+        if span > max_span + tol:
+            raise ValueError(
+                f"Longitude span is {span:.4f} degrees (> {max_span}); x looks "
+                "unwrapped/unbounded rather than a valid regional or global domain."
+            )
+        # x is expected centered within [0, 360) with span <= 360, so valid values
+        # can't fall outside 180 degrees either side of that: [-180, 540).
+        low_bound, high_bound = -180.0, 540.0
+        if x.max() > high_bound + tol or x.min() < low_bound - tol:
+            raise ValueError(
+                f"Longitude values (range [{x.min():.4f}, {x.max():.4f}]) fall "
+                f"outside [{low_bound}, {high_bound}]; x looks unwrapped/"
+                "unnormalized rather than a valid geographic longitude."
+            )
+        max_jump = _max_adjacent_diff(x)
+        if max_jump > max_adjacent_jump:
+            raise ValueError(
+                f"Longitude array contains a jump of {max_jump:.4f} degrees between "
+                f"adjacent supergrid nodes (> {max_adjacent_jump}); this indicates an "
+                "un-wrapped dateline crossing."
+            )
 
     def __eq__(self, other):
         if not isinstance(other, SupergridBase):
@@ -172,6 +218,14 @@ class SupergridBase:
         """
         # Clamp to valid geographic range (floating-point overshoot from projection in some cases)
         y = np.clip(y, -90.0, 90.0)
+
+        # Fix raw dateline-wrap discontinuities in x before differencing for dx/dy/area/angle.
+        # Skipped near poles, where every longitude legitimately converges.
+        if np.abs(y).max() < SupergridBase._POLE_ADJACENT_LAT:
+            center_lon = x[x.shape[0] // 2, x.shape[1] // 2]
+            if _max_adjacent_diff(x) > 180.0:
+                x = modulo_around_point(x, center_lon, 360)
+            x = x - np.floor(center_lon / 360) * 360
 
         # dx, dy, area: use base class consistent calculation methods
         dx, dy = SupergridBase._calc_dx_dy(x, y, R=R, type=dx_dy_calc_type)
@@ -918,9 +972,9 @@ class SupergridBase:
         for _ in range(2 * n_cells):
             padded = self._create_expanded_supergrid(x, y)
             x, y = padded.x.values, padded.y.values
-        assert -90 <= y.min() and y.max() <= 90, (
-            "Expanded supergrid exceeds ±90 degrees latitude; check the input grid and expansion width."
-        )
+        assert (
+            -90 <= y.min() and y.max() <= 90
+        ), "Expanded supergrid exceeds ±90 degrees latitude; check the input grid and expansion width."
         return type(self)._init_from_xy(x, y, grid_type=self.grid_type)
 
 
@@ -1011,7 +1065,6 @@ class RectilinearCartesianSupergrid(SupergridBase):
         ), "provided array of longitudes must be uniformly spaced"
 
         lon, lat = np.meshgrid(lons, lats)
-
         return lon, lat
 
 
@@ -1068,7 +1121,15 @@ class ProjectedSupergrid(SupergridBase):
         transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
         lon, lat = transformer.transform(xx, yy)
 
-        return cls._init_from_xy(lon, lat, "projected_crs", radius)
+        # Use haversine (exact great-circle distance) rather than the smallangle
+        # default: this domain can fully encircle a pole (e.g. any Arctic/Antarctic
+        # polar-cap CRS), where adjacent supergrid nodes can land on opposite sides
+        # of the antimeridian branch cut. Haversine needs no unwrapping to handle
+        # that correctly, since sin(dlon/2)**2 is invariant under dlon -> dlon+360,
+        # and it stays consistent with area's sphere-of-radius-R assumption.
+        return cls._init_from_xy(
+            lon, lat, "projected_crs", radius, dx_dy_calc_type="haversine"
+        )
 
     @classmethod
     def from_center(
@@ -1126,7 +1187,11 @@ class ProjectedSupergrid(SupergridBase):
         transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
         lon, lat = transformer.transform(xx_rot, yy_rot)
 
-        return cls._init_from_xy(lon, lat, "projected_crs", radius)
+        # See from_crs: haversine handles a pole- or antimeridian-straddling
+        # domain correctly with no unwrapping needed, unlike the smallangle default.
+        return cls._init_from_xy(
+            lon, lat, "projected_crs", radius, dx_dy_calc_type="haversine"
+        )
 
 
 def angle_between(v1, v2, v3):
