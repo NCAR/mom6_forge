@@ -9,6 +9,7 @@ from mom6_forge._supergrid import (
     RectilinearCartesianSupergrid,
     ProjectedSupergrid,
     SupergridBase,
+    modulo_around_point,
 )
 from mom6_forge.utils import normalize_deg
 
@@ -413,11 +414,16 @@ class Grid:
         ), "Cannot compute bounding boxes for cyclic grids"
 
         def _lon_lat_bounds(lon_values, lat_values):
-            lon_min, lon_max = float(lon_values.min()), float(lon_values.max())
-            # A raw min/max span over 180 degrees means this edge crosses the
-            # antimeridian (unavoidable for a box that fully encircles a pole)
-            # rather than genuinely spanning most of the globe -- represent it
-            # honestly as the full longitude range rather than a narrow raw span.
+            # Re-center this edge's own longitudes around one of its own points
+            # before taking min/max, same trick _init_from_xy uses for a whole
+            # grid: an edge that merely crosses a seam becomes a tight,
+            # contiguous range instead of a misleadingly huge raw span. A
+            # domain that genuinely surrounds a pole can't be tightened this
+            # way -- every longitude is legitimately present, so the wrapped
+            # span stays > 180 and we fall back to the honest full range.
+            center = np.ravel(lon_values)[np.ravel(lon_values).size // 2]
+            wrapped = modulo_around_point(lon_values, center, 360)
+            lon_min, lon_max = float(wrapped.min()), float(wrapped.max())
             if lon_max - lon_min > 180:
                 lon_min, lon_max = -180.0, 180.0
             return {

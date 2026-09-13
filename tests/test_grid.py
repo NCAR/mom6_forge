@@ -12,7 +12,7 @@ import xarray as xr
 import pytest
 from mom6_forge.grid import Grid
 from mom6_forge.topo import Topo
-from mom6_forge._supergrid import SupergridBase
+from mom6_forge._supergrid import SupergridBase, ProjectedSupergrid
 from utils import on_cisl_machine
 import os
 
@@ -246,6 +246,24 @@ def test_get_rectangular_segment_info(get_rect_grid):
     assert "north" in res.keys()
     assert "south" in res.keys()
     assert "lat_min" in res["east"].keys()
+
+
+def test_get_bounding_boxes_tight_for_seam_crossing_edge():
+    """An edge that crosses a seam without needing the full circle should get a
+    tight, contiguous range (not the whole globe); an edge/box that genuinely
+    surrounds a pole (like the full "ic" domain here) still can't be tightened
+    and should fall back to the honest full range."""
+    sg = ProjectedSupergrid.from_crs(
+        "EPSG:3995", -300_000, 300_000, -300_000, 300_000, resolution_m=100_000
+    )
+    boxes = Grid.get_bounding_boxes(sg.to_ds())
+
+    north = boxes["north"]
+    assert north["lon_max"] - north["lon_min"] < 180
+
+    ic = boxes["ic"]
+    assert ic["lon_min"] == -180.0
+    assert ic["lon_max"] == 180.0
 
 
 def test_slice_grid(get_rect_grid):
