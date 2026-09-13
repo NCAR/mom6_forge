@@ -198,9 +198,29 @@ def test_expanded_supergrid_generation(get_curvilinear_supergrid):
     return
 
 
-def test_expand_adds_halo_and_preserves_interior(get_curvilinear_supergrid):
-    supergrid = get_curvilinear_supergrid
-    sg = SupergridBase._init_from_xy(supergrid.x.values, supergrid.y.values)
+def _make_axis_aligned_supergrid(center_y, center_x=10.0, nx=5, ny=5, dx=0.05, dy=0.05):
+    """Small, non-rotated curvilinear-style supergrid centered at ``center_y``.
+
+    Used to exercise :meth:`SupergridBase.expand` at latitudes other than the
+    fixed (10, 10) center of ``get_curvilinear_supergrid``.
+    """
+    nxp, nyp = 2 * nx + 1, 2 * ny + 1
+    i_offsets = (np.arange(nxp) - nx) * dx
+    j_offsets = (np.arange(nyp) - ny) * dy
+    I, J = np.meshgrid(i_offsets, j_offsets)
+    x = center_x + I
+    y = center_y + J
+    return x, y
+
+
+@pytest.mark.parametrize("center_y", [10.0, 89.0, -89.0])
+def test_expand_adds_halo_and_preserves_interior(get_curvilinear_supergrid, center_y):
+    if center_y == 10.0:
+        supergrid = get_curvilinear_supergrid
+        x, y = supergrid.x.values, supergrid.y.values
+    else:
+        x, y = _make_axis_aligned_supergrid(center_y)
+    sg = SupergridBase._init_from_xy(x, y, grid_type="curvilinear_test")
 
     nyp, nxp = sg.x.shape
     n_cells = 2
@@ -212,6 +232,28 @@ def test_expand_adds_halo_and_preserves_interior(get_curvilinear_supergrid):
     pad = 2 * n_cells
     assert np.allclose(expanded.x[pad:-pad, pad:-pad], sg.x)
     assert np.allclose(expanded.y[pad:-pad, pad:-pad], sg.y)
+
+    # grid_type must survive expand(), and dx/dy/area must be freshly
+    # recomputed for the padded halo (not stale/cached) with sane values.
+    assert expanded.grid_type == sg.grid_type
+    assert expanded.dx.shape == (nyp + 4 * n_cells, nxp + 4 * n_cells - 1)
+    assert expanded.dy.shape == (nyp + 4 * n_cells - 1, nxp + 4 * n_cells)
+    assert expanded.area.shape == (nyp + 4 * n_cells - 1, nxp + 4 * n_cells - 1)
+    for metric in (expanded.dx, expanded.dy, expanded.area):
+        assert np.all(np.isfinite(metric))
+        assert np.all(metric > 0)
+    assert expanded.y.max() <= 90.0
+    assert expanded.y.min() >= -90.0
+
+
+@pytest.mark.parametrize("center_y", [89.5, -89.5])
+def test_expand_raises_when_padding_would_exceed_the_pole(center_y):
+    x, y = _make_axis_aligned_supergrid(center_y, nx=5, ny=5, dx=0.1, dy=0.1)
+    sg = SupergridBase._init_from_xy(x, y, grid_type="curvilinear_test")
+    assert abs(abs(sg.y).max() - 90.0) < 1e-9
+
+    with pytest.raises(AssertionError, match="exceeds"):
+        sg.expand(n_cells=1)
 
 
 @pytest.mark.parametrize(("angle"), [0, 12.5, 65, -20])
