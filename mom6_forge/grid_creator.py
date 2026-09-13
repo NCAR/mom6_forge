@@ -656,6 +656,20 @@ class GridCreator(widgets.HBox):
             self._select_button.button_style = "info"
             self._update_status_for_mode(mode)
 
+    def _current_central_longitude(self):
+        """Active axes' PlateCarree central longitude, or 0.0 if not PlateCarree.
+
+        Once a grid crossing the antimeridian is plotted, the axes are rotated
+        to a non-zero central_longitude (see plot_grid); event.xdata from any
+        later click/drag on that axes is native to the rotated frame, not raw
+        geographic longitude, so this must be added back before use.
+        """
+        return (
+            self._current_map_proj.proj4_params.get("lon_0", 0.0)
+            if isinstance(self._current_map_proj, ccrs.PlateCarree)
+            else 0.0
+        )
+
     def _on_rect_select(self, eclick, erelease):
         """Called by RectangleSelector when the user finishes drawing a rectangle."""
         if not self._select_button.value:
@@ -671,7 +685,10 @@ class GridCreator(widgets.HBox):
         self._stop_click_mode()
         mode = self._mode_selector.value
         if mode == "Lat/Lon Corners":
-            self._create_grid_from_clicks(x1, y1, x2, y2)
+            central_longitude = self._current_central_longitude()
+            self._create_grid_from_clicks(
+                x1 + central_longitude, y1, x2 + central_longitude, y2
+            )
         else:  # From Projection
             self._create_grid_from_projection(x1, y1, x2, y2)
 
@@ -683,8 +700,9 @@ class GridCreator(widgets.HBox):
             return
         if self._mode_selector.value != "From Center":
             return
-        x, y = event.xdata, event.ydata
-        # Center mode always uses PlateCarree, so x/y are lon/lat
+        # Center mode always uses PlateCarree, but the axes may be rotated to a
+        # non-zero central_longitude if a previous grid crossed the antimeridian.
+        x, y = event.xdata + self._current_central_longitude(), event.ydata
         self.ax.plot(x, y, "r+", markersize=10, transform=ccrs.PlateCarree())
         self.fig.canvas.draw_idle()
         self._select_button.value = False
@@ -798,12 +816,7 @@ class GridCreator(widgets.HBox):
             return
         # event.xdata is native to the axes' (possibly shifted) projection —
         # add central_longitude back to get true longitude.
-        current_lon_0 = (
-            self._current_map_proj.proj4_params.get("lon_0", 0.0)
-            if isinstance(self._current_map_proj, ccrs.PlateCarree)
-            else 0.0
-        )
-        lon, lat = event.xdata + current_lon_0, event.ydata
+        lon, lat = event.xdata + self._current_central_longitude(), event.ydata
         self.ax.plot(lon, lat, "r+", markersize=10, transform=ccrs.PlateCarree())
         self.fig.canvas.draw_idle()
         self._move_center_button.value = False  # triggers _on_move_center_toggle OFF
