@@ -41,13 +41,9 @@ def test_write_ww3_input_array_contents(get_rect_topo_without_vc, tmp_path):
     # Flat ocean: positive depth everywhere, all cells wet.
     assert np.allclose(bottom, 1000.0)
 
-    # Non-cyclic grid: perimeter ocean cells are active boundary points (2),
-    # interior cells are ordinary sea points (1).
-    assert (mapsta[0, :] == 2).all()
-    assert (mapsta[-1, :] == 2).all()
-    assert (mapsta[:, 0] == 2).all()
-    assert (mapsta[:, -1] == 2).all()
-    assert (mapsta[1:-1, 1:-1] == 1).all()
+    # No boundary_edges requested (the default), so mapsta is a plain
+    # land/sea mask with no active boundary points.
+    assert (mapsta == 1).all()
 
 
 def test_write_ww3_input_grid_control_file(get_rect_topo_without_vc, tmp_path):
@@ -88,20 +84,83 @@ def test_write_ww3_input_masked_cells_are_land(get_rect_topo_without_vc, tmp_pat
         assert mapsta[j, i] == 0
         assert bottom[j, i] == 0.0
 
-    # mapsta is 0 exactly where the land/sea mask is land (ocean cells are
-    # either interior sea points (1) or active boundary points (2)), and
-    # depth is zero wherever land.
-    assert np.array_equal(mapsta == 0, topo.tmask.data == 0)
+    # With no boundary_edges, mapsta is exactly the land/sea mask, and depth
+    # is zero wherever land.
+    assert np.array_equal(mapsta, topo.tmask.data)
     assert (bottom[mapsta == 0] == 0.0).all()
 
 
-def test_write_ww3_input_cyclic_grid_has_no_east_west_boundary(
+def test_write_ww3_input_all_boundary_edges(get_rect_topo_without_vc, tmp_path):
+    """Requesting every edge flags the whole perimeter as active boundary
+    points (2); the interior stays ordinary sea points (1)."""
+    topo = get_rect_topo_without_vc
+    alias = topo._grid.name
+
+    topo.write_ww3_input(
+        tmp_path, grid_alias=alias, boundary_edges=["south", "north", "west", "east"]
+    )
+    mapsta = np.loadtxt(tmp_path / f"{alias}_mapsta.inp")
+
+    assert (mapsta[0, :] == 2).all()
+    assert (mapsta[-1, :] == 2).all()
+    assert (mapsta[:, 0] == 2).all()
+    assert (mapsta[:, -1] == 2).all()
+    assert (mapsta[1:-1, 1:-1] == 1).all()
+
+
+def test_write_ww3_input_boundary_edges_subset(get_rect_topo_without_vc, tmp_path):
+    """Only the requested edges are flagged. Row j=0 is the southernmost
+    (IDLA=1) and column i=0 the westernmost, so a south+west request must
+    leave the north and east edges as ordinary sea points."""
+    topo = get_rect_topo_without_vc
+    alias = topo._grid.name
+
+    topo.write_ww3_input(tmp_path, grid_alias=alias, boundary_edges=["south", "west"])
+    mapsta = np.loadtxt(tmp_path / f"{alias}_mapsta.inp")
+
+    assert (mapsta[0, :] == 2).all()
+    assert (mapsta[:, 0] == 2).all()
+    assert (mapsta[-1, 1:] == 1).all()
+    assert (mapsta[1:, -1] == 1).all()
+
+
+def test_write_ww3_input_boundary_edges_accepts_a_bare_string(
+    get_rect_topo_without_vc, tmp_path
+):
+    """A bare string is one edge, not an iterable of characters."""
+    topo = get_rect_topo_without_vc
+    alias = topo._grid.name
+
+    topo.write_ww3_input(tmp_path, grid_alias=alias, boundary_edges="NORTH")
+    mapsta = np.loadtxt(tmp_path / f"{alias}_mapsta.inp")
+
+    assert (mapsta[-1, :] == 2).all()
+    assert (mapsta[:-1, :] == 1).all()
+
+
+def test_write_ww3_input_boundary_edge_land_cells_stay_land(
+    get_rect_topo_without_vc, tmp_path
+):
+    """A land cell sitting on a flagged edge stays land (0), not a boundary
+    point: only ocean cells can carry boundary data."""
+    topo = get_rect_topo_without_vc
+    alias = topo._grid.name
+
+    topo.depth[0, 0] = 0.0  # southwest corner, on both flagged edges
+
+    topo.write_ww3_input(tmp_path, grid_alias=alias, boundary_edges=["south", "west"])
+    mapsta = np.loadtxt(tmp_path / f"{alias}_mapsta.inp")
+
+    assert mapsta[0, 0] == 0
+    assert (mapsta[0, 1:] == 2).all()
+    assert (mapsta[1:, 0] == 2).all()
+
+
+def test_write_ww3_input_cyclic_grid_allows_north_south(
     get_simple_global_grid, tmp_path
 ):
-    """A grid that is reentrant in x (e.g. a global band) has no physical
-    east/west boundary, so only the north/south edges should be flagged as
-    active boundary points (2) in mapsta; east/west edge cells remain
-    ordinary interior sea points (1)."""
+    """A grid reentrant in x (e.g. a global band) still has physical
+    north/south edges, which can be flagged as usual."""
     from mom6_forge.topo import Topo
 
     grid = get_simple_global_grid
@@ -109,13 +168,44 @@ def test_write_ww3_input_cyclic_grid_has_no_east_west_boundary(
     topo.set_flat(1000)
     alias = grid.name
 
-    topo.write_ww3_input(tmp_path, grid_alias=alias)
+    topo.write_ww3_input(tmp_path, grid_alias=alias, boundary_edges=["south", "north"])
     mapsta = np.loadtxt(tmp_path / f"{alias}_mapsta.inp")
 
     assert (mapsta[0, :] == 2).all()
     assert (mapsta[-1, :] == 2).all()
-    assert (mapsta[1:-1, 0] == 1).all()
-    assert (mapsta[1:-1, -1] == 1).all()
+    assert (mapsta[1:-1, :] == 1).all()
+
+
+def test_write_ww3_input_cyclic_grid_rejects_east_west(
+    get_simple_global_grid, tmp_path
+):
+    """A reentrant edge has no physical boundary, so asking for boundary
+    forcing there is an error rather than a silent no-op."""
+    from mom6_forge.topo import Topo
+
+    grid = get_simple_global_grid
+    topo = Topo(grid, min_depth=0, git=False)
+    topo.set_flat(1000)
+
+    with pytest.raises(ValueError, match="reentrant in x"):
+        topo.write_ww3_input(
+            tmp_path, grid_alias=grid.name, boundary_edges=["north", "east"]
+        )
+
+
+def test_write_ww3_input_unknown_boundary_edge_raises(
+    get_rect_topo_without_vc, tmp_path
+):
+    """An unknown edge name is rejected before anything is written."""
+    topo = get_rect_topo_without_vc
+    out_dir = tmp_path / "ocnice"
+
+    with pytest.raises(ValueError, match="Unknown WW3 boundary edge"):
+        topo.write_ww3_input(
+            out_dir, grid_alias=topo._grid.name, boundary_edges=["norht"]
+        )
+
+    assert not out_dir.exists()
 
 
 def test_write_ww3_input_after_reconstruction_from_files(

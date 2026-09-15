@@ -1997,19 +1997,80 @@ class Topo:
             format="NETCDF3_64BIT",
         )
 
-    def _compute_ww3_mapsta(self):
+    # Edge names accepted by write_ww3_input's boundary_edges argument. The
+    # spelling deliberately matches the one used for CrocoDash open boundary
+    # segments ("south"/"north"/"west"/"east") so a caller can pass the same
+    # list it uses to configure the ocean boundaries.
+    _WW3_EDGE_NAMES = ("south", "north", "west", "east")
+
+    def _normalize_ww3_boundary_edges(self, boundary_edges):
+        """
+        Validate write_ww3_input's boundary_edges argument.
+
+        Parameters
+        ----------
+        boundary_edges : str or iterable of str
+            Edge names, in any case and any order. A bare string is treated as
+            a single edge (rather than as an iterable of characters).
+
+        Raises
+        ------
+        ValueError
+            If an edge name is not one of _WW3_EDGE_NAMES, or if the east or
+            west edge is requested on a grid that is reentrant in x. The
+            latter is rejected rather than silently dropped: a reentrant edge
+            has no physical boundary, so asking for boundary forcing there
+            means the caller and the grid disagree about the domain.
+
+        Returns
+        -------
+        set of str
+            The requested edges, lowercased and de-duplicated.
+        """
+        if isinstance(boundary_edges, str):
+            boundary_edges = (boundary_edges,)
+        edges = {str(edge).strip().lower() for edge in boundary_edges}
+
+        unknown = edges - set(self._WW3_EDGE_NAMES)
+        if unknown:
+            raise ValueError(
+                f"Unknown WW3 boundary edge(s) {sorted(unknown)}; valid edges "
+                f"are {list(self._WW3_EDGE_NAMES)}."
+            )
+
+        cyclic_edges = edges & {"east", "west"}
+        if cyclic_edges and self._grid.supergrid.is_cyclic_x:
+            raise ValueError(
+                f"Cannot flag the {sorted(cyclic_edges)} edge(s) as WW3 boundary "
+                "points: this grid is reentrant in x, so it has no physical "
+                "east/west boundary."
+            )
+
+        return edges
+
+    def _compute_ww3_mapsta(self, boundary_edges):
         """
         Compute the WW3 mapsta status-code array for this grid.
 
         Status codes follow WW3's convention: 0 = land, 1 = interior sea
-        point, 2 = active boundary point. Ocean cells on the grid perimeter
-        are flagged as active boundary points. write_ww3_input declares the
-        mapsta file with FROM='NAME', so ww3_grid reads these codes verbatim
-        rather than deriving boundary points from a segment list. A reentrant
-        (cyclic-x) edge has no physical boundary, so the east/west edges are
-        only flagged when the grid is not cyclic in x. The north/south edges
-        are always treated as physical boundaries, which is why
-        write_ww3_input rejects tripolar grids up front.
+        point, 2 = active boundary point. Ocean cells on the requested
+        perimeter edges are flagged as active boundary points; land cells
+        stay land wherever they fall. write_ww3_input declares the mapsta
+        file with FROM='NAME', so ww3_grid reads these codes verbatim rather
+        than deriving boundary points from a segment list.
+
+        Which edges to flag is the caller's choice rather than something
+        inferred from the grid, because a status-2 point is a promise that
+        WW3 will be given spectral boundary data there (via ww3_bounc /
+        nest.ww3). Flagging an edge that gets no data is a silent physics
+        change, so an unlisted edge stays an ordinary sea point.
+
+        Parameters
+        ----------
+        boundary_edges : set of str
+            Already validated by _normalize_ww3_boundary_edges. An empty set
+            yields a plain land/sea mask with no boundary points, which is a
+            valid configuration: WW3 then runs without open boundary forcing.
 
         Returns
         -------
@@ -2019,17 +2080,22 @@ class Topo:
         tmask = self.tmask.data  # (ny, nx), 1=ocean, 0=land
         mapsta = tmask.astype(int)
 
+        # Row j=0 is the southernmost row (the files are written IDLA=1), and
+        # column i=0 is the westernmost.
         is_boundary = np.zeros_like(mapsta, dtype=bool)
-        is_boundary[0, :] = True
-        is_boundary[-1, :] = True
-        if not self._grid.supergrid.is_cyclic_x:
+        if "south" in boundary_edges:
+            is_boundary[0, :] = True
+        if "north" in boundary_edges:
+            is_boundary[-1, :] = True
+        if "west" in boundary_edges:
             is_boundary[:, 0] = True
+        if "east" in boundary_edges:
             is_boundary[:, -1] = True
 
         mapsta[is_boundary & (tmask == 1)] = 2
         return mapsta
 
-    def write_ww3_input(self, file_dir, grid_alias):
+    def write_ww3_input(self, file_dir, grid_alias, boundary_edges=()):
         """
         Write the text-based WW3 input files ww3_grid.inp, [grid_alias]_x.inp, [grid_alias]_y.inp,
         [grid_alias]_mapsta.inp, [grid_alias]_bottom.inp, which are to be read by the WW3
@@ -2041,18 +2107,35 @@ class Topo:
             Directory to write the WW3 input files to.
         grid_alias: str
             The alias for the grid, which will be used in the file names of the WW3 input files.
+        boundary_edges: str or iterable of str, optional
+            Domain edges to mark as WW3 active boundary points (status code 2)
+            in the mapsta file: any of "south", "north", "west", "east". These
+            are the edges WW3 will expect spectral boundary data for, so they
+            should match the edges the caller actually generates spectra for.
+            Defaults to no edges, i.e. a plain land/sea mask, which runs WW3
+            without open boundary forcing.
+
+        Raises
+        ------
+        ValueError
+            If boundary_edges names an unknown edge, or names the east or west
+            edge on a grid that is reentrant in x. Raised before anything is
+            written, so a rejected call leaves no partial output behind.
         """
 
         assert (
             "degrees" in self._grid.tlat.units and "degrees" in self._grid.tlon.units
         ), "Unsupported coord"
 
-        # The closure written below has no 'TRPL' case, and _compute_ww3_mapsta
-        # treats the north/south edges as physical boundaries, so a pole fold
-        # would be misidentified as an open boundary.
+        # The closure written below has no 'TRPL' case, so a pole fold would be
+        # written out as though it were an ordinary grid edge.
         assert not self._grid.is_tripolar(
             self._grid.supergrid
         ), "write_ww3_input does not support tripolar grids."
+
+        # Validate before creating the directory or writing any file, so a bad
+        # edge name cannot leave a half-written set of inputs behind.
+        boundary_edges = self._normalize_ww3_boundary_edges(boundary_edges)
 
         file_dir = Path(file_dir)
         file_dir.mkdir(parents=True, exist_ok=True)
@@ -2090,7 +2173,7 @@ class Topo:
         _write_rows(bottom_file, lambda j, i: f"{depth_m[j, i]:.8f}", sep=" ")
 
         # --- map status file (0=land, 1=interior sea, 2=active boundary) ---
-        mapsta = self._compute_ww3_mapsta()
+        mapsta = self._compute_ww3_mapsta(boundary_edges)
         _write_rows(mapsta_file, lambda j, i: str(int(mapsta[j, i])), sep=" ")
 
         # --- Write ww3_grid.inp ---
