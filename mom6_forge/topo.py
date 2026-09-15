@@ -2003,33 +2003,21 @@ class Topo:
 
         Status codes follow WW3's convention: 0 = land, 1 = interior sea
         point, 2 = active boundary point. Ocean cells on the grid perimeter
-        are flagged as active boundary points; ww3_grid promotes exactly
-        these points to boundary points via the "Input boundary points"
-        list in ww3_grid.inp (see write_ww3_input). A reentrant (cyclic-x)
-        edge has no physical boundary, so the east/west edges are only
-        flagged when the grid is not cyclic in x. Tripolar grids are
-        rejected outright (see assertion below): write_ww3_input's closure
-        logic has no 'TRPL' case, so the north/south edges are always
-        treated as physical boundaries here, which would be wrong for a
-        tripolar grid's pole fold.
-
-        Raises
-        ------
-        AssertionError
-            If the grid is tripolar.
+        are flagged as active boundary points. write_ww3_input declares the
+        mapsta file with FROM='NAME', so ww3_grid reads these codes verbatim
+        rather than deriving boundary points from a segment list. A reentrant
+        (cyclic-x) edge has no physical boundary, so the east/west edges are
+        only flagged when the grid is not cyclic in x. The north/south edges
+        are always treated as physical boundaries, which is why
+        write_ww3_input rejects tripolar grids up front.
 
         Returns
         -------
         numpy.ndarray
             (ny, nx) integer array of WW3 mapsta status codes.
         """
-        assert not self._grid.is_tripolar(self._grid._supergrid), (
-            "write_ww3_input does not support tripolar grids: the pole fold "
-            "would be misidentified as an open boundary."
-        )
-
         tmask = self.tmask.data  # (ny, nx), 1=ocean, 0=land
-        mapsta = tmask.astype(int).copy()
+        mapsta = tmask.astype(int)
 
         is_boundary = np.zeros_like(mapsta, dtype=bool)
         is_boundary[0, :] = True
@@ -2058,6 +2046,13 @@ class Topo:
         assert (
             "degrees" in self._grid.tlat.units and "degrees" in self._grid.tlon.units
         ), "Unsupported coord"
+
+        # The closure written below has no 'TRPL' case, and _compute_ww3_mapsta
+        # treats the north/south edges as physical boundaries, so a pole fold
+        # would be misidentified as an open boundary.
+        assert not self._grid.is_tripolar(
+            self._grid.supergrid
+        ), "write_ww3_input does not support tripolar grids."
 
         file_dir = Path(file_dir)
         file_dir.mkdir(parents=True, exist_ok=True)
@@ -2160,10 +2155,6 @@ class Topo:
             )
             f.write(
                 "$ Input boundary points and excluded points -------------------------- $\n"
-                "$ The first line identifies where to get the map data, by unit number\n"
-                "$ IDLA and IDFM, format for formatted read, FROM and filename\n"
-                "$ if FROM = ’PART’, then segmented data is read from below, else\n"
-                "$ the data is read from file as with the other inputs (as INTEGER)\n"
             )
             f.write(f"  24 1 1 '(....)' 'NAME' '{mapsta_file}'\n")
             f.write(
