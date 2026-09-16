@@ -297,26 +297,25 @@ class TopoEditor(widgets.HBox):
 
         plt.ioff()  # Turn off interactive mode for setup
 
-        # A plain PlateCarree() axes only zooms in on a domain crossing
-        # +/-180 (e.g. [170, 190]) if central_longitude is moved to the
-        # domain's own center; detect a true crossing by checking whether
-        # shifting each end independently into (-180, 180] preserves width.
+        # The supergrid longitudes are seam-free (continuous even across the
+        # antimeridian), so min/max are the domain's true bounds and their
+        # midpoint is its true center. Centering the axes there lets
+        # set_extent zoom correctly on any domain, including one running past
+        # +/-180, which a plain PlateCarree() axes renders as the whole globe.
+        # In exchange, event.xdata is native to the shifted frame, so the
+        # click/hover handlers add central_longitude back to recover true
+        # longitude.
         qlon = self.topo._grid.qlon.data
         lon_min, lon_max = float(qlon.min()), float(qlon.max())
-        norm_min = ((lon_min + 180.0) % 360.0) - 180.0
-        norm_max = ((lon_max + 180.0) % 360.0) - 180.0
-        if np.isclose(norm_max - norm_min, lon_max - lon_min):
-            central_longitude = 0.0
-        else:
-            central_longitude = 0.5 * (lon_min + lon_max)
-        # Click/hover handlers must add central_longitude back to event.xdata
-        # to recover true longitude.
-        self._central_longitude = central_longitude
+        self._central_longitude = 0.5 * (lon_min + lon_max)
 
         # Create the figure and axis
         self.fig = plt.figure(figsize=(7, 6))
         self.ax = self.fig.add_subplot(
-            1, 1, 1, projection=ccrs.PlateCarree(central_longitude=central_longitude)
+            1,
+            1,
+            1,
+            projection=ccrs.PlateCarree(central_longitude=self._central_longitude),
         )
         self.ax.set_aspect("auto")
 

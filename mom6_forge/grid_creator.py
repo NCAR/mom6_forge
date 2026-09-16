@@ -656,20 +656,6 @@ class GridCreator(widgets.HBox):
             self._select_button.button_style = "info"
             self._update_status_for_mode(mode)
 
-    def _current_central_longitude(self):
-        """Active axes' PlateCarree central longitude, or 0.0 if not PlateCarree.
-
-        Once a grid crossing the antimeridian is plotted, the axes are rotated
-        to a non-zero central_longitude (see plot_grid); event.xdata from any
-        later click/drag on that axes is native to the rotated frame, not raw
-        geographic longitude, so this must be added back before use.
-        """
-        return (
-            self._current_map_proj.proj4_params.get("lon_0", 0.0)
-            if isinstance(self._current_map_proj, ccrs.PlateCarree)
-            else 0.0
-        )
-
     def _on_rect_select(self, eclick, erelease):
         """Called by RectangleSelector when the user finishes drawing a rectangle."""
         if not self._select_button.value:
@@ -685,10 +671,7 @@ class GridCreator(widgets.HBox):
         self._stop_click_mode()
         mode = self._mode_selector.value
         if mode == "Lat/Lon Corners":
-            central_longitude = self._current_central_longitude()
-            self._create_grid_from_clicks(
-                x1 + central_longitude, y1, x2 + central_longitude, y2
-            )
+            self._create_grid_from_clicks(x1, y1, x2, y2)
         else:  # From Projection
             self._create_grid_from_projection(x1, y1, x2, y2)
 
@@ -700,9 +683,8 @@ class GridCreator(widgets.HBox):
             return
         if self._mode_selector.value != "From Center":
             return
-        # Center mode always uses PlateCarree, but the axes may be rotated to a
-        # non-zero central_longitude if a previous grid crossed the antimeridian.
-        x, y = event.xdata + self._current_central_longitude(), event.ydata
+        x, y = event.xdata, event.ydata
+        # Center mode always uses PlateCarree, so x/y are lon/lat
         self.ax.plot(x, y, "r+", markersize=10, transform=ccrs.PlateCarree())
         self.fig.canvas.draw_idle()
         self._select_button.value = False
@@ -710,13 +692,9 @@ class GridCreator(widgets.HBox):
         self._create_grid_from_center(x, y)
 
     def _create_grid_from_clicks(self, x1, y1, x2, y2):
-        # Take the shorter arc between the two longitudes, not a plain
-        # min/max, so a rectangle drawn across the dateline seam isn't
-        # treated as the huge region on the far side of the world.
-        lon_diff = ((x2 - x1 + 180) % 360) - 180
-        xstart = x1 if lon_diff >= 0 else x2
-        lenx = abs(lon_diff)
+        xstart = min(x1, x2)
         ystart = min(y1, y2)
+        lenx = abs(x2 - x1)
         leny = abs(y2 - y1)
         resolution = max(lenx, leny) / 20  # ~20 cells across the larger dimension
 
@@ -814,9 +792,7 @@ class GridCreator(widgets.HBox):
             return
         if not self._move_center_button.value:
             return
-        # event.xdata is native to the axes' (possibly shifted) projection —
-        # add central_longitude back to get true longitude.
-        lon, lat = event.xdata + self._current_central_longitude(), event.ydata
+        lon, lat = event.xdata, event.ydata
         self.ax.plot(lon, lat, "r+", markersize=10, transform=ccrs.PlateCarree())
         self.fig.canvas.draw_idle()
         self._move_center_button.value = False  # triggers _on_move_center_toggle OFF
@@ -841,34 +817,6 @@ class GridCreator(widgets.HBox):
         finally:
             self._in_redraw = False
 
-    def _plot_grid_mesh(self):
-        """Draw self.grid's supergrid corner mesh as two line artists.
-
-        On a PlateCarree axes, cartopy's per-point CRS transform (needed in
-        general to interpolate/split lines at projection discontinuities) is
-        the dominant cost for a dense mesh and scales very poorly with point
-        count. PlateCarree's projected coordinates are just plain degrees
-        offset by central_longitude, so pre-shift into that frame ourselves
-        and plot directly against the axes' own transData, skipping the
-        expensive CRS transform entirely (~40-70x faster on real grids).
-        Native (non-PlateCarree) projections, used only in From Projection
-        edit mode, still need the general geodetic transform.
-        """
-        qlon, qlat = self.grid.qlon.values, self.grid.qlat.values
-        n_jq, n_iq = qlon.shape
-        if isinstance(self._current_map_proj, ccrs.PlateCarree):
-            central_longitude = self._current_map_proj.proj4_params.get("lon_0", 0.0)
-            qlon = qlon - central_longitude
-            transform = self.ax.transData
-        else:
-            transform = ccrs.PlateCarree()
-        col_lon = np.vstack([qlon, np.full((1, n_iq), np.nan)]).flatten(order="F")
-        col_lat = np.vstack([qlat, np.full((1, n_iq), np.nan)]).flatten(order="F")
-        row_lon = np.hstack([qlon, np.full((n_jq, 1), np.nan)]).flatten(order="C")
-        row_lat = np.hstack([qlat, np.full((n_jq, 1), np.nan)]).flatten(order="C")
-        self.ax.plot(col_lon, col_lat, color="k", linewidth=0.1, transform=transform)
-        self.ax.plot(row_lon, row_lat, color="k", linewidth=0.1, transform=transform)
-
     def _draw_map_content(self):
         """Clear and redraw coastlines, features, grid lines, and labels."""
         self.ax.clear()
@@ -877,7 +825,23 @@ class GridCreator(widgets.HBox):
         self.ax.add_feature(cfeature.BORDERS, linewidth=0.5)
 
         if self.grid is not None:
-            self._plot_grid_mesh()
+            n_jq, n_iq = self.grid.qlon.shape
+            for i in range(n_iq):
+                self.ax.plot(
+                    self.grid.qlon[:, i],
+                    self.grid.qlat[:, i],
+                    color="k",
+                    linewidth=0.1,
+                    transform=ccrs.PlateCarree(),
+                )
+            for j in range(n_jq):
+                self.ax.plot(
+                    self.grid.qlon[j, :],
+                    self.grid.qlat[j, :],
+                    color="k",
+                    linewidth=0.1,
+                    transform=ccrs.PlateCarree(),
+                )
             title = (
                 "Use the sliders to adjust grid parameters."
                 if self._edit_mode == "latlon"
@@ -907,48 +871,15 @@ class GridCreator(widgets.HBox):
         finally:
             self._in_redraw = False
 
-    def _map_extent_for_grid(self):
-        """Compute (central_longitude, [lon_min, lon_max, lat_min, lat_max])
-        for displaying ``self.grid``.
-
-        A plain PlateCarree() axes only zooms in correctly on a domain
-        crossing +/-180 (e.g. [170, 190]) if central_longitude is moved to
-        the domain's own center; otherwise it silently falls back to the
-        whole globe. Detect a true crossing by checking whether shifting
-        each end independently into (-180, 180] preserves the domain's
-        width — an ordinary out-of-range domain like [278, 282] passes
-        this and needs no shift.
-        """
-        lon_min, lon_max = float(self.grid.qlon.min()), float(self.grid.qlon.max())
-        lat_min, lat_max = float(self.grid.qlat.min()), float(self.grid.qlat.max())
-        norm_min = ((lon_min + 180.0) % 360.0) - 180.0
-        norm_max = ((lon_max + 180.0) % 360.0) - 180.0
-        if np.isclose(norm_max - norm_min, lon_max - lon_min):
-            central_longitude = 0.0
-        else:
-            central_longitude = 0.5 * (lon_min + lon_max)
-        return central_longitude, [lon_min, lon_max, lat_min, lat_max]
-
     def plot_grid(self):
         self._in_redraw = True
         try:
-            central_longitude, extent = self._map_extent_for_grid()
-            lon_min, lon_max, lat_min, lat_max = extent
-            current_lon_0 = (
-                self._current_map_proj.proj4_params.get("lon_0", 0.0)
-                if isinstance(self._current_map_proj, ccrs.PlateCarree)
-                else None
+            self._draw_map_content()
+            lon_min, lon_max = float(self.grid.qlon.min()), float(self.grid.qlon.max())
+            lat_min, lat_max = float(self.grid.qlat.min()), float(self.grid.qlat.max())
+            self.ax.set_extent(
+                [lon_min, lon_max, lat_min, lat_max], crs=ccrs.PlateCarree()
             )
-            if current_lon_0 is not None and not np.isclose(
-                current_lon_0, central_longitude
-            ):
-                # Changing central_longitude requires a new GeoAxes.
-                self._set_map_projection(
-                    ccrs.PlateCarree(central_longitude=central_longitude), extent
-                )
-            else:
-                self._draw_map_content()
-                self.ax.set_extent(extent, crs=ccrs.PlateCarree())
             self._draw_scale_bar(lon_min, lon_max, lat_min, lat_max)
             self.fig.canvas.draw_idle()
         finally:
