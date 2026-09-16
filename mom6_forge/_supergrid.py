@@ -70,7 +70,19 @@ class SupergridBase:
     def leny(self):
         return self.y.max() - self.y.min()
 
-    def __init__(self, x, y, dx, dy, area, angle_dx, axis_units, grid_type):
+    def __init__(
+        self,
+        x,
+        y,
+        dx,
+        dy,
+        area,
+        angle_dx,
+        axis_units,
+        grid_type,
+        R=_DEFAULT_RADIUS,
+        dx_dy_calc_type="smallangle",
+    ):
         """
         Initialize a generic supergrid.
 
@@ -88,6 +100,15 @@ class SupergridBase:
             Units of x and y (e.g. "degrees" or "meters").
         grid_type : str
             the type of grid being created
+        R : float, optional
+            Sphere radius in metres the metrics were computed with.
+        dx_dy_calc_type : str, optional
+            The method dx/dy were computed with (smallangle or haversine).
+
+        ``R`` and ``dx_dy_calc_type`` describe how the metrics passed in were
+        produced, so that expand() can rebuild them the same way. The defaults
+        are the only option for a grid loaded from a dataset, which does not
+        record either.
         """
         self.x = x
         self.y = y
@@ -97,15 +118,11 @@ class SupergridBase:
         self.angle_dx = angle_dx
         self.axis_units = axis_units
         self.grid_type = grid_type
+        self._R = R
+        self._dx_dy_calc_type = dx_dy_calc_type
 
     # Near a pole, every longitude legitimately converges, so wrap checks don't apply there.
     _POLE_ADJACENT_LAT = 89.9
-
-    # How this grid's metrics were computed, recorded by _init_from_xy so that
-    # expand() can rebuild them the same way. The class-level values are the
-    # fallback for grids that never went through _init_from_xy (e.g. from_ds).
-    _R = _DEFAULT_RADIUS
-    _dx_dy_calc_type = "smallangle"
 
     def __eq__(self, other):
         if not isinstance(other, SupergridBase):
@@ -214,10 +231,18 @@ class SupergridBase:
             angle_dx = SupergridBase.calc_supergrid_rotation_angles_using_expanded_supergrid_method(
                 x, y
             )
-        sg = cls(x, y, dx, dy, area, angle_dx, "degrees", grid_type=grid_type)
-        sg._R = R
-        sg._dx_dy_calc_type = dx_dy_calc_type
-        return sg
+        return cls(
+            x,
+            y,
+            dx,
+            dy,
+            area,
+            angle_dx,
+            "degrees",
+            grid_type=grid_type,
+            R=R,
+            dx_dy_calc_type=dx_dy_calc_type,
+        )
 
     def summary(self):
         """Print a short summary of the grid geometry (shape and dx/dy ranges)."""
@@ -823,6 +848,7 @@ class SupergridBase:
             angle_dx,
             axis_units,
             grid_type="from_esmf_mesh",
+            R=radius,
         )
 
         if inferred_topology and supergrid.is_tripolar != (topology == "tripolar"):
