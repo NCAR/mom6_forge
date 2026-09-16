@@ -9,6 +9,7 @@ from mom6_forge._supergrid import (
     RectilinearCartesianSupergrid,
     ProjectedSupergrid,
     SupergridBase,
+    modulo_around_point,
 )
 from mom6_forge.utils import normalize_deg
 
@@ -412,36 +413,40 @@ class Grid:
             hgrid
         ), "Cannot compute bounding boxes for cyclic grids"
 
-        init_result = {
-            "lon_min": float(hgrid.x.min()),
-            "lon_max": float(hgrid.x.max()),
-            "lat_min": float(hgrid.y.min()),
-            "lat_max": float(hgrid.y.max()),
-        }
-        east_result = {
-            "lon_min": float(hgrid.x.isel(nxp=-1).min()),
-            "lon_max": float(hgrid.x.isel(nxp=-1).max()),
-            "lat_min": float(hgrid.y.isel(nxp=-1).min()),
-            "lat_max": float(hgrid.y.isel(nxp=-1).max()),
-        }
-        west_result = {
-            "lon_min": float(hgrid.x.isel(nxp=0).min()),
-            "lon_max": float(hgrid.x.isel(nxp=0).max()),
-            "lat_min": float(hgrid.y.isel(nxp=0).min()),
-            "lat_max": float(hgrid.y.isel(nxp=0).max()),
-        }
-        south_result = {
-            "lon_min": float(hgrid.x.isel(nyp=0).min()),
-            "lon_max": float(hgrid.x.isel(nyp=0).max()),
-            "lat_min": float(hgrid.y.isel(nyp=0).min()),
-            "lat_max": float(hgrid.y.isel(nyp=0).max()),
-        }
-        north_result = {
-            "lon_min": float(hgrid.x.isel(nyp=-1).min()),
-            "lon_max": float(hgrid.x.isel(nyp=-1).max()),
-            "lat_min": float(hgrid.y.isel(nyp=-1).min()),
-            "lat_max": float(hgrid.y.isel(nyp=-1).max()),
-        }
+        def _lon_lat_bounds(lon_values, lat_values):
+            if np.abs(lat_values).max() >= SupergridBase._POLE_ADJACENT_LAT:
+                # A box reaching a pole surrounds every longitude -- no
+                # re-centering can tighten it, so report the full circle.
+                lon_min, lon_max = -180.0, 180.0
+            else:
+                # Re-center around one of this edge's own points before min/max,
+                # so a seam crossing gives a tight range, not a huge raw span.
+                # The result may sit outside [-180, 180] (a dateline-straddling
+                # edge becomes e.g. 170 to 190); that is a valid contiguous
+                # interval, and the width of the box is what callers slice on.
+                center = np.ravel(lon_values)[np.ravel(lon_values).size // 2]
+                wrapped = modulo_around_point(lon_values, center, 360)
+                lon_min, lon_max = float(wrapped.min()), float(wrapped.max())
+            return {
+                "lon_min": lon_min,
+                "lon_max": lon_max,
+                "lat_min": float(lat_values.min()),
+                "lat_max": float(lat_values.max()),
+            }
+
+        init_result = _lon_lat_bounds(hgrid.x.values, hgrid.y.values)
+        east_result = _lon_lat_bounds(
+            hgrid.x.isel(nxp=-1).values, hgrid.y.isel(nxp=-1).values
+        )
+        west_result = _lon_lat_bounds(
+            hgrid.x.isel(nxp=0).values, hgrid.y.isel(nxp=0).values
+        )
+        south_result = _lon_lat_bounds(
+            hgrid.x.isel(nyp=0).values, hgrid.y.isel(nyp=0).values
+        )
+        north_result = _lon_lat_bounds(
+            hgrid.x.isel(nyp=-1).values, hgrid.y.isel(nyp=-1).values
+        )
         return {
             "east": east_result,
             "west": west_result,

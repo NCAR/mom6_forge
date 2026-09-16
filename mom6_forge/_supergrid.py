@@ -21,6 +21,16 @@ from pyproj import CRS, Transformer
 from mom6_forge.utils import normalize_deg, is_mesh_cyclic_x, get_mesh_dimensions
 
 
+def _max_adjacent_diff(x):
+    """Largest abs diff between adjacent values of a 2D array (detects dateline jumps)."""
+    max_diff = 0.0
+    if x.shape[1] > 1:
+        max_diff = max(max_diff, np.abs(np.diff(x, axis=1)).max())
+    if x.shape[0] > 1:
+        max_diff = max(max_diff, np.abs(np.diff(x, axis=0)).max())
+    return max_diff
+
+
 class SupergridBase:
     """Base class defining the MOM6-style supergrid interface."""
 
@@ -60,7 +70,19 @@ class SupergridBase:
     def leny(self):
         return self.y.max() - self.y.min()
 
-    def __init__(self, x, y, dx, dy, area, angle_dx, axis_units, grid_type):
+    def __init__(
+        self,
+        x,
+        y,
+        dx,
+        dy,
+        area,
+        angle_dx,
+        axis_units,
+        grid_type,
+        R=_DEFAULT_RADIUS,
+        dx_dy_calc_type="smallangle",
+    ):
         """
         Initialize a generic supergrid.
 
@@ -78,6 +100,15 @@ class SupergridBase:
             Units of x and y (e.g. "degrees" or "meters").
         grid_type : str
             the type of grid being created
+        R : float, optional
+            Sphere radius in metres the metrics were computed with.
+        dx_dy_calc_type : str, optional
+            The method dx/dy were computed with (smallangle or haversine).
+
+        ``R`` and ``dx_dy_calc_type`` describe how the metrics passed in were
+        produced, so that expand() can rebuild them the same way. The defaults
+        are the only option for a grid loaded from a dataset, which does not
+        record either.
         """
         self.x = x
         self.y = y
@@ -87,6 +118,11 @@ class SupergridBase:
         self.angle_dx = angle_dx
         self.axis_units = axis_units
         self.grid_type = grid_type
+        self._R = R
+        self._dx_dy_calc_type = dx_dy_calc_type
+
+    # Near a pole, every longitude legitimately converges, so wrap checks don't apply there.
+    _POLE_ADJACENT_LAT = 89.9
 
     def __eq__(self, other):
         if not isinstance(other, SupergridBase):
@@ -173,6 +209,18 @@ class SupergridBase:
         # Clamp to valid geographic range (floating-point overshoot from projection in some cases)
         y = np.clip(y, -90.0, 90.0)
 
+        # Fix raw dateline-wrap discontinuities in x before differencing for dx/dy/area/angle.
+        # Skipped near poles, where every longitude legitimately converges.
+        if np.abs(y).max() < SupergridBase._POLE_ADJACENT_LAT:
+            center_lon = x[x.shape[0] // 2, x.shape[1] // 2]
+            if _max_adjacent_diff(x) > 180.0:
+                x = modulo_around_point(x, center_lon, 360)
+                # Re-centering can leave the grid a whole turn away from the
+                # convention its center was written in, so shift it back. Both
+                # lines stay inside the guard: a grid with no seam keeps the
+                # exact longitude convention it was handed.
+                x = x - np.floor(center_lon / 360) * 360
+
         # dx, dy, area: use base class consistent calculation methods
         dx, dy = SupergridBase._calc_dx_dy(x, y, R=R, type=dx_dy_calc_type)
         area = SupergridBase._calc_area(x, y, R=R)
@@ -183,7 +231,18 @@ class SupergridBase:
             angle_dx = SupergridBase.calc_supergrid_rotation_angles_using_expanded_supergrid_method(
                 x, y
             )
-        return cls(x, y, dx, dy, area, angle_dx, "degrees", grid_type=grid_type)
+        return cls(
+            x,
+            y,
+            dx,
+            dy,
+            area,
+            angle_dx,
+            "degrees",
+            grid_type=grid_type,
+            R=R,
+            dx_dy_calc_type=dx_dy_calc_type,
+        )
 
     def summary(self):
         """Print a short summary of the grid geometry (shape and dx/dy ranges)."""
@@ -789,6 +848,7 @@ class SupergridBase:
             angle_dx,
             axis_units,
             grid_type="from_esmf_mesh",
+            R=radius,
         )
 
         if inferred_topology and supergrid.is_tripolar != (topology == "tripolar"):
@@ -921,7 +981,13 @@ class SupergridBase:
         assert (
             -90 <= y.min() and y.max() <= 90
         ), "Expanded supergrid exceeds ±90 degrees latitude; check the input grid and expansion width."
-        return type(self)._init_from_xy(x, y, grid_type=self.grid_type)
+        return type(self)._init_from_xy(
+            x,
+            y,
+            grid_type=self.grid_type,
+            R=self._R,
+            dx_dy_calc_type=self._dx_dy_calc_type,
+        )
 
 
 class UniformSphericalSupergrid(SupergridBase):
@@ -1011,7 +1077,6 @@ class RectilinearCartesianSupergrid(SupergridBase):
         ), "provided array of longitudes must be uniformly spaced"
 
         lon, lat = np.meshgrid(lons, lats)
-
         return lon, lat
 
 
@@ -1068,7 +1133,15 @@ class ProjectedSupergrid(SupergridBase):
         transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
         lon, lat = transformer.transform(xx, yy)
 
-        return cls._init_from_xy(lon, lat, "projected_crs", radius)
+        # Use haversine (exact great-circle distance) rather than the smallangle
+        # default: this domain can fully encircle a pole (e.g. any Arctic/Antarctic
+        # polar-cap CRS), where adjacent supergrid nodes can land on opposite sides
+        # of the antimeridian branch cut. Haversine needs no unwrapping to handle
+        # that correctly, since sin(dlon/2)**2 is invariant under dlon -> dlon+360,
+        # and it stays consistent with area's sphere-of-radius-R assumption.
+        return cls._init_from_xy(
+            lon, lat, "projected_crs", radius, dx_dy_calc_type="haversine"
+        )
 
     @classmethod
     def from_center(
@@ -1126,7 +1199,11 @@ class ProjectedSupergrid(SupergridBase):
         transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
         lon, lat = transformer.transform(xx_rot, yy_rot)
 
-        return cls._init_from_xy(lon, lat, "projected_crs", radius)
+        # See from_crs: haversine handles a pole- or antimeridian-straddling
+        # domain correctly with no unwrapping needed, unlike the smallangle default.
+        return cls._init_from_xy(
+            lon, lat, "projected_crs", radius, dx_dy_calc_type="haversine"
+        )
 
 
 def angle_between(v1, v2, v3):
