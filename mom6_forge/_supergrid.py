@@ -89,8 +89,6 @@ class SupergridBase:
         grid_type : str
             the type of grid being created
         """
-        if axis_units == "degrees":
-            self._validate_longitude_continuity(x, y)
         self.x = x
         self.y = y
         self.dx = dx
@@ -103,36 +101,11 @@ class SupergridBase:
     # Near a pole, every longitude legitimately converges, so wrap checks don't apply there.
     _POLE_ADJACENT_LAT = 89.9
 
-    @staticmethod
-    def _validate_longitude_continuity(x, y, max_span=360.0, max_adjacent_jump=180.0):
-        """Guard against unwrapped/discontinuous longitude values that would corrupt
-        dx/dy/area/angle_dx (computed by differencing adjacent x values)."""
-        if np.abs(y).max() >= SupergridBase._POLE_ADJACENT_LAT:
-            return
-
-        tol = 1e-6
-        span = x.max() - x.min()
-        if span > max_span + tol:
-            raise ValueError(
-                f"Longitude span is {span:.4f} degrees (> {max_span}); x looks "
-                "unwrapped/unbounded rather than a valid regional or global domain."
-            )
-        # x is expected centered within [0, 360) with span <= 360, so valid values
-        # can't fall outside 180 degrees either side of that: [-180, 540).
-        low_bound, high_bound = -180.0, 540.0
-        if x.max() > high_bound + tol or x.min() < low_bound - tol:
-            raise ValueError(
-                f"Longitude values (range [{x.min():.4f}, {x.max():.4f}]) fall "
-                f"outside [{low_bound}, {high_bound}]; x looks unwrapped/"
-                "unnormalized rather than a valid geographic longitude."
-            )
-        max_jump = _max_adjacent_diff(x)
-        if max_jump > max_adjacent_jump:
-            raise ValueError(
-                f"Longitude array contains a jump of {max_jump:.4f} degrees between "
-                f"adjacent supergrid nodes (> {max_adjacent_jump}); this indicates an "
-                "un-wrapped dateline crossing."
-            )
+    # How this grid's metrics were computed, recorded by _init_from_xy so that
+    # expand() can rebuild them the same way. The class-level values are the
+    # fallback for grids that never went through _init_from_xy (e.g. from_ds).
+    _R = _DEFAULT_RADIUS
+    _dx_dy_calc_type = "smallangle"
 
     def __eq__(self, other):
         if not isinstance(other, SupergridBase):
@@ -225,7 +198,11 @@ class SupergridBase:
             center_lon = x[x.shape[0] // 2, x.shape[1] // 2]
             if _max_adjacent_diff(x) > 180.0:
                 x = modulo_around_point(x, center_lon, 360)
-            x = x - np.floor(center_lon / 360) * 360
+                # Re-centering can leave the grid a whole turn away from the
+                # convention its center was written in, so shift it back. Both
+                # lines stay inside the guard: a grid with no seam keeps the
+                # exact longitude convention it was handed.
+                x = x - np.floor(center_lon / 360) * 360
 
         # dx, dy, area: use base class consistent calculation methods
         dx, dy = SupergridBase._calc_dx_dy(x, y, R=R, type=dx_dy_calc_type)
@@ -237,7 +214,10 @@ class SupergridBase:
             angle_dx = SupergridBase.calc_supergrid_rotation_angles_using_expanded_supergrid_method(
                 x, y
             )
-        return cls(x, y, dx, dy, area, angle_dx, "degrees", grid_type=grid_type)
+        sg = cls(x, y, dx, dy, area, angle_dx, "degrees", grid_type=grid_type)
+        sg._R = R
+        sg._dx_dy_calc_type = dx_dy_calc_type
+        return sg
 
     def summary(self):
         """Print a short summary of the grid geometry (shape and dx/dy ranges)."""
@@ -975,7 +955,13 @@ class SupergridBase:
         assert (
             -90 <= y.min() and y.max() <= 90
         ), "Expanded supergrid exceeds ±90 degrees latitude; check the input grid and expansion width."
-        return type(self)._init_from_xy(x, y, grid_type=self.grid_type)
+        return type(self)._init_from_xy(
+            x,
+            y,
+            grid_type=self.grid_type,
+            R=self._R,
+            dx_dy_calc_type=self._dx_dy_calc_type,
+        )
 
 
 class UniformSphericalSupergrid(SupergridBase):

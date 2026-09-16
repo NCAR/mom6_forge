@@ -414,13 +414,19 @@ class Grid:
         ), "Cannot compute bounding boxes for cyclic grids"
 
         def _lon_lat_bounds(lon_values, lat_values):
-            # Re-center around one of this edge's own points before min/max,
-            # so a seam crossing gives a tight range, not a huge raw span.
-            center = np.ravel(lon_values)[np.ravel(lon_values).size // 2]
-            wrapped = modulo_around_point(lon_values, center, 360)
-            lon_min, lon_max = float(wrapped.min()), float(wrapped.max())
-            if lon_max - lon_min > 180:
+            if np.abs(lat_values).max() >= SupergridBase._POLE_ADJACENT_LAT:
+                # A box reaching a pole surrounds every longitude -- no
+                # re-centering can tighten it, so report the full circle.
                 lon_min, lon_max = -180.0, 180.0
+            else:
+                # Re-center around one of this edge's own points before min/max,
+                # so a seam crossing gives a tight range, not a huge raw span.
+                # The result may sit outside [-180, 180] (a dateline-straddling
+                # edge becomes e.g. 170 to 190); that is a valid contiguous
+                # interval, and the width of the box is what callers slice on.
+                center = np.ravel(lon_values)[np.ravel(lon_values).size // 2]
+                wrapped = modulo_around_point(lon_values, center, 360)
+                lon_min, lon_max = float(wrapped.min()), float(wrapped.max())
             return {
                 "lon_min": lon_min,
                 "lon_max": lon_max,

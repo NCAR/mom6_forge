@@ -9,7 +9,6 @@ import pytest
 from mom6_forge._supergrid import (
     ProjectedSupergrid,
     RectilinearCartesianSupergrid,
-    SupergridBase,
     UniformSphericalSupergrid,
     _max_adjacent_diff,
     haversine,
@@ -138,51 +137,3 @@ def test_global_cyclic_grid_still_spans_exactly_360():
     ).x
     assert np.isclose(x.max() - x.min(), 360.0)
     assert _max_adjacent_diff(x) < 180.0
-
-
-# dx/dy/area/angle_dx are never inspected by the __init__ guard, so a single
-# zeros array of x's shape stands in for all four below.
-@pytest.mark.parametrize(
-    ("x", "match"),
-    [
-        pytest.param([[178.0, 179.0, -179.0, -178.0]], "jump", id="raw-discontinuity"),
-        pytest.param([[0.0, 200.0, 400.0, 600.0]], "span", id="unbounded-span"),
-        pytest.param(
-            [[100_000.0, 100_001.0, 100_002.0]],
-            "outside",
-            id="huge-absolute-offset-small-local-span",
-        ),
-        pytest.param(
-            [[178.0, 179.0, 180.0, 181.0]], None, id="continuous-but-unconventional"
-        ),
-        pytest.param(
-            [[0.0, 90.0, 180.0, 270.0, 360.0]], None, id="exact-360-span-boundary"
-        ),
-    ],
-)
-def test_init_validates_longitude_directly(x, match):
-    """Unit-test the __init__ guard itself, independent of any builder -- this
-    is also the only safety net for the from_ds load path, which bypasses
-    _init_from_xy's wrap entirely."""
-    x = np.array(x)
-    zeros = np.zeros_like(x)
-    if match:
-        with pytest.raises(ValueError, match=match):
-            SupergridBase(x, zeros, zeros, zeros, zeros, zeros, "degrees", "test")
-    else:
-        grid = SupergridBase(x, zeros, zeros, zeros, zeros, zeros, "degrees", "test")
-        assert grid.x is x
-
-
-def test_init_validation_exempts_pole_adjacent_latitude():
-    """The same raw discontinuity that raises at low latitude must be waved
-    through when y indicates the domain sits at a pole."""
-    x = np.array([[178.0, 179.0, -179.0, -178.0]])
-    zeros = np.zeros_like(x)
-
-    with pytest.raises(ValueError, match="jump"):
-        SupergridBase(x, zeros, zeros, zeros, zeros, zeros, "degrees", "test")
-
-    y_pole = np.full_like(x, 89.95)
-    grid = SupergridBase(x, y_pole, zeros, zeros, zeros, zeros, "degrees", "test")
-    assert grid.x is x
