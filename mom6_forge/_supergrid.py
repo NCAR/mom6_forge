@@ -918,9 +918,9 @@ class SupergridBase:
         for _ in range(2 * n_cells):
             padded = self._create_expanded_supergrid(x, y)
             x, y = padded.x.values, padded.y.values
-        assert -90 <= y.min() and y.max() <= 90, (
-            "Expanded supergrid exceeds ±90 degrees latitude; check the input grid and expansion width."
-        )
+        assert (
+            -90 <= y.min() and y.max() <= 90
+        ), "Expanded supergrid exceeds ±90 degrees latitude; check the input grid and expansion width."
         return type(self)._init_from_xy(x, y, grid_type=self.grid_type)
 
 
