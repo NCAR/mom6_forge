@@ -2030,7 +2030,7 @@ class Topo:
             format="NETCDF3_64BIT",
         )
 
-    def write_ww3_input(self, file_dir, grid_alias, open_boundary=False):
+    def write_ww3_input(self, file_dir, grid_alias, open_boundary=None):
         """
         Write the text-based WW3 input files ww3_grid.inp, [grid_alias]_x.inp, [grid_alias]_y.inp,
         [grid_alias]_mapsta.inp, [grid_alias]_bottom.inp, which are to be read by the WW3
@@ -2042,10 +2042,12 @@ class Topo:
             Directory to write the WW3 input files to.
         grid_alias: str
             The alias for the grid, which will be used in the file names of the WW3 input files.
-        open_boundary: bool
-            Give ocean cells on the outer ring status 2 (active boundary) so WW3 can
-            take boundary spectra from nest.ww3. Without nest.ww3, WW3 warns and
-            leaves them calm.
+        open_boundary: bool, optional
+            Give ocean cells on the open edges status 2 (active boundary) so WW3 can
+            take boundary spectra from nest.ww3. Defaults to True for a non-cyclic
+            (regional) grid and False for a cyclic one. Cyclic-x grids have no
+            east/west edges and tripolar grids no north edge. Without nest.ww3,
+            WW3 warns and leaves them calm.
         """
 
         assert (
@@ -2091,10 +2093,16 @@ class Topo:
         _write_rows(bottom_file, lambda j, i: f"{depth_m[j, i]:.8f}", sep=" ")
 
         # --- map status file (0=land, 1=ocean, 2=active boundary) ---
+        cyclic_x = self._grid.supergrid.is_cyclic_x
+        if open_boundary is None:
+            open_boundary = not cyclic_x
         mapsta = tmask.astype(int)
         if open_boundary:
             ring = np.zeros_like(mapsta, dtype=bool)
-            ring[[0, -1], :] = ring[:, [0, -1]] = True
+            ring[0, :] = True
+            ring[-1, :] = not self._grid.supergrid.is_tripolar
+            if not cyclic_x:
+                ring[:, [0, -1]] = True
             mapsta[ring & (mapsta == 1)] = 2
         _write_rows(mapsta_file, lambda j, i: str(mapsta[j, i]), sep=" ")
 
@@ -2150,7 +2158,7 @@ class Topo:
                 "$ Define grid -------------------------------------------------------- $\n"
                 "$\n"
             )
-            closure = "SMPL" if self._grid.supergrid.is_cyclic_x else "NONE"
+            closure = "SMPL" if cyclic_x else "NONE"
             f.write(f"  'CURV'  T  '{closure}'\n")
             f.write(f"  {nx}  {ny}\n")
             f.write(f"  21 1.0 0.0 1 1 '(....)' 'NAME' '{x_file}'\n")
