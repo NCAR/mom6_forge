@@ -2030,7 +2030,7 @@ class Topo:
             format="NETCDF3_64BIT",
         )
 
-    def write_ww3_input(self, file_dir, grid_alias):
+    def write_ww3_input(self, file_dir, grid_alias, open_boundary=False):
         """
         Write the text-based WW3 input files ww3_grid.inp, [grid_alias]_x.inp, [grid_alias]_y.inp,
         [grid_alias]_mapsta.inp, [grid_alias]_bottom.inp, which are to be read by the WW3
@@ -2042,6 +2042,10 @@ class Topo:
             Directory to write the WW3 input files to.
         grid_alias: str
             The alias for the grid, which will be used in the file names of the WW3 input files.
+        open_boundary: bool
+            Give ocean cells on the outer ring status 2 (active boundary) so WW3 can
+            take boundary spectra from nest.ww3. Without nest.ww3, WW3 warns and
+            leaves them calm.
         """
 
         assert (
@@ -2086,10 +2090,13 @@ class Topo:
         # ww3_tp2.5 (regtests/ww3_tp2.5/input/depth.361x361.IDLA1.dat).
         _write_rows(bottom_file, lambda j, i: f"{depth_m[j, i]:.8f}", sep=" ")
 
-        # --- map status file (1=ocean, 0=land) ---
-        # TODO: WW3 also supports mapsta codes 2 (active boundary), 3 (excluded),
-        # and negative values (ice). Extend when nested/boundary-forced runs are needed.
-        _write_rows(mapsta_file, lambda j, i: str(int(tmask[j, i])), sep=" ")
+        # --- map status file (0=land, 1=ocean, 2=active boundary) ---
+        mapsta = tmask.astype(int)
+        if open_boundary:
+            ring = np.zeros_like(mapsta, dtype=bool)
+            ring[[0, -1], :] = ring[:, [0, -1]] = True
+            mapsta[ring & (mapsta == 1)] = 2
+        _write_rows(mapsta_file, lambda j, i: str(mapsta[j, i]), sep=" ")
 
         # --- Write ww3_grid.inp ---
         # Use IDLA=1 (bottom-to-top) and IDFM=1 (free format) to match the
