@@ -86,6 +86,23 @@ def test_write_ww3_input_masked_cells_are_land(get_rect_topo_without_vc, tmp_pat
     assert (bottom[mapsta == 0] == 0.0).all()
 
 
+def test_write_ww3_input_open_boundary(get_rect_topo_without_vc, tmp_path):
+    """With open_boundary=True, ocean cells on the outer ring get status 2 and
+    land cells on the ring stay 0; the interior is untouched."""
+    topo = get_rect_topo_without_vc
+    alias = topo._grid.name
+    topo.depth[0, 0] = 0.0  # a land cell on the ring
+
+    topo.write_ww3_input(tmp_path, grid_alias=alias, open_boundary=True)
+    mapsta = np.loadtxt(tmp_path / f"{alias}_mapsta.inp")
+
+    ring = np.zeros_like(mapsta, dtype=bool)
+    ring[[0, -1], :] = ring[:, [0, -1]] = True
+    assert mapsta[0, 0] == 0
+    assert (mapsta[ring & (topo.tmask.data == 1)] == 2).all()
+    assert (mapsta[~ring] == 1).all()
+
+
 def test_write_ww3_input_after_reconstruction_from_files(
     get_rect_topo_without_vc, tmp_path
 ):
