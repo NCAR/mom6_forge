@@ -38,9 +38,10 @@ def test_write_ww3_input_array_contents(get_rect_topo_without_vc, tmp_path):
     assert np.allclose(xcoord, topo._grid.tlon.data)
     assert np.allclose(ycoord, topo._grid.tlat.data)
 
-    # Flat ocean: positive depth everywhere, all cells wet.
+    # Flat ocean: positive depth everywhere, all cells wet (ring is open boundary).
     assert np.allclose(bottom, 1000.0)
-    assert (mapsta == 1).all()
+    assert (mapsta[1:-1, 1:-1] == 1).all()
+    assert (mapsta > 0).all()
 
 
 def test_write_ww3_input_grid_control_file(get_rect_topo_without_vc, tmp_path):
@@ -81,19 +82,19 @@ def test_write_ww3_input_masked_cells_are_land(get_rect_topo_without_vc, tmp_pat
         assert mapsta[j, i] == 0
         assert bottom[j, i] == 0.0
 
-    # mapsta is exactly the land/sea mask, and depth is zero wherever land.
-    assert np.array_equal(mapsta, topo.tmask.data)
+    # mapsta land is exactly the mask's land, and depth is zero wherever land.
+    assert np.array_equal(mapsta == 0, topo.tmask.data == 0)
     assert (bottom[mapsta == 0] == 0.0).all()
 
 
-def test_write_ww3_input_open_boundary(get_rect_topo_without_vc, tmp_path):
-    """With open_boundary=True, ocean cells on the outer ring get status 2 and
+def test_write_ww3_input_open_boundary_regional(get_rect_topo_without_vc, tmp_path):
+    """Non-cyclic grid: by default, ocean cells on the outer ring get status 2 and
     land cells on the ring stay 0; the interior is untouched."""
     topo = get_rect_topo_without_vc
     alias = topo._grid.name
     topo.depth[0, 0] = 0.0  # a land cell on the ring
 
-    topo.write_ww3_input(tmp_path, grid_alias=alias, open_boundary=True)
+    topo.write_ww3_input(tmp_path, grid_alias=alias)
     mapsta = np.loadtxt(tmp_path / f"{alias}_mapsta.inp")
 
     ring = np.zeros_like(mapsta, dtype=bool)
@@ -101,6 +102,27 @@ def test_write_ww3_input_open_boundary(get_rect_topo_without_vc, tmp_path):
     assert mapsta[0, 0] == 0
     assert (mapsta[ring & (topo.tmask.data == 1)] == 2).all()
     assert (mapsta[~ring] == 1).all()
+
+    topo.write_ww3_input(tmp_path, grid_alias=alias, open_boundary=False)
+    assert (np.loadtxt(tmp_path / f"{alias}_mapsta.inp")[ring] != 2).all()
+
+
+def test_write_ww3_input_open_boundary_cyclic(get_simple_global_grid, tmp_path):
+    """Cyclic-x grid: no boundary points by default; when asked for, only the
+    south and north rows are edges."""
+    from mom6_forge.topo import Topo
+
+    topo = Topo(get_simple_global_grid, min_depth=0, git=False)
+    topo.set_flat(1000)
+    alias = topo._grid.name
+
+    topo.write_ww3_input(tmp_path, grid_alias=alias)
+    assert (np.loadtxt(tmp_path / f"{alias}_mapsta.inp") == 1).all()
+
+    topo.write_ww3_input(tmp_path, grid_alias=alias, open_boundary=True)
+    mapsta = np.loadtxt(tmp_path / f"{alias}_mapsta.inp")
+    assert (mapsta[[0, -1], :] == 2).all()
+    assert (mapsta[1:-1, :] == 1).all()
 
 
 def test_write_ww3_input_after_reconstruction_from_files(
