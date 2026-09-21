@@ -467,6 +467,23 @@ class SupergridBase:
         return new_node_coords, new_element_conn, collapsed
 
     @staticmethod
+    def _wrap_column(qlon_inner):
+        """The cyclic wrap column: column 0 on the branch that continues the row.
+
+        The wrap node is the same point on the sphere as column 0, so it differs
+        from it by a whole number of turns. Which one depends on the row: a row
+        that sweeps the globe west to east arrives one turn east of where it
+        started, but a row curling around a displaced pole -- gx1v6's top 18
+        rows -- ends up back where it began. Adding 360 unconditionally puts
+        those nodes a turn away (680 instead of 320 on gx1v6), and the edge
+        midpoints interpolated against them land off the globe.
+        """
+        step = qlon_inner[:, -1] - qlon_inner[:, -2]
+        target = qlon_inner[:, -1] + step
+        turns = np.round((target - qlon_inner[:, 0]) / 360.0)
+        return (qlon_inner[:, 0] + 360.0 * turns)[:, np.newaxis]
+
+    @staticmethod
     def _unwrap_lon_rows(qlon):
         """Remove the [0, 360) branch cut from each row of a q-longitude array.
 
@@ -498,12 +515,16 @@ class SupergridBase:
         unwrapped = np.unwrap(qlon, period=360.0, axis=-1)
         # np.unwrap pins the first entry and lifts the rest, which would leave a
         # row that merely started late (ERA5's 359.859375) sitting almost a full
-        # turn high. Drop each row back onto the branch it arrived on so the
+        # turn high. Drop the array back onto the branch it arrived on so the
         # reconstructed grid keeps the input's longitude range.
-        turns = np.round(
-            (unwrapped.mean(axis=-1, keepdims=True) - qlon.mean(axis=-1, keepdims=True))
-            / 360.0
-        )
+        #
+        # The shift is one turn count for the whole array, not one per row. A
+        # per-row count lands neighbouring rows on different branches wherever
+        # the in-row cut sits at different columns -- on gx1v6 rows 0-366 come
+        # back a turn below rows 367-384 -- and the u-points averaged between
+        # two such rows land half a world away.
+        per_row = np.round((unwrapped.mean(axis=-1) - qlon.mean(axis=-1)) / 360.0)
+        turns = np.median(per_row)
         return unwrapped - 360.0 * turns
 
     @staticmethod
@@ -872,13 +893,13 @@ class SupergridBase:
             )
             qlat_inner = np.vstack([rows_except_top_lat, top_full_lat[np.newaxis, :]])
             # Tripolar grids are periodic in x — add wrap column
-            qlon = np.hstack([qlon_inner, qlon_inner[:, :1] + 360.0])
+            qlon = np.hstack([qlon_inner, cls._wrap_column(qlon_inner)])
             qlat = np.hstack([qlat_inner, qlat_inner[:, :1]])
         elif is_cyclic:
             # nodes stored without wrap column; add it back by repeating column 0
             qlon_inner = cls._unwrap_lon_rows(node_lon.reshape(ny + 1, nx))
             qlat_inner = node_lat.reshape(ny + 1, nx)
-            qlon = np.hstack([qlon_inner, qlon_inner[:, :1] + 360.0])
+            qlon = np.hstack([qlon_inner, cls._wrap_column(qlon_inner)])
             qlat = np.hstack([qlat_inner, qlat_inner[:, :1]])
         else:
             qlon = cls._unwrap_lon_rows(node_lon.reshape(ny + 1, nx + 1))
@@ -900,17 +921,71 @@ class SupergridBase:
         # _unwrap_lon_rows may have moved). Without this the supergrid mixes
         # branches, and the degree differences behind dx come out ~360 too large.
         # A no-op wherever a center already agrees with its corners.
-        qmid = 0.25 * (qlon[:-1, :-1] + qlon[:-1, 1:] + qlon[1:, :-1] + qlon[1:, 1:])
+        # Halfway between two longitudes, going the short way round. Averaging
+        # them directly assumes both sit on the same 360-degree branch; where
+        # they do not -- across a branch cut the node rows could not be
+        # unwrapped out of, as on gx1v6 -- the plain average lands half a world
+        # from the edge it is meant to halve.
+        def _mid_lon(a, b):
+            return a + 0.5 * (((b - a) + 180.0) % 360.0 - 180.0)
+
+        def _gc_mid(lon_a, lat_a, lon_b, lat_b):
+            """Great-circle midpoint of two points, as (lon, lat) in degrees.
+
+            Averaging longitude and latitude assumes the edge is a straight line
+            in the lat/lon plane. It is not: across a branch cut the average
+            lands half a world away, and across a pole it lands 90 degrees off
+            at a latitude that is nowhere near the pole. Averaging the two unit
+            vectors and renormalising gives the point actually halfway along the
+            edge, with no branch to get wrong and the pole handled exactly.
+            """
+            la, lb = np.deg2rad(lat_a), np.deg2rad(lat_b)
+            oa, ob = np.deg2rad(lon_a), np.deg2rad(lon_b)
+            vx = np.cos(la) * np.cos(oa) + np.cos(lb) * np.cos(ob)
+            vy = np.cos(la) * np.sin(oa) + np.cos(lb) * np.sin(ob)
+            vz = np.sin(la) + np.sin(lb)
+            n = np.sqrt(vx * vx + vy * vy + vz * vz)
+            # Antipodal corners have no unique midpoint; fall back to the
+            # lat/lon average there rather than dividing by zero.
+            degenerate = n < 1e-12
+            n = np.where(degenerate, 1.0, n)
+            lat = np.rad2deg(np.arcsin(np.clip(vz / n, -1.0, 1.0)))
+            lon = np.rad2deg(np.arctan2(vy, vx))
+            # Put the result on the same branch as the first corner so the
+            # assembled supergrid keeps one longitude convention.
+            lon = lon_a + ((lon - lon_a) + 180.0) % 360.0 - 180.0
+            lon = np.where(degenerate, _mid_lon(lon_a, lon_b), lon)
+            lat = np.where(degenerate, 0.5 * (lat_a + lat_b), lat)
+            # Averaging longitude and latitude is exact for the two edges a
+            # rectilinear grid is made of: along a parallel (both corners at
+            # one latitude, midpoint on that parallel) and along a meridian
+            # (both at one longitude, where the great circle IS the meridian).
+            # Use it there so such a grid round-trips bit for bit, as it did
+            # before, and keep the vector midpoint for genuinely curved edges.
+            rectilinear = np.isclose(lat_a, lat_b, rtol=0.0, atol=1e-9) | np.isclose(
+                ((lon_b - lon_a) + 180.0) % 360.0 - 180.0, 0.0, rtol=0.0, atol=1e-9
+            )
+            return (
+                np.where(rectilinear, _mid_lon(lon_a, lon_b), lon),
+                np.where(rectilinear, 0.5 * (lat_a + lat_b), lat),
+            )
+
+        qmid = _mid_lon(
+            _mid_lon(qlon[:-1, :-1], qlon[:-1, 1:]),
+            _mid_lon(qlon[1:, :-1], qlon[1:, 1:]),
+        )
         tlon = tlon + 360.0 * np.round((qmid - tlon) / 360.0)
 
         # --- Interpolate edge midpoints ---
         # U-points: midpoint of west/east edges (between vertically adjacent corners)
-        ulon = 0.5 * (qlon[:-1, :] + qlon[1:, :])  # shape (ny, nx+1)
-        ulat = 0.5 * (qlat[:-1, :] + qlat[1:, :])
+        ulon, ulat = _gc_mid(
+            qlon[:-1, :], qlat[:-1, :], qlon[1:, :], qlat[1:, :]
+        )  # shape (ny, nx+1)
 
         # V-points: midpoint of south/north edges (between horizontally adjacent corners)
-        vlon = 0.5 * (qlon[:, :-1] + qlon[:, 1:])  # shape (ny+1, nx)
-        vlat = 0.5 * (qlat[:, :-1] + qlat[:, 1:])
+        vlon, vlat = _gc_mid(
+            qlon[:, :-1], qlat[:, :-1], qlon[:, 1:], qlat[:, 1:]
+        )  # shape (ny+1, nx)
 
         # --- Assemble full supergrid (2*ny+1, 2*nx+1) ---
         # Layout:

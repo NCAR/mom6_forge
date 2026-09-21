@@ -237,19 +237,50 @@ def test_seam_repair_is_independent_of_storage_convention():
     np.testing.assert_allclose(a.dy, b.dy)
 
 
-def test_reconstruct_rejects_a_polar_mesh_with_averaged_midpoints(tmp_path):
-    """reconstruct_from_esmf_mesh recovers u/v points by averaging corner
-    longitudes and latitudes, which lands halfway around the world instead of at
-    the pole when an edge crosses one. The result is large positive dx/dy, so
-    the negative-metric fallback cannot see it -- on an Arctic cap it turns
-    50 km spacing into 2000 km. Better to refuse than to hand back numbers that
-    look plausible."""
+def test_reconstruct_recovers_a_polar_mesh(tmp_path):
+    """An edge that crosses a pole has no midpoint in the lat/lon plane: the
+    average of two longitudes on opposite sides lands 90 degrees off, at a
+    latitude nowhere near the pole, which used to turn 50 km spacing into
+    2000 km. Recovering the midpoint as the normalised average of the two
+    corner vectors puts it where it belongs, so the metrics come back."""
     sg = ProjectedSupergrid.from_crs("EPSG:3995", -1e6, 1e6, -1e6, 1e6, 100_000)
     path = tmp_path / "polar_mesh.nc"
     sg.to_esmf_mesh(str(path), mask="all_unmasked")
 
-    with pytest.raises(ValueError, match="edge midpoints are not on their edges"):
-        SupergridBase.reconstruct_from_esmf_mesh(str(path))
+    rebuilt = SupergridBase.reconstruct_from_esmf_mesh(str(path))
+
+    np.testing.assert_allclose(rebuilt.dx, sg.dx, rtol=1e-2)
+    np.testing.assert_allclose(rebuilt.dy, sg.dy, rtol=1e-2)
+    assert (rebuilt.dx > 0).all() and (rebuilt.dy > 0).all()
+
+
+def test_reconstruct_recovers_a_cyclic_mesh_whose_rows_do_not_sweep_the_globe(
+    tmp_path,
+):
+    """A displaced-pole grid's top rows curl around the pole instead of
+    sweeping west to east, so its cyclic wrap node repeats column 0 rather than
+    sitting a turn east of it, and its node rows cannot all be unwrapped onto
+    one branch. Both used to throw longitudes a full turn out."""
+    lon = np.linspace(0.0, 360.0, 41)[:-1]
+    lat = np.linspace(-60.0, 60.0, 21)
+    x, y = np.meshgrid(lon, lat)
+    # Curl the top rows into a narrow band, the way a displaced pole does.
+    for j in range(len(lat) - 4, len(lat)):
+        span = 4.0 * (len(lat) - j)
+        x[j] = 40.0 + span * np.cos(np.deg2rad(lon))
+    x = np.hstack([x, x[:, :1]])
+    y = np.hstack([y, y[:, :1]])
+    sg = SupergridBase._init_from_xy(x, y)
+
+    path = tmp_path / "curled.nc"
+    sg.to_esmf_mesh(str(path), mask="all_unmasked")
+    rebuilt = SupergridBase.reconstruct_from_esmf_mesh(str(path))
+
+    # Corners must land on the original points, up to whole turns.
+    dlon = rebuilt.x[::2, ::2] - sg.x[::2, ::2]
+    dlon -= 360.0 * np.round(dlon / 360.0)
+    assert np.abs(dlon).max() < 1e-6
+    assert np.abs(rebuilt.y[::2, ::2] - sg.y[::2, ::2]).max() < 1e-6
 
 
 def test_reconstruct_accepts_a_pole_adjacent_lat_lon_mesh(tmp_path):
