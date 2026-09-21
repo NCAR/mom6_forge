@@ -316,3 +316,25 @@ def test_midpoint_check_accepts_production_curvilinear_grids(hgrid):
 
     ds = xr.open_dataset(hgrid)
     SupergridBase._check_edge_midpoints(ds.x.values, ds.y.values)
+
+
+def test_unwrap_lon_rows_shifts_by_whole_turns_only():
+    """The shift that drops an unwrapped array back onto its original branch has
+    to be a whole number of turns. Picking it with a median instead of a mode
+    returns 0.5 when an even number of rows splits evenly between two turn
+    counts, moving every longitude half a turn."""
+    # Alternating rows start just below and just above the branch cut, so
+    # np.unwrap lifts every other one: turn counts come out [1, 0, 1, 0, ...].
+    rows = 8
+    lon = np.empty((rows, 12))
+    for j in range(rows):
+        lon[j] = ((359.5 if j % 2 == 0 else 0.5) + np.arange(12) * 30.0) % 360.0
+
+    unwrapped = np.unwrap(lon, period=360.0, axis=-1)
+    per_row = np.round((unwrapped.mean(axis=-1) - lon.mean(axis=-1)) / 360.0)
+    assert np.median(per_row) == 0.5, "this test needs an evenly split array"
+
+    out = SupergridBase._unwrap_lon_rows(lon)
+    shift = np.unique(np.round(out - unwrapped, 9))
+    assert shift.size == 1
+    assert (shift[0] / 360.0).is_integer(), f"shifted by {shift[0]} degrees"

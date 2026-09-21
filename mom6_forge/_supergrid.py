@@ -523,8 +523,14 @@ class SupergridBase:
         # the in-row cut sits at different columns -- on gx1v6 rows 0-366 come
         # back a turn below rows 367-384 -- and the u-points averaged between
         # two such rows land half a world away.
+        # Take the branch most rows arrived on. A median would do for a lopsided
+        # split, but it is not one of the turn counts when an even number of
+        # rows splits evenly between two of them -- it returns 0.5, and the
+        # array shifts by half a turn, which is the cross-branch corruption this
+        # is here to prevent. The mode is always one of the counts.
         per_row = np.round((unwrapped.mean(axis=-1) - qlon.mean(axis=-1)) / 360.0)
-        turns = np.median(per_row)
+        values, counts = np.unique(per_row, return_counts=True)
+        turns = values[np.argmax(counts)]
         return unwrapped - 360.0 * turns
 
     @staticmethod
