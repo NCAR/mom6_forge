@@ -408,3 +408,53 @@ def test_grid_from_esmf_mesh_coords_preserved(tmp_path, get_rect_grid):
     grid2 = Grid.from_esmf_mesh(mesh_path)
     np.testing.assert_allclose(grid2.tlon.values, get_rect_grid.tlon.values, atol=1e-6)
     np.testing.assert_allclose(grid2.tlat.values, get_rect_grid.tlat.values, atol=1e-6)
+
+
+def test_encircles_globe_distinguishes_caps_from_bands():
+    """Reaching a pole is not the same as wrapping it: a narrow polar domain's
+    north edge touches 90 degrees while spanning a few degrees of longitude."""
+    from mom6_forge._supergrid import ProjectedSupergrid
+    from mom6_forge.grid import _encircles_globe
+
+    cap = ProjectedSupergrid.from_crs("EPSG:3995", -1e6, 1e6, -1e6, 1e6, 100_000)
+    assert _encircles_globe(cap.x)
+    assert not _encircles_globe(cap.x[:, -1])  # one edge of that cap
+    assert not _encircles_globe(np.linspace(0.0, 4.0, 41))
+    assert not _encircles_globe(np.full(41, 4.0))
+    assert not _encircles_globe(np.linspace(-170.0, 30.0, 201))
+
+
+def test_bounding_boxes_stay_tight_for_a_narrow_domain_touching_the_pole():
+    grid = Grid(
+        nx=8,
+        ny=20,
+        lenx=4.0,
+        leny=9.95,
+        xstart=0.0,
+        ystart=80.0,
+        cyclic_x=False,
+        name="narrow_polar",
+    )
+    boxes = Grid.get_bounding_boxes(grid)
+    for edge in ("ic", "north", "south"):
+        assert boxes[edge]["lon_min"] == pytest.approx(0.0)
+        assert boxes[edge]["lon_max"] == pytest.approx(4.0)
+    assert boxes["east"]["lon_min"] == pytest.approx(4.0)
+    assert boxes["east"]["lon_max"] == pytest.approx(4.0)
+
+
+def test_sliced_and_updated_grids_keep_their_metric_conventions():
+    """__getitem__ and update_supergrid rebuild metrics, so they must reuse the
+    radius and dx/dy method the grid was built with."""
+    grid = Grid.from_projection(
+        "EPSG:3995", -1e6, 1e6, -1e6, 1e6, 100_000, name="arctic"
+    )
+    assert grid.supergrid._dx_dy_calc_type == "haversine"
+
+    sub = grid[0:6, 0:6]  # a corner, so the pole is not inside the slice
+    assert np.abs(sub.supergrid.y).max() < 89.9
+    assert sub.supergrid._dx_dy_calc_type == "haversine"
+    assert sub.supergrid._R == grid.supergrid._R
+
+    grid.update_supergrid(grid.supergrid.x.copy(), grid.supergrid.y.copy())
+    assert grid.supergrid._dx_dy_calc_type == "haversine"

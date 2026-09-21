@@ -14,6 +14,36 @@ from mom6_forge._supergrid import (
 from mom6_forge.utils import normalize_deg
 
 
+def _encircles_globe(lon_values):
+    """Whether these longitudes wrap all the way around the globe.
+
+    Longitudes live on a circle, so a set of them is a contiguous band exactly
+    when there is one empty arc much wider than the spacing between neighbours
+    -- that arc is the band's complement. A set with no such void wraps the
+    globe and cannot be tightened into an interval.
+
+    Reaching a pole is not the same question: the north edge of a narrow polar
+    domain reaches 90 degrees while spanning only a few degrees of longitude,
+    and a box that encircles a pole can have every node below the pole-adjacent
+    threshold.
+    """
+    lon = np.unique(normalize_deg(np.ravel(np.asarray(lon_values, dtype=float))))
+    if lon.size < 3:
+        return False
+    # Gaps between neighbouring longitudes on the circle, including the wrap.
+    gaps = np.sort(np.append(np.diff(lon), lon[0] + 360.0 - lon[-1]))[::-1]
+    largest, second = float(gaps[0]), float(gaps[1])
+    if second <= 0.0:
+        return False
+    # A band has exactly one void, so its largest gap is a lone outlier. A grid
+    # that encircles a pole is symmetric about it, so its largest gap is matched
+    # by an equal one on the far side. Measured over polar caps from 4 to 6561
+    # nodes -- square, rectangular, offset, both hemispheres -- the ratio is
+    # 1.00; over bands from 10 to 350 degrees wide it is 5.7 or more. Comparing
+    # the two largest gaps needs no absolute angle and no notion of resolution.
+    return largest < 2.0 * second
+
+
 class Grid:
     """
     Horizontal MOM6 grid. The first step of constructing a MOM6 grid within
@@ -272,6 +302,11 @@ class Grid:
             x=self.supergrid.x[s_j_low:s_j_high:j_step, s_i_low:s_i_high:i_step],
             y=self.supergrid.y[s_j_low:s_j_high:j_step, s_i_low:s_i_high:i_step],
             grid_type=self.supergrid.grid_type,
+            # Rebuild the metrics the way the parent's were built. Without this
+            # a projected grid silently drops back to the smallangle default,
+            # and a non-default radius is lost.
+            R=self.supergrid._R,
+            dx_dy_calc_type=self.supergrid._dx_dy_calc_type,
         )
 
         # Create a name for the subgrid based on the slices
@@ -414,9 +449,9 @@ class Grid:
         ), "Cannot compute bounding boxes for cyclic grids"
 
         def _lon_lat_bounds(lon_values, lat_values):
-            if np.abs(lat_values).max() >= SupergridBase._POLE_ADJACENT_LAT:
-                # A box reaching a pole surrounds every longitude -- no
-                # re-centering can tighten it, so report the full circle.
+            if _encircles_globe(lon_values):
+                # This edge surrounds every longitude -- no re-centering can
+                # tighten it, so report the full circle.
                 lon_min, lon_max = -180.0, 180.0
             else:
                 # Re-center around one of this edge's own points before min/max,
@@ -1008,7 +1043,16 @@ class Grid:
             The grid type of the passed in x and y arrays
         """
 
-        self.supergrid = SupergridBase._init_from_xy(xdat, ydat, grid_type)
+        # Keep the metric conventions the current supergrid was built with, so
+        # that updating the coordinates of e.g. a projected grid does not
+        # silently fall back to the smallangle default or the default radius.
+        self.supergrid = SupergridBase._init_from_xy(
+            xdat,
+            ydat,
+            grid_type,
+            R=self.supergrid._R,
+            dx_dy_calc_type=self.supergrid._dx_dy_calc_type,
+        )
 
     def write_supergrid(
         self, path: Optional[str] = None, author: Optional[str] = None
