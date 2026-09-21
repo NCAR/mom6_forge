@@ -27,7 +27,13 @@ jobs:
           environment-file: environment.yml
           cache-downloads: true
           micromamba-version: "latest"
-          create-args: python=${{ matrix.python-version }}
+          # Serial ESMF. The mpi_* builds (which `xesmf` alone resolves to) call
+          # MPI_Init on first use, which intermittently aborts on GitHub runners
+          # and kills pytest with SIGTERM (exit 143). mom6_forge only uses ESMF
+          # serially, via xesmf, so the MPI stack is not needed here.
+          create-args: >-
+            python=${{ matrix.python-version }}
+            esmf=*=nompi_*
       - name: Set git identity for testing
         run: |
           git config --global user.email "runner@example.com"
