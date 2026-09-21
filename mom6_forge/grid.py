@@ -9,8 +9,56 @@ from mom6_forge._supergrid import (
     RectilinearCartesianSupergrid,
     ProjectedSupergrid,
     SupergridBase,
+    modulo_around_point,
 )
 from mom6_forge.utils import normalize_deg
+
+
+def _encircles_globe(lon_values):
+    """Whether these longitudes wrap all the way around the globe.
+
+    Reaching a pole is not the same question: the north edge of a narrow polar
+    domain reaches 90 degrees while spanning only a few degrees of longitude,
+    and a box that encircles a pole can keep every node well short of it.
+
+    For a 2D domain the answer is exact. Walk the boundary accumulating the
+    shortest-way longitude step at each node; around a closed loop that total
+    is 360 degrees times an integer winding number, 1 if the boundary goes
+    around a pole and 0 if not. Measured 1.0000 for polar caps from 25 to 6561
+    nodes -- square, rectangular, offset, both hemispheres -- and 0.0000 for
+    every band, independent of resolution.
+
+    A single edge encloses no area, so it has no winding to count; the 2D test
+    run on one would answer backwards (0 for a polar cap's north edge, 1 for a
+    band's middle row). Edges instead compare the two largest gaps between
+    neighbouring longitudes: a band has one void and so a lone outlier, while a
+    set spread around the circle does not.
+
+    That fallback does depend on resolution -- it reads a band as encircling
+    once the node spacing exceeds half the void, e.g. a 350-degree band sampled
+    every 10 degrees. It errs toward reporting the full circle, so a caller
+    over-fetches rather than silently dropping data, and a real grid's edges
+    stay far from the limit. Only a coarse near-global domain approaches it,
+    and for one of those the winding test above already decides.
+    """
+    lon = np.asarray(lon_values, dtype=float)
+
+    if lon.ndim == 2 and min(lon.shape) >= 2:
+        loop = np.concatenate(
+            [lon[0, :], lon[1:, -1], lon[-1, -2::-1], lon[-2:0:-1, 0], lon[:1, 0]]
+        )
+        step = (np.diff(loop) + 180.0) % 360.0 - 180.0
+        return abs(float(step.sum())) > 180.0
+
+    lon = np.unique(normalize_deg(np.ravel(lon)))
+    if lon.size < 3:
+        return False
+    # Gaps between neighbouring longitudes on the circle, including the wrap.
+    gaps = np.sort(np.append(np.diff(lon), lon[0] + 360.0 - lon[-1]))[::-1]
+    largest, second = float(gaps[0]), float(gaps[1])
+    if second <= 0.0:
+        return False
+    return largest < 2.0 * second
 
 
 class Grid:
@@ -271,6 +319,11 @@ class Grid:
             x=self.supergrid.x[s_j_low:s_j_high:j_step, s_i_low:s_i_high:i_step],
             y=self.supergrid.y[s_j_low:s_j_high:j_step, s_i_low:s_i_high:i_step],
             grid_type=self.supergrid.grid_type,
+            # Rebuild the metrics the way the parent's were built. Without this
+            # a projected grid silently drops back to the smallangle default,
+            # and a non-default radius is lost.
+            R=self.supergrid._R,
+            dx_dy_calc_type=self.supergrid._dx_dy_calc_type,
         )
 
         # Create a name for the subgrid based on the slices
@@ -405,6 +458,19 @@ class Grid:
                 • "north"
                 • "south"
                 • "ic" (full domain for initial conditions)
+
+            Each box is ``{"lon_min", "lon_max", "lat_min", "lat_max",
+            "crosses_antimeridian"}``. ``lon_min`` is always a longitude in
+            [-180, 180) and ``lon_max`` is ``lon_min`` plus the width of the
+            box, so the pair always names a contiguous eastward arc and
+            ``lon_max - lon_min`` is its width.
+
+            A box straddling the antimeridian therefore carries
+            ``lon_max > 180`` -- 170 to 190, say -- and sets
+            ``crosses_antimeridian``. A caller selecting with
+            ``lon_min <= lon <= lon_max`` from a source on [-180, 180] has to
+            branch on that flag and take the two pieces separately. Wrapping
+            ``lon_max`` down to -170 first and comparing would select nothing.
         """
         if type(hgrid) == Grid:
             hgrid = hgrid._supergrid.to_ds()
@@ -412,36 +478,49 @@ class Grid:
             hgrid
         ), "Cannot compute bounding boxes for cyclic grids"
 
-        init_result = {
-            "lon_min": float(hgrid.x.min()),
-            "lon_max": float(hgrid.x.max()),
-            "lat_min": float(hgrid.y.min()),
-            "lat_max": float(hgrid.y.max()),
-        }
-        east_result = {
-            "lon_min": float(hgrid.x.isel(nxp=-1).min()),
-            "lon_max": float(hgrid.x.isel(nxp=-1).max()),
-            "lat_min": float(hgrid.y.isel(nxp=-1).min()),
-            "lat_max": float(hgrid.y.isel(nxp=-1).max()),
-        }
-        west_result = {
-            "lon_min": float(hgrid.x.isel(nxp=0).min()),
-            "lon_max": float(hgrid.x.isel(nxp=0).max()),
-            "lat_min": float(hgrid.y.isel(nxp=0).min()),
-            "lat_max": float(hgrid.y.isel(nxp=0).max()),
-        }
-        south_result = {
-            "lon_min": float(hgrid.x.isel(nyp=0).min()),
-            "lon_max": float(hgrid.x.isel(nyp=0).max()),
-            "lat_min": float(hgrid.y.isel(nyp=0).min()),
-            "lat_max": float(hgrid.y.isel(nyp=0).max()),
-        }
-        north_result = {
-            "lon_min": float(hgrid.x.isel(nyp=-1).min()),
-            "lon_max": float(hgrid.x.isel(nyp=-1).max()),
-            "lat_min": float(hgrid.y.isel(nyp=-1).min()),
-            "lat_max": float(hgrid.y.isel(nyp=-1).max()),
-        }
+        def _lon_lat_bounds(lon_values, lat_values):
+            if _encircles_globe(lon_values):
+                # This edge surrounds every longitude -- no re-centering can
+                # tighten it, so report the full circle.
+                lon_min, lon_max = -180.0, 180.0
+            else:
+                # Re-center around one of this edge's own points before min/max,
+                # so a seam crossing gives a tight range, not a huge raw span.
+                center = np.ravel(lon_values)[np.ravel(lon_values).size // 2]
+                wrapped = modulo_around_point(lon_values, center, 360)
+                lon_min, lon_max = float(wrapped.min()), float(wrapped.max())
+                # Re-centering leaves the interval wherever this edge's own
+                # values happened to sit, which need not be anywhere a reader
+                # would recognise: a grid stored in [0, 360) gives 350 to 370
+                # for the arc that -10 to 10 names just as exactly. Slide the
+                # interval so it starts at a real longitude. Both ends move
+                # together, so the width, and the arc, are unchanged -- a box
+                # that genuinely crosses the antimeridian still ends past 180,
+                # because no in-range pair of ends can describe it.
+                anchored = ((lon_min + 180.0) % 360.0) - 180.0
+                lon_max += anchored - lon_min
+                lon_min = anchored
+            return {
+                "lon_min": lon_min,
+                "lon_max": lon_max,
+                "lat_min": float(lat_values.min()),
+                "lat_max": float(lat_values.max()),
+                "crosses_antimeridian": lon_max > 180.0,
+            }
+
+        init_result = _lon_lat_bounds(hgrid.x.values, hgrid.y.values)
+        east_result = _lon_lat_bounds(
+            hgrid.x.isel(nxp=-1).values, hgrid.y.isel(nxp=-1).values
+        )
+        west_result = _lon_lat_bounds(
+            hgrid.x.isel(nxp=0).values, hgrid.y.isel(nxp=0).values
+        )
+        south_result = _lon_lat_bounds(
+            hgrid.x.isel(nyp=0).values, hgrid.y.isel(nyp=0).values
+        )
+        north_result = _lon_lat_bounds(
+            hgrid.x.isel(nyp=-1).values, hgrid.y.isel(nyp=-1).values
+        )
         return {
             "east": east_result,
             "west": west_result,
@@ -1003,7 +1082,16 @@ class Grid:
             The grid type of the passed in x and y arrays
         """
 
-        self.supergrid = SupergridBase._init_from_xy(xdat, ydat, grid_type)
+        # Keep the metric conventions the current supergrid was built with, so
+        # that updating the coordinates of e.g. a projected grid does not
+        # silently fall back to the smallangle default or the default radius.
+        self.supergrid = SupergridBase._init_from_xy(
+            xdat,
+            ydat,
+            grid_type,
+            R=self.supergrid._R,
+            dx_dy_calc_type=self.supergrid._dx_dy_calc_type,
+        )
 
     def write_supergrid(
         self, path: Optional[str] = None, author: Optional[str] = None

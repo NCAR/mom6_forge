@@ -12,7 +12,7 @@ import xarray as xr
 import pytest
 from mom6_forge.grid import Grid
 from mom6_forge.topo import Topo
-from mom6_forge._supergrid import SupergridBase
+from mom6_forge._supergrid import SupergridBase, ProjectedSupergrid
 from utils import on_cisl_machine
 import os
 
@@ -248,6 +248,103 @@ def test_get_rectangular_segment_info(get_rect_grid):
     assert "lat_min" in res["east"].keys()
 
 
+def test_get_bounding_boxes_tight_for_seam_crossing_edge():
+    """An edge that crosses a seam without needing the full circle should get a
+    tight, contiguous range (not the whole globe); an edge/box that genuinely
+    surrounds a pole (like the full "ic" domain here) still can't be tightened
+    and should fall back to the honest full range."""
+    sg = ProjectedSupergrid.from_crs(
+        "EPSG:3995", -300_000, 300_000, -300_000, 300_000, resolution_m=100_000
+    )
+    boxes = Grid.get_bounding_boxes(sg.to_ds())
+
+    north = boxes["north"]
+    assert north["lon_max"] - north["lon_min"] < 180
+
+    ic = boxes["ic"]
+    assert ic["lon_min"] == -180.0
+    assert ic["lon_max"] == 180.0
+
+
+def _dateline_supergrid(lons):
+    """A 2x2-degree band centred on the equator, spanning the given longitudes."""
+    x, y = np.meshgrid(np.asarray(lons, dtype=float), np.arange(-5.0, 6.0, 1.0))
+    return SupergridBase._init_from_xy(x, y)
+
+
+def test_bounding_boxes_anchor_lon_min_to_a_real_longitude():
+    """lon_min is the start of the arc, so it has to be a longitude. Where the
+    box lands otherwise depends on the convention the grid was stored in, which
+    is not something a caller can see."""
+    cases = {
+        "stored in [0, 360)": _dateline_supergrid(np.arange(350.0, 371.0)),
+        "stored in [-180, 180]": _dateline_supergrid(
+            ((np.arange(350.0, 371.0) + 180.0) % 360.0) - 180.0
+        ),
+        "away from any seam": _dateline_supergrid(np.arange(20.0, 41.0)),
+        "polar cap": ProjectedSupergrid.from_crs(
+            "EPSG:3995", -300_000, 300_000, -300_000, 300_000, resolution_m=100_000
+        ),
+    }
+    for label, sg in cases.items():
+        for edge, box in Grid.get_bounding_boxes(sg.to_ds()).items():
+            assert -180.0 <= box["lon_min"] <= 180.0, f"{label}/{edge}"
+
+
+def test_bounding_boxes_do_not_depend_on_the_stored_convention():
+    """The same arc written in [0, 360) and in [-180, 180] is the same arc."""
+    in_360 = Grid.get_bounding_boxes(
+        _dateline_supergrid(np.arange(350.0, 371.0)).to_ds()
+    )
+    in_180 = Grid.get_bounding_boxes(
+        _dateline_supergrid(((np.arange(350.0, 371.0) + 180.0) % 360.0) - 180.0).to_ds()
+    )
+    for edge in in_360:
+        for key in ("lon_min", "lon_max", "crosses_antimeridian"):
+            assert in_360[edge][key] == pytest.approx(
+                in_180[edge][key]
+            ), f"{edge}/{key}"
+
+
+def test_bounding_boxes_flag_an_antimeridian_crossing():
+    """A box that really does cross cannot be written with both ends in range,
+    so it ends past 180 and says so rather than leaving a caller to notice."""
+    crossing = Grid.get_bounding_boxes(
+        _dateline_supergrid(np.arange(170.0, 191.0)).to_ds()
+    )["ic"]
+    assert crossing["crosses_antimeridian"] is True
+    assert crossing["lon_max"] > 180.0
+    assert crossing["lon_max"] - crossing["lon_min"] == pytest.approx(20.0)
+
+    # The same width, written where it needs no crossing, is not flagged.
+    plain = Grid.get_bounding_boxes(_dateline_supergrid(np.arange(20.0, 41.0)).to_ds())[
+        "ic"
+    ]
+    assert plain["crosses_antimeridian"] is False
+    assert plain["lon_max"] - plain["lon_min"] == pytest.approx(20.0)
+
+
+def test_bounding_box_selects_the_intended_source_points():
+    """The documented way to use a crossing box: split it at the antimeridian
+    rather than comparing against a wrapped lon_max, which selects nothing."""
+    box = Grid.get_bounding_boxes(_dateline_supergrid(np.arange(170.0, 191.0)).to_ds())[
+        "ic"
+    ]
+    source_lon = np.arange(-180.0, 180.0, 1.0)
+
+    if box["crosses_antimeridian"]:
+        selected = (source_lon >= box["lon_min"]) | (
+            source_lon <= box["lon_max"] - 360.0
+        )
+    else:
+        selected = (source_lon >= box["lon_min"]) & (source_lon <= box["lon_max"])
+
+    assert source_lon[selected].min() == -180.0
+    assert set(np.round(source_lon[selected])) == set(
+        np.round(((np.arange(170.0, 191.0) + 180.0) % 360.0) - 180.0)
+    )
+
+
 def test_slice_grid(get_rect_grid):
     grid = get_rect_grid
     sub = grid[1:, 1:]
@@ -390,3 +487,71 @@ def test_grid_from_esmf_mesh_coords_preserved(tmp_path, get_rect_grid):
     grid2 = Grid.from_esmf_mesh(mesh_path)
     np.testing.assert_allclose(grid2.tlon.values, get_rect_grid.tlon.values, atol=1e-6)
     np.testing.assert_allclose(grid2.tlat.values, get_rect_grid.tlat.values, atol=1e-6)
+
+
+def test_encircles_globe_distinguishes_caps_from_bands():
+    """Reaching a pole is not the same as wrapping it: a narrow polar domain's
+    north edge touches 90 degrees while spanning a few degrees of longitude."""
+    from mom6_forge._supergrid import ProjectedSupergrid
+    from mom6_forge.grid import _encircles_globe
+
+    cap = ProjectedSupergrid.from_crs("EPSG:3995", -1e6, 1e6, -1e6, 1e6, 100_000)
+    assert _encircles_globe(cap.x)
+    assert not _encircles_globe(cap.x[:, -1])  # one edge of that cap
+    assert not _encircles_globe(np.linspace(0.0, 4.0, 41))
+    assert not _encircles_globe(np.full(41, 4.0))
+    assert not _encircles_globe(np.linspace(-170.0, 30.0, 201))
+
+
+def test_bounding_boxes_stay_tight_for_a_narrow_domain_touching_the_pole():
+    grid = Grid(
+        nx=8,
+        ny=20,
+        lenx=4.0,
+        leny=9.95,
+        xstart=0.0,
+        ystart=80.0,
+        cyclic_x=False,
+        name="narrow_polar",
+    )
+    boxes = Grid.get_bounding_boxes(grid)
+    for edge in ("ic", "north", "south"):
+        assert boxes[edge]["lon_min"] == pytest.approx(0.0)
+        assert boxes[edge]["lon_max"] == pytest.approx(4.0)
+    assert boxes["east"]["lon_min"] == pytest.approx(4.0)
+    assert boxes["east"]["lon_max"] == pytest.approx(4.0)
+
+
+def test_sliced_and_updated_grids_keep_their_metric_conventions():
+    """__getitem__ and update_supergrid rebuild metrics, so they must reuse the
+    radius and dx/dy method the grid was built with."""
+    grid = Grid.from_projection(
+        "EPSG:3995", -1e6, 1e6, -1e6, 1e6, 100_000, name="arctic"
+    )
+    assert grid.supergrid._dx_dy_calc_type == "haversine"
+
+    sub = grid[0:6, 0:6]  # a corner, so the pole is not inside the slice
+    assert np.abs(sub.supergrid.y).max() < 89.9
+    assert sub.supergrid._dx_dy_calc_type == "haversine"
+    assert sub.supergrid._R == grid.supergrid._R
+
+    grid.update_supergrid(grid.supergrid.x.copy(), grid.supergrid.y.copy())
+    assert grid.supergrid._dx_dy_calc_type == "haversine"
+
+
+def test_encircles_globe_is_resolution_independent_for_a_2d_domain():
+    """The 2D test counts a winding number, so a coarse cap is still a cap and a
+    coarse near-global band is still a band. The 1D gap fallback cannot make
+    that distinction, which is why 2D domains do not use it."""
+    from mom6_forge._supergrid import ProjectedSupergrid
+    from mom6_forge.grid import _encircles_globe
+
+    for resolution_m in (1_000_000, 250_000, 100_000):
+        cap = ProjectedSupergrid.from_crs(
+            "EPSG:3995", -1e6, 1e6, -1e6, 1e6, resolution_m
+        )
+        assert _encircles_globe(cap.x), resolution_m
+
+    for n in (36, 71, 351):  # 350-degree band, coarse to fine
+        lon, _ = np.meshgrid(np.linspace(0.0, 350.0, n), np.linspace(-5.0, 5.0, 11))
+        assert not _encircles_globe(lon), n

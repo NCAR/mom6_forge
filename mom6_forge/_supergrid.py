@@ -21,6 +21,16 @@ from pyproj import CRS, Transformer
 from mom6_forge.utils import normalize_deg, is_mesh_cyclic_x, get_mesh_dimensions
 
 
+def _max_adjacent_diff(x):
+    """Largest abs diff between adjacent values of a 2D array (detects dateline jumps)."""
+    max_diff = 0.0
+    if x.shape[1] > 1:
+        max_diff = max(max_diff, np.abs(np.diff(x, axis=1)).max())
+    if x.shape[0] > 1:
+        max_diff = max(max_diff, np.abs(np.diff(x, axis=0)).max())
+    return max_diff
+
+
 class SupergridBase:
     """Base class defining the MOM6-style supergrid interface."""
 
@@ -60,7 +70,19 @@ class SupergridBase:
     def leny(self):
         return self.y.max() - self.y.min()
 
-    def __init__(self, x, y, dx, dy, area, angle_dx, axis_units, grid_type):
+    def __init__(
+        self,
+        x,
+        y,
+        dx,
+        dy,
+        area,
+        angle_dx,
+        axis_units,
+        grid_type,
+        R=_DEFAULT_RADIUS,
+        dx_dy_calc_type="smallangle",
+    ):
         """
         Initialize a generic supergrid.
 
@@ -78,6 +100,15 @@ class SupergridBase:
             Units of x and y (e.g. "degrees" or "meters").
         grid_type : str
             the type of grid being created
+        R : float, optional
+            Sphere radius in metres the metrics were computed with.
+        dx_dy_calc_type : str, optional
+            The method dx/dy were computed with (smallangle or haversine).
+
+        ``R`` and ``dx_dy_calc_type`` describe how the metrics passed in were
+        produced, so that expand() can rebuild them the same way. ``to_ds``
+        records both, so a grid round-tripped through a dataset keeps them; a
+        dataset written before they were recorded falls back to the defaults.
         """
         self.x = x
         self.y = y
@@ -87,6 +118,8 @@ class SupergridBase:
         self.angle_dx = angle_dx
         self.axis_units = axis_units
         self.grid_type = grid_type
+        self._R = R
+        self._dx_dy_calc_type = dx_dy_calc_type
 
     def __eq__(self, other):
         if not isinstance(other, SupergridBase):
@@ -124,6 +157,97 @@ class SupergridBase:
         else:
             raise ValueError(f"Unrecognized dx/dy calc type: {type}")
         return dx, dy
+
+    @staticmethod
+    def _check_edge_midpoints(x, y, R=_DEFAULT_RADIUS, tolerance=3.0):
+        """Raise if supergrid edge midpoints are grossly off the edges they halve.
+
+        A supergrid's u/v points sit partway along a cell edge, so walking from
+        one corner to the midpoint and on to the next corner should not be far
+        longer than going straight between the corners. By the triangle
+        inequality the two legs are never shorter; a midpoint flung off the edge
+        makes them very much longer. Recovering midpoints by averaging longitude
+        and latitude does exactly that where an edge crosses a pole, since the
+        average of two longitudes on opposite sides lands halfway around the
+        world instead of at the pole.
+
+        The legs are measured here with haversine rather than taken from dx/dy,
+        so the ratio reflects only where the midpoint sits. Reading them from a
+        smallangle dx would fold in the convention as well: the same tx2_3v3
+        grid measures 1.03 with haversine legs and 6.14 with smallangle ones.
+
+        This only catches gross failures, and deliberately so. Measured with
+        haversine legs, lat/lon meshes sit at 1.00-1.01 and the tripolar
+        tx2_3v3 and tx0.66v1 at 1.03-1.05, but the gx1v6 displaced-pole grid
+        reaches 1.12 in x and 1.56 in y purely from the curvature of its cells
+        near the displaced pole. A polar-cap mesh averaged across the pole
+        reaches 40. Since a legitimate 1.56 outranks that broken mesh's own x
+        ratio of 1.24, no threshold separates the two in x; the tolerance is set
+        to clear the curviest real grid with room to spare and still catch a
+        midpoint thrown to the far side of the globe.
+        """
+        qlon, qlat = x[::2, ::2], y[::2, ::2]
+        vlon, vlat = x[::2, 1::2], y[::2, 1::2]
+        ulon, ulat = x[1::2, ::2], y[1::2, ::2]
+
+        checks = (
+            (
+                "x",
+                haversine(qlat[:, :-1], qlon[:, :-1], vlat, vlon, R)
+                + haversine(vlat, vlon, qlat[:, 1:], qlon[:, 1:], R),
+                haversine(qlat[:, :-1], qlon[:, :-1], qlat[:, 1:], qlon[:, 1:], R),
+            ),
+            (
+                "y",
+                haversine(qlat[:-1, :], qlon[:-1, :], ulat, ulon, R)
+                + haversine(ulat, ulon, qlat[1:, :], qlon[1:, :], R),
+                haversine(qlat[:-1, :], qlon[:-1, :], qlat[1:, :], qlon[1:, :], R),
+            ),
+        )
+        for axis, legs, direct in checks:
+            usable = direct > 0.0
+            if not np.any(usable):
+                continue
+            ratio = np.where(usable, legs / np.where(usable, direct, 1.0), 1.0)
+            worst = float(np.nanmax(ratio))
+            if worst > tolerance:
+                j, i = np.unravel_index(int(np.nanargmax(ratio)), ratio.shape)
+                raise ValueError(
+                    f"Supergrid {axis} edge midpoints are not on their edges: at "
+                    f"corner ({j}, {i}) the two half-edges total {worst:.1f} times "
+                    "the direct corner-to-corner distance. This usually means the "
+                    "midpoints were recovered by averaging longitude and latitude "
+                    "across a pole, which the resulting dx/dy and area would "
+                    "silently carry."
+                )
+
+    @staticmethod
+    def _calc_dx_dy_checked(x, y, R=_DEFAULT_RADIUS, type="smallangle"):
+        """Compute dx/dy, falling back to haversine if smallangle breaks down.
+
+        smallangle differences adjacent longitudes and latitudes, which is only
+        valid while the grid lines follow parallels and meridians. A curvilinear
+        grid crossing a pole breaks that: y stops varying monotonically with row
+        index, so np.diff(y) flips sign and the metrics come out negative.
+
+        Negative metrics are the direct symptom, so testing for them keys off
+        the geometry rather than a proxy for it. Latitude is the wrong trigger
+        in both directions: it would convert a rectilinear grid merely touching
+        a pole, where smallangle is exactly MOM6's along-parallel convention,
+        and it would miss a curvilinear grid that encircles a pole while all of
+        its nodes stay below the threshold.
+
+        Returns
+        -------
+        dx, dy : 2D arrays
+        type : str
+            The method actually used, for the caller to record.
+        """
+        dx, dy = SupergridBase._calc_dx_dy(x, y, R=R, type=type)
+        if type == "smallangle" and (np.nanmin(dx) < 0.0 or np.nanmin(dy) < 0.0):
+            type = "haversine"
+            dx, dy = SupergridBase._calc_dx_dy(x, y, R=R, type=type)
+        return dx, dy, type
 
     @staticmethod
     def _calc_area(x, y, R=_DEFAULT_RADIUS):
@@ -173,8 +297,30 @@ class SupergridBase:
         # Clamp to valid geographic range (floating-point overshoot from projection in some cases)
         y = np.clip(y, -90.0, 90.0)
 
+        # Fix raw dateline-wrap discontinuities in x before differencing for dx/dy/area/angle.
+        center_lon = x[x.shape[0] // 2, x.shape[1] // 2]
+        if _max_adjacent_diff(x) > 180.0:
+            repaired = modulo_around_point(x, center_lon, 360)
+            # Re-centering can leave the grid a whole turn away from the
+            # convention its center was written in, so shift it back. Both
+            # lines stay inside the seam test: a grid with no seam keeps the
+            # exact longitude convention it was handed.
+            repaired = repaired - np.floor(center_lon / 360) * 360
+            # A domain that encircles a pole spans all 360 degrees of
+            # longitude, so no 360-wide window can remove its seam:
+            # re-centering only moves the seam elsewhere, while pushing x out
+            # of range and scrambling angle_dx across the new seam. Checking
+            # the result is what rules that out -- and it rules it out for any
+            # geometry, so the repair needs no latitude guard in front of it.
+            # A guard there would only make the outcome depend on whether the
+            # caller stored a pole-adjacent grid in [0, 360) or [-180, 180].
+            if _max_adjacent_diff(repaired) <= 180.0:
+                x = repaired
+
         # dx, dy, area: use base class consistent calculation methods
-        dx, dy = SupergridBase._calc_dx_dy(x, y, R=R, type=dx_dy_calc_type)
+        dx, dy, dx_dy_calc_type = SupergridBase._calc_dx_dy_checked(
+            x, y, R=R, type=dx_dy_calc_type
+        )
         area = SupergridBase._calc_area(x, y, R=R)
 
         if angles_are_zero:
@@ -183,7 +329,18 @@ class SupergridBase:
             angle_dx = SupergridBase.calc_supergrid_rotation_angles_using_expanded_supergrid_method(
                 x, y
             )
-        return cls(x, y, dx, dy, area, angle_dx, "degrees", grid_type=grid_type)
+        return cls(
+            x,
+            y,
+            dx,
+            dy,
+            area,
+            angle_dx,
+            "degrees",
+            grid_type=grid_type,
+            R=R,
+            dx_dy_calc_type=dx_dy_calc_type,
+        )
 
     def summary(self):
         """Print a short summary of the grid geometry (shape and dx/dy ranges)."""
@@ -213,6 +370,10 @@ class SupergridBase:
         ds.attrs["Created"] = datetime.now().isoformat()
         if author:
             ds.attrs["Author"] = author
+        # Record how the metrics below were produced, so that a grid reloaded
+        # with from_ds can rebuild them the same way (see expand()).
+        ds.attrs["radius"] = self._R
+        ds.attrs["dx_dy_calc_type"] = self._dx_dy_calc_type
 
         # ---- Data variables ----
         ds["y"] = xr.DataArray(
@@ -306,6 +467,23 @@ class SupergridBase:
         return new_node_coords, new_element_conn, collapsed
 
     @staticmethod
+    def _wrap_column(qlon_inner):
+        """The cyclic wrap column: column 0 on the branch that continues the row.
+
+        The wrap node is the same point on the sphere as column 0, so it differs
+        from it by a whole number of turns. Which one depends on the row: a row
+        that sweeps the globe west to east arrives one turn east of where it
+        started, but a row curling around a displaced pole -- gx1v6's top 18
+        rows -- ends up back where it began. Adding 360 unconditionally puts
+        those nodes a turn away (680 instead of 320 on gx1v6), and the edge
+        midpoints interpolated against them land off the globe.
+        """
+        step = qlon_inner[:, -1] - qlon_inner[:, -2]
+        target = qlon_inner[:, -1] + step
+        turns = np.round((target - qlon_inner[:, 0]) / 360.0)
+        return (qlon_inner[:, 0] + 360.0 * turns)[:, np.newaxis]
+
+    @staticmethod
     def _unwrap_lon_rows(qlon):
         """Remove the [0, 360) branch cut from each row of a q-longitude array.
 
@@ -337,12 +515,22 @@ class SupergridBase:
         unwrapped = np.unwrap(qlon, period=360.0, axis=-1)
         # np.unwrap pins the first entry and lifts the rest, which would leave a
         # row that merely started late (ERA5's 359.859375) sitting almost a full
-        # turn high. Drop each row back onto the branch it arrived on so the
+        # turn high. Drop the array back onto the branch it arrived on so the
         # reconstructed grid keeps the input's longitude range.
-        turns = np.round(
-            (unwrapped.mean(axis=-1, keepdims=True) - qlon.mean(axis=-1, keepdims=True))
-            / 360.0
-        )
+        #
+        # The shift is one turn count for the whole array, not one per row. A
+        # per-row count lands neighbouring rows on different branches wherever
+        # the in-row cut sits at different columns -- on gx1v6 rows 0-366 come
+        # back a turn below rows 367-384 -- and the u-points averaged between
+        # two such rows land half a world away.
+        # Take the branch most rows arrived on. A median would do for a lopsided
+        # split, but it is not one of the turn counts when an even number of
+        # rows splits evenly between two of them -- it returns 0.5, and the
+        # array shifts by half a turn, which is the cross-branch corruption this
+        # is here to prevent. The mode is always one of the counts.
+        per_row = np.round((unwrapped.mean(axis=-1) - qlon.mean(axis=-1)) / 360.0)
+        values, counts = np.unique(per_row, return_counts=True)
+        turns = values[np.argmax(counts)]
         return unwrapped - 360.0 * turns
 
     @staticmethod
@@ -711,13 +899,13 @@ class SupergridBase:
             )
             qlat_inner = np.vstack([rows_except_top_lat, top_full_lat[np.newaxis, :]])
             # Tripolar grids are periodic in x — add wrap column
-            qlon = np.hstack([qlon_inner, qlon_inner[:, :1] + 360.0])
+            qlon = np.hstack([qlon_inner, cls._wrap_column(qlon_inner)])
             qlat = np.hstack([qlat_inner, qlat_inner[:, :1]])
         elif is_cyclic:
             # nodes stored without wrap column; add it back by repeating column 0
             qlon_inner = cls._unwrap_lon_rows(node_lon.reshape(ny + 1, nx))
             qlat_inner = node_lat.reshape(ny + 1, nx)
-            qlon = np.hstack([qlon_inner, qlon_inner[:, :1] + 360.0])
+            qlon = np.hstack([qlon_inner, cls._wrap_column(qlon_inner)])
             qlat = np.hstack([qlat_inner, qlat_inner[:, :1]])
         else:
             qlon = cls._unwrap_lon_rows(node_lon.reshape(ny + 1, nx + 1))
@@ -739,17 +927,71 @@ class SupergridBase:
         # _unwrap_lon_rows may have moved). Without this the supergrid mixes
         # branches, and the degree differences behind dx come out ~360 too large.
         # A no-op wherever a center already agrees with its corners.
-        qmid = 0.25 * (qlon[:-1, :-1] + qlon[:-1, 1:] + qlon[1:, :-1] + qlon[1:, 1:])
+        # Halfway between two longitudes, going the short way round. Averaging
+        # them directly assumes both sit on the same 360-degree branch; where
+        # they do not -- across a branch cut the node rows could not be
+        # unwrapped out of, as on gx1v6 -- the plain average lands half a world
+        # from the edge it is meant to halve.
+        def _mid_lon(a, b):
+            return a + 0.5 * (((b - a) + 180.0) % 360.0 - 180.0)
+
+        def _gc_mid(lon_a, lat_a, lon_b, lat_b):
+            """Great-circle midpoint of two points, as (lon, lat) in degrees.
+
+            Averaging longitude and latitude assumes the edge is a straight line
+            in the lat/lon plane. It is not: across a branch cut the average
+            lands half a world away, and across a pole it lands 90 degrees off
+            at a latitude that is nowhere near the pole. Averaging the two unit
+            vectors and renormalising gives the point actually halfway along the
+            edge, with no branch to get wrong and the pole handled exactly.
+            """
+            la, lb = np.deg2rad(lat_a), np.deg2rad(lat_b)
+            oa, ob = np.deg2rad(lon_a), np.deg2rad(lon_b)
+            vx = np.cos(la) * np.cos(oa) + np.cos(lb) * np.cos(ob)
+            vy = np.cos(la) * np.sin(oa) + np.cos(lb) * np.sin(ob)
+            vz = np.sin(la) + np.sin(lb)
+            n = np.sqrt(vx * vx + vy * vy + vz * vz)
+            # Antipodal corners have no unique midpoint; fall back to the
+            # lat/lon average there rather than dividing by zero.
+            degenerate = n < 1e-12
+            n = np.where(degenerate, 1.0, n)
+            lat = np.rad2deg(np.arcsin(np.clip(vz / n, -1.0, 1.0)))
+            lon = np.rad2deg(np.arctan2(vy, vx))
+            # Put the result on the same branch as the first corner so the
+            # assembled supergrid keeps one longitude convention.
+            lon = lon_a + ((lon - lon_a) + 180.0) % 360.0 - 180.0
+            lon = np.where(degenerate, _mid_lon(lon_a, lon_b), lon)
+            lat = np.where(degenerate, 0.5 * (lat_a + lat_b), lat)
+            # Averaging longitude and latitude is exact for the two edges a
+            # rectilinear grid is made of: along a parallel (both corners at
+            # one latitude, midpoint on that parallel) and along a meridian
+            # (both at one longitude, where the great circle IS the meridian).
+            # Use it there so such a grid round-trips bit for bit, as it did
+            # before, and keep the vector midpoint for genuinely curved edges.
+            rectilinear = np.isclose(lat_a, lat_b, rtol=0.0, atol=1e-9) | np.isclose(
+                ((lon_b - lon_a) + 180.0) % 360.0 - 180.0, 0.0, rtol=0.0, atol=1e-9
+            )
+            return (
+                np.where(rectilinear, _mid_lon(lon_a, lon_b), lon),
+                np.where(rectilinear, 0.5 * (lat_a + lat_b), lat),
+            )
+
+        qmid = _mid_lon(
+            _mid_lon(qlon[:-1, :-1], qlon[:-1, 1:]),
+            _mid_lon(qlon[1:, :-1], qlon[1:, 1:]),
+        )
         tlon = tlon + 360.0 * np.round((qmid - tlon) / 360.0)
 
         # --- Interpolate edge midpoints ---
         # U-points: midpoint of west/east edges (between vertically adjacent corners)
-        ulon = 0.5 * (qlon[:-1, :] + qlon[1:, :])  # shape (ny, nx+1)
-        ulat = 0.5 * (qlat[:-1, :] + qlat[1:, :])
+        ulon, ulat = _gc_mid(
+            qlon[:-1, :], qlat[:-1, :], qlon[1:, :], qlat[1:, :]
+        )  # shape (ny, nx+1)
 
         # V-points: midpoint of south/north edges (between horizontally adjacent corners)
-        vlon = 0.5 * (qlon[:, :-1] + qlon[:, 1:])  # shape (ny+1, nx)
-        vlat = 0.5 * (qlat[:, :-1] + qlat[:, 1:])
+        vlon, vlat = _gc_mid(
+            qlon[:, :-1], qlat[:, :-1], qlon[:, 1:], qlat[:, 1:]
+        )  # shape (ny+1, nx)
 
         # --- Assemble full supergrid (2*ny+1, 2*nx+1) ---
         # Layout:
@@ -774,7 +1016,17 @@ class SupergridBase:
         y[1::2, 1::2] = tlat
 
         # --- Recompute metrics ---
-        dx, dy = cls._calc_dx_dy(x, y, R=radius)
+        # Use the checked variant: a mesh can describe a polar grid, where the
+        # smallangle default yields negative dx/dy. Record what was actually
+        # used so that a later expand() or slice rebuilds it the same way.
+        dx, dy, dx_dy_calc_type = cls._calc_dx_dy_checked(x, y, R=radius)
+
+        # The u/v points above are averages of the corner longitudes and
+        # latitudes, which is wrong wherever an edge crosses a pole. That
+        # produces large positive metrics rather than negative ones, so the
+        # check above cannot see it; verify the midpoints themselves before
+        # handing back numbers that look plausible and are not.
+        cls._check_edge_midpoints(x, y, R=radius)
         area = cls._calc_area(x, y, R=radius)
         angle_dx = cls.calc_supergrid_rotation_angles_using_expanded_supergrid_method(
             x, y
@@ -789,6 +1041,8 @@ class SupergridBase:
             angle_dx,
             axis_units,
             grid_type="from_esmf_mesh",
+            R=radius,
+            dx_dy_calc_type=dx_dy_calc_type,
         )
 
         if inferred_topology and supergrid.is_tripolar != (topology == "tripolar"):
@@ -819,6 +1073,8 @@ class SupergridBase:
             ds.angle_dx.data,
             ds.x.attrs.get("units", "degrees"),
             grid_type=ds.attrs.get("grid_type"),
+            R=float(ds.attrs.get("radius", _DEFAULT_RADIUS)),
+            dx_dy_calc_type=ds.attrs.get("dx_dy_calc_type", "smallangle"),
         )
 
     @staticmethod
@@ -921,7 +1177,13 @@ class SupergridBase:
         assert (
             -90 <= y.min() and y.max() <= 90
         ), "Expanded supergrid exceeds ±90 degrees latitude; check the input grid and expansion width."
-        return type(self)._init_from_xy(x, y, grid_type=self.grid_type)
+        return type(self)._init_from_xy(
+            x,
+            y,
+            grid_type=self.grid_type,
+            R=self._R,
+            dx_dy_calc_type=self._dx_dy_calc_type,
+        )
 
 
 class UniformSphericalSupergrid(SupergridBase):
@@ -1011,7 +1273,6 @@ class RectilinearCartesianSupergrid(SupergridBase):
         ), "provided array of longitudes must be uniformly spaced"
 
         lon, lat = np.meshgrid(lons, lats)
-
         return lon, lat
 
 
@@ -1068,7 +1329,15 @@ class ProjectedSupergrid(SupergridBase):
         transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
         lon, lat = transformer.transform(xx, yy)
 
-        return cls._init_from_xy(lon, lat, "projected_crs", radius)
+        # Use haversine (exact great-circle distance) rather than the smallangle
+        # default: this domain can fully encircle a pole (e.g. any Arctic/Antarctic
+        # polar-cap CRS), where adjacent supergrid nodes can land on opposite sides
+        # of the antimeridian branch cut. Haversine needs no unwrapping to handle
+        # that correctly, since sin(dlon/2)**2 is invariant under dlon -> dlon+360,
+        # and it stays consistent with area's sphere-of-radius-R assumption.
+        return cls._init_from_xy(
+            lon, lat, "projected_crs", radius, dx_dy_calc_type="haversine"
+        )
 
     @classmethod
     def from_center(
@@ -1126,7 +1395,11 @@ class ProjectedSupergrid(SupergridBase):
         transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
         lon, lat = transformer.transform(xx_rot, yy_rot)
 
-        return cls._init_from_xy(lon, lat, "projected_crs", radius)
+        # See from_crs: haversine handles a pole- or antimeridian-straddling
+        # domain correctly with no unwrapping needed, unlike the smallangle default.
+        return cls._init_from_xy(
+            lon, lat, "projected_crs", radius, dx_dy_calc_type="haversine"
+        )
 
 
 def angle_between(v1, v2, v3):
