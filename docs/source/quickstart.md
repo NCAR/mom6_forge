@@ -460,6 +460,26 @@ input files (`ww3_grid.inp`, and the `<grid_alias>_x.inp`, `<grid_alias>_y.inp`,
 topo.write_ww3_input("ww3_input/", grid_alias="my_grid")
 ```
 
+By default the ocean cells on all four edges of a regional (non-cyclic) grid
+are written as WW3 active boundary points (status 2 in
+`<grid_alias>_mapsta.inp`); a cyclic-x grid gets none, so a global grid does
+not declare boundary points it has no data for. These are
+the points `ww3_bounc` can feed spectral boundary data (`nest.ww3`) into;
+without such data WW3 leaves them at zero energy, which still absorbs
+outgoing waves. To restrict the boundary to the edges you generate spectra
+for, or to write a plain land/sea mask (`ww3_grid` then excludes the
+perimeter sea cells), pass `boundary_edges`:
+
+```python
+topo.write_ww3_input("ww3_input/", grid_alias="my_grid",
+                     boundary_edges=["south", "west"])   # or [] for none
+```
+
+Edges are named by grid index (`south` is `j=0`, `north` is `j=ny-1`, `west`
+is `i=0`, `east` is `i=nx-1`), so on a rotated or projected grid they need
+not match compass directions. East/west cannot be listed on a grid that is
+reentrant in x, and tripolar grids are not supported.
+
 ### *SCRIP Grid File*
 
 Modern CESM configurations use ESMF mesh files rather than SCRIP files for
