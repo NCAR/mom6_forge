@@ -1043,6 +1043,17 @@ down to the lat/lon ranges required for efficient regridding:</p>
 </ul>
 </dd>
 </dl>
+<p>Each box is <code class="docutils literal notranslate"><span class="pre">{&quot;lon_min&quot;,</span> <span class="pre">&quot;lon_max&quot;,</span> <span class="pre">&quot;lat_min&quot;,</span> <span class="pre">&quot;lat_max&quot;,</span>
+<span class="pre">&quot;crosses_antimeridian&quot;}</span></code>. <code class="docutils literal notranslate"><span class="pre">lon_min</span></code> is always a longitude in
+[-180, 180) and <code class="docutils literal notranslate"><span class="pre">lon_max</span></code> is <code class="docutils literal notranslate"><span class="pre">lon_min</span></code> plus the width of the
+box, so the pair always names a contiguous eastward arc and
+<code class="docutils literal notranslate"><span class="pre">lon_max</span> <span class="pre">-</span> <span class="pre">lon_min</span></code> is its width.</p>
+<p>A box straddling the antimeridian therefore carries
+<code class="docutils literal notranslate"><span class="pre">lon_max</span> <span class="pre">&gt;</span> <span class="pre">180</span></code> – 170 to 190, say – and sets
+<code class="docutils literal notranslate"><span class="pre">crosses_antimeridian</span></code>. A caller selecting with
+<code class="docutils literal notranslate"><span class="pre">lon_min</span> <span class="pre">&lt;=</span> <span class="pre">lon</span> <span class="pre">&lt;=</span> <span class="pre">lon_max</span></code> from a source on [-180, 180] has to
+branch on that flag and take the two pieces separately. Wrapping
+<code class="docutils literal notranslate"><span class="pre">lon_max</span></code> down to -170 first and comparing would select nothing.</p>
 </p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
