@@ -460,23 +460,24 @@ input files (`ww3_grid.inp`, and the `<grid_alias>_x.inp`, `<grid_alias>_y.inp`,
 topo.write_ww3_input("ww3_input/", grid_alias="my_grid")
 ```
 
-By default the status map (`<grid_alias>_mapsta.inp`) is a plain land/sea mask
-and WW3's `ww3_grid` treats the outer ring of sea cells as a closed wall
-(it excludes perimeter sea points). If WW3 will be given spectral boundary
-data (`nest.ww3`) on some edges, name them with `boundary_edges` so their
-ocean cells become active boundary points (status 2):
+By default the ocean cells on every physical edge of the grid are written as
+WW3 active boundary points (status 2 in `<grid_alias>_mapsta.inp`) -- all
+four edges of a regional grid, south and north of a cyclic-x grid. These are
+the points `ww3_bounc` can feed spectral boundary data (`nest.ww3`) into;
+without such data WW3 leaves them at zero energy, which still absorbs
+outgoing waves. To restrict the boundary to the edges you generate spectra
+for, or to write a plain land/sea mask (`ww3_grid` then excludes the
+perimeter sea cells), pass `boundary_edges`:
 
 ```python
 topo.write_ww3_input("ww3_input/", grid_alias="my_grid",
-                     boundary_edges=["south", "west"])
+                     boundary_edges=["south", "west"])   # or [] for none
 ```
 
 Edges are named by grid index (`south` is `j=0`, `north` is `j=ny-1`, `west`
 is `i=0`, `east` is `i=nx-1`), so on a rotated or projected grid they need
-not match compass directions. Only list edges that will actually receive
-spectra: an active boundary point with no `nest.ww3` behind it is left at
-zero energy by WW3. East/west cannot be listed on a grid that is reentrant
-in x, and tripolar grids are not supported.
+not match compass directions. East/west cannot be listed on a grid that is
+reentrant in x, and tripolar grids are not supported.
 
 ### *SCRIP Grid File*
 

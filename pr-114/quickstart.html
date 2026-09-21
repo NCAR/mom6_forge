@@ -544,21 +544,22 @@ input files (<code class="docutils literal notranslate"><span class="pre">ww3_gr
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">write_ww3_input</span><span class="p">(</span><span class="s2">"ww3_input/"</span><span class="p">,</span> <span class="n">grid_alias</span><span class="o">=</span><span class="s2">"my_grid"</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>By default the status map (<code class="docutils literal notranslate"><span class="pre">&lt;grid_alias&gt;_mapsta.inp</span></code>) is a plain land/sea mask
-and WW3’s <code class="docutils literal notranslate"><span class="pre">ww3_grid</span></code> treats the outer ring of sea cells as a closed wall
-(it excludes perimeter sea points). If WW3 will be given spectral boundary
-data (<code class="docutils literal notranslate"><span class="pre">nest.ww3</span></code>) on some edges, name them with <code class="docutils literal notranslate"><span class="pre">boundary_edges</span></code> so their
-ocean cells become active boundary points (status 2):</p>
+<p>By default the ocean cells on every physical edge of the grid are written as
+WW3 active boundary points (status 2 in <code class="docutils literal notranslate"><span class="pre">&lt;grid_alias&gt;_mapsta.inp</span></code>) – all
+four edges of a regional grid, south and north of a cyclic-x grid. These are
+the points <code class="docutils literal notranslate"><span class="pre">ww3_bounc</span></code> can feed spectral boundary data (<code class="docutils literal notranslate"><span class="pre">nest.ww3</span></code>) into;
+without such data WW3 leaves them at zero energy, which still absorbs
+outgoing waves. To restrict the boundary to the edges you generate spectra
+for, or to write a plain land/sea mask (<code class="docutils literal notranslate"><span class="pre">ww3_grid</span></code> then excludes the
+perimeter sea cells), pass <code class="docutils literal notranslate"><span class="pre">boundary_edges</span></code>:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">write_ww3_input</span><span class="p">(</span><span class="s2">"ww3_input/"</span><span class="p">,</span> <span class="n">grid_alias</span><span class="o">=</span><span class="s2">"my_grid"</span><span class="p">,</span>
-                     <span class="n">boundary_edges</span><span class="o">=</span><span class="p">[</span><span class="s2">"south"</span><span class="p">,</span> <span class="s2">"west"</span><span class="p">])</span>
+                     <span class="n">boundary_edges</span><span class="o">=</span><span class="p">[</span><span class="s2">"south"</span><span class="p">,</span> <span class="s2">"west"</span><span class="p">])</span>   <span class="c1"># or [] for none</span>
 </pre></div>
 </div>
 <p>Edges are named by grid index (<code class="docutils literal notranslate"><span class="pre">south</span></code> is <code class="docutils literal notranslate"><span class="pre">j=0</span></code>, <code class="docutils literal notranslate"><span class="pre">north</span></code> is <code class="docutils literal notranslate"><span class="pre">j=ny-1</span></code>, <code class="docutils literal notranslate"><span class="pre">west</span></code>
 is <code class="docutils literal notranslate"><span class="pre">i=0</span></code>, <code class="docutils literal notranslate"><span class="pre">east</span></code> is <code class="docutils literal notranslate"><span class="pre">i=nx-1</span></code>), so on a rotated or projected grid they need
-not match compass directions. Only list edges that will actually receive
-spectra: an active boundary point with no <code class="docutils literal notranslate"><span class="pre">nest.ww3</span></code> behind it is left at
-zero energy by WW3. East/west cannot be listed on a grid that is reentrant
-in x, and tripolar grids are not supported.</p>
+not match compass directions. East/west cannot be listed on a grid that is
+reentrant in x, and tripolar grids are not supported.</p>
 </section>
 <section id="scrip-grid-file">
 <h3><em>SCRIP Grid File</em><a class="headerlink" href="#scrip-grid-file" title="Link to this heading"></a></h3>
