@@ -162,6 +162,34 @@ class SupergridBase:
         return dx, dy
 
     @staticmethod
+    def _calc_dx_dy_checked(x, y, R=_DEFAULT_RADIUS, type="smallangle"):
+        """Compute dx/dy, falling back to haversine if smallangle breaks down.
+
+        smallangle differences adjacent longitudes and latitudes, which is only
+        valid while the grid lines follow parallels and meridians. A curvilinear
+        grid crossing a pole breaks that: y stops varying monotonically with row
+        index, so np.diff(y) flips sign and the metrics come out negative.
+
+        Negative metrics are the direct symptom, so testing for them keys off
+        the geometry rather than a proxy for it. Latitude is the wrong trigger
+        in both directions: it would convert a rectilinear grid merely touching
+        a pole, where smallangle is exactly MOM6's along-parallel convention,
+        and it would miss a curvilinear grid that encircles a pole while all of
+        its nodes stay below the threshold.
+
+        Returns
+        -------
+        dx, dy : 2D arrays
+        type : str
+            The method actually used, for the caller to record.
+        """
+        dx, dy = SupergridBase._calc_dx_dy(x, y, R=R, type=type)
+        if type == "smallangle" and (np.nanmin(dx) < 0.0 or np.nanmin(dy) < 0.0):
+            type = "haversine"
+            dx, dy = SupergridBase._calc_dx_dy(x, y, R=R, type=type)
+        return dx, dy, type
+
+    @staticmethod
     def _calc_area(x, y, R=_DEFAULT_RADIUS):
         """Compute supergrid cell areas from coordinate arrays.
 
@@ -214,27 +242,26 @@ class SupergridBase:
         if np.abs(y).max() < SupergridBase._POLE_ADJACENT_LAT:
             center_lon = x[x.shape[0] // 2, x.shape[1] // 2]
             if _max_adjacent_diff(x) > 180.0:
-                x = modulo_around_point(x, center_lon, 360)
+                repaired = modulo_around_point(x, center_lon, 360)
                 # Re-centering can leave the grid a whole turn away from the
                 # convention its center was written in, so shift it back. Both
                 # lines stay inside the guard: a grid with no seam keeps the
                 # exact longitude convention it was handed.
-                x = x - np.floor(center_lon / 360) * 360
-
-        # smallangle differences adjacent latitudes, which is invalid wherever a
-        # grid line passes through a pole: y stops varying monotonically with row
-        # index, so np.diff(y) flips sign and dy comes out negative. Haversine has
-        # no such singularity, so use it regardless of what was asked for. This
-        # also covers a pole-touching grid reloaded from a dataset written before
-        # dx_dy_calc_type was recorded, which would otherwise default to smallangle.
-        if (
-            dx_dy_calc_type == "smallangle"
-            and np.abs(y).max() >= SupergridBase._POLE_ADJACENT_LAT
-        ):
-            dx_dy_calc_type = "haversine"
+                repaired = repaired - np.floor(center_lon / 360) * 360
+                # A domain that encircles a pole spans all 360 degrees of
+                # longitude, so no 360-wide window can remove its seam:
+                # re-centering only moves the seam elsewhere, while pushing x
+                # out of range and scrambling angle_dx across the new seam.
+                # Note max|y| does not detect this -- a pole-encircling box
+                # whose nodes straddle the pole can stay below the threshold
+                # above -- so keep the repair only if it actually worked.
+                if _max_adjacent_diff(repaired) <= 180.0:
+                    x = repaired
 
         # dx, dy, area: use base class consistent calculation methods
-        dx, dy = SupergridBase._calc_dx_dy(x, y, R=R, type=dx_dy_calc_type)
+        dx, dy, dx_dy_calc_type = SupergridBase._calc_dx_dy_checked(
+            x, y, R=R, type=dx_dy_calc_type
+        )
         area = SupergridBase._calc_area(x, y, R=R)
 
         if angles_are_zero:
@@ -849,7 +876,10 @@ class SupergridBase:
         y[1::2, 1::2] = tlat
 
         # --- Recompute metrics ---
-        dx, dy = cls._calc_dx_dy(x, y, R=radius)
+        # Use the checked variant: a mesh can describe a polar grid, where the
+        # smallangle default yields negative dx/dy. Record what was actually
+        # used so that a later expand() or slice rebuilds it the same way.
+        dx, dy, dx_dy_calc_type = cls._calc_dx_dy_checked(x, y, R=radius)
         area = cls._calc_area(x, y, R=radius)
         angle_dx = cls.calc_supergrid_rotation_angles_using_expanded_supergrid_method(
             x, y
@@ -865,6 +895,7 @@ class SupergridBase:
             axis_units,
             grid_type="from_esmf_mesh",
             R=radius,
+            dx_dy_calc_type=dx_dy_calc_type,
         )
 
         if inferred_topology and supergrid.is_tripolar != (topology == "tripolar"):

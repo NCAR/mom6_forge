@@ -9,6 +9,7 @@ import pytest
 from mom6_forge._supergrid import (
     ProjectedSupergrid,
     RectilinearCartesianSupergrid,
+    SupergridBase,
     UniformSphericalSupergrid,
     _max_adjacent_diff,
     haversine,
@@ -144,8 +145,6 @@ def test_expand_keeps_polar_metrics_after_dataset_round_trip():
     usable metrics. from_ds cannot infer how dx/dy were computed, so without the
     recorded dx_dy_calc_type it falls back to smallangle, which is invalid at a
     pole and yields negative dx/dy."""
-    from mom6_forge._supergrid import SupergridBase
-
     sg = ProjectedSupergrid.from_crs("EPSG:3995", -1e6, 1e6, -1e6, 1e6, 100_000)
     assert sg.y.max() == 90.0, "this test needs the pole inside the domain"
 
@@ -170,3 +169,50 @@ def test_smallangle_is_upgraded_at_the_pole():
     assert (forced.dx > 0).all()
     assert (forced.dy > 0).all()
     assert forced._dx_dy_calc_type == "haversine"
+
+
+def test_seam_repair_left_alone_when_the_domain_encircles_a_pole():
+    """A box can encircle a pole with every node below _POLE_ADJACENT_LAT, so
+    max|lat| does not detect the wrap. Such a domain spans all 360 degrees, so
+    re-centering cannot remove its seam -- it only moves it, while pushing x out
+    of range and scrambling angle_dx across the new seam."""
+    sg = ProjectedSupergrid.from_crs(
+        "EPSG:3995", -975_000, 1_025_000, -975_000, 1_025_000, 100_000
+    )
+    assert np.abs(sg.y).max() < 89.9, "this test needs the nodes to miss the pole"
+    assert sg.x.max() - sg.x.min() > 180.0, "and the domain to encircle it"
+
+    assert sg.x.min() >= -180.0 and sg.x.max() <= 180.0
+    expected = -((sg.x + 180.0) % 360.0 - 180.0)
+    err = np.abs(((sg.angle_dx - expected + 180.0) % 360.0) - 180.0)[1:-1, 1:-1]
+    # One seam's worth of error is unavoidable here; two is the repair moving it.
+    assert err.max() < 120.0
+
+
+def test_smallangle_kept_for_a_rectilinear_grid_touching_the_pole():
+    """smallangle is exactly MOM6's along-parallel convention for a lat/lon
+    grid, so merely reaching a pole must not switch the method: that would
+    silently change dx on every global grid."""
+    sg = UniformSphericalSupergrid.from_extents(0.0, 360.0, 60.0, 30.0, 180, 30)
+    assert np.abs(sg.y).max() == 90.0
+    expected, _ = SupergridBase._calc_dx_dy(sg.x, sg.y, type="smallangle")
+    assert sg._dx_dy_calc_type == "smallangle"
+    np.testing.assert_array_equal(sg.dx, expected)
+
+
+@pytest.mark.parametrize(
+    "extent",
+    [
+        (-1e6, 1e6, -1e6, 1e6),  # pole on a node
+        (-975_000, 1_025_000, -975_000, 1_025_000),  # pole between nodes
+    ],
+)
+def test_smallangle_upgraded_for_a_curvilinear_grid_around_a_pole(extent):
+    """A curvilinear grid encircling a pole breaks smallangle whether or not any
+    node gets close enough to the pole for a latitude test to notice."""
+    cap = ProjectedSupergrid.from_crs("EPSG:3995", *extent, 100_000)
+    built = ProjectedSupergrid._init_from_xy(
+        cap.x, cap.y, "projected_crs", dx_dy_calc_type="smallangle"
+    )
+    assert built._dx_dy_calc_type == "haversine"
+    assert (built.dx > 0).all() and (built.dy > 0).all()
