@@ -460,9 +460,10 @@ input files (`ww3_grid.inp`, and the `<grid_alias>_x.inp`, `<grid_alias>_y.inp`,
 topo.write_ww3_input("ww3_input/", grid_alias="my_grid")
 ```
 
-By default the ocean cells on every physical edge of the grid are written as
-WW3 active boundary points (status 2 in `<grid_alias>_mapsta.inp`) -- all
-four edges of a regional grid, south and north of a cyclic-x grid. These are
+By default the ocean cells on all four edges of a regional (non-cyclic) grid
+are written as WW3 active boundary points (status 2 in
+`<grid_alias>_mapsta.inp`); a cyclic-x grid gets none, so a global grid does
+not declare boundary points it has no data for. These are
 the points `ww3_bounc` can feed spectral boundary data (`nest.ww3`) into;
 without such data WW3 leaves them at zero energy, which still absorbs
 outgoing waves. To restrict the boundary to the edges you generate spectra

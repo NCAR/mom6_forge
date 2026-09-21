@@ -2414,15 +2414,17 @@ mod_def creator before runtime to generate the WW3 grid files.</p>
 <li><p><strong>grid_alias</strong> (<em>str</em>) – The alias for the grid, which will be used in the file names of the WW3 input files.</p></li>
 <li><p><strong>boundary_edges</strong> (<em>None</em><em>, </em><em>str</em><em> or </em><em>iterable</em><em> of </em><em>str</em><em>, </em><em>optional</em>) – Domain edges whose ocean cells become WW3 active boundary points
 (mapsta status 2): any of “south” (j=0), “north” (j=ny-1), “west”
-(i=0), “east” (i=nx-1). None (default) selects every physical edge
-– all four on a regional grid, south and north on a cyclic-x grid.
-An empty list writes a plain land/sea mask; ww3_grid then excludes
+(i=0), “east” (i=nx-1). None (default) selects all four edges of a
+non-cyclic (regional) grid and no edge of a cyclic-x grid, so a
+global grid does not declare boundary points it has no data for; a
+zonally periodic band that is open to the south and north lists
+them explicitly. An empty list writes a plain land/sea mask; ww3_grid then excludes
 the perimeter sea cells. Spectral boundary data reach status-2
 points via ww3_bounc / nest.ww3; without it they stay at zero
 energy, so whatever generates the spectra should list the edges it
 covers.</p></li>
-<li><p><strong>open_boundary</strong> (<em>bool</em><em>, </em><em>optional</em>) – Deprecated; use boundary_edges. True means every physical edge,
-False means no edges.</p></li>
+<li><p><strong>open_boundary</strong> (<em>bool</em><em>, </em><em>optional</em>) – Deprecated; use boundary_edges. True is the default edge set,
+False is no edges.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
