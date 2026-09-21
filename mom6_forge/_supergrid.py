@@ -159,43 +159,51 @@ class SupergridBase:
         return dx, dy
 
     @staticmethod
-    def _check_edge_midpoints(
-        x, y, dx, dy, R=_DEFAULT_RADIUS, tolerance=1.1, fold_top_row=False
-    ):
-        """Raise if supergrid edge midpoints do not lie on the edges they halve.
+    def _check_edge_midpoints(x, y, R=_DEFAULT_RADIUS, tolerance=3.0):
+        """Raise if supergrid edge midpoints are grossly off the edges they halve.
 
-        A supergrid's u/v points sit halfway along a cell edge, so walking from
-        one corner to the midpoint and on to the next corner should cover very
-        nearly the direct corner-to-corner distance. By the triangle inequality
-        the two legs are never shorter; a midpoint well off the edge makes them
-        much longer. Recovering midpoints by averaging longitude and latitude
-        does exactly that near a pole, where the average of two longitudes on
-        opposite sides lands halfway around the world instead of at the pole.
+        A supergrid's u/v points sit partway along a cell edge, so walking from
+        one corner to the midpoint and on to the next corner should not be far
+        longer than going straight between the corners. By the triangle
+        inequality the two legs are never shorter; a midpoint flung off the edge
+        makes them very much longer. Recovering midpoints by averaging longitude
+        and latitude does exactly that where an edge crosses a pole, since the
+        average of two longitudes on opposite sides lands halfway around the
+        world instead of at the pole.
 
-        Measured over lat/lon meshes as coarse as 30-degree cells reaching 89N
-        the ratio stays under 1.0115, and over the body of the tx2_3v3 tripolar
-        grid under 1.0324; a polar-cap mesh whose midpoints are averaged across
-        the pole reaches 40. The default tolerance sits above the former and
-        well below the latter.
+        The legs are measured here with haversine rather than taken from dx/dy,
+        so the ratio reflects only where the midpoint sits. Reading them from a
+        smallangle dx would fold in the convention as well: the same tx2_3v3
+        grid measures 1.03 with haversine legs and 6.14 with smallangle ones.
 
-        ``fold_top_row`` skips the topmost row of each check, for a grid whose
-        top corner row lies along a tripolar fold. A fold is a mirror line
-        rather than an ordinary cell edge, so neither the midpoints along it nor
-        those on the edges reaching it sit on an arc between neighbours. On
-        tx2_3v3 that row measures 1.44 in x and 1.10 in y, while the rest of the
-        grid stays at 1.03 and 1.01.
+        This only catches gross failures, and deliberately so. Measured with
+        haversine legs, lat/lon meshes sit at 1.00-1.01 and the tripolar
+        tx2_3v3 and tx0.66v1 at 1.03-1.05, but the gx1v6 displaced-pole grid
+        reaches 1.12 in x and 1.56 in y purely from the curvature of its cells
+        near the displaced pole. A polar-cap mesh averaged across the pole
+        reaches 40. Since a legitimate 1.56 outranks that broken mesh's own x
+        ratio of 1.24, no threshold separates the two in x; the tolerance is set
+        to clear the curviest real grid with room to spare and still catch a
+        midpoint thrown to the far side of the globe.
         """
         qlon, qlat = x[::2, ::2], y[::2, ::2]
+        vlon, vlat = x[::2, 1::2], y[::2, 1::2]
+        ulon, ulat = x[1::2, ::2], y[1::2, ::2]
 
-        x_legs = dx[::2, ::2] + dx[::2, 1::2]
-        x_direct = haversine(qlat[:, :-1], qlon[:, :-1], qlat[:, 1:], qlon[:, 1:], R)
-        y_legs = dy[::2, ::2] + dy[1::2, ::2]
-        y_direct = haversine(qlat[:-1, :], qlon[:-1, :], qlat[1:, :], qlon[1:, :], R)
-        if fold_top_row:
-            x_legs, x_direct = x_legs[:-1], x_direct[:-1]
-            y_legs, y_direct = y_legs[:-1], y_direct[:-1]
-
-        checks = (("x", x_legs, x_direct), ("y", y_legs, y_direct))
+        checks = (
+            (
+                "x",
+                haversine(qlat[:, :-1], qlon[:, :-1], vlat, vlon, R)
+                + haversine(vlat, vlon, qlat[:, 1:], qlon[:, 1:], R),
+                haversine(qlat[:, :-1], qlon[:, :-1], qlat[:, 1:], qlon[:, 1:], R),
+            ),
+            (
+                "y",
+                haversine(qlat[:-1, :], qlon[:-1, :], ulat, ulon, R)
+                + haversine(ulat, ulon, qlat[1:, :], qlon[1:, :], R),
+                haversine(qlat[:-1, :], qlon[:-1, :], qlat[1:, :], qlon[1:, :], R),
+            ),
+        )
         for axis, legs, direct in checks:
             usable = direct > 0.0
             if not np.any(usable):
@@ -937,9 +945,7 @@ class SupergridBase:
         # produces large positive metrics rather than negative ones, so the
         # check above cannot see it; verify the midpoints themselves before
         # handing back numbers that look plausible and are not.
-        cls._check_edge_midpoints(
-            x, y, dx, dy, R=radius, fold_top_row=(topology == "tripolar")
-        )
+        cls._check_edge_midpoints(x, y, R=radius)
         area = cls._calc_area(x, y, R=radius)
         angle_dx = cls.calc_supergrid_rotation_angles_using_expanded_supergrid_method(
             x, y

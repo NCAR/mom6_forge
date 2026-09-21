@@ -261,3 +261,27 @@ def test_reconstruct_accepts_a_pole_adjacent_lat_lon_mesh(tmp_path):
 
     rebuilt = SupergridBase.reconstruct_from_esmf_mesh(str(path))
     assert (rebuilt.dx > 0).all() and (rebuilt.dy > 0).all()
+
+
+@pytest.mark.parametrize(
+    "hgrid",
+    [
+        # A displaced-pole grid: its cells curve hard near the displaced pole,
+        # so its midpoints sit well off the corner-to-corner chord by geometry
+        # rather than by error (1.12 in x, 1.56 in y).
+        "/glade/p/cesmdata/cseg/inputdata/ocn/mom/gx1v6/ocean_hgrid_230424.nc",
+        "/glade/p/cesmdata/cseg/inputdata/ocn/mom/tx0.66v1/ocean_hgrid_180829.nc",
+    ],
+)
+def test_midpoint_check_accepts_production_curvilinear_grids(hgrid):
+    """The midpoint check must clear real grids. Calibrating it on lat/lon and
+    tripolar geometry alone set the tolerance below what a displaced-pole grid
+    reaches natively, which would have rejected a lossless reconstruction."""
+    import xarray as xr
+    from utils import on_cisl_machine
+
+    if not on_cisl_machine():
+        pytest.skip("Requires CISL/GLADE access")
+
+    ds = xr.open_dataset(hgrid)
+    SupergridBase._check_edge_midpoints(ds.x.values, ds.y.values)
