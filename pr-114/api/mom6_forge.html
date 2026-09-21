@@ -2403,7 +2403,7 @@ channel_widths.write(channel_file_path).</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.write_ww3_input">
-<span class="sig-name descname"><span class="pre">write_ww3_input</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grid_alias</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">boundary_edges</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.write_ww3_input" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">write_ww3_input</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grid_alias</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">boundary_edges</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">()</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.write_ww3_input" title="Link to this definition"></a></dt>
 <dd><p>Write the text-based WW3 input files ww3_grid.inp, [grid_alias]_x.inp, [grid_alias]_y.inp,
 [grid_alias]_mapsta.inp, [grid_alias]_bottom.inp, which are to be read by the WW3
 mod_def creator before runtime to generate the WW3 grid files.</p>
@@ -2412,19 +2412,20 @@ mod_def creator before runtime to generate the WW3 grid files.</p>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>file_dir</strong> (<em>str</em>) – Directory to write the WW3 input files to.</p></li>
 <li><p><strong>grid_alias</strong> (<em>str</em>) – The alias for the grid, which will be used in the file names of the WW3 input files.</p></li>
-<li><p><strong>boundary_edges</strong> (<em>None</em><em>, </em><em>str</em><em> or </em><em>iterable</em><em> of </em><em>str</em><em>, </em><em>optional</em>) – Domain edges whose ocean cells become WW3 active boundary points
-(mapsta status 2), i.e. the edges WW3 will expect spectral boundary
-data for via ww3_bounc / nest.ww3: any of “south”, “north”, “west”,
-“east”. None (default) selects every physical edge of the grid –
-all four for a regional grid, south and north for a cyclic-x grid.
-An empty list writes a plain land/sea mask with no boundary points.
-Without nest.ww3, WW3 warns and leaves boundary points calm.</p></li>
+<li><p><strong>boundary_edges</strong> (<em>str</em><em> or </em><em>iterable</em><em> of </em><em>str</em><em>, </em><em>optional</em>) – Domain edges whose ocean cells become WW3 active boundary points
+(mapsta status 2): any of “south” (j=0), “north” (j=ny-1), “west”
+(i=0), “east” (i=nx-1). List exactly the edges spectral boundary
+data will be supplied for via ww3_bounc / nest.ww3. Default is no
+edges; ww3_grid then excludes the perimeter sea cells (a closed
+wall). A listed edge without nest.ww3 is left at zero energy by WW3
+(a sink), so this should be set by whatever generates the spectra.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
-<dd class="field-even"><p><strong>ValueError</strong> – If boundary_edges names an unknown edge, or names the east or west
-    edge on a grid that is reentrant in x. Raised before anything is
-    written.</p>
+<dd class="field-even"><p><strong>ValueError</strong> – If boundary_edges names an unknown edge, names the east or west
+    edge on a grid that is reentrant in x, or the grid is tripolar
+    (the closure written has no ‘TRPL’ case). Raised before anything
+    is written.</p>
 </dd>
 </dl>
 </dd></dl>
