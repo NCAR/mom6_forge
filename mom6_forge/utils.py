@@ -131,19 +131,20 @@ def longitude_slicer(data, longitude_extent, longitude_coords):
                 "The longitude of the data doesn't seem to include the longitude of the grid."
             )
 
-        # An at-least-global request gives num_lonpoints > nlon // 2, making the
-        # slice start negative; Python reads that as an offset from the end and
-        # returns a sliver at the seam. Cap it so such a request gets the globe.
-        num_lonpoints = min(num_lonpoints, data[lon].shape[0] // 2)
+        nlon = data[lon].shape[0]
+        half = nlon // 2
 
-        data = new_data.isel(
-            {
-                lon: slice(
-                    data[lon].shape[0] // 2 - num_lonpoints,
-                    data[lon].shape[0] // 2 + num_lonpoints,
-                )
-            }
-        )
+        if num_lonpoints >= half:
+            # An at-least-global request. Slicing it would make the start index
+            # negative, which Python reads as an offset from the end and returns
+            # a sliver at the seam; clamping the half-width to `half` instead
+            # would drop the last point on an odd-length axis (2 * (nlon // 2)).
+            # Either way, take the whole axis.
+            data = new_data
+        else:
+            data = new_data.isel(
+                {lon: slice(half - num_lonpoints, half + num_lonpoints)}
+            )
 
     return data
 

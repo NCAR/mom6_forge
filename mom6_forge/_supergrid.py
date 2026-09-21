@@ -106,9 +106,9 @@ class SupergridBase:
             The method dx/dy were computed with (smallangle or haversine).
 
         ``R`` and ``dx_dy_calc_type`` describe how the metrics passed in were
-        produced, so that expand() can rebuild them the same way. The defaults
-        are the only option for a grid loaded from a dataset, which does not
-        record either.
+        produced, so that expand() can rebuild them the same way. ``to_ds``
+        records both, so a grid round-tripped through a dataset keeps them; a
+        dataset written before they were recorded falls back to the defaults.
         """
         self.x = x
         self.y = y
@@ -221,6 +221,18 @@ class SupergridBase:
                 # exact longitude convention it was handed.
                 x = x - np.floor(center_lon / 360) * 360
 
+        # smallangle differences adjacent latitudes, which is invalid wherever a
+        # grid line passes through a pole: y stops varying monotonically with row
+        # index, so np.diff(y) flips sign and dy comes out negative. Haversine has
+        # no such singularity, so use it regardless of what was asked for. This
+        # also covers a pole-touching grid reloaded from a dataset written before
+        # dx_dy_calc_type was recorded, which would otherwise default to smallangle.
+        if (
+            dx_dy_calc_type == "smallangle"
+            and np.abs(y).max() >= SupergridBase._POLE_ADJACENT_LAT
+        ):
+            dx_dy_calc_type = "haversine"
+
         # dx, dy, area: use base class consistent calculation methods
         dx, dy = SupergridBase._calc_dx_dy(x, y, R=R, type=dx_dy_calc_type)
         area = SupergridBase._calc_area(x, y, R=R)
@@ -272,6 +284,10 @@ class SupergridBase:
         ds.attrs["Created"] = datetime.now().isoformat()
         if author:
             ds.attrs["Author"] = author
+        # Record how the metrics below were produced, so that a grid reloaded
+        # with from_ds can rebuild them the same way (see expand()).
+        ds.attrs["radius"] = self._R
+        ds.attrs["dx_dy_calc_type"] = self._dx_dy_calc_type
 
         # ---- Data variables ----
         ds["y"] = xr.DataArray(
@@ -879,6 +895,8 @@ class SupergridBase:
             ds.angle_dx.data,
             ds.x.attrs.get("units", "degrees"),
             grid_type=ds.attrs.get("grid_type"),
+            R=float(ds.attrs.get("radius", _DEFAULT_RADIUS)),
+            dx_dy_calc_type=ds.attrs.get("dx_dy_calc_type", "smallangle"),
         )
 
     @staticmethod

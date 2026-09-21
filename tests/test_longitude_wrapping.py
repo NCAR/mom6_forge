@@ -137,3 +137,36 @@ def test_global_cyclic_grid_still_spans_exactly_360():
     ).x
     assert np.isclose(x.max() - x.min(), 360.0)
     assert _max_adjacent_diff(x) < 180.0
+
+
+def test_expand_keeps_polar_metrics_after_dataset_round_trip():
+    """A pole-inside-domain grid reloaded from a dataset must still expand with
+    usable metrics. from_ds cannot infer how dx/dy were computed, so without the
+    recorded dx_dy_calc_type it falls back to smallangle, which is invalid at a
+    pole and yields negative dx/dy."""
+    from mom6_forge._supergrid import SupergridBase
+
+    sg = ProjectedSupergrid.from_crs("EPSG:3995", -1e6, 1e6, -1e6, 1e6, 100_000)
+    assert sg.y.max() == 90.0, "this test needs the pole inside the domain"
+
+    reloaded = SupergridBase.from_ds(sg.to_ds())
+    assert reloaded._dx_dy_calc_type == sg._dx_dy_calc_type
+    assert reloaded._R == sg._R
+
+    expanded = reloaded.expand(1)
+    assert (expanded.dx > 0).all()
+    assert (expanded.dy > 0).all()
+    # same ballpark as the 100 km requested resolution, not a wrapped blow-up
+    assert expanded.dx.max() < 2 * 100_000
+
+
+def test_smallangle_is_upgraded_at_the_pole():
+    """Even a dataset written before dx_dy_calc_type was recorded (so smallangle
+    is assumed) must not produce negative metrics on a pole-touching grid."""
+    sg = ProjectedSupergrid.from_crs("EPSG:3995", -1e6, 1e6, -1e6, 1e6, 100_000)
+    forced = ProjectedSupergrid._init_from_xy(
+        sg.x, sg.y, "projected_crs", dx_dy_calc_type="smallangle"
+    )
+    assert (forced.dx > 0).all()
+    assert (forced.dy > 0).all()
+    assert forced._dx_dy_calc_type == "haversine"
