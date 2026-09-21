@@ -121,9 +121,6 @@ class SupergridBase:
         self._R = R
         self._dx_dy_calc_type = dx_dy_calc_type
 
-    # Near a pole, every longitude legitimately converges, so wrap checks don't apply there.
-    _POLE_ADJACENT_LAT = 89.9
-
     def __eq__(self, other):
         if not isinstance(other, SupergridBase):
             return NotImplemented
@@ -160,6 +157,61 @@ class SupergridBase:
         else:
             raise ValueError(f"Unrecognized dx/dy calc type: {type}")
         return dx, dy
+
+    @staticmethod
+    def _check_edge_midpoints(
+        x, y, dx, dy, R=_DEFAULT_RADIUS, tolerance=1.1, fold_top_row=False
+    ):
+        """Raise if supergrid edge midpoints do not lie on the edges they halve.
+
+        A supergrid's u/v points sit halfway along a cell edge, so walking from
+        one corner to the midpoint and on to the next corner should cover very
+        nearly the direct corner-to-corner distance. By the triangle inequality
+        the two legs are never shorter; a midpoint well off the edge makes them
+        much longer. Recovering midpoints by averaging longitude and latitude
+        does exactly that near a pole, where the average of two longitudes on
+        opposite sides lands halfway around the world instead of at the pole.
+
+        Measured over lat/lon meshes as coarse as 30-degree cells reaching 89N
+        the ratio stays under 1.0115, and over the body of the tx2_3v3 tripolar
+        grid under 1.0324; a polar-cap mesh whose midpoints are averaged across
+        the pole reaches 40. The default tolerance sits above the former and
+        well below the latter.
+
+        ``fold_top_row`` skips the topmost row of each check, for a grid whose
+        top corner row lies along a tripolar fold. A fold is a mirror line
+        rather than an ordinary cell edge, so neither the midpoints along it nor
+        those on the edges reaching it sit on an arc between neighbours. On
+        tx2_3v3 that row measures 1.44 in x and 1.10 in y, while the rest of the
+        grid stays at 1.03 and 1.01.
+        """
+        qlon, qlat = x[::2, ::2], y[::2, ::2]
+
+        x_legs = dx[::2, ::2] + dx[::2, 1::2]
+        x_direct = haversine(qlat[:, :-1], qlon[:, :-1], qlat[:, 1:], qlon[:, 1:], R)
+        y_legs = dy[::2, ::2] + dy[1::2, ::2]
+        y_direct = haversine(qlat[:-1, :], qlon[:-1, :], qlat[1:, :], qlon[1:, :], R)
+        if fold_top_row:
+            x_legs, x_direct = x_legs[:-1], x_direct[:-1]
+            y_legs, y_direct = y_legs[:-1], y_direct[:-1]
+
+        checks = (("x", x_legs, x_direct), ("y", y_legs, y_direct))
+        for axis, legs, direct in checks:
+            usable = direct > 0.0
+            if not np.any(usable):
+                continue
+            ratio = np.where(usable, legs / np.where(usable, direct, 1.0), 1.0)
+            worst = float(np.nanmax(ratio))
+            if worst > tolerance:
+                j, i = np.unravel_index(int(np.nanargmax(ratio)), ratio.shape)
+                raise ValueError(
+                    f"Supergrid {axis} edge midpoints are not on their edges: at "
+                    f"corner ({j}, {i}) the two half-edges total {worst:.1f} times "
+                    "the direct corner-to-corner distance. This usually means the "
+                    "midpoints were recovered by averaging longitude and latitude "
+                    "across a pole, which the resulting dx/dy and area would "
+                    "silently carry."
+                )
 
     @staticmethod
     def _calc_dx_dy_checked(x, y, R=_DEFAULT_RADIUS, type="smallangle"):
@@ -238,25 +290,24 @@ class SupergridBase:
         y = np.clip(y, -90.0, 90.0)
 
         # Fix raw dateline-wrap discontinuities in x before differencing for dx/dy/area/angle.
-        # Skipped near poles, where every longitude legitimately converges.
-        if np.abs(y).max() < SupergridBase._POLE_ADJACENT_LAT:
-            center_lon = x[x.shape[0] // 2, x.shape[1] // 2]
-            if _max_adjacent_diff(x) > 180.0:
-                repaired = modulo_around_point(x, center_lon, 360)
-                # Re-centering can leave the grid a whole turn away from the
-                # convention its center was written in, so shift it back. Both
-                # lines stay inside the guard: a grid with no seam keeps the
-                # exact longitude convention it was handed.
-                repaired = repaired - np.floor(center_lon / 360) * 360
-                # A domain that encircles a pole spans all 360 degrees of
-                # longitude, so no 360-wide window can remove its seam:
-                # re-centering only moves the seam elsewhere, while pushing x
-                # out of range and scrambling angle_dx across the new seam.
-                # Note max|y| does not detect this -- a pole-encircling box
-                # whose nodes straddle the pole can stay below the threshold
-                # above -- so keep the repair only if it actually worked.
-                if _max_adjacent_diff(repaired) <= 180.0:
-                    x = repaired
+        center_lon = x[x.shape[0] // 2, x.shape[1] // 2]
+        if _max_adjacent_diff(x) > 180.0:
+            repaired = modulo_around_point(x, center_lon, 360)
+            # Re-centering can leave the grid a whole turn away from the
+            # convention its center was written in, so shift it back. Both
+            # lines stay inside the seam test: a grid with no seam keeps the
+            # exact longitude convention it was handed.
+            repaired = repaired - np.floor(center_lon / 360) * 360
+            # A domain that encircles a pole spans all 360 degrees of
+            # longitude, so no 360-wide window can remove its seam:
+            # re-centering only moves the seam elsewhere, while pushing x out
+            # of range and scrambling angle_dx across the new seam. Checking
+            # the result is what rules that out -- and it rules it out for any
+            # geometry, so the repair needs no latitude guard in front of it.
+            # A guard there would only make the outcome depend on whether the
+            # caller stored a pole-adjacent grid in [0, 360) or [-180, 180].
+            if _max_adjacent_diff(repaired) <= 180.0:
+                x = repaired
 
         # dx, dy, area: use base class consistent calculation methods
         dx, dy, dx_dy_calc_type = SupergridBase._calc_dx_dy_checked(
@@ -880,6 +931,15 @@ class SupergridBase:
         # smallangle default yields negative dx/dy. Record what was actually
         # used so that a later expand() or slice rebuilds it the same way.
         dx, dy, dx_dy_calc_type = cls._calc_dx_dy_checked(x, y, R=radius)
+
+        # The u/v points above are averages of the corner longitudes and
+        # latitudes, which is wrong wherever an edge crosses a pole. That
+        # produces large positive metrics rather than negative ones, so the
+        # check above cannot see it; verify the midpoints themselves before
+        # handing back numbers that look plausible and are not.
+        cls._check_edge_midpoints(
+            x, y, dx, dy, R=radius, fold_top_row=(topology == "tripolar")
+        )
         area = cls._calc_area(x, y, R=radius)
         angle_dx = cls.calc_supergrid_rotation_angles_using_expanded_supergrid_method(
             x, y

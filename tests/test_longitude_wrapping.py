@@ -172,10 +172,11 @@ def test_smallangle_is_upgraded_at_the_pole():
 
 
 def test_seam_repair_left_alone_when_the_domain_encircles_a_pole():
-    """A box can encircle a pole with every node below _POLE_ADJACENT_LAT, so
-    max|lat| does not detect the wrap. Such a domain spans all 360 degrees, so
-    re-centering cannot remove its seam -- it only moves it, while pushing x out
-    of range and scrambling angle_dx across the new seam."""
+    """A domain encircling a pole spans all 360 degrees, so re-centering cannot
+    remove its seam -- it only moves it, while pushing x out of range and
+    scrambling angle_dx across the new seam. Checking the repaired result is
+    what rules that out; no latitude test could, since such a box can keep every
+    node well short of the pole."""
     sg = ProjectedSupergrid.from_crs(
         "EPSG:3995", -975_000, 1_025_000, -975_000, 1_025_000, 100_000
     )
@@ -216,3 +217,47 @@ def test_smallangle_upgraded_for_a_curvilinear_grid_around_a_pole(extent):
     )
     assert built._dx_dy_calc_type == "haversine"
     assert (built.dx > 0).all() and (built.dy > 0).all()
+
+
+def test_seam_repair_is_independent_of_storage_convention():
+    """The same grid written in [0, 360) and in [-180, 180] must come out with
+    the same metrics. A latitude guard in front of the seam repair used to skip
+    the repair for a pole-adjacent grid, leaving the seam in place in one
+    convention only and silently switching that copy to haversine."""
+    base = UniformSphericalSupergrid.from_extents(170.0, 20.0, 79.95, 10.0, 20, 20)
+    x_0_360, y = base.x.copy(), base.y
+    x_pm_180 = ((x_0_360 + 180.0) % 360.0) - 180.0
+    assert np.abs(y).max() > 89.9, "this test needs a pole-adjacent grid"
+
+    a = SupergridBase._init_from_xy(x_0_360, y, "uniform_spherical")
+    b = SupergridBase._init_from_xy(x_pm_180, y, "uniform_spherical")
+    assert a._dx_dy_calc_type == b._dx_dy_calc_type == "smallangle"
+    assert _max_adjacent_diff(b.x) < 180.0
+    np.testing.assert_allclose(a.dx, b.dx)
+    np.testing.assert_allclose(a.dy, b.dy)
+
+
+def test_reconstruct_rejects_a_polar_mesh_with_averaged_midpoints(tmp_path):
+    """reconstruct_from_esmf_mesh recovers u/v points by averaging corner
+    longitudes and latitudes, which lands halfway around the world instead of at
+    the pole when an edge crosses one. The result is large positive dx/dy, so
+    the negative-metric fallback cannot see it -- on an Arctic cap it turns
+    50 km spacing into 2000 km. Better to refuse than to hand back numbers that
+    look plausible."""
+    sg = ProjectedSupergrid.from_crs("EPSG:3995", -1e6, 1e6, -1e6, 1e6, 100_000)
+    path = tmp_path / "polar_mesh.nc"
+    sg.to_esmf_mesh(str(path), mask="all_unmasked")
+
+    with pytest.raises(ValueError, match="edge midpoints are not on their edges"):
+        SupergridBase.reconstruct_from_esmf_mesh(str(path))
+
+
+def test_reconstruct_accepts_a_pole_adjacent_lat_lon_mesh(tmp_path):
+    """The midpoint check must not fire on a rectilinear mesh that merely
+    reaches high latitude, where averaging corners is correct."""
+    sg = UniformSphericalSupergrid.from_extents(0.0, 20.0, 79.5, 10.0, 20, 20)
+    path = tmp_path / "polar_adjacent.nc"
+    sg.to_esmf_mesh(str(path), mask="all_unmasked")
+
+    rebuilt = SupergridBase.reconstruct_from_esmf_mesh(str(path))
+    assert (rebuilt.dx > 0).all() and (rebuilt.dy > 0).all()
