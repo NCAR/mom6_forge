@@ -17,17 +17,40 @@ from mom6_forge.utils import normalize_deg
 def _encircles_globe(lon_values):
     """Whether these longitudes wrap all the way around the globe.
 
-    Longitudes live on a circle, so a set of them is a contiguous band exactly
-    when there is one empty arc much wider than the spacing between neighbours
-    -- that arc is the band's complement. A set with no such void wraps the
-    globe and cannot be tightened into an interval.
-
     Reaching a pole is not the same question: the north edge of a narrow polar
     domain reaches 90 degrees while spanning only a few degrees of longitude,
-    and a box that encircles a pole can have every node below the pole-adjacent
-    threshold.
+    and a box that encircles a pole can keep every node well short of it.
+
+    For a 2D domain the answer is exact. Walk the boundary accumulating the
+    shortest-way longitude step at each node; around a closed loop that total
+    is 360 degrees times an integer winding number, 1 if the boundary goes
+    around a pole and 0 if not. Measured 1.0000 for polar caps from 25 to 6561
+    nodes -- square, rectangular, offset, both hemispheres -- and 0.0000 for
+    every band, independent of resolution.
+
+    A single edge encloses no area, so it has no winding to count; the 2D test
+    run on one would answer backwards (0 for a polar cap's north edge, 1 for a
+    band's middle row). Edges instead compare the two largest gaps between
+    neighbouring longitudes: a band has one void and so a lone outlier, while a
+    set spread around the circle does not.
+
+    That fallback does depend on resolution -- it reads a band as encircling
+    once the node spacing exceeds half the void, e.g. a 350-degree band sampled
+    every 10 degrees. It errs toward reporting the full circle, so a caller
+    over-fetches rather than silently dropping data, and a real grid's edges
+    stay far from the limit. Only a coarse near-global domain approaches it,
+    and for one of those the winding test above already decides.
     """
-    lon = np.unique(normalize_deg(np.ravel(np.asarray(lon_values, dtype=float))))
+    lon = np.asarray(lon_values, dtype=float)
+
+    if lon.ndim == 2 and min(lon.shape) >= 2:
+        loop = np.concatenate(
+            [lon[0, :], lon[1:, -1], lon[-1, -2::-1], lon[-2:0:-1, 0], lon[:1, 0]]
+        )
+        step = (np.diff(loop) + 180.0) % 360.0 - 180.0
+        return abs(float(step.sum())) > 180.0
+
+    lon = np.unique(normalize_deg(np.ravel(lon)))
     if lon.size < 3:
         return False
     # Gaps between neighbouring longitudes on the circle, including the wrap.
@@ -35,12 +58,6 @@ def _encircles_globe(lon_values):
     largest, second = float(gaps[0]), float(gaps[1])
     if second <= 0.0:
         return False
-    # A band has exactly one void, so its largest gap is a lone outlier. A grid
-    # that encircles a pole is symmetric about it, so its largest gap is matched
-    # by an equal one on the far side. Measured over polar caps from 4 to 6561
-    # nodes -- square, rectangular, offset, both hemispheres -- the ratio is
-    # 1.00; over bands from 10 to 350 degrees wide it is 5.7 or more. Comparing
-    # the two largest gaps needs no absolute angle and no notion of resolution.
     return largest < 2.0 * second
 
 

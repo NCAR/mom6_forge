@@ -458,3 +458,21 @@ def test_sliced_and_updated_grids_keep_their_metric_conventions():
 
     grid.update_supergrid(grid.supergrid.x.copy(), grid.supergrid.y.copy())
     assert grid.supergrid._dx_dy_calc_type == "haversine"
+
+
+def test_encircles_globe_is_resolution_independent_for_a_2d_domain():
+    """The 2D test counts a winding number, so a coarse cap is still a cap and a
+    coarse near-global band is still a band. The 1D gap fallback cannot make
+    that distinction, which is why 2D domains do not use it."""
+    from mom6_forge._supergrid import ProjectedSupergrid
+    from mom6_forge.grid import _encircles_globe
+
+    for resolution_m in (1_000_000, 250_000, 100_000):
+        cap = ProjectedSupergrid.from_crs(
+            "EPSG:3995", -1e6, 1e6, -1e6, 1e6, resolution_m
+        )
+        assert _encircles_globe(cap.x), resolution_m
+
+    for n in (36, 71, 351):  # 350-degree band, coarse to fine
+        lon, _ = np.meshgrid(np.linspace(0.0, 350.0, n), np.linspace(-5.0, 5.0, 11))
+        assert not _encircles_globe(lon), n
