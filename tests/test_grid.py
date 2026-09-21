@@ -266,6 +266,85 @@ def test_get_bounding_boxes_tight_for_seam_crossing_edge():
     assert ic["lon_max"] == 180.0
 
 
+def _dateline_supergrid(lons):
+    """A 2x2-degree band centred on the equator, spanning the given longitudes."""
+    x, y = np.meshgrid(np.asarray(lons, dtype=float), np.arange(-5.0, 6.0, 1.0))
+    return SupergridBase._init_from_xy(x, y)
+
+
+def test_bounding_boxes_anchor_lon_min_to_a_real_longitude():
+    """lon_min is the start of the arc, so it has to be a longitude. Where the
+    box lands otherwise depends on the convention the grid was stored in, which
+    is not something a caller can see."""
+    cases = {
+        "stored in [0, 360)": _dateline_supergrid(np.arange(350.0, 371.0)),
+        "stored in [-180, 180]": _dateline_supergrid(
+            ((np.arange(350.0, 371.0) + 180.0) % 360.0) - 180.0
+        ),
+        "away from any seam": _dateline_supergrid(np.arange(20.0, 41.0)),
+        "polar cap": ProjectedSupergrid.from_crs(
+            "EPSG:3995", -300_000, 300_000, -300_000, 300_000, resolution_m=100_000
+        ),
+    }
+    for label, sg in cases.items():
+        for edge, box in Grid.get_bounding_boxes(sg.to_ds()).items():
+            assert -180.0 <= box["lon_min"] <= 180.0, f"{label}/{edge}"
+
+
+def test_bounding_boxes_do_not_depend_on_the_stored_convention():
+    """The same arc written in [0, 360) and in [-180, 180] is the same arc."""
+    in_360 = Grid.get_bounding_boxes(
+        _dateline_supergrid(np.arange(350.0, 371.0)).to_ds()
+    )
+    in_180 = Grid.get_bounding_boxes(
+        _dateline_supergrid(((np.arange(350.0, 371.0) + 180.0) % 360.0) - 180.0).to_ds()
+    )
+    for edge in in_360:
+        for key in ("lon_min", "lon_max", "crosses_antimeridian"):
+            assert in_360[edge][key] == pytest.approx(
+                in_180[edge][key]
+            ), f"{edge}/{key}"
+
+
+def test_bounding_boxes_flag_an_antimeridian_crossing():
+    """A box that really does cross cannot be written with both ends in range,
+    so it ends past 180 and says so rather than leaving a caller to notice."""
+    crossing = Grid.get_bounding_boxes(
+        _dateline_supergrid(np.arange(170.0, 191.0)).to_ds()
+    )["ic"]
+    assert crossing["crosses_antimeridian"] is True
+    assert crossing["lon_max"] > 180.0
+    assert crossing["lon_max"] - crossing["lon_min"] == pytest.approx(20.0)
+
+    # The same width, written where it needs no crossing, is not flagged.
+    plain = Grid.get_bounding_boxes(_dateline_supergrid(np.arange(20.0, 41.0)).to_ds())[
+        "ic"
+    ]
+    assert plain["crosses_antimeridian"] is False
+    assert plain["lon_max"] - plain["lon_min"] == pytest.approx(20.0)
+
+
+def test_bounding_box_selects_the_intended_source_points():
+    """The documented way to use a crossing box: split it at the antimeridian
+    rather than comparing against a wrapped lon_max, which selects nothing."""
+    box = Grid.get_bounding_boxes(_dateline_supergrid(np.arange(170.0, 191.0)).to_ds())[
+        "ic"
+    ]
+    source_lon = np.arange(-180.0, 180.0, 1.0)
+
+    if box["crosses_antimeridian"]:
+        selected = (source_lon >= box["lon_min"]) | (
+            source_lon <= box["lon_max"] - 360.0
+        )
+    else:
+        selected = (source_lon >= box["lon_min"]) & (source_lon <= box["lon_max"])
+
+    assert source_lon[selected].min() == -180.0
+    assert set(np.round(source_lon[selected])) == set(
+        np.round(((np.arange(170.0, 191.0) + 180.0) % 360.0) - 180.0)
+    )
+
+
 def test_slice_grid(get_rect_grid):
     grid = get_rect_grid
     sub = grid[1:, 1:]

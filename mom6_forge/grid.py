@@ -458,6 +458,19 @@ class Grid:
                 • "north"
                 • "south"
                 • "ic" (full domain for initial conditions)
+
+            Each box is ``{"lon_min", "lon_max", "lat_min", "lat_max",
+            "crosses_antimeridian"}``. ``lon_min`` is always a longitude in
+            [-180, 180) and ``lon_max`` is ``lon_min`` plus the width of the
+            box, so the pair always names a contiguous eastward arc and
+            ``lon_max - lon_min`` is its width.
+
+            A box straddling the antimeridian therefore carries
+            ``lon_max > 180`` -- 170 to 190, say -- and sets
+            ``crosses_antimeridian``. A caller selecting with
+            ``lon_min <= lon <= lon_max`` from a source on [-180, 180] has to
+            branch on that flag and take the two pieces separately. Wrapping
+            ``lon_max`` down to -170 first and comparing would select nothing.
         """
         if type(hgrid) == Grid:
             hgrid = hgrid._supergrid.to_ds()
@@ -473,17 +486,26 @@ class Grid:
             else:
                 # Re-center around one of this edge's own points before min/max,
                 # so a seam crossing gives a tight range, not a huge raw span.
-                # The result may sit outside [-180, 180] (a dateline-straddling
-                # edge becomes e.g. 170 to 190); that is a valid contiguous
-                # interval, and the width of the box is what callers slice on.
                 center = np.ravel(lon_values)[np.ravel(lon_values).size // 2]
                 wrapped = modulo_around_point(lon_values, center, 360)
                 lon_min, lon_max = float(wrapped.min()), float(wrapped.max())
+                # Re-centering leaves the interval wherever this edge's own
+                # values happened to sit, which need not be anywhere a reader
+                # would recognise: a grid stored in [0, 360) gives 350 to 370
+                # for the arc that -10 to 10 names just as exactly. Slide the
+                # interval so it starts at a real longitude. Both ends move
+                # together, so the width, and the arc, are unchanged -- a box
+                # that genuinely crosses the antimeridian still ends past 180,
+                # because no in-range pair of ends can describe it.
+                anchored = ((lon_min + 180.0) % 360.0) - 180.0
+                lon_max += anchored - lon_min
+                lon_min = anchored
             return {
                 "lon_min": lon_min,
                 "lon_max": lon_max,
                 "lat_min": float(lat_values.min()),
                 "lat_max": float(lat_values.max()),
+                "crosses_antimeridian": lon_max > 180.0,
             }
 
         init_result = _lon_lat_bounds(hgrid.x.values, hgrid.y.values)
