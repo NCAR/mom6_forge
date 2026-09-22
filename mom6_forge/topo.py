@@ -31,6 +31,80 @@ from mom6_forge._supergrid import _DEFAULT_RADIUS, SupergridBase
 VALID_MASK_METHODS = ("naturalearth", "ocean_frac", "dataset", "manual")
 VALID_DEPTH_METHODS = ("stats", "cressman", "xesmf")
 
+# WW3 spectral discretization written into ww3_grid.inp.
+WW3_NK = 25  # number of frequencies (wavenumbers)
+WW3_NTH = 24  # number of directions
+WW3_F1 = 0.04118  # lowest frequency [Hz]
+WW3_FREQ_FACTOR = 1.1  # frequency increment factor
+WW3_CFL_SAFETY = 0.8  # fraction of the CFL limit to actually use
+WW3_MAX_DT_RATIO = 4  # most propagation sub-steps to take per global step
+_GRAVITY = 9.81  # [m s-2]
+
+
+def ww3_timesteps_from_spacing(
+    min_dx,
+    cpl_dt,
+    f_min=WW3_F1,
+    safety=WW3_CFL_SAFETY,
+    max_ratio=WW3_MAX_DT_RATIO,
+):
+    """WW3 time steps (seconds) for a grid whose smallest cell is ``min_dx`` meters.
+
+    Two constraints set the steps:
+
+    * ``dtcfl`` bounds x-y propagation: ``dtcfl <= min_dx / Cg``.
+    * ``dtmax`` is the global step, over which propagation and the source terms
+      are applied in sequence. ``dtmax`` is chosen as the largest exact divisor
+      of ``cpl_dt`` that meets the second constraint, so WW3 still lands on the
+      coupling time without a short final step.
+
+    Parameters
+    ----------
+    min_dx: float
+        Smallest grid spacing in meters.
+    cpl_dt: float
+        Wave coupling interval in seconds (WAV_NCPL).
+    f_min: float, optional
+        Lowest frequency in the spectrum [Hz].
+    safety: float, optional
+        Fraction of the bare CFL limit to use.
+    max_ratio: int, optional
+        Most propagation sub-steps per global step.
+
+    Returns
+    -------
+    dict
+        ``dtmax``, ``dtcfl``, ``dtcfli``, ``dtmin`` in seconds.
+    """
+    if min_dx <= 0:
+        raise ValueError(f"min_dx must be positive, got {min_dx}")
+    if cpl_dt <= 0:
+        raise ValueError(f"cpl_dt must be positive, got {cpl_dt}")
+    if max_ratio < 1:
+        raise ValueError(f"max_ratio must be at least 1, got {max_ratio}")
+
+    cg_max = _GRAVITY / (4.0 * np.pi * f_min)  # deep-water group velocity [m/s]
+    dtcfl_limit = safety * min_dx / cg_max
+
+    # Split the coupling interval into n_global equal steps, taking the fewest
+    # that keep the propagation sub-steps within max_ratio. n_sub falls to 1
+    # once dtmax drops below dtcfl_limit, so this always terminates.
+    n_global = 1
+    while True:
+        dtmax = cpl_dt / n_global
+        n_sub = int(np.ceil(dtmax / dtcfl_limit))
+        if n_sub <= max_ratio:
+            break
+        n_global += 1
+    dtcfl = dtmax / n_sub
+
+    return {
+        "dtmax": float(dtmax),
+        "dtcfl": float(dtcfl),
+        "dtcfli": float(dtcfl),
+        "dtmin": float(min(10.0, dtcfl / 10.0)),
+    }
+
 
 class Topo:
     """
@@ -2235,8 +2309,46 @@ class Topo:
         mapsta[is_boundary & (tmask == 1)] = 2
         return mapsta
 
+    def ww3_min_grid_spacing(self):
+        """Smallest cell spacing on the grid, in meters."""
+        tlon = self._grid.tlon.data
+        tlat = self._grid.tlat.data
+
+        # Zonal neighbours (i, i+1); the longitude difference is wrapped so a
+        # grid that crosses the dateline does not report a ~360 deg step.
+        dlon = (np.diff(tlon, axis=1) + 180.0) % 360.0 - 180.0
+        dx = haversine(
+            tlat[:, :-1], tlon[:, :-1], tlat[:, :-1], tlon[:, :-1] + dlon, _DEFAULT_RADIUS
+        )
+        # Meridional neighbours (j, j+1).
+        dy = haversine(tlat[:-1, :], tlon[:-1, :], tlat[1:, :], tlon[:-1, :], _DEFAULT_RADIUS)
+
+        spacings = np.concatenate([dx.ravel(), dy.ravel()])
+        spacings = spacings[np.isfinite(spacings) & (spacings > 0.0)]
+        if spacings.size == 0:
+            raise ValueError("Could not determine grid spacing for WW3 time steps.")
+        return float(spacings.min())
+
+    def ww3_timesteps(self, cpl_dt=1800.0):
+        """WW3 time steps for this grid.
+
+        See :func:`ww3_timesteps_from_spacing` for the CFL reasoning.
+
+        Parameters
+        ----------
+        cpl_dt: float, optional
+            Wave coupling interval in seconds (WAV_NCPL), 1800 s in CESM by
+            default. ``dtmax`` is derived from it rather than taken as given.
+        """
+        return ww3_timesteps_from_spacing(self.ww3_min_grid_spacing(), cpl_dt)
+
     def write_ww3_input(
-        self, file_dir, grid_alias, boundary_edges=None, open_boundary=None
+        self,
+        file_dir,
+        grid_alias,
+        boundary_edges=None,
+        open_boundary=None,
+        cpl_dt=1800.0,
     ):
         """
         Write the text-based WW3 input files ww3_grid.inp, [grid_alias]_x.inp, [grid_alias]_y.inp,
@@ -2264,6 +2376,9 @@ class Topo:
         open_boundary: bool, optional
             Deprecated; use boundary_edges. True is the default edge set,
             False is no edges.
+        cpl_dt: float, optional
+            Wave coupling interval in seconds (WAV_NCPL), which the time steps
+            are derived from. Defaults to the CESM value of 1800 s.
 
         Raises
         ------
@@ -2351,18 +2466,16 @@ class Topo:
             )
             grid_name = grid_alias.ljust(30)[:30]
             f.write(f"  '{grid_name}'\n")
-            # TODO: frequency/direction counts, model flags, and timesteps below
-            # are copied from the ww3a reference grid. Parameterize when this
-            # method is used for grids with different resolution or physics.
-            nk = 25  # number of frequencies (wavenumbers)
-            nth = 24  # number of directions
+            nk = WW3_NK  # number of frequencies (wavenumbers)
+            nth = WW3_NTH  # number of directions
+            dt = self.ww3_timesteps(cpl_dt)
             f.write(
                 "$\n"
                 "$ Frequency increment factor and first frequency (Hz) ---------------- $\n"
                 "$ number of frequencies (wavenumbers) and directions, relative offset\n"
                 "$ of first direction in terms of the directional increment [-0.5,0.5].\n"
                 "$\n"
-                f"  1.1  0.04118  {nk}  {nth}  0.0\n"
+                f"  {WW3_FREQ_FACTOR}  {WW3_F1}  {nk}  {nth}  0.0\n"
                 "$\n"
                 "$ Set model flags ---------------------------------------------------- $\n"
                 "$  - FLDRY         Dry run (input/output only, no calculation).\n"
@@ -2376,7 +2489,7 @@ class Topo:
                 "$     maximum global time step, maximum CFL time step for x-y and\n"
                 "$     k-theta, minimum source term time step (all in seconds).\n"
                 "$\n"
-                "  600.00  300.00  300.00   30.00\n"
+                f"  {dt['dtmax']:.2f}  {dt['dtcfl']:.2f}  {dt['dtcfli']:.2f}  {dt['dtmin']:.2f}\n"
                 "$\n"
                 "$ Start of namelist input section ------------------------------------ $\n"
                 "$\n"
