@@ -8,6 +8,8 @@ from datetime import datetime
 from typing import Optional
 from scipy import interpolate
 from scipy.ndimage import label, binary_fill_holes
+from scipy.sparse import coo_matrix
+from scipy.sparse.csgraph import connected_components
 from scipy.spatial import cKDTree
 from mom6_forge.utils import cell_area_rad, iterative_fill, compute_subsampling_factor
 from mom6_forge.grid import Grid
@@ -512,10 +514,60 @@ class Topo:
     def basintmask(self):
         """
         Ocean domain mask at T grid. Seperate number for each connected water cell, 0 if land.
+
+        Labels are contiguous, starting at 1, and the basin of greatest total area
+        carries the highest label. The remaining labels are in no particular order.
+
+        On a zonally periodic grid (cyclic_x), the components touching the i=0 and
+        i=nx-1 columns of a common row are merged, so a basin straddling the seam is
+        labeled once rather than twice.
         """
         res, num_features = label(self.tmask)
 
+        if num_features > 1:
+            if self._grid.cyclic_x:
+                res = self._merge_basins_across_cyclic_seam(res, num_features)
+            res = self._promote_largest_basin(res)
+
         return xr.DataArray(res)
+
+    def _promote_largest_basin(self, basins):
+        """
+        Relabel so that the basin of greatest total area carries the highest label.
+
+        Only that one label moves: it trades places with whichever basin holds the
+        highest label, leaving every other basin where it is. Land stays 0.
+        """
+        areas = np.bincount(basins.ravel(), weights=self._grid.tarea.data.ravel())
+        areas[0] = 0.0  # land is not a basin, so it can never be the largest
+        largest = int(np.argmax(areas))
+        highest = areas.size - 1  # labels are contiguous, so this is the last one
+
+        if largest == highest:
+            return basins  # already there, no relabeling needed
+
+        swap = np.arange(areas.size, dtype=basins.dtype)
+        swap[[largest, highest]] = [highest, largest]
+        return swap[basins]
+
+    @staticmethod
+    def _merge_basins_across_cyclic_seam(basins, num_features):
+        """
+        Give a common label to the basins that meet across the i=0 / i=nx-1 seam.
+
+        Takes the labels from scipy.ndimage.label and treats each ocean pair at the
+        two ends of a row as an edge between their labels, so the connected components
+        of that graph are the basins of the periodic domain. Land is label 0 and has
+        no edges, so it stays 0, and the merged labels come back contiguous.
+        """
+        west, east = basins[:, 0], basins[:, -1]
+        seam = (west > 0) & (east > 0)
+        joined = coo_matrix(
+            (np.ones(seam.sum()), (west[seam], east[seam])),
+            shape=(num_features + 1, num_features + 1),
+        )
+        _, merged = connected_components(joined, directed=False)
+        return merged[basins]
 
     @property
     def supergridmask(self):
@@ -1616,27 +1668,64 @@ class Topo:
         # Reset the mask through Mask Edit
         self.user_mask = ocean_mask
 
-    def erase_selected_basin(self, i, j):
-        label = self.basintmask.data[j, i]
-        affected = np.where(self.basintmask.data == label)
-        indices = list(zip(affected[0], affected[1]))
+    def _erase_ocean_cells(self, doomed, message="Mask Edit"):
+        """
+        Mask out (turn to land) the cells flagged in the boolean array `doomed`.
+
+        Only ocean cells may be flagged, so that the edit records an old mask value
+        of 1. Leaving land out also keeps the command proportional to the area
+        erased rather than to the size of the domain.
+        """
+        indices = [tuple(idx) for idx in np.argwhere(doomed)]
         if not indices:
-            return
-        old_values = [self.tmask.data[jj, ii] for jj, ii in indices]
-        new_values = [0] * len(indices)
-        cmd = MaskEditCommand(self, indices, new_values, old_values=old_values)
+            return  # nothing to erase
+
+        cmd = MaskEditCommand(
+            self,
+            indices,
+            [0] * len(indices),
+            old_values=[1] * len(indices),
+            message=message,
+        )
         self.apply_edit(cmd)
 
+    def erase_selected_basin(self, i, j):
+        """
+        Erase the basin containing cell (i, j). A no-op if that cell is land.
+        """
+        basins = self.basintmask.data
+        selected = basins[j, i]
+        if selected == 0:
+            return  # land cell: no basin to erase
+        self._erase_ocean_cells(basins == selected, message="Erase selected basin")
+
     def erase_disconnected_basin(self, i, j):
-        label = self.basintmask.data[j, i]
-        affected = np.where(self.basintmask.data != label)
-        indices = list(zip(affected[0], affected[1]))
-        if not indices:
-            return
-        old_values = [self.tmask.data[jj, ii] for jj, ii in indices]
-        new_values = [0] * len(indices)
-        cmd = MaskEditCommand(self, indices, new_values, old_values=old_values)
-        self.apply_edit(cmd)
+        """
+        Erase every basin but the one containing cell (i, j). A no-op if that cell is land.
+        """
+        basins = self.basintmask.data
+        selected = basins[j, i]
+        if selected == 0:
+            return  # land cell: no basin to keep
+        self._erase_ocean_cells(
+            (basins != selected) & (basins > 0), message="Erase disconnected basins"
+        )
+
+    def keep_largest_basin(self):
+        """
+        Remove every disconnected ocean basin except the largest one.
+
+        Basins are the connected components of the ocean mask (4-connectivity, and
+        wrapping in x when the grid is cyclic). basintmask gives the basin of greatest
+        total area the highest label, so that one is kept and every other basin is
+        masked out as land. This is a no-op when the domain holds at most one basin.
+        """
+        basins = self.basintmask.data
+        largest = basins.max()  # 0 if the domain is all land, flagging nothing below
+
+        self._erase_ocean_cells(
+            (basins != largest) & (basins > 0), message="Keep largest basin"
+        )
 
     def apply_ridge(self, height, width, lon, ilat):
         """
