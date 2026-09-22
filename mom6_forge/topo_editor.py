@@ -837,7 +837,7 @@ class TopoEditor(widgets.HBox):
             return
         j, i, _ = self._selected_cell
         self.topo.erase_disconnected_basin(i, j)
-        self.update_undo_redo_buttons()
+        self.trigger_refresh()
 
     def erase_selected_basin(self, b):
         """Erase the basin associated with the currently selected cell."""
@@ -845,7 +845,7 @@ class TopoEditor(widgets.HBox):
             return
         j, i, _ = self._selected_cell
         self.topo.erase_selected_basin(i, j)
-        self.update_undo_redo_buttons()
+        self.trigger_refresh()
 
     # ------------------------------------------------------------------
     # Undo / redo / history

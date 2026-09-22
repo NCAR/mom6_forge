@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock
 
+import numpy as np
 import pytest
 
 from mom6_forge.grid import Grid
@@ -253,3 +254,47 @@ def test_hover_readout_reports_true_longitude():
     _, editor = _editor_for(170.0, 20.0)
     readout = editor.ax.format_coord(185.0 - editor._central_longitude, 0.0)
     assert "x=185.00" in readout
+
+
+# --- canvas refresh after basin edits ---
+
+
+def _editor_with_two_basins(tmp_path):
+    """An editor in basinmask mode over a domain split into two basins."""
+    grid = Grid(
+        resolution=0.5,
+        xstart=0.0,
+        lenx=20.0,
+        ystart=0.0,
+        leny=10.0,
+        name="basins",
+    )
+    topo = Topo(grid, min_depth=0, version_control_dir=tmp_path, git=True)
+    topo.set_flat(1000)
+    topo.depth.data[:, 20] = -10.0  # land barrier splits the domain in two
+
+    editor = TopoEditor(topo, build_ui=False)
+    editor._display_mode_toggle.value = "basinmask"
+    editor._select_cell(30, 5)  # a cell east of the barrier
+    return topo, editor
+
+
+@pytest.mark.parametrize(
+    "handler", ["erase_selected_basin", "erase_disconnected_basin"]
+)
+def test_erase_basin_redraws_canvas(tmp_path, handler):
+    """Erasing a basin must redraw the canvas, not just update the buttons.
+
+    Topo.erase_* applies its edit through the topo, bypassing
+    TopoEditor.apply_edit and therefore its refresh, so the mask used to
+    change underneath a stale plot.
+    """
+    topo, editor = _editor_with_two_basins(tmp_path)
+    assert len(set(topo.basintmask.data.ravel().tolist())) > 2  # land + 2 basins
+
+    before = np.array(editor.im.get_array(), dtype=float)
+    getattr(editor, handler)(None)
+    after = np.array(editor.im.get_array(), dtype=float)
+
+    assert not np.array_equal(before, after)
+    assert np.array_equal(after, np.asarray(topo.basintmask.data, dtype=float))
