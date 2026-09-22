@@ -297,15 +297,33 @@ class TopoEditor(widgets.HBox):
 
         plt.ioff()  # Turn off interactive mode for setup
 
+        # The supergrid longitudes are seam-free (continuous even across the
+        # antimeridian), so min/max are the domain's true bounds and their
+        # midpoint is its true center. Centering the axes there lets
+        # set_extent zoom correctly on any domain, including one running past
+        # +/-180, which a plain PlateCarree() axes renders as the whole globe.
+        # In exchange, event.xdata is native to the shifted frame, so the
+        # click/hover handlers add central_longitude back to recover true
+        # longitude.
+        qlon = self.topo._grid.qlon.data
+        lon_min, lon_max = float(qlon.min()), float(qlon.max())
+        self._central_longitude = 0.5 * (lon_min + lon_max)
+
         # Create the figure and axis
         self.fig = plt.figure(figsize=(7, 6))
-        self.ax = self.fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
+        self.ax = self.fig.add_subplot(
+            1,
+            1,
+            1,
+            projection=ccrs.PlateCarree(central_longitude=self._central_longitude),
+        )
         self.ax.set_aspect("auto")
 
         # Custom coordinate formatter for mouse hover
         def format_coord(x, y):
-            j, i = self.topo._grid.get_indices(y, x)
-            return f"x={x:.2f}, y={y:.2f}, i={i}, j={j} depth={self.topo.masked_depth.data[j, i]:.2f}"
+            true_x = x + self._central_longitude
+            j, i = self.topo._grid.get_indices(y, true_x)
+            return f"x={true_x:.2f}, y={y:.2f}, i={i}, j={j} depth={self.topo.masked_depth.data[j, i]:.2f}"
 
         self.ax.format_coord = format_coord
 
@@ -313,12 +331,21 @@ class TopoEditor(widgets.HBox):
         self.cmap = plt.get_cmap("viridis")
         self.cmap.set_under("w")
         self.im = self.ax.pcolormesh(
-            self.topo._grid.qlon.data,
+            qlon,
             self.topo._grid.qlat.data,
             self.topo.masked_depth.data,
             vmin=self.topo.min_depth,
             cmap=self.cmap,
             transform=ccrs.PlateCarree(),
+        )
+        self.ax.set_extent(
+            [
+                lon_min,
+                lon_max,
+                float(self.topo._grid.qlat.min()),
+                float(self.topo._grid.qlat.max()),
+            ],
+            crs=ccrs.PlateCarree(),
         )
 
         # Axis labels and title
@@ -578,14 +605,21 @@ class TopoEditor(widgets.HBox):
             return
         if event.dblclick and event.xdata is not None and event.ydata is not None:
             # Convert lon/lat to grid indices
-            j, i = self.topo._grid.get_indices(event.ydata, event.xdata)
+            j, i = self.topo._grid.get_indices(
+                event.ydata, event.xdata + self._central_longitude
+            )
             if 0 <= i < self.nx and 0 <= j < self.ny:
                 self._select_cell(i, j)
         self._clear_selection_button.disabled = False
 
     def _on_rect_select(self, eclick, erelease):
         self._clear_selection_button.disabled = False
-        lon_min, lon_max = sorted([eclick.xdata, erelease.xdata])
+        lon_min, lon_max = sorted(
+            [
+                eclick.xdata + self._central_longitude,
+                erelease.xdata + self._central_longitude,
+            ]
+        )
         lat_min, lat_max = sorted([eclick.ydata, erelease.ydata])
         lon_min = (lon_min + 360) % 360
         lon_max = (lon_max + 360) % 360
@@ -803,7 +837,7 @@ class TopoEditor(widgets.HBox):
             return
         j, i, _ = self._selected_cell
         self.topo.erase_disconnected_basin(i, j)
-        self.update_undo_redo_buttons()
+        self.trigger_refresh()
 
     def erase_selected_basin(self, b):
         """Erase the basin associated with the currently selected cell."""
@@ -811,7 +845,7 @@ class TopoEditor(widgets.HBox):
             return
         j, i, _ = self._selected_cell
         self.topo.erase_selected_basin(i, j)
-        self.update_undo_redo_buttons()
+        self.trigger_refresh()
 
     # ------------------------------------------------------------------
     # Undo / redo / history
