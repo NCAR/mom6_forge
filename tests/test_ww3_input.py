@@ -3,6 +3,8 @@
 import numpy as np
 import pytest
 
+from mom6_forge.topo import WW3_STOKES_WAVENUMBERS
+
 WW3_FILE_SUFFIXES = ("_x.inp", "_y.inp", "_bottom.inp", "_mapsta.inp")
 
 
@@ -64,6 +66,21 @@ def test_write_ww3_input_grid_control_file(get_rect_topo_without_vc, tmp_path):
     # References each generated data file.
     for suffix in WW3_FILE_SUFFIXES:
         assert f"{alias}{suffix}" in text
+
+
+def test_write_ww3_input_stokes_bands(get_rect_topo_without_vc, tmp_path):
+    """The &OUTS namelist has to ask WW3 for the partitioned Stokes drift that
+    MOM6's SURFACE_BANDS coupling expects, on the wavenumbers MOM6 will apply."""
+    topo = get_rect_topo_without_vc
+
+    topo.write_ww3_input(tmp_path, grid_alias=topo._grid.name)
+    text = (tmp_path / "ww3_grid.inp").read_text()
+
+    # Both caps size the Sw_pstokes field for 3 bands.
+    assert len(WW3_STOKES_WAVENUMBERS) == 3
+    assert f"USSP = 1, IUSSP = {len(WW3_STOKES_WAVENUMBERS)}" in text
+    assert "STK_TAIL = T" in text
+    assert "STK_WN = " + ", ".join(str(k) for k in WW3_STOKES_WAVENUMBERS) in text
 
 
 def test_write_ww3_input_masked_cells_are_land(get_rect_topo_without_vc, tmp_path):

@@ -38,6 +38,12 @@ WW3_F1 = 0.04118  # lowest frequency [Hz]
 WW3_FREQ_FACTOR = 1.1  # frequency increment factor
 WW3_CFL_SAFETY = 0.8  # fraction of the CFL limit to actually use
 WW3_MAX_DT_RATIO = 4  # most propagation sub-steps to take per global step
+# Wavenumbers of the partitioned surface Stokes drift bands WW3 sends.
+# TODO: MOM6 applies its own copy of these (SURFBAND_WAVENUMBERS in CESM's
+# MOM_input.yaml) to the bands that arrive and never sees the list below, so if
+# CESM retunes them this one goes stale with no error anywhere -- just a wrong
+# Stokes profile. Read them off the CESM in use instead of keeping a copy.
+WW3_STOKES_WAVENUMBERS = (0.04, 0.11, 0.33)  # [rad m-1]
 _GRAVITY = 9.81  # [m s-2]
 
 
@@ -2469,6 +2475,7 @@ class Topo:
             nk = WW3_NK  # number of frequencies (wavenumbers)
             nth = WW3_NTH  # number of directions
             dt = self.ww3_timesteps(cpl_dt)
+            stk_wn = ", ".join(f"{k}" for k in WW3_STOKES_WAVENUMBERS)
             f.write(
                 "$\n"
                 "$ Frequency increment factor and first frequency (Hz) ---------------- $\n"
@@ -2493,15 +2500,28 @@ class Topo:
                 "$\n"
                 "$ Start of namelist input section ------------------------------------ $\n"
                 "$\n"
+                "$ Gridded output selection ------------------------------------------- $\n"
+                "$  - E3D          1-D frequency spectrum over bins I1E3D..I2E3D.\n"
+                "$  - USSP/IUSSP   Export the surface Stokes drift split into this many\n"
+                "$                 bands. MOM6 reads them when WAVE_METHOD is\n"
+                "$                 SURFACE_BANDS; the legacy EFACTOR method ignores them.\n"
+                "$  - STK_WN       Central wavenumbers of those bands. These must match\n"
+                "$                 MOM6's SURFBAND_WAVENUMBERS.\n"
+                "$  - STK_TAIL     Fold the high-frequency tail into the last band.\n"
+                "$\n"
                 "&OUTS\n"
                 f"  E3D = 1, I1E3D = 1, I2E3D = {nk}\n"
+                f"  USSP = 1, IUSSP = {len(WW3_STOKES_WAVENUMBERS)}, STK_TAIL = T\n"
+                f"  STK_WN = {stk_wn}\n"
                 "/\n"
                 "$\n"
                 "$ Li et al. (2016) Langmuir mixing parameterization ------------------- $\n"
                 "$  - LMPENABLED    Accumulate the surface-layer averaged Stokes drift\n"
-                "$                  (USSHX/USSHY). Without it the coupler Langmuir\n"
-                "$                  multiplier Sw_lamult falls back to 1 everywhere and\n"
-                "$                  the ocean sees no wave effect.\n"
+                "$                  (USSHX/USSHY), and with it the Langmuir multiplier\n"
+                "$                  Sw_lamult, which stays 1 everywhere without it. Only\n"
+                "$                  the legacy EFACTOR coupling reads Sw_lamult; under\n"
+                "$                  SURFACE_BANDS MOM6 gets the Langmuir number from the\n"
+                "$                  Stokes bands instead.\n"
                 "$  - SDTAIL        Include the high-frequency tail in the Stokes drift.\n"
                 "$  - HSLMODE       1 = surface layer depth from the coupler boundary\n"
                 "$                  layer depth; 0 = constant 10 m (testing only).\n"
