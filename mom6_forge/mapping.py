@@ -1278,9 +1278,12 @@ def _print_regrid_info(
     dst_total = 1
     for v in dst_spatial.values():
         dst_total *= v
-    weights_str = (
-        f"reusing from {weights_path}" if reuse_weights else "generating new weights"
-    )
+    if not reuse_weights:
+        weights_str = "generating new weights"
+    elif isinstance(weights_path, xr.Dataset):
+        weights_str = "reusing in-memory weights"
+    else:
+        weights_str = f"reusing from {weights_path}"
     print(
         "--- xESMF Regridding Info ---\n"
         f"  Source:        {src_dims_str}  ({src_total:,} points)  [{input_dataset.nbytes / 1e6:.2f} MB]\n"
@@ -1312,7 +1315,7 @@ def regrid_dataset_via_xesmf(
         input_dataset (Xarray Dataset): original dataset with proper  metadata and structure for ESMF regridding.
         output_dataset (Xarray Dataset): Template for the regridded dataset regridding_method: (Optional[str]) The type of regridding method to use. Defaults to bilinear
         write_to_file (Optional[bool]): Files saved to ``output_path`` Defaults to ``False``. Must be set to true if using manual regridding methods with ESMF_regrid.
-        weights_path (Optional[str]): Path to pre-computed regridding weights file.
+        weights_path (Optional[str or xr.Dataset]): Path to pre-computed regridding weights file, or the weights themselves as an in-memory ESMF-style Dataset.
         output_path (Optional[str]): Path to save the regridded dataset if ``write_to_file`` is True. Defaults to "regridded_dataset.nc".
         reuse_weights (Optional[bool]): Whether to reuse the weights from ``weights_path`` if provided. Defaults to False. If False, weights will be recomputed even if ``weights_path`` is provided. If True, weights will be reused from ``weights_path`` if provided, and an error will be raised if ``weights_path`` is not provided.
         locstream_out (Optional[bool]): Whether the output grid is a location stream. Defaults to False.
@@ -1348,8 +1351,8 @@ def regrid_dataset_via_xesmf(
             periodic=periodic,
         )
     else:
-        assert (
-            weights_path is not None and Path(weights_path).exists()
+        assert weights_path is not None and (
+            isinstance(weights_path, xr.Dataset) or Path(weights_path).exists()
         ), "weights_path must be provided and exist if reuse_weights is True"
         regridder = xe.Regridder(
             input_dataset,
@@ -1656,13 +1659,13 @@ def compute_cressman_weights(
 def regrid_dataset_via_cressman(
     src_ds: xr.Dataset,
     dst_ds: xr.Dataset,
-    weights_path: Path,
+    weights_path: Path | None = None,
     smooth_scl: float = 2.0,
     cressman_exp: float = 2.0,
     write_to_file: bool = False,
     output_path: Path = Path("cressman_regridded.nc"),
 ) -> tuple[xr.Dataset, np.ndarray]:
-    """Compute mask-aware Cressman weights, save to an ESMF weights file, and regrid
+    """Compute mask-aware Cressman weights, optionally save to an ESMF weights file, and regrid
     source depths to the destination model grid using ``xe.Regridder``.
 
     Parameters
@@ -1673,9 +1676,10 @@ def regrid_dataset_via_cressman(
     dst_ds : xr.Dataset
         Must have 2D variables or coordinates ``lon``, ``lat``, ``area``, and
         ``mask`` of shape (ny_dst, nx_dst).
-    weights_path : str or Path
+    weights_path : str or Path or None
         Path where the ESMF-compatible weights netCDF will be written.
-        If the file already exists it is **overwritten**.
+        If the file already exists it is **overwritten**. If ``None`` (default),
+        the weights are kept in memory and nothing is written.
     smooth_scl : float
         Cressman smoothing scale multiplier. Default ``2.0``.
     cressman_exp : float
@@ -1702,9 +1706,10 @@ def regrid_dataset_via_cressman(
         cressman_exp=cressman_exp,
     )
 
-    # --- Save weights to ESMF-compatible netCDF ---
-    weights_ds.to_netcdf(weights_path)
-    print(f"Cressman weights written to {weights_path}")
+    # --- Optionally save weights to ESMF-compatible netCDF ---
+    if weights_path is not None:
+        weights_ds.to_netcdf(weights_path)
+        print(f"Cressman weights written to {weights_path}")
 
     # --- Regrid using xesmf Regridder from the pre-computed weights ---
     # The reason to do this is because it handles seams well
@@ -1712,7 +1717,7 @@ def regrid_dataset_via_cressman(
         input_dataset=src_ds,
         output_dataset=dst_ds,
         regridding_method="bilinear",  # THis doesn't matter if you provide the weights directly, but we need to specify something to initialize the regridder
-        weights_path=weights_path,
+        weights_path=weights_ds,
         write_to_file=write_to_file,  # We'll write the final regridded dataset at the end of this function
         output_path=output_path,
         reuse_weights=True,

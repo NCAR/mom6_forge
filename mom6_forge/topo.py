@@ -1059,7 +1059,17 @@ class Topo:
             )
             print(f"    likely provides benefit over xesmf regridding.")
         print(sep)
-        return bool(ratio_median >= CRESSMAN_THRESHOLD)
+
+        use_stats_depth = bool(ratio_median >= CRESSMAN_THRESHOLD)
+        if use_stats_depth and self.src.lon.sizes * self.src.lat.sizes > 1e6:
+            print(
+                f"\n  NOTE: Source dataset is large for this domain ({self.src.lon.sizes} x {self.src.lat.sizes} = {self.src.lon.sizes * self.src.lat.sizes} points)."
+            )
+            print(
+                "So we're turning off stats-based masking and Cressman interpolation to avoid long runtimes. If you would like this option in set_from_dataset(), please set mask_method='ocean_frac' and depth_method='cressman' explicitly in set_from_dataset()."
+            )
+            use_stats_depth = False
+        return use_stats_depth
 
     def generate_mask_from_stats_ocean_frac(
         self,
@@ -1244,7 +1254,11 @@ class Topo:
                 self.set_depth_from_stats(statistic="mean")
             elif depth_method == "cressman":
                 self.direct_cressman_interp(
-                    weights_path=Path(output_dir) / "cressman_weights.nc"
+                    weights_path=(
+                        Path(output_dir) / "cressman_weights.nc"
+                        if write_to_file
+                        else None
+                    )
                 )
             elif depth_method == "xesmf":
                 if use_stats_depth:
@@ -1275,7 +1289,11 @@ class Topo:
                     "Resolution diagnostics recommend using stats-based method, which we will set for depth as cressman method because no depth option was specified"
                 )
                 self.direct_cressman_interp(
-                    weights_path=Path(output_dir) / "cressman_weights.nc"
+                    weights_path=(
+                        Path(output_dir) / "cressman_weights.nc"
+                        if write_to_file
+                        else None
+                    )
                 )
 
         # Tidy the dataset (fill channels, is_input_positive_below_msl, etc...)
@@ -1446,7 +1464,7 @@ class Topo:
         estimates are never contaminated by land elevations.
 
         Weights are computed by :func:`~mom6_forge.mapping.compute_cressman_weights`,
-        saved to an ESMF-compatible netCDF, and applied through ``xe.Regridder`` —
+        optionally saved to an ESMF-compatible netCDF, and applied through ``xe.Regridder`` —
         all orchestrated by :func:`~mom6_forge.mapping.regrid_dataset_via_cressman`.
         Cells that receive no source coverage are filled by iterative neighbour
         averaging (up to 100 passes).
@@ -1458,12 +1476,9 @@ class Topo:
         cressman_exp : float
             Exponent for the Cressman weight function. Default ``2.0``.
         weights_path : str or Path or None
-            Where to save the ESMF weights netCDF. If ``None``, a file named
-            ``cressman_weights.nc`` is written next to the bathymetry file.
+            Where to save the ESMF weights netCDF. If ``None`` (default), the
+            weights are kept in memory and nothing is written.
         """
-        if weights_path is None:
-            weights_path = self.src.path.parent / "cressman_weights.nc"
-
         # --- Regrid via mapping module (weights → file → cressman Regridder) ---
 
         dst_ds = self._grid.get_esmf_ready_tracer_ds()
