@@ -1002,10 +1002,11 @@ class Topo:
         Returns
         -------
         bool
-            True if Cressman / stats-based masking is recommended (ratio >= 12x),
-            False otherwise.
+            True if Cressman / stats-based masking is recommended (ratio >= 12x
+            and the clipped source dataset has at most 1e6 points), False otherwise.
         """
         CRESSMAN_THRESHOLD = 12.0
+        MAX_CRESSMAN_SRC_POINTS = 1e6
 
         # --- Model T-cell spacing in meters ---
         # sqrt(tarea) gives the geometric mean cell spacing (equiv. to sqrt(dxt * dyt))
@@ -1045,7 +1046,26 @@ class Topo:
         print(f"    median = {ratio_median:.1f}x")
         print(f"    max    = {ratio_max:.1f}x")
         print(f"\n  Cressman / stats-mask threshold: {CRESSMAN_THRESHOLD:.0f}x")
-        if ratio_median >= CRESSMAN_THRESHOLD:
+        n_src_lon, n_src_lat = src.lon.size, src.lat.size
+        n_src = n_src_lon * n_src_lat
+        use_stats_depth = bool(ratio_median >= CRESSMAN_THRESHOLD)
+        if use_stats_depth and n_src > MAX_CRESSMAN_SRC_POINTS:
+            print(
+                f"  Ratio {ratio_median:.1f}x is above the threshold, but the source dataset"
+            )
+            print(
+                f"    is large for this domain ({n_src_lon} x {n_src_lat} = {n_src:,} points > {MAX_CRESSMAN_SRC_POINTS:,.0f})."
+            )
+            print(f"  → RECOMMENDED: direct_xesmf_regrid()  (bilinear / conservative)")
+            print(
+                f"    Stats-based masking and Cressman interpolation are turned off to avoid"
+            )
+            print(
+                f"    long runtimes. To use them anyway, pass mask_method='ocean_frac' and"
+            )
+            print(f"    depth_method='cressman' to set_from_dataset().")
+            use_stats_depth = False
+        elif use_stats_depth:
             print(f"  → RECOMMENDED: high_res_regrid()  (Cressman + stats mask)")
             print(
                 f"    Each model cell spans ~{ratio_median:.0f} dataset pixels per side."
@@ -1059,16 +1079,6 @@ class Topo:
             )
             print(f"    likely provides benefit over xesmf regridding.")
         print(sep)
-
-        use_stats_depth = bool(ratio_median >= CRESSMAN_THRESHOLD)
-        if use_stats_depth and self.src.lon.sizes * self.src.lat.sizes > 1e6:
-            print(
-                f"\n  NOTE: Source dataset is large for this domain ({self.src.lon.sizes} x {self.src.lat.sizes} = {self.src.lon.sizes * self.src.lat.sizes} points)."
-            )
-            print(
-                "So we're turning off stats-based masking and Cressman interpolation to avoid long runtimes. If you would like this option in set_from_dataset(), please set mask_method='ocean_frac' and depth_method='cressman' explicitly in set_from_dataset()."
-            )
-            use_stats_depth = False
         return use_stats_depth
 
     def generate_mask_from_stats_ocean_frac(
