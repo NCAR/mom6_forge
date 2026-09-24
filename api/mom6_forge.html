@@ -124,6 +124,7 @@
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#module-mom6_forge.topo">mom6_forge.topo module</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.topo.Topo"><code class="docutils literal notranslate"><span class="pre">Topo</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.topo.ww3_timesteps_from_spacing"><code class="docutils literal notranslate"><span class="pre">ww3_timesteps_from_spacing()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#module-mom6_forge.topo_editor">mom6_forge.topo_editor module</a><ul>
@@ -1835,6 +1836,11 @@ If version control is disabled, the command is executed directly without recordi
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.basintmask">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">basintmask</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.basintmask" title="Link to this definition"></a></dt>
 <dd><p>Ocean domain mask at T grid. Seperate number for each connected water cell, 0 if land.</p>
+<p>Labels are contiguous, starting at 1, and the basin of greatest total area
+carries the highest label. The remaining labels are in no particular order.</p>
+<p>On a zonally periodic grid (cyclic_x), the components touching the i=0 and
+i=nx-1 columns of a common row are merged, so a basin straddling the seam is
+labeled once rather than twice.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -1944,12 +1950,14 @@ averaging (up to 100 passes).</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.erase_disconnected_basin">
 <span class="sig-name descname"><span class="pre">erase_disconnected_basin</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.erase_disconnected_basin" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Erase every basin but the one containing cell (i, j). A no-op if that cell is land.</p>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.erase_selected_basin">
 <span class="sig-name descname"><span class="pre">erase_selected_basin</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.erase_selected_basin" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dd><p>Erase the basin containing cell (i, j). A no-op if that cell is land.</p>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.fill_inland_lakes_and_channels">
@@ -2080,6 +2088,16 @@ bathymetry object for use by this and other downstream methods.</p>
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.has_version_control">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">has_version_control</span></span><a class="headerlink" href="#mom6_forge.topo.Topo.has_version_control" title="Link to this definition"></a></dt>
 <dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.keep_largest_basin">
+<span class="sig-name descname"><span class="pre">keep_largest_basin</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.keep_largest_basin" title="Link to this definition"></a></dt>
+<dd><p>Remove every disconnected ocean basin except the largest one.</p>
+<p>Basins are the connected components of the ocean mask (4-connectivity, and
+wrapping in x when the grid is cyclic). basintmask gives the basin of greatest
+total area the highest label, so that one is kept and every other basin is
+masked out as land. This is a no-op when the domain holds at most one basin.</p>
+</dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.land_fillval">
@@ -2414,7 +2432,7 @@ channel_widths.write(channel_file_path).</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.write_ww3_input">
-<span class="sig-name descname"><span class="pre">write_ww3_input</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grid_alias</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">boundary_edges</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">open_boundary</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.write_ww3_input" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">write_ww3_input</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grid_alias</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">boundary_edges</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">open_boundary</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cpl_dt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1800.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.write_ww3_input" title="Link to this definition"></a></dt>
 <dd><p>Write the text-based WW3 input files ww3_grid.inp, [grid_alias]_x.inp, [grid_alias]_y.inp,
 [grid_alias]_mapsta.inp, [grid_alias]_bottom.inp, which are to be read by the WW3
 mod_def creator before runtime to generate the WW3 grid files.</p>
@@ -2436,6 +2454,8 @@ energy, so whatever generates the spectra should list the edges it
 covers.</p></li>
 <li><p><strong>open_boundary</strong> (<em>bool</em><em>, </em><em>optional</em>) – Deprecated; use boundary_edges. True is the default edge set,
 False is no edges.</p></li>
+<li><p><strong>cpl_dt</strong> (<em>float</em><em>, </em><em>optional</em>) – Wave coupling interval in seconds (WAV_NCPL), which the time steps
+are derived from. Defaults to the CESM value of 1800 s.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
@@ -2447,6 +2467,56 @@ False is no edges.</p></li>
 </dl>
 </dd></dl>
 
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.ww3_min_grid_spacing">
+<span class="sig-name descname"><span class="pre">ww3_min_grid_spacing</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.ww3_min_grid_spacing" title="Link to this definition"></a></dt>
+<dd><p>Smallest cell spacing on the grid, in meters.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.ww3_timesteps">
+<span class="sig-name descname"><span class="pre">ww3_timesteps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cpl_dt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1800.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.ww3_timesteps" title="Link to this definition"></a></dt>
+<dd><p>WW3 time steps for this grid.</p>
+<p>See <a class="reference internal" href="#mom6_forge.topo.ww3_timesteps_from_spacing" title="mom6_forge.topo.ww3_timesteps_from_spacing"><code class="xref py py-func docutils literal notranslate"><span class="pre">ww3_timesteps_from_spacing()</span></code></a> for the CFL reasoning.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>cpl_dt</strong> (<em>float</em><em>, </em><em>optional</em>) – Wave coupling interval in seconds (WAV_NCPL), 1800 s in CESM by
+default. <code class="docutils literal notranslate"><span class="pre">dtmax</span></code> is derived from it rather than taken as given.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mom6_forge.topo.ww3_timesteps_from_spacing">
+<span class="sig-prename descclassname"><span class="pre">mom6_forge.topo.</span></span><span class="sig-name descname"><span class="pre">ww3_timesteps_from_spacing</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">min_dx</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cpl_dt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_min</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.04118</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">safety</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.ww3_timesteps_from_spacing" title="Link to this definition"></a></dt>
+<dd><p>WW3 time steps (seconds) for a grid whose smallest cell is <code class="docutils literal notranslate"><span class="pre">min_dx</span></code> meters.</p>
+<p>Two constraints set the steps:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">dtcfl</span></code> bounds x-y propagation: <code class="docutils literal notranslate"><span class="pre">dtcfl</span> <span class="pre">&lt;=</span> <span class="pre">min_dx</span> <span class="pre">/</span> <span class="pre">Cg</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dtmax</span></code> is the global step, over which propagation and the source terms
+are applied in sequence. <code class="docutils literal notranslate"><span class="pre">dtmax</span></code> is chosen as the largest exact divisor
+of <code class="docutils literal notranslate"><span class="pre">cpl_dt</span></code> that meets the second constraint, so WW3 still lands on the
+coupling time without a short final step.</p></li>
+</ul>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>min_dx</strong> (<em>float</em>) – Smallest grid spacing in meters.</p></li>
+<li><p><strong>cpl_dt</strong> (<em>float</em>) – Wave coupling interval in seconds (WAV_NCPL).</p></li>
+<li><p><strong>f_min</strong> (<em>float</em><em>, </em><em>optional</em>) – Lowest frequency in the spectrum [Hz].</p></li>
+<li><p><strong>safety</strong> (<em>float</em><em>, </em><em>optional</em>) – Fraction of the bare CFL limit to use.</p></li>
+<li><p><strong>max_ratio</strong> (<em>int</em><em>, </em><em>optional</em>) – Most propagation sub-steps per global step.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">dtmax</span></code>, <code class="docutils literal notranslate"><span class="pre">dtcfl</span></code>, <code class="docutils literal notranslate"><span class="pre">dtcfli</span></code>, <code class="docutils literal notranslate"><span class="pre">dtmin</span></code> in seconds.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
 </dd></dl>
 
 </section>
