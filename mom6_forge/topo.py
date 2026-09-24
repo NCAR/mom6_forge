@@ -2324,10 +2324,16 @@ class Topo:
         # grid that crosses the dateline does not report a ~360 deg step.
         dlon = (np.diff(tlon, axis=1) + 180.0) % 360.0 - 180.0
         dx = haversine(
-            tlat[:, :-1], tlon[:, :-1], tlat[:, :-1], tlon[:, :-1] + dlon, _DEFAULT_RADIUS
+            tlat[:, :-1],
+            tlon[:, :-1],
+            tlat[:, :-1],
+            tlon[:, :-1] + dlon,
+            _DEFAULT_RADIUS,
         )
         # Meridional neighbours (j, j+1).
-        dy = haversine(tlat[:-1, :], tlon[:-1, :], tlat[1:, :], tlon[:-1, :], _DEFAULT_RADIUS)
+        dy = haversine(
+            tlat[:-1, :], tlon[:-1, :], tlat[1:, :], tlon[:-1, :], _DEFAULT_RADIUS
+        )
 
         spacings = np.concatenate([dx.ravel(), dy.ravel()])
         spacings = spacings[np.isfinite(spacings) & (spacings > 0.0)]
