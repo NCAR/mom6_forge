@@ -1006,7 +1006,7 @@ class Topo:
             and the clipped source dataset has at most 1e6 points), False otherwise.
         """
         CRESSMAN_THRESHOLD = 12.0
-        MAX_CRESSMAN_SRC_POINTS = 1e6
+        MAX_CRESSMAN_SRC_POINTS = 2e6
 
         # --- Model T-cell spacing in meters ---
         # sqrt(tarea) gives the geometric mean cell spacing (equiv. to sqrt(dxt * dyt))
