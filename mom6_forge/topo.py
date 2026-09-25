@@ -8,6 +8,8 @@ from datetime import datetime
 from typing import Optional
 from scipy import interpolate
 from scipy.ndimage import label, binary_fill_holes
+from scipy.sparse import coo_matrix
+from scipy.sparse.csgraph import connected_components
 from scipy.spatial import cKDTree
 from mom6_forge.utils import cell_area_rad, iterative_fill, compute_subsampling_factor
 from mom6_forge.grid import Grid
@@ -28,6 +30,91 @@ from mom6_forge._supergrid import _DEFAULT_RADIUS, SupergridBase
 
 VALID_MASK_METHODS = ("naturalearth", "ocean_frac", "dataset", "manual")
 VALID_DEPTH_METHODS = ("stats", "cressman", "xesmf")
+
+# WW3 spectral discretization written into ww3_grid.inp.
+WW3_NK = 25  # number of frequencies (wavenumbers)
+WW3_NTH = 24  # number of directions
+WW3_F1 = 0.04118  # lowest frequency [Hz]
+WW3_FREQ_FACTOR = 1.1  # frequency increment factor
+WW3_CFL_SAFETY = 0.8  # fraction of the CFL limit to actually use
+WW3_MAX_DT_RATIO = 4  # most propagation sub-steps to take per global step
+# Wavenumbers of the partitioned surface Stokes drift bands WW3 sends.
+# TODO: MOM6 applies its own copy of these (SURFBAND_WAVENUMBERS in CESM's
+# MOM_input.yaml) to the bands that arrive and never sees the list below, so if
+# CESM retunes them this one goes stale with no error anywhere -- just a wrong
+# Stokes profile. Read them off the CESM in use instead of keeping a copy.
+WW3_STOKES_WAVENUMBERS = (0.04, 0.11, 0.33)  # [rad m-1]
+# Sea-ice dissipation method (IC4), as in CESM's own WW3 grids
+# (grid_inp.wgx3v7.260527): the Meylan, Horvat & Bitz (2021) fit in ice
+# thickness and floe size. Without it WW3 uses method 1, an empirical fit whose
+# first coefficient the CESM cap fills with the ice thickness.
+WW3_IC4_METHOD = 10
+_GRAVITY = 9.81  # [m s-2]
+
+
+def ww3_timesteps_from_spacing(
+    min_dx,
+    cpl_dt,
+    f_min=WW3_F1,
+    safety=WW3_CFL_SAFETY,
+    max_ratio=WW3_MAX_DT_RATIO,
+):
+    """WW3 time steps (seconds) for a grid whose smallest cell is ``min_dx`` meters.
+
+    Two constraints set the steps:
+
+    * ``dtcfl`` bounds x-y propagation: ``dtcfl <= min_dx / Cg``.
+    * ``dtmax`` is the global step, over which propagation and the source terms
+      are applied in sequence. ``dtmax`` is chosen as the largest exact divisor
+      of ``cpl_dt`` that meets the second constraint, so WW3 still lands on the
+      coupling time without a short final step.
+
+    Parameters
+    ----------
+    min_dx: float
+        Smallest grid spacing in meters.
+    cpl_dt: float
+        Wave coupling interval in seconds (WAV_NCPL).
+    f_min: float, optional
+        Lowest frequency in the spectrum [Hz].
+    safety: float, optional
+        Fraction of the bare CFL limit to use.
+    max_ratio: int, optional
+        Most propagation sub-steps per global step.
+
+    Returns
+    -------
+    dict
+        ``dtmax``, ``dtcfl``, ``dtcfli``, ``dtmin`` in seconds.
+    """
+    if min_dx <= 0:
+        raise ValueError(f"min_dx must be positive, got {min_dx}")
+    if cpl_dt <= 0:
+        raise ValueError(f"cpl_dt must be positive, got {cpl_dt}")
+    if max_ratio < 1:
+        raise ValueError(f"max_ratio must be at least 1, got {max_ratio}")
+
+    cg_max = _GRAVITY / (4.0 * np.pi * f_min)  # deep-water group velocity [m/s]
+    dtcfl_limit = safety * min_dx / cg_max
+
+    # Split the coupling interval into n_global equal steps, taking the fewest
+    # that keep the propagation sub-steps within max_ratio. n_sub falls to 1
+    # once dtmax drops below dtcfl_limit, so this always terminates.
+    n_global = 1
+    while True:
+        dtmax = cpl_dt / n_global
+        n_sub = int(np.ceil(dtmax / dtcfl_limit))
+        if n_sub <= max_ratio:
+            break
+        n_global += 1
+    dtcfl = dtmax / n_sub
+
+    return {
+        "dtmax": float(dtmax),
+        "dtcfl": float(dtcfl),
+        "dtcfli": float(dtcfl),
+        "dtmin": float(min(10.0, dtcfl / 10.0)),
+    }
 
 
 class Topo:
@@ -512,10 +599,60 @@ class Topo:
     def basintmask(self):
         """
         Ocean domain mask at T grid. Seperate number for each connected water cell, 0 if land.
+
+        Labels are contiguous, starting at 1, and the basin of greatest total area
+        carries the highest label. The remaining labels are in no particular order.
+
+        On a zonally periodic grid (cyclic_x), the components touching the i=0 and
+        i=nx-1 columns of a common row are merged, so a basin straddling the seam is
+        labeled once rather than twice.
         """
         res, num_features = label(self.tmask)
 
+        if num_features > 1:
+            if self._grid.cyclic_x:
+                res = self._merge_basins_across_cyclic_seam(res, num_features)
+            res = self._promote_largest_basin(res)
+
         return xr.DataArray(res)
+
+    def _promote_largest_basin(self, basins):
+        """
+        Relabel so that the basin of greatest total area carries the highest label.
+
+        Only that one label moves: it trades places with whichever basin holds the
+        highest label, leaving every other basin where it is. Land stays 0.
+        """
+        areas = np.bincount(basins.ravel(), weights=self._grid.tarea.data.ravel())
+        areas[0] = 0.0  # land is not a basin, so it can never be the largest
+        largest = int(np.argmax(areas))
+        highest = areas.size - 1  # labels are contiguous, so this is the last one
+
+        if largest == highest:
+            return basins  # already there, no relabeling needed
+
+        swap = np.arange(areas.size, dtype=basins.dtype)
+        swap[[largest, highest]] = [highest, largest]
+        return swap[basins]
+
+    @staticmethod
+    def _merge_basins_across_cyclic_seam(basins, num_features):
+        """
+        Give a common label to the basins that meet across the i=0 / i=nx-1 seam.
+
+        Takes the labels from scipy.ndimage.label and treats each ocean pair at the
+        two ends of a row as an edge between their labels, so the connected components
+        of that graph are the basins of the periodic domain. Land is label 0 and has
+        no edges, so it stays 0, and the merged labels come back contiguous.
+        """
+        west, east = basins[:, 0], basins[:, -1]
+        seam = (west > 0) & (east > 0)
+        joined = coo_matrix(
+            (np.ones(seam.sum()), (west[seam], east[seam])),
+            shape=(num_features + 1, num_features + 1),
+        )
+        _, merged = connected_components(joined, directed=False)
+        return merged[basins]
 
     @property
     def supergridmask(self):
@@ -1641,27 +1778,64 @@ class Topo:
         # Reset the mask through Mask Edit
         self.user_mask = ocean_mask
 
-    def erase_selected_basin(self, i, j):
-        label = self.basintmask.data[j, i]
-        affected = np.where(self.basintmask.data == label)
-        indices = list(zip(affected[0], affected[1]))
+    def _erase_ocean_cells(self, doomed, message="Mask Edit"):
+        """
+        Mask out (turn to land) the cells flagged in the boolean array `doomed`.
+
+        Only ocean cells may be flagged, so that the edit records an old mask value
+        of 1. Leaving land out also keeps the command proportional to the area
+        erased rather than to the size of the domain.
+        """
+        indices = [tuple(idx) for idx in np.argwhere(doomed)]
         if not indices:
-            return
-        old_values = [self.tmask.data[jj, ii] for jj, ii in indices]
-        new_values = [0] * len(indices)
-        cmd = MaskEditCommand(self, indices, new_values, old_values=old_values)
+            return  # nothing to erase
+
+        cmd = MaskEditCommand(
+            self,
+            indices,
+            [0] * len(indices),
+            old_values=[1] * len(indices),
+            message=message,
+        )
         self.apply_edit(cmd)
 
+    def erase_selected_basin(self, i, j):
+        """
+        Erase the basin containing cell (i, j). A no-op if that cell is land.
+        """
+        basins = self.basintmask.data
+        selected = basins[j, i]
+        if selected == 0:
+            return  # land cell: no basin to erase
+        self._erase_ocean_cells(basins == selected, message="Erase selected basin")
+
     def erase_disconnected_basin(self, i, j):
-        label = self.basintmask.data[j, i]
-        affected = np.where(self.basintmask.data != label)
-        indices = list(zip(affected[0], affected[1]))
-        if not indices:
-            return
-        old_values = [self.tmask.data[jj, ii] for jj, ii in indices]
-        new_values = [0] * len(indices)
-        cmd = MaskEditCommand(self, indices, new_values, old_values=old_values)
-        self.apply_edit(cmd)
+        """
+        Erase every basin but the one containing cell (i, j). A no-op if that cell is land.
+        """
+        basins = self.basintmask.data
+        selected = basins[j, i]
+        if selected == 0:
+            return  # land cell: no basin to keep
+        self._erase_ocean_cells(
+            (basins != selected) & (basins > 0), message="Erase disconnected basins"
+        )
+
+    def keep_largest_basin(self):
+        """
+        Remove every disconnected ocean basin except the largest one.
+
+        Basins are the connected components of the ocean mask (4-connectivity, and
+        wrapping in x when the grid is cyclic). basintmask gives the basin of greatest
+        total area the highest label, so that one is kept and every other basin is
+        masked out as land. This is a no-op when the domain holds at most one basin.
+        """
+        basins = self.basintmask.data
+        largest = basins.max()  # 0 if the domain is all land, flagging nothing below
+
+        self._erase_ocean_cells(
+            (basins != largest) & (basins > 0), message="Keep largest basin"
+        )
 
     def apply_ridge(self, height, width, lon, ilat):
         """
@@ -2171,8 +2345,52 @@ class Topo:
         mapsta[is_boundary & (tmask == 1)] = 2
         return mapsta
 
+    def ww3_min_grid_spacing(self):
+        """Smallest cell spacing on the grid, in meters."""
+        tlon = self._grid.tlon.data
+        tlat = self._grid.tlat.data
+
+        # Zonal neighbours (i, i+1); the longitude difference is wrapped so a
+        # grid that crosses the dateline does not report a ~360 deg step.
+        dlon = (np.diff(tlon, axis=1) + 180.0) % 360.0 - 180.0
+        dx = haversine(
+            tlat[:, :-1],
+            tlon[:, :-1],
+            tlat[:, :-1],
+            tlon[:, :-1] + dlon,
+            _DEFAULT_RADIUS,
+        )
+        # Meridional neighbours (j, j+1).
+        dy = haversine(
+            tlat[:-1, :], tlon[:-1, :], tlat[1:, :], tlon[:-1, :], _DEFAULT_RADIUS
+        )
+
+        spacings = np.concatenate([dx.ravel(), dy.ravel()])
+        spacings = spacings[np.isfinite(spacings) & (spacings > 0.0)]
+        if spacings.size == 0:
+            raise ValueError("Could not determine grid spacing for WW3 time steps.")
+        return float(spacings.min())
+
+    def ww3_timesteps(self, cpl_dt=1800.0):
+        """WW3 time steps for this grid.
+
+        See :func:`ww3_timesteps_from_spacing` for the CFL reasoning.
+
+        Parameters
+        ----------
+        cpl_dt: float, optional
+            Wave coupling interval in seconds (WAV_NCPL), 1800 s in CESM by
+            default. ``dtmax`` is derived from it rather than taken as given.
+        """
+        return ww3_timesteps_from_spacing(self.ww3_min_grid_spacing(), cpl_dt)
+
     def write_ww3_input(
-        self, file_dir, grid_alias, boundary_edges=None, open_boundary=None
+        self,
+        file_dir,
+        grid_alias,
+        boundary_edges=None,
+        open_boundary=None,
+        cpl_dt=1800.0,
     ):
         """
         Write the text-based WW3 input files ww3_grid.inp, [grid_alias]_x.inp, [grid_alias]_y.inp,
@@ -2200,6 +2418,9 @@ class Topo:
         open_boundary: bool, optional
             Deprecated; use boundary_edges. True is the default edge set,
             False is no edges.
+        cpl_dt: float, optional
+            Wave coupling interval in seconds (WAV_NCPL), which the time steps
+            are derived from. Defaults to the CESM value of 1800 s.
 
         Raises
         ------
@@ -2287,18 +2508,17 @@ class Topo:
             )
             grid_name = grid_alias.ljust(30)[:30]
             f.write(f"  '{grid_name}'\n")
-            # TODO: frequency/direction counts, model flags, and timesteps below
-            # are copied from the ww3a reference grid. Parameterize when this
-            # method is used for grids with different resolution or physics.
-            nk = 25  # number of frequencies (wavenumbers)
-            nth = 24  # number of directions
+            nk = WW3_NK  # number of frequencies (wavenumbers)
+            nth = WW3_NTH  # number of directions
+            dt = self.ww3_timesteps(cpl_dt)
+            stk_wn = ", ".join(f"{k}" for k in WW3_STOKES_WAVENUMBERS)
             f.write(
                 "$\n"
                 "$ Frequency increment factor and first frequency (Hz) ---------------- $\n"
                 "$ number of frequencies (wavenumbers) and directions, relative offset\n"
                 "$ of first direction in terms of the directional increment [-0.5,0.5].\n"
                 "$\n"
-                f"  1.1  0.04118  {nk}  {nth}  0.0\n"
+                f"  {WW3_FREQ_FACTOR}  {WW3_F1}  {nk}  {nth}  0.0\n"
                 "$\n"
                 "$ Set model flags ---------------------------------------------------- $\n"
                 "$  - FLDRY         Dry run (input/output only, no calculation).\n"
@@ -2312,12 +2532,55 @@ class Topo:
                 "$     maximum global time step, maximum CFL time step for x-y and\n"
                 "$     k-theta, minimum source term time step (all in seconds).\n"
                 "$\n"
-                "  600.00  300.00  300.00   30.00\n"
+                f"  {dt['dtmax']:.2f}  {dt['dtcfl']:.2f}  {dt['dtcfli']:.2f}  {dt['dtmin']:.2f}\n"
                 "$\n"
                 "$ Start of namelist input section ------------------------------------ $\n"
                 "$\n"
+                "$ Gridded output selection ------------------------------------------- $\n"
+                "$  - E3D          1-D frequency spectrum over bins I1E3D..I2E3D.\n"
+                "$  - USSP/IUSSP   Export the surface Stokes drift split into this many\n"
+                "$                 bands. MOM6 reads them when WAVE_METHOD is\n"
+                "$                 SURFACE_BANDS; the legacy EFACTOR method ignores them.\n"
+                "$  - STK_WN       Central wavenumbers of those bands. These must match\n"
+                "$                 MOM6's SURFBAND_WAVENUMBERS.\n"
+                "$  - STK_TAIL     Fold the high-frequency tail into the last band.\n"
+                "$\n"
                 "&OUTS\n"
                 f"  E3D = 1, I1E3D = 1, I2E3D = {nk}\n"
+                f"  USSP = 1, IUSSP = {len(WW3_STOKES_WAVENUMBERS)}, STK_TAIL = T\n"
+                f"  STK_WN = {stk_wn}\n"
+                "/\n"
+                "$\n"
+                "$ Li et al. (2016) Langmuir mixing parameterization ------------------- $\n"
+                "$  - LMPENABLED    Accumulate the surface-layer averaged Stokes drift\n"
+                "$                  (USSHX/USSHY), and with it the Langmuir multiplier\n"
+                "$                  Sw_lamult, which stays 1 everywhere without it. Only\n"
+                "$                  the legacy EFACTOR coupling reads Sw_lamult; under\n"
+                "$                  SURFACE_BANDS MOM6 gets the Langmuir number from the\n"
+                "$                  Stokes bands instead.\n"
+                "$  - SDTAIL        Include the high-frequency tail in the Stokes drift.\n"
+                "$  - HSLMODE       1 = surface layer depth from the coupler boundary\n"
+                "$                  layer depth; 0 = constant 10 m (testing only).\n"
+                "$\n"
+                "&LMPN\n"
+                "  LMPENABLED = T, SDTAIL = T, HSLMODE = 1\n"
+                "/\n"
+                "$\n"
+                "$ Sea-ice dissipation, as in CESM's own WW3 grids -------------------- $\n"
+                "$  - IC4METHOD     10 = Meylan, Horvat & Bitz (2021) fit in ice\n"
+                "$                  thickness and floe size, floored at 0.1 m and a\n"
+                "$                  2.5 m floe radius, so ice without them (DICE)\n"
+                "$                  still dissipates. The default, 1, is an empirical\n"
+                "$                  fit whose first coefficient the CESM cap fills\n"
+                "$                  with the ice thickness.\n"
+                "$  - ICNUMERICS    Add the ice term to the other source terms,\n"
+                "$                  scaled by ice concentration.\n"
+                "$\n"
+                "&SIC4\n"
+                f"  IC4METHOD = {WW3_IC4_METHOD}\n"
+                "/\n"
+                "&MISC\n"
+                "  ICNUMERICS = T\n"
                 "/\n"
                 "\n"
                 "END OF NAMELISTS\n"

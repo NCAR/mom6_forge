@@ -3,6 +3,8 @@
 import numpy as np
 import pytest
 
+from mom6_forge.topo import WW3_IC4_METHOD, WW3_STOKES_WAVENUMBERS
+
 WW3_FILE_SUFFIXES = ("_x.inp", "_y.inp", "_bottom.inp", "_mapsta.inp")
 
 
@@ -64,6 +66,21 @@ def test_write_ww3_input_grid_control_file(get_rect_topo_without_vc, tmp_path):
     # References each generated data file.
     for suffix in WW3_FILE_SUFFIXES:
         assert f"{alias}{suffix}" in text
+
+
+def test_write_ww3_input_stokes_bands(get_rect_topo_without_vc, tmp_path):
+    """The &OUTS namelist has to ask WW3 for the partitioned Stokes drift that
+    MOM6's SURFACE_BANDS coupling expects, on the wavenumbers MOM6 will apply."""
+    topo = get_rect_topo_without_vc
+
+    topo.write_ww3_input(tmp_path, grid_alias=topo._grid.name)
+    text = (tmp_path / "ww3_grid.inp").read_text()
+
+    # Both caps size the Sw_pstokes field for 3 bands.
+    assert len(WW3_STOKES_WAVENUMBERS) == 3
+    assert f"USSP = 1, IUSSP = {len(WW3_STOKES_WAVENUMBERS)}" in text
+    assert "STK_TAIL = T" in text
+    assert "STK_WN = " + ", ".join(str(k) for k in WW3_STOKES_WAVENUMBERS) in text
 
 
 def test_write_ww3_input_masked_cells_are_land(get_rect_topo_without_vc, tmp_path):
@@ -320,3 +337,99 @@ def test_write_ww3_input_after_reconstruction_from_files(
     ycoord = np.loadtxt(out_dir / f"{alias}_y.inp")
     assert np.allclose(xcoord, topo._grid.tlon.data)
     assert np.allclose(ycoord, topo._grid.tlat.data)
+
+
+# --- WW3 time steps ---------------------------------------------------------
+
+
+@pytest.mark.parametrize("min_dx", [2_000.0, 5_000.0, 10_952.0, 50_000.0])
+@pytest.mark.parametrize("cpl_dt", [900.0, 1800.0, 3600.0])
+def test_ww3_timesteps_from_spacing_properties(min_dx, cpl_dt):
+    """The steps must respect propagation CFL on the smallest cell, and dtmax
+    must land exactly on the coupling time."""
+    from mom6_forge.topo import (
+        WW3_CFL_SAFETY,
+        WW3_F1,
+        WW3_MAX_DT_RATIO,
+        ww3_timesteps_from_spacing,
+    )
+
+    dt = ww3_timesteps_from_spacing(min_dx, cpl_dt)
+    cg_max = 9.81 / (
+        4.0 * np.pi * WW3_F1
+    )  # deep-water group velocity, lowest frequency
+
+    assert dt["dtcfl"] <= WW3_CFL_SAFETY * min_dx / cg_max * (1 + 1e-12)
+    n_global = cpl_dt / dt["dtmax"]
+    assert n_global == pytest.approx(round(n_global))
+    n_sub = dt["dtmax"] / dt["dtcfl"]
+    assert n_sub == pytest.approx(round(n_sub))
+    assert 1 <= round(n_sub) <= WW3_MAX_DT_RATIO
+    assert dt["dtcfli"] == dt["dtcfl"]
+    assert dt["dtmin"] == pytest.approx(min(10.0, dt["dtcfl"] / 10.0))
+
+
+def test_ww3_timesteps_from_spacing_coarse_grid_takes_one_step():
+    """When the CFL limit exceeds the coupling interval, one global step and one
+    propagation step cover it."""
+    from mom6_forge.topo import ww3_timesteps_from_spacing
+
+    dt = ww3_timesteps_from_spacing(100_000.0, 1800.0)
+    assert dt["dtmax"] == dt["dtcfl"] == 1800.0
+
+
+@pytest.mark.parametrize(
+    "kwargs, match",
+    [
+        (dict(min_dx=0.0, cpl_dt=1800.0), "min_dx"),
+        (dict(min_dx=5000.0, cpl_dt=-1.0), "cpl_dt"),
+        (dict(min_dx=5000.0, cpl_dt=1800.0, max_ratio=0), "max_ratio"),
+    ],
+)
+def test_ww3_timesteps_from_spacing_rejects_bad_input(kwargs, match):
+    from mom6_forge.topo import ww3_timesteps_from_spacing
+
+    with pytest.raises(ValueError, match=match):
+        ww3_timesteps_from_spacing(**kwargs)
+
+
+def test_write_ww3_input_time_steps_follow_the_grid(get_rect_topo_without_vc, tmp_path):
+    """ww3_grid.inp carries the steps derived from this grid's smallest cell and
+    the given coupling interval, not fixed values."""
+    topo = get_rect_topo_without_vc
+    grid = topo._grid
+    smallest = min(float(np.min(grid.dxt)), float(np.min(grid.dyt)))
+    assert topo.ww3_min_grid_spacing() == pytest.approx(smallest, rel=1e-3)
+
+    dt = topo.ww3_timesteps(3600.0)
+    topo.write_ww3_input(tmp_path, grid_alias=grid.name, cpl_dt=3600.0)
+    text = (tmp_path / "ww3_grid.inp").read_text()
+    assert (
+        f"  {dt['dtmax']:.2f}  {dt['dtcfl']:.2f}  {dt['dtcfli']:.2f}  {dt['dtmin']:.2f}"
+        in text
+    )
+
+
+def test_write_ww3_input_enables_langmuir_mixing(get_rect_topo_without_vc, tmp_path):
+    """Without &LMPN, WW3 never accumulates the surface-layer Stokes drift and the
+    coupler's Langmuir multiplier is 1 everywhere."""
+    topo = get_rect_topo_without_vc
+    topo.write_ww3_input(tmp_path, grid_alias=topo._grid.name)
+    text = (tmp_path / "ww3_grid.inp").read_text()
+    assert "&LMPN" in text
+    assert "LMPENABLED = T" in text
+
+
+def test_write_ww3_input_sets_ice_dissipation(get_rect_topo_without_vc, tmp_path):
+    """Without &SIC4, WW3 uses IC4 method 1, whose first coefficient the CESM cap
+    fills with the ice thickness: waves die within a cell of thin CICE ice, and
+    DICE ice (no thickness) does not damp them at all. Write what CESM's own
+    grids use instead, inside the namelist section."""
+    topo = get_rect_topo_without_vc
+    topo.write_ww3_input(tmp_path, grid_alias=topo._grid.name)
+    namelists = (tmp_path / "ww3_grid.inp").read_text().split("END OF NAMELISTS")[0]
+
+    # grid_inp.wgx3v7.260527 in CESM inputdata.
+    assert WW3_IC4_METHOD == 10
+    assert f"&SIC4\n  IC4METHOD = {WW3_IC4_METHOD}\n/" in namelists
+    assert "&MISC\n  ICNUMERICS = T\n/" in namelists
