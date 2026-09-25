@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from mom6_forge.topo import WW3_STOKES_WAVENUMBERS
+from mom6_forge.topo import WW3_IC4_METHOD, WW3_STOKES_WAVENUMBERS
 
 WW3_FILE_SUFFIXES = ("_x.inp", "_y.inp", "_bottom.inp", "_mapsta.inp")
 
@@ -418,3 +418,18 @@ def test_write_ww3_input_enables_langmuir_mixing(get_rect_topo_without_vc, tmp_p
     text = (tmp_path / "ww3_grid.inp").read_text()
     assert "&LMPN" in text
     assert "LMPENABLED = T" in text
+
+
+def test_write_ww3_input_sets_ice_dissipation(get_rect_topo_without_vc, tmp_path):
+    """Without &SIC4, WW3 uses IC4 method 1, whose first coefficient the CESM cap
+    fills with the ice thickness: waves die within a cell of thin CICE ice, and
+    DICE ice (no thickness) does not damp them at all. Write what CESM's own
+    grids use instead, inside the namelist section."""
+    topo = get_rect_topo_without_vc
+    topo.write_ww3_input(tmp_path, grid_alias=topo._grid.name)
+    namelists = (tmp_path / "ww3_grid.inp").read_text().split("END OF NAMELISTS")[0]
+
+    # grid_inp.wgx3v7.260527 in CESM inputdata.
+    assert WW3_IC4_METHOD == 10
+    assert f"&SIC4\n  IC4METHOD = {WW3_IC4_METHOD}\n/" in namelists
+    assert "&MISC\n  ICNUMERICS = T\n/" in namelists

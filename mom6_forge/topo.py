@@ -44,6 +44,11 @@ WW3_MAX_DT_RATIO = 4  # most propagation sub-steps to take per global step
 # CESM retunes them this one goes stale with no error anywhere -- just a wrong
 # Stokes profile. Read them off the CESM in use instead of keeping a copy.
 WW3_STOKES_WAVENUMBERS = (0.04, 0.11, 0.33)  # [rad m-1]
+# Sea-ice dissipation method (IC4), as in CESM's own WW3 grids
+# (grid_inp.wgx3v7.260527): the Meylan, Horvat & Bitz (2021) fit in ice
+# thickness and floe size. Without it WW3 uses method 1, an empirical fit whose
+# first coefficient the CESM cap fills with the ice thickness.
+WW3_IC4_METHOD = 10
 _GRAVITY = 9.81  # [m s-2]
 
 
@@ -2534,6 +2539,23 @@ class Topo:
                 "$\n"
                 "&LMPN\n"
                 "  LMPENABLED = T, SDTAIL = T, HSLMODE = 1\n"
+                "/\n"
+                "$\n"
+                "$ Sea-ice dissipation, as in CESM's own WW3 grids -------------------- $\n"
+                "$  - IC4METHOD     10 = Meylan, Horvat & Bitz (2021) fit in ice\n"
+                "$                  thickness and floe size, floored at 0.1 m and a\n"
+                "$                  2.5 m floe radius, so ice without them (DICE)\n"
+                "$                  still dissipates. The default, 1, is an empirical\n"
+                "$                  fit whose first coefficient the CESM cap fills\n"
+                "$                  with the ice thickness.\n"
+                "$  - ICNUMERICS    Add the ice term to the other source terms,\n"
+                "$                  scaled by ice concentration.\n"
+                "$\n"
+                "&SIC4\n"
+                f"  IC4METHOD = {WW3_IC4_METHOD}\n"
+                "/\n"
+                "&MISC\n"
+                "  ICNUMERICS = T\n"
                 "/\n"
                 "\n"
                 "END OF NAMELISTS\n"
