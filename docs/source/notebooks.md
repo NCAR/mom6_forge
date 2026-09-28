@@ -11,4 +11,5 @@ notebooks/5_modify_existing
 notebooks/6_coarsen_existing
 notebooks/7_demo_editors
 notebooks/8_cressman_interpolation
+notebooks/9_corner_grid_sketcher
 ```

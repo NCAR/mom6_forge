@@ -60,6 +60,14 @@ mom6\_forge.grid\_creator module
    :undoc-members:
    :show-inheritance:
 
+mom6\_forge.grid\_sketcher module
+-----------------------------------
+
+.. automodule:: mom6_forge.grid_sketcher
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 mom6\_forge.mapping module
 --------------------------
 
