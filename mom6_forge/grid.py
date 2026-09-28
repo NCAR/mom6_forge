@@ -1,5 +1,7 @@
 import os
 import copy
+import json
+from dataclasses import asdict
 from typing import Optional
 import numpy as np
 import xarray as xr
@@ -104,6 +106,9 @@ class Grid:
         T-cell area
 
     """
+
+    #: lon, lat, corners, projection and resolution_km of a from_outline grid, or None
+    outline = None
 
     def __init__(
         self,
@@ -611,6 +616,117 @@ class Grid:
         return Grid.from_supergrid_ds(sg.to_ds(), name=name)
 
     @classmethod
+    def from_lonlat_arrays(
+        cls, lon, lat, name=None, grid_type=None, dx_dy_calc_type="haversine"
+    ):
+        """Create a Grid from supergrid node longitudes and latitudes.
+
+        Parameters
+        ----------
+        lon, lat : numpy.ndarray
+            Supergrid nodes in degrees, shape (2 ny + 1, 2 nx + 1), axis 0 south to north.
+        name : str, optional
+            Name of the grid.
+        grid_type : str, optional
+            Type of grid, e.g. "conformal_orthogonal".
+        dx_dy_calc_type : {"haversine", "smallangle"}, optional
+            How dx and dy are computed.
+
+        Returns
+        -------
+        Grid
+            The grid on those nodes.
+        """
+        sg = SupergridBase._init_from_xy(
+            lon, lat, grid_type, dx_dy_calc_type=dx_dy_calc_type
+        )
+        return Grid.from_supergrid_ds(sg.to_ds(), name=name)
+
+    @classmethod
+    def from_outline(
+        cls,
+        lon,
+        lat,
+        corners=None,
+        resolution_km=None,
+        n_cells=None,
+        projection="auto",
+        name=None,
+    ):
+        """Create a conformal orthogonal Grid from a polygon outline and 4 corners.
+
+        This is `GridSketcher`'s Build without the widget.
+
+        Parameters
+        ----------
+        lon, lat : array_like
+            Outline vertices (not closed), degrees; at least 4.
+        corners : list of int, optional
+            The 4 corner vertex indices, in any order; needed for more than 4 vertices.
+        resolution_km : float, optional
+            Nominal resolution: the edge of a square cell with the mean cell area, km.
+        n_cells : int, optional
+            Target cell count nx * ny, instead of `resolution_km` (default 10,000).
+        projection : str or MapProjection, optional
+            "auto" (or None): the kind whose cells vary least in size, as
+            `corner_diagnostics.size_ratios` finds and `GridSketcher` recommends; a kind
+            ("lcc", "merc", "tmerc", "stere") centred on the outline; or a
+            `MapProjection`.
+        name : str, optional
+            Name of the grid.
+
+        Returns
+        -------
+        Grid
+            A "conformal_orthogonal" grid whose ``outline`` attribute (``lon, lat,
+            corners, projection, resolution_km``) lets `GridSketcher` reopen it.
+
+        Raises
+        ------
+        ValueError
+            For both `resolution_km` and `n_cells`, missing corners, or an outline or
+            projection the solver rejects.
+        """
+        from mom6_forge import _conformal as cf
+        from mom6_forge.corner_diagnostics import size_ratios
+
+        if corners is None and len(lon) != 4:
+            raise ValueError(
+                f"corners must be given explicitly for a {len(lon)}-vertex "
+                "outline (only a 4-vertex outline has an unambiguous default)"
+            )
+        if resolution_km is not None and n_cells is not None:
+            raise ValueError("give resolution_km or n_cells, not both")
+        corners = [0, 1, 2, 3] if corners is None else list(corners)
+        if projection in (None, "auto"):
+            ratios = size_ratios(lon, lat, corners)
+            # If no kind works, the solve below says why
+            projection = min(ratios, key=ratios.get, default="auto")
+        if n_cells is None:
+            n_cells = 10_000
+            if resolution_km is not None:
+                n_cells = cf.n_cells_for_resolution(lon, lat, resolution_km)
+        cg = cf.solve(lon, lat, corners, n_cells=n_cells, projection=projection)
+        return cls._from_conformal(cg, lon, lat, corners, resolution_km, name=name)
+
+    @classmethod
+    def _from_conformal(cls, cg, lon, lat, corners, resolution_km, name=None):
+        """Wrap a solved ConformalGrid; ``outline`` keeps the outline as given."""
+        from mom6_forge import _conformal as cf
+
+        grid = cls.from_lonlat_arrays(
+            cg.lon, cg.lat, name=name, grid_type="conformal_orthogonal"
+        )
+        if resolution_km is None:
+            resolution_km = cf.nominal_resolution_km(cg)
+        # Plain floats and ints, so write_supergrid can store it as JSON
+        grid.outline = dict(lon=[float(v) for v in lon], lat=[float(v) for v in lat])
+        grid.outline.update(corners=[int(c) for c in corners])
+        grid.outline.update(projection=asdict(cg.projection))
+        grid.outline.update(resolution_km=float(resolution_km))
+        return grid
+
+    @classmethod
     def from_supergrid(cls, path: str, name: Optional[str] = None) -> "Grid":
         """Create a Grid instance from a supergrid file.
 
@@ -696,6 +812,10 @@ class Grid:
 
         # update the MOM6 grid metrics based on the supergrid data
         obj._compute_MOM6_grid_metrics()
+
+        # Restore the outline of a grid built from one (see write_supergrid).
+        if "outline" in ds.attrs:
+            obj.outline = json.loads(ds.attrs["outline"])
 
         return obj
 
@@ -1110,6 +1230,8 @@ class Grid:
 
         ds = self.supergrid.to_ds(name=self.name, author=author)
         ds.attrs["filename"] = os.path.basename(path)
+        if self.outline is not None:
+            ds.attrs["outline"] = json.dumps(self.outline)
         ds.to_netcdf(path, format="NETCDF3_64BIT")
         return ds
 

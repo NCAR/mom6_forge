@@ -1,3 +1,4 @@
+import json
 import numpy as np
 import pytest
 from pathlib import Path
@@ -536,3 +537,10 @@ def get_dateline_seam_grid():
         name="dateline_seam",
     )
     return grid
+
+
+@pytest.fixture(scope="session")
+def get_california():
+    """The California bays outline (lon, lat, corners) that the notebooks also use."""
+    path = Path(__file__).parent / "data" / "california_bays.outline.json"
+    return json.loads(path.read_text())["outline"]
