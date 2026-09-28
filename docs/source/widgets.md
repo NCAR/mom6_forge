@@ -198,6 +198,8 @@ In the panel:
   with `.outline`, ready for `Topo` (and CrocoDash's `Case`). **Save** writes it to
   `GridLibrary/grid_<name>.nc`; reopen it with
   `GridSketcher(Grid.from_supergrid(path))`.
+- **Status**, under **Save**, logs each message with its time, newest on top;
+  older ones are grey, and it scrolls back through the last 100.
 - `sketch.open_boundaries` lists the sides with open water in the last preview
   (e.g. `["south", "west"]`), for CrocoDash's
   `case.configure_forcings(boundaries=...)`.

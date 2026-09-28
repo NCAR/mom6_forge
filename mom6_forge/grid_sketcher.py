@@ -1,4 +1,5 @@
 import time
+from html import escape
 import numpy as np
 import ipywidgets as widgets
 import matplotlib.pyplot as plt
@@ -37,6 +38,7 @@ _HOVER_MS = 250  # the tooltip shows once the cursor rests this long
 # A pan turns the globe once the view's middle is this many degrees of arc from the
 # point it faces, or from a pole (then it faces the pole)
 _TURN_DEG = 20
+_STATUS_ROWS = 100  # the Status box keeps this many messages
 # Build peaks near 0.3 GB + 1.6 kB per cell (measured): about 4 GB at 2.4 million cells
 _MAX_CELLS = 2_400_000
 _EDGE_STEPS = 8  # points per outline edge drawn on the globe
@@ -182,6 +184,17 @@ def _div(html, style=""):
     return f'<div style="overflow-wrap:anywhere;line-height:1.4;{style}">{html}</div>'
 
 
+def _status_html(rows, live):
+    """The Status box: "HH:MM:SS  message" rows, newest first; past ones grey."""
+    html = "".join(
+        f"<div style='color:{'inherit' if k == 0 and live else 'grey'}'>"
+        f"<tt>{t}</tt>&nbsp; {m}{f' ×{n}' * (n > 1)}</div>"
+        for k, (t, m, n, _) in enumerate(rows)
+    )
+    html = html or "<i style='color:grey'>No messages yet</i>"
+    return _div(html, "max-height:8.4em;overflow-y:auto")  # 6 rows, then a scroll
+
+
 def _messages_html(errors, warnings):
     """A bold Errors (dark red) and Warnings header, each over its lines; "" if none."""
     html, heads = "", ["<b style='color:#b00020'>Errors</b>", "<b>Warnings</b>"]
@@ -307,7 +320,8 @@ class GridSketcher(widgets.HBox):
     anywhere. Each edit is solved at preview resolution and drawn with its quality,
     cell size and open boundaries. "Build final grid" sets `grid`, a
     `mom6_forge.grid.Grid` whose ``outline`` lets ``GridSketcher(grid)`` reopen it;
-    "Save" writes it to GridLibrary.
+    "Save" writes it to GridLibrary. The Status box under it logs each message with
+    its time, newest first.
 
     Parameters
     ----------
@@ -424,6 +438,8 @@ class GridSketcher(widgets.HBox):
         W, row = widgets, {"flex_flow": "row wrap"}
         style = {"description_width": "initial"}
         self.help_html, self.status, self.summary = W.HTML(_HELP), W.HTML(), W.HTML()
+        self._status_rows, self._status_now = [], ""
+        self._set_status("")
         self.obc_html, self.details_html = W.HTML(), W.HTML()
         self.cells_actual, self.messages = W.HTML(), W.HTML()
         res = dict(value=self.resolution_km, min=0.1, max=1e3, step=0.5, style=style)
@@ -452,14 +468,17 @@ class GridSketcher(widgets.HBox):
         details = W.Accordion([self.details_html], titles=("Details",))
         coords = W.VBox([self.vertex_text, self.apply_button])
         coords = W.Accordion([coords], titles=("Edit coordinates",))
-        panel = [self.status]
-        panel += [W.HBox([self.resolution_box, self.cells_actual], layout=row)]
+        self.status_box = W.Accordion(
+            [self.status], titles=("Status",), selected_index=0
+        )
+        panel = [W.HBox([self.resolution_box, self.cells_actual], layout=row)]
         projections = [W.HTML("Projection"), *self.projection_buttons.values()]
         panel += [W.HBox(projections, layout=row), self.shade_cells, self.obc_html]
         edits = [self.undo_button, self.redo_button, self.clear_button]
         panel += [W.HBox(edits, layout=row)]
         panel += [self.build_button]
-        panel += [W.HBox([self.name_box, self.save_button], layout=row)]
+        save = W.HBox([self.name_box, self.save_button], layout=row)
+        panel += [save, self.status_box]
         panel += [self.summary, details, coords, self.messages]
         # Wide enough that the panel is no taller than the map; never a sideways scroll
         w = "400px"
@@ -497,7 +516,7 @@ class GridSketcher(widgets.HBox):
         try:
             fn(*args)
         except Exception as exc:
-            self._set_status(f"<b>Error:</b> {exc}")
+            self._set_status(f"<b>Error:</b> {escape(str(exc))}")
 
     def _after(self, name, ms, fn=None):
         """Run `fn` once after `ms` ms, replacing any pending run of `name`."""
@@ -821,8 +840,22 @@ class GridSketcher(widgets.HBox):
         o = self.outline
         return cf.n_cells_for_resolution(o.lon, o.lat, self.resolution_km)
 
-    def _set_status(self, html):
-        self.status.value = _div(html)
+    def _set_status(self, html, transient=False):
+        """Log html atop the Status box; "" greys the newest row as past.
+
+        A repeat of the newest row counts up; a transient hint replaces a transient
+        newest row, so clicking out an outline doesn't flood the history.
+        """
+        rows, now = self._status_rows, time.strftime("%H:%M:%S")
+        if rows and transient and rows[0][3]:
+            rows[0] = [now, html, 1, True]
+        elif rows and rows[0][1] == html:
+            rows[0][0], rows[0][2] = now, rows[0][2] + 1
+        elif html:
+            rows.insert(0, [now, html, 1, transient])
+            del rows[_STATUS_ROWS:]
+        self._status_now = html
+        self.status.value = _status_html(rows, bool(html))
 
     def _outline_problem(self):
         n, c = self.outline.n, len(self.outline.corners)
@@ -895,7 +928,7 @@ class GridSketcher(widgets.HBox):
         self._update_obc()
         self._show_messages([] if self._drawing else [problem], [])
         if self._drawing:
-            self._set_status(f"<i>{problem}</i>")
+            self._set_status(f"<i>{problem}</i>", transient=True)
 
     def _show_solved_grid(self, cg):
         """Run the diagnostics once for a solved grid; redraw every layer from them."""
@@ -975,7 +1008,9 @@ class GridSketcher(widgets.HBox):
         self.build_button.disabled = self.save_button.disabled = off
         self.build_button.button_style = "warning" if warnings else "primary"
         self.build_button.tooltip = "See the warnings below" if warnings else ""
-        self._set_status("Fix the errors below to build." if errors else "")
+        fix = "Fix the errors below to build." if errors else ""
+        if fix != self._status_now:  # not a count-up on each edit
+            self._set_status(fix)
 
     # ------------------------------------------------------------------
     # Editing
@@ -1304,7 +1339,7 @@ class GridSketcher(widgets.HBox):
     def _on_build(self):
         o, problem = self.outline, self._outline_problem()
         if problem is not None:
-            return self._set_status(f"<i>{problem}</i>")
+            return self._set_status(f"<i>{problem}</i>", transient=True)
         self._set_status("Building final grid...")
         self.build_button.disabled = True
         name, res = self.name_box.value.strip() or "sketch", self.resolution_km
@@ -1316,7 +1351,7 @@ class GridSketcher(widgets.HBox):
             self._show_solved_grid(cg)
         except Exception as exc:
             self.build_button.disabled = False
-            self._set_status(f"<b>Build failed:</b> {exc}")
+            self._set_status(f"<b>Build failed:</b> {escape(str(exc))}")
         else:
             self.grid, seconds = grid, self.timings["full"]
             done = f"Built {cg.nx} × {cg.ny} grid in {seconds:.1f} s: sketch.grid is"
@@ -1331,4 +1366,4 @@ class GridSketcher(widgets.HBox):
         path.parent.mkdir(parents=True, exist_ok=True)
         self.grid.name = name
         self.grid.write_supergrid(str(path))
-        self._set_status(f"Saved {path}")
+        self._set_status(f"Saved {escape(str(path))}")

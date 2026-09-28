@@ -1,5 +1,6 @@
 import random
 import re
+import re
 import types
 
 import matplotlib.pyplot as plt
@@ -825,6 +826,9 @@ def test_build_then_save_writes_one_reopenable_file(get_sketch, tmp_path, monkey
     assert [f.name for f in files] == ["grid_box.nc"]
     r = _new(Grid.from_supergrid(str(files[0])))
     assert r.outline.to_dict() == s.outline.to_dict() and r.resolution_km == 110
+    log = [m for _, m, _, _ in s._status_rows]
+    assert log[0].startswith("Saved") and log[1].startswith("Built 20")
+    assert log[2:] == ["Building final grid...", "<b>Build a grid before saving.</b>"]
 
 
 def test_a_failed_build_or_preview_is_reported(get_sketch, monkeypatch):
@@ -848,10 +852,38 @@ def test_a_grid_too_big_to_build_here_is_an_error(get_sketch):
     assert s.preview is not None and not s.build_button.disabled
 
 
+def test_the_status_box_opens_under_save_and_logs_newest_first():
+    s = _new()
+    panel = s.control_panel.children
+    assert s.status_box.selected_index == 0 and s.status_box.titles == ("Status",)
+    assert s.save_button in panel[panel.index(s.status_box) - 1].children
+    for m in ["one", "two", "two", "two"]:
+        s._set_status(m)
+    assert re.search(r"<tt>\d\d:\d\d:\d\d</tt>&nbsp; two ×3</div>", s.status.value)
+    assert s.status.value.index("two") < s.status.value.index("one")
+    assert "<div style='color:inherit'>" in s.status.value
+    s._set_status("")  # no longer applies: every row reads as past
+    assert len(s._status_rows) == 2 and "color:inherit" not in s.status.value
+    for k in range(150):
+        s._set_status(f"m{k}")
+    assert len(s._status_rows) == 100 and s._status_rows[0][1] == "m149"
+
+
+def test_drawing_hints_replace_each_other_in_the_status_box():
+    s = _new(blank=True, resolution_km=100)
+    s._set_status("Before")
+    for lon, lat in [(236, 32), (242, 32), (242, 38)]:
+        _drag(s, _px_of(s, lon, lat))
+    log = [m for _, m, _, _ in s._status_rows]
+    assert log.index("Before") == 1 and "3 points" in log[0]
+    s.resolution_box.value = 90  # a refresh while drawing doesn't count up
+    assert s._status_rows[0][2] == 1 and s._status_rows[1][1] == "Before"
+
+
 # --- robustness ---
 
 
-def test_a_callback_error_goes_to_the_status_line(get_sketch, monkeypatch):
+def test_a_callback_error_goes_to_the_status_box(get_sketch, monkeypatch):
     s = get_sketch
     monkeypatch.setattr(s, "_new_axes", _boom)
     s.reset_view_button.click()
