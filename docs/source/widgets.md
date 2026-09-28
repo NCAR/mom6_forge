@@ -197,7 +197,8 @@ In the panel:
 - **Build final grid** solves at full resolution and sets `sketch.grid`, a `Grid`
   with `.outline`, ready for `Topo` (and CrocoDash's `Case`). **Save** writes it to
   `GridLibrary/grid_<name>.nc`; reopen it with
-  `GridSketcher(Grid.from_supergrid(path))`.
+  `GridSketcher(Grid.from_supergrid(path))`. Any later edit, resolution or projection
+  change drops `sketch.grid` and greys out **Save** until the next **Build**.
 - **Status**, under **Save**, logs each message with its time, newest on top;
   older ones are grey, and it scrolls back through the last 100.
 - `sketch.open_boundaries` lists the sides with open water in the last preview

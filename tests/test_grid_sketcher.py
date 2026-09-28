@@ -1,6 +1,5 @@
 import random
 import re
-import re
 import types
 
 import matplotlib.pyplot as plt
@@ -829,6 +828,30 @@ def test_build_then_save_writes_one_reopenable_file(get_sketch, tmp_path, monkey
     log = [m for _, m, _, _ in s._status_rows]
     assert log[0].startswith("Saved") and log[1].startswith("Built 20")
     assert log[2:] == ["Building final grid...", "<b>Build a grid before saving.</b>"]
+
+
+def test_an_edit_after_build_drops_the_grid_until_the_next_build(get_sketch, tmp_path):
+    s = get_sketch
+    s.working_dir, s.name_box.value = tmp_path, "box"
+    assert s.save_button.disabled
+    s.build_button.click()
+    assert s.grid is not None and not s.save_button.disabled
+    _drag(s, _middle(s), (_middle(s)[0] + 40, _middle(s)[1]))  # a pan
+    s._on_scroll(_event(s, *_middle(s), step=1))
+    s.shade_cells.value = not s.shade_cells.value
+    assert s.grid is not None and not s.save_button.disabled
+    _drag(s, _px(s, 0), *[(_px(s, 0)[0] - 5 * k, _px(s, 0)[1]) for k in (1, 2, 3)])
+    assert s.grid is None and s.save_button.disabled and not s.build_button.disabled
+    log = [m for _, m, _, _ in s._status_rows]
+    assert log[0] == "Sketch changed: press Build final grid again." and "×" not in log
+    assert "color:inherit" in s.status.value.split("</div>")[0]
+    s.build_button.click()
+    s.resolution_box.value = 100
+    assert s.grid is None and s.save_button.disabled
+    s.build_button.click()
+    s.save_button.click()
+    r = Grid.from_supergrid(str(tmp_path / "GridLibrary" / "grid_box.nc"))
+    assert r.outline["lon"] == s.outline.lon and r.outline["resolution_km"] == 100
 
 
 def test_a_failed_build_or_preview_is_reported(get_sketch, monkeypatch):

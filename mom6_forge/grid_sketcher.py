@@ -320,7 +320,8 @@ class GridSketcher(widgets.HBox):
     anywhere. Each edit is solved at preview resolution and drawn with its quality,
     cell size and open boundaries. "Build final grid" sets `grid`, a
     `mom6_forge.grid.Grid` whose ``outline`` lets ``GridSketcher(grid)`` reopen it;
-    "Save" writes it to GridLibrary. The Status box under it logs each message with
+    "Save" writes it to GridLibrary; an edit, resolution or projection change drops
+    it until the next Build. The Status box under it logs each message with
     its time, newest first.
 
     Parameters
@@ -1002,14 +1003,20 @@ class GridSketcher(widgets.HBox):
         self.obc_html.value = _div(html)
 
     def _show_messages(self, errors, warnings):
-        """Errors under the panel grey out Build; warnings turn it amber."""
+        """Errors under the panel grey out Build; warnings turn it amber.
+
+        A refresh after an edit drops the built grid: Save waits for the next Build.
+        """
         self.messages.value = _messages_html(errors, warnings)
+        stale, self.grid = self.grid is not None, None
+        if stale:  # once per edit: a drag refreshes on release
+            self._set_status("Sketch changed: press Build final grid again.")
         off = self.preview is None or bool(errors)
-        self.build_button.disabled = self.save_button.disabled = off
+        self.build_button.disabled, self.save_button.disabled = off, True
         self.build_button.button_style = "warning" if warnings else "primary"
         self.build_button.tooltip = "See the warnings below" if warnings else ""
         fix = "Fix the errors below to build." if errors else ""
-        if fix != self._status_now:  # not a count-up on each edit
+        if fix != self._status_now and (fix or not stale):  # no count-up per edit
             self._set_status(fix)
 
     # ------------------------------------------------------------------
@@ -1348,12 +1355,14 @@ class GridSketcher(widgets.HBox):
             cg = cf.solve(o.lon, o.lat, o.corners, n, projection=self.projection)
             grid = Grid._from_conformal(cg, o.lon, o.lat, o.corners, res, name)
             self.timings["full"] = time.perf_counter() - t0
+            self.grid = None  # not stale: replaced below
             self._show_solved_grid(cg)
         except Exception as exc:
             self.build_button.disabled = False
             self._set_status(f"<b>Build failed:</b> {escape(str(exc))}")
         else:
             self.grid, seconds = grid, self.timings["full"]
+            self.save_button.disabled = False
             done = f"Built {cg.nx} × {cg.ny} grid in {seconds:.1f} s: sketch.grid is"
             self._set_status(f"{done} ready for Topo and CrocoDash's Case")
         self._redraw()
