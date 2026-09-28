@@ -165,8 +165,10 @@ instructions in a box under it, and the control panel on the right. On the map:
 - **Right-click** (or **Ctrl-click**) a vertex to delete it.
 - **Double-click** a vertex to make or unmake it a corner (numbered 1-4).
 - **Scroll** inside the framed map to zoom about the cursor, out to the whole
-  hemisphere facing you; **drag** the empty map (or middle-drag anywhere) to pan.
-  **Reset view** under the map goes back to the whole outline.
+  hemisphere facing you; **drag** the empty map (or middle-drag anywhere) to pan:
+  after a long pan the globe turns to face the middle of the view (near a pole,
+  the pole), so pans reach any place on Earth. **Reset view** under the map goes
+  back to the whole outline.
 - Grid lines turn orange or red where ocean cells are badly shaped (orthogonality,
   size jump or aspect ratio); land cells are not judged. Rest the cursor on a grid
   cell and a box there says why, or that the cell is over land (no box appears off
@@ -190,9 +192,8 @@ In the panel:
 - **Shade cell size** toggles a log-scale shading of cell size.
 - **Undo** / **Redo** step through outline edits. **Clear all** empties the map:
   click points (drag one to move it, right-click one to delete it, drag the map to
-  pan: the globe then turns to face the middle of the view, so any place on Earth
-  can be reached), then click point 1 again to close the outline (4 points become
-  the 4 corners).
+  pan), then click point 1 again to close the outline (4 points become the 4
+  corners).
 - **Build final grid** solves at full resolution and sets `sketch.grid`, a `Grid`
   with `.outline`, ready for `Topo` (and CrocoDash's `Case`). **Save** writes it to
   `GridLibrary/grid_<name>.nc`; reopen it with

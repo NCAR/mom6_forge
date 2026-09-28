@@ -119,7 +119,7 @@ def delete(button, modifiers):
 
 
 def drawing():
-    """Blank: clicks add points, a drag pans (turning the globe), a right-click
+    """Blank: clicks add points, a short drag pans (the globe stays), a right-click
     deletes, point 1 closes."""
     s, c = sketch(blank=True)
     b, h = s.ax.bbox, c.get_renderer().height
@@ -133,7 +133,7 @@ def drawing():
     send(c, "button_press", x=x, y=y)
     send(c, "motion_notify", x=x + 40, y=y)
     send(c, "button_release", buttons=0, x=x + 40, y=y)
-    r += [s.globe.centre != centre, s.outline.n]
+    r += [s.globe.centre == centre, s.outline.n]
     click(c, 2, **at(s, 4))
     click(c, **at(s, 0))
     return r + [s.outline.n, s.outline.corners]

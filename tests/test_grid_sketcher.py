@@ -13,7 +13,7 @@ import mom6_forge._conformal as cf
 from mom6_forge import corner_diagnostics as diag
 from mom6_forge import grid_sketcher as gs
 from mom6_forge.grid import Grid
-from mom6_forge.grid_sketcher import GridSketcher, Outline
+from mom6_forge.grid_sketcher import _EDGE_STEPS, _TURN_DEG, GridSketcher, Outline
 
 PINK, RED = "#cc79a7", diag.STATUS_COLORS[2]
 
@@ -357,18 +357,6 @@ def test_while_drawing_a_click_adds_a_point_and_a_drag_pans_or_moves_one(monkeyp
     assert not solves and s.outline.undo() and np.allclose(_px(s, 0), q)
 
 
-def test_while_drawing_a_pan_turns_the_globe_to_face_the_middle_of_the_view():
-    s = _new(blank=True, resolution_km=100)
-    end = np.add(_middle(s), (-150, 40))
-    s._on_press(_event(s, *_middle(s)))
-    s._on_motion(_event(s, *end))
-    middle, size = _view_centre(s), (np.ptp(s.ax.get_xlim()), np.ptp(s.ax.get_ylim()))
-    s._on_release(_event(s, *end))
-    assert np.allclose(s.globe.centre, middle) and np.allclose(_view_centre(s), middle)
-    assert np.allclose((np.ptp(s.ax.get_xlim()), np.ptp(s.ax.get_ylim())), size)
-    assert s.outline.n == 0 and len(s.land_collection.get_paths())
-
-
 @pytest.mark.parametrize("button, modifiers", [(3, ()), (1, ("ctrl",))])
 def test_right_or_ctrl_click_deletes_a_point_while_drawing(button, modifiers):
     s = _new(blank=True, resolution_km=100)
@@ -412,16 +400,131 @@ def test_scroll_zooms_about_the_cursor_within_limits(get_sketch, monkeypatch):
     assert np.allclose([s.ax.get_xlim(), s.ax.get_ylim()], [(x0, x1), (y0, y1)])
 
 
-def test_dragging_empty_map_pans_and_a_middle_drag_pans_over_a_vertex(get_sketch):
-    s = get_sketch
-    (x0, x1), (y0, y1), before = s.ax.get_xlim(), s.ax.get_ylim(), s.outline.to_dict()
-    kx, ky = (x1 - x0) / s.ax.bbox.width, (y1 - y0) / s.ax.bbox.height
-    _drag(s, _middle(s), np.add(_middle(s), (-30, 10)))
-    assert np.allclose(s.ax.get_xlim(), np.add((x0, x1), 30 * kx))
-    assert np.allclose(s.ax.get_ylim(), np.subtract((y0, y1), 10 * ky))
-    _drag(s, _px(s, 0), np.add(_px(s, 0), (-15, 0)), button=2)
-    assert np.allclose(s.ax.get_xlim(), np.add((x0, x1), 45 * kx))
+def _on_screen(s):
+    """Pixels of the outline, its vertices and corners, and the grid's edge."""
+    xy = [a.get_xydata() for a in (s.outline_line, s.vertex_scatter, s.corner_scatter)]
+    xy.append(np.reshape(s.obc_lines.get_segments(), (-1, 2)))
+    return s.ax.transData.transform(np.concatenate(xy))
+
+
+@pytest.mark.parametrize("blank, button", [(True, 1), (False, 2)])
+def test_a_short_pan_slides_the_map_and_a_long_one_turns_the_globe(blank, button):
+    # Due south, from the middle: a drag on the empty map or a middle-drag anywhere
+    s, globe = _new(blank=blank, resolution_km=100), None
+    s._set_status("A message a pan keeps")
+    status, before = s.status.value, s.outline.to_dict()
+    for i in range(20):
+        globe, start = s.globe, _middle(s)
+        s._on_press(_event(s, *start, button=button))
+        s._on_motion(_event(s, *np.add(start, (0, 150))))
+        middle, size = _view_centre(s), (
+            np.ptp(s.ax.get_xlim()),
+            np.ptp(s.ax.get_ylim()),
+        )
+        pixels, box = _on_screen(s), s.ax.bbox.bounds
+        s._on_release(_event(s, *np.add(start, (0, 150))))
+        if s.globe is not globe:
+            break
+        assert np.allclose(_on_screen(s), pixels)  # a short pan: nothing moves
+    # The long pan: the globe faces the view's middle, which stays put, as does all
+    assert i and s.globe is not globe and np.allclose(s.globe.centre, middle)
+    assert np.allclose(_view_centre(s), middle) and np.allclose(s.ax.bbox.bounds, box)
+    assert np.allclose((np.ptp(s.ax.get_xlim()), np.ptp(s.ax.get_ylim())), size)
+    seen = [
+        s.ax.bbox.contains(*p) for p in pixels
+    ]  # in view; the rest is squashed a bit
+    assert np.allclose(_on_screen(s)[seen], pixels[seen], atol=2) and not s._lite_on
     assert s.outline.to_dict() == before and s.undo_button.disabled
+    assert s.status.value == status and "lite" not in s._timers
+
+
+def _meridian(s, lon, lat):
+    """Screen position of (lon, lat) and the angle of north there, in degrees."""
+    xy, north = _px_of(s, lon, lat), _px_of(s, lon, lat + np.sign(lat) * 0.05)
+    return xy, np.degrees(np.arctan2(*np.subtract(north, xy)[::-1]))
+
+
+@pytest.mark.parametrize("bbox", [(20, 60, 72, 80), (-60, -20, -78, -70)])
+def test_pans_in_a_polar_cap_keep_the_map_and_out_of_it_turn_it_north_up(bbox):
+    # Towards the pole, then sideways: while the view's middle is near the pole the
+    # map never rotates or jumps, whether the globe faces the pole or not
+    for dx in (40, 120, 200):
+        s, poles = _new(Outline.from_bbox(*bbox), resolution_km=100), 0
+        for step in [(0, -150 * np.sign(bbox[2]))] * 6 + [(dx, 0)] * 8:
+            end = np.add(_middle(s), step)
+            s._on_press(_event(s, *_middle(s)))
+            s._on_motion(_event(s, *end))
+            lonlat = _view_centre(s)
+            (xy, angle), near = _meridian(s, *lonlat), 90 - abs(lonlat[1]) < _TURN_DEG
+            s._on_release(_event(s, *end))
+            xy2, angle2 = _meridian(s, *lonlat)
+            assert not near or np.allclose(xy2, xy, atol=2) and abs(angle2 - angle) < 2
+            poles += abs(s.globe.centre[1]) == 90
+        assert poles
+    # Out of the cap sideways, or over the pole and out the far side: the globe
+    # turns once to face the view's middle, north up (so the map turns about 90 or
+    # 180 degrees), and a long pan on away from the pole is an ordinary turn
+    up = (0, -150 * np.sign(bbox[2]))
+    for step in [(150, 0), up, np.negative(up)]:
+        s = _new(Outline.from_bbox(*bbox), resolution_km=100)
+        for _ in range(8):
+            if abs(s.globe.centre[1]) < 90:
+                _drag(s, _middle(s), np.add(_middle(s), up))
+        for lat in (90, 90 - _TURN_DEG):
+            for _ in range(12):
+                globe = s.globe
+                _drag(s, _middle(s), np.add(_middle(s), step))
+                if s.globe is not globe:
+                    break
+            north = _meridian(s, *_view_centre(s))[1] * np.sign(bbox[2])
+            assert abs(s.globe.centre[1]) < lat and abs(north - 90) < 1  # north up
+            step = np.negative(up)
+
+
+def test_an_edge_of_an_outline_partly_behind_the_globe_can_be_pressed():
+    s = _new(Outline.from_bbox(-60, 60, -30, 30), resolution_km=500)
+    s._on_reset_view((-100, 0))
+    s.fig.draw_without_rendering()
+    edge = s.outline_line.get_xydata()[int(3.5 * _EDGE_STEPS)]  # the middle of 3 -> 0
+    x, y = s.ax.transData.transform(edge)
+    assert np.isnan(_px(s, 1)).all() and s._pick(x, y) == (None, 3)
+    _drag(s, (x, y), (x - 20, y))
+    assert s.outline.n == 5 and s.globe.centre == (-100, 0)
+
+
+def test_a_click_a_zoom_or_a_vertex_drag_keeps_the_globe(get_sketch):
+    s = get_sketch
+    globe, view = s.globe, (s.ax.get_xlim(), s.ax.get_ylim())
+    _drag(s, _middle(s))
+    _drag(s, _px(s, 0), button=2)
+    assert (s.ax.get_xlim(), s.ax.get_ylim()) == view
+    s._on_scroll(_event(s, *_px_of(s, 5, 2), step=1))
+    _drag(s, _px(s, 2), np.add(_px(s, 2), 10))
+    assert s.globe is globe and s.outline.undo()
+
+
+def test_pans_reach_the_far_side_of_the_earth_to_draw_and_edit_there(caplog):
+    s = _new(resolution_km=100)  # off California
+    for _ in range(40):  # out to the whole disc
+        s._on_scroll(_event(s, *_middle(s), step=-1))
+    # Across the Pacific and Asia to the Indian Ocean, each place dragged to the middle
+    for lon, lat in [(-175, 15), (120, 0), (80, -10)]:
+        s.fig.draw_without_rendering()
+        _drag(s, _px_of(s, lon, lat), _middle(s))
+        assert np.allclose(s.globe.centre, (lon, lat), atol=1e-6)
+    # California is behind the globe: so are its corner numbers
+    assert not any(label.get_visible() for label in s.corner_labels)
+    s.clear_button.click()
+    corners = [(70, -20), (90, -20), (90, 0), (70, 0)]
+    for lon, lat in corners + corners[:1]:
+        _drag(s, _px_of(s, lon, lat))
+    assert np.allclose(np.c_[s.outline.lon, s.outline.lat], corners) and not s._drawing
+    globe, to = s.globe, np.add(_px(s, 2), (8, -6))
+    _drag(s, _px(s, 2), to)
+    assert np.allclose(_px(s, 2), to) and s.globe is globe and s.preview is not None
+    assert all(label.get_visible() for label in s.corner_labels)
+    s.fig.draw_without_rendering()
+    assert "finite" not in caplog.text
 
 
 def test_off_the_globe_a_press_pans_and_a_scroll_zooms(get_sketch):
@@ -432,8 +535,8 @@ def test_off_the_globe_a_press_pans_and_a_scroll_zooms(get_sketch):
     assert x0 < -r and r < x1 and y0 < -r and r < y1
     # Matplotlib gives no inaxes in space round the disc
     corner = (s.ax.bbox.x0 + 3, s.ax.bbox.y0 + 3)
-    _drag(s, corner, np.add(corner, (40, 0)), inside=False)
-    assert s.ax.get_xlim()[0] < x0
+    _drag(s, corner, np.add(corner, (150, 0)), inside=False)
+    assert s.globe.centre[0] < 0  # turned west
     s._on_scroll(_event(s, *corner, inside=False, step=1))
     assert np.ptp(s.ax.get_xlim()) < x1 - x0
 
@@ -774,7 +877,8 @@ def test_random_gestures_keep_the_preview_and_buttons_consistent(get_sketch):
         elif step == "view":
             s._on_scroll(_event(s, *p, step=rng.choice([1, -1])))
             _drag(s, p, np.add(p, (rng.uniform(-30, 30), 10)), button=2)
-            _fire(s, "lite")
+            if "lite" in s._timers:  # a pan that turned the globe left none
+                _fire(s, "lite")
         else:
             _drag(s, np.add(p, q) / 2, np.add(p, q) / 2 + 5)
         # Build is greyed out only while drawing or with errors listed to say why

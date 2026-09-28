@@ -3,6 +3,7 @@ import numpy as np
 import ipywidgets as widgets
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
+import shapely
 from cartopy.mpl.path import shapely_to_path
 from contourpy import contour_generator
 from dataclasses import dataclass, field, replace
@@ -33,6 +34,9 @@ _FRAME_S, _CATCHUP_MS = 1 / 30, 60
 # Pan/zoom: a redraw per 45 ms, full detail 250 ms after the last step, 1.25x per click
 _COALESCE_MS, _LITE_MS, _ZOOM_STEP = 45, 250, 1.25
 _HOVER_MS = 250  # the tooltip shows once the cursor rests this long
+# A pan turns the globe once the view's middle is this many degrees of arc from the
+# point it faces, or from a pole (then it faces the pole)
+_TURN_DEG = 20
 # Build peaks near 0.3 GB + 1.6 kB per cell (measured): about 4 GB at 2.4 million cells
 _MAX_CELLS = 2_400_000
 _EDGE_STEPS = 8  # points per outline edge drawn on the globe
@@ -204,12 +208,14 @@ def _cbar_formatter(decades, minor=False):
 
 
 def _nearest(px, py, vx, vy, r_vertex, r_edge):
-    """(vertex, edge) at (px, py): a vertex within its radius wins, else an edge."""
+    """(vertex, edge) at (px, py): a vertex within its radius wins, else an edge; one
+    at NaN (behind the globe) is never picked."""
     x, y = np.asarray(vx, float), np.asarray(vy, float)
     dx, dy = np.roll(x, -1) - x, np.roll(y, -1) - y
     t = ((px - x) * dx + (py - y) * dy) / np.maximum(dx * dx + dy * dy, 1e-12)
     t = np.clip(t, 0.0, 1.0)
-    dv, de = np.hypot(x - px, y - py), np.hypot(x + t * dx - px, y + t * dy - py)
+    dv = np.hypot(x - px, y - py)
+    de = np.nan_to_num(np.hypot(x + t * dx - px, y + t * dy - py), nan=np.inf)
     if (dv <= r_vertex).any():
         return int(np.argmin(np.where(dv <= r_vertex, dv, np.inf))), None
     return None, (int(np.argmin(de)) if de.min() <= r_edge else None)
@@ -229,6 +235,13 @@ class _Globe:
         x, y = (np.asarray(v, float) for v in self._fwd.transform(lon, lat))
         return np.where(np.isfinite(x + y), [x, y], np.nan)
 
+    def north(self, lon, lat):
+        """The angle of north on the map at ``(lon, lat)``: degrees anticlockwise."""
+        (l0, p0), (lam, phi) = np.radians(self.centre), np.radians((lon, lat))
+        dx = -np.sin(phi) * np.sin(lam - l0)
+        dy = np.cos(p0) * np.cos(phi) + np.sin(p0) * np.sin(phi) * np.cos(lam - l0)
+        return float(np.degrees(np.arctan2(dy, dx)))
+
     def to_lonlat(self, x, y):
         """``(lon, lat)`` of ``(x, y)``: a point off the globe gives its nearest on the rim."""
         x, y = np.asarray(x, float), np.asarray(y, float)
@@ -241,6 +254,9 @@ def _land_paths(centre, window, scale):
     """Land fills and coastlines in a lon/lat window, on the globe facing `centre`."""
     globe, paths, rings = _Globe(*centre), [], []
     for poly in cf.land_polygons(window, scale):
+        # In 1-degree steps, so the window's straight lon/lat edges curve on the globe
+        # as they should, not cut chords across it
+        poly = shapely.segmentize(poly, 1.0)
         path = shapely_to_path(poly)
         xy = globe.to_xy(*path.vertices.T).T
         if np.isnan(xy).any():  # across the rim: cartopy cuts it there
@@ -286,8 +302,10 @@ class GridSketcher(widgets.HBox):
 
     Drag a vertex to move it, press an edge to add one, right-click (or Ctrl-click) to
     delete one and double-click to make or unmake a corner; scroll zooms, dragging the
-    empty map pans. Each edit is solved at preview resolution and drawn with its
-    quality, cell size and open boundaries. "Build final grid" sets `grid`, a
+    empty map pans: once a pan leaves the middle of the view 20 degrees from the point
+    the globe faces, the globe turns to face it (near a pole, the pole), so pans reach
+    anywhere. Each edit is solved at preview resolution and drawn with its quality,
+    cell size and open boundaries. "Build final grid" sets `grid`, a
     `mom6_forge.grid.Grid` whose ``outline`` lets ``GridSketcher(grid)`` reopen it;
     "Save" writes it to GridLibrary.
 
@@ -499,9 +517,10 @@ class GridSketcher(widgets.HBox):
         o = self.outline if self.outline.n >= 3 else Outline.from_bbox(*_DEFAULT_BBOX)
         return o.lon, o.lat
 
-    def _new_axes(self, centre=None, half=None):
+    def _new_axes(self, centre=None, view=None):
         """The map: a globe facing `centre` (default: the outline's middle, or the pole
-        it winds round), fitted to the outline or `half` a view wide and high."""
+        it winds round), fitted to the outline or to `view`, (lon, lat, hx, hy): that
+        point in the middle of a view 2 hx wide and 2 hy high."""
         if self.ax is not None:
             self.fig.delaxes(self.ax)
         lon, lat = self._extent_lonlat()
@@ -520,9 +539,11 @@ class GridSketcher(widgets.HBox):
         self.ax.format_coord = self._format_coord
         # A wide or short map sits on the colourbar, not in the middle of its box
         self.ax.set_anchor("S")
-        self.shade_mesh = None
+        # New artists, in full detail: the next pan or zoom makes them lite
+        self.shade_mesh, self._lite_on = None, False
+        self._after("lite", None)
         self._relayout()
-        if half is None:
+        if view is None:
             # The outline, edges as the grid follows them, plus 10% each way
             xy = self._edges_xy() if self.outline.n >= 3 else self.globe.to_xy(lon, lat)
             for v, set_lim in zip(xy, (self.ax.set_xlim, self.ax.set_ylim)):
@@ -530,10 +551,13 @@ class GridSketcher(widgets.HBox):
                 set_lim(np.nanmin(v) - pad, np.nanmax(v) + pad)
             self._home = (self.ax.get_xlim(), self.ax.get_ylim())
         else:
-            self.ax.set_xlim(-half[0], half[0])
-            self.ax.set_ylim(-half[1], half[1])
+            (x, y), (hx, hy) = self.globe.to_xy(*view[:2]), view[2:]
+            self.ax.set_xlim(x - hx, x + hx)
+            self.ax.set_ylim(y - hy, y + hy)
+        # Its box now, not at the browser's next draw, so a press before that lands
+        self.ax.apply_aspect()
         self._init_artists()
-        if half is None:
+        if view is None:
             self._set_land(*self._extent_lonlat(), 6.0)
         else:  # the land in view
             self._set_land(*(self._view_lonlat() or (None, None)), 2.0)
@@ -647,6 +671,7 @@ class GridSketcher(widgets.HBox):
         r = np.full(len(vx), _VERTEX_PX * dpi / 100)
         for m in (self.vertex_scatter, self.corner_scatter, self.corner_ring):
             mx, my = self.ax.transData.transform(np.column_stack(m.get_data())).T
+            mx, my = np.nan_to_num([mx, my], nan=9e9)  # none behind the globe
             on = np.hypot(vx[:, None] - mx, vy[:, None] - my).min(1, initial=9e9) < 1
             size = ((m.get_markersize() + m.get_markeredgewidth()) / 2 + 1) * dpi / 72
             r[on] = np.maximum(r[on], size)
@@ -685,8 +710,9 @@ class GridSketcher(widgets.HBox):
             cx, cy, labels[0] = x[:1], y[:1], "1"
         self.corner_scatter.set_data(cx, cy)
         for k, label in enumerate(self.corner_labels):
-            label.set_text(labels[k])
-            label.set_position((cx[k], cy[k]) if labels[k] else (0, 0))
+            xy = (cx[k], cy[k]) if labels[k] else (0, 0)
+            # None behind the globe, where it has no place
+            label.set(text=labels[k], position=xy, visible=bool(np.isfinite(xy).all()))
         self.undo_button.disabled = not o._undo
         self.redo_button.disabled = not o._redo
         if sync_text:
@@ -893,19 +919,21 @@ class GridSketcher(widgets.HBox):
         ts_line = f"<div style='margin-top:4px'>{dx} &middot; {ts['mom6_hint']}</div>"
         self.details_html.value = _div(_summary_html(q) + ts_line, "font-size:11px")
         self.cells_actual.value = f"&nbsp;≈ {cg.nx} × {cg.ny} cells"
-        # Drawn on the globe: the grid with its nodes in map metres
+        self._draw_preview()
+        self._show_messages(*diag.quality_messages(cg, wet, metrics, runs))
+
+    def _draw_preview(self):
+        """The preview on the globe, its nodes in map metres: lines, shading, sides."""
+        cg = self.preview
         x, y = self.globe.to_xy(cg.lon, cg.lat)
-        self._shown = replace(cg, x=x, y=y)
+        self._shown, self._tree = replace(cg, x=x, y=y), None  # built at a hover
         self._draw_grid_lines(self._shown)
         self._draw_shading(self._shown)
-        centres = np.column_stack([x[1::2, 1::2].ravel(), y[1::2, 1::2].ravel()])
-        self._tree = cKDTree(np.nan_to_num(centres, nan=1e30))
         q = [a[::2, ::2] for a in (x, y)]
         ring = [np.r_[a[0], a[1:, -1], a[-1, -2::-1], a[-2:0:-1, 0]] for a in q]
         self._ring = MplPath(np.column_stack(ring))
         self._cancel_hover()
         self._update_obc()
-        self._show_messages(*diag.quality_messages(cg, wet, metrics, runs))
 
     @property
     def open_boundaries(self):
@@ -1049,11 +1077,8 @@ class GridSketcher(widgets.HBox):
                 lon, lat = self.globe.to_lonlat(*click)
                 self.outline.insert(self.outline.n - 1, float(lon), float(lat))
                 self._refresh()
-            elif self._drawing and (xlim, ylim) != ((x0, x1), (y0, y1)):
-                # While drawing, the globe turns to face the view's middle, so pans
-                # can reach the far side of the Earth
-                mid = map(float, self.globe.to_lonlat(0.5 * (x0 + x1), 0.5 * (y0 + y1)))
-                self._on_reset_view(tuple(mid), (0.5 * (x1 - x0), 0.5 * (y1 - y0)))
+            elif (xlim, ylim) != ((x0, x1), (y0, y1)):
+                self._turn_globe()  # so pans reach anywhere
             return
         if self._drag is None:
             return
@@ -1156,13 +1181,29 @@ class GridSketcher(widgets.HBox):
         if not on:
             self._redraw(full=True)
 
-    def _on_reset_view(self, centre=None, half=None):
+    def _on_reset_view(self, centre=None, view=None):
         # A new globe, facing the outline wherever it has moved, fitted to it
-        self._new_axes(centre, half)
+        self._new_axes(centre, view)
         self._update_outline_artists()
         if self.preview is not None:
-            self._show_solved_grid(self.preview)
+            self._draw_preview()
         self._redraw(full=True)
+
+    def _turn_globe(self):
+        """After a pan that leaves the view's middle _TURN_DEG from the point the globe
+        faces: face that middle, north up, or near a pole the pole, at the map's angle;
+        the middle stays where it is on screen."""
+        (x0, x1), (y0, y1) = self.ax.get_xlim(), self.ax.get_ylim()
+        x, y = 0.5 * (x0 + x1), 0.5 * (y0 + y1)
+        if np.hypot(x, y) < self.globe.radius * np.sin(np.radians(_TURN_DEG)):
+            return
+        lon, lat = map(float, self.globe.to_lonlat(x, y))
+        centre = (lon, lat)
+        if 90 - abs(lat) < _TURN_DEG:
+            # Facing the pole, lon_0 sets the meridians' angles: keep this one's
+            lon_0 = lon + np.sign(lat) * (90 - self.globe.north(lon, lat))
+            centre = ((lon_0 + 180) % 360 - 180, 90 * np.sign(lat))
+        self._on_reset_view(centre, (lon, lat, 0.5 * (x1 - x0), 0.5 * (y1 - y0)))
 
     def _on_hover(self, event):
         # The box shows only over a grid cell, not over empty map or land outside it
@@ -1172,7 +1213,7 @@ class GridSketcher(widgets.HBox):
         self._after("hover", _HOVER_MS, self._show_tooltip)
 
     def _show_tooltip(self):
-        if self._hover_xy is None or self._tree is None:
+        if self._hover_xy is None or self._shown is None:
             return
         x, y = self._hover_xy
         (x0, x1), (y0, y1) = self.ax.get_xlim(), self.ax.get_ylim()
@@ -1199,6 +1240,9 @@ class GridSketcher(widgets.HBox):
     def _hover_cell(self, x, y):
         """(j, i) of the cell under (x, y); on the edge between two cells, the worse."""
         status = self._metrics["status"]
+        if self._tree is None:
+            c = [v[1::2, 1::2].ravel() for v in (self._shown.x, self._shown.y)]
+            self._tree = cKDTree(np.nan_to_num(np.column_stack(c), nan=1e30))
         dist, idx = self._tree.query([x, y], k=min(2, status.size))
         dist, idx = np.atleast_1d(dist), np.atleast_1d(idx)
         cells = [divmod(int(a), status.shape[1]) for a in idx]
