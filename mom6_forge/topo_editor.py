@@ -5,7 +5,9 @@ import numpy as np
 import matplotlib.patches as patches
 import ipywidgets as widgets
 import cartopy.crs as ccrs
+from matplotlib.collections import LineCollection
 from matplotlib.ticker import MaxNLocator
+from mom6_forge import corner_diagnostics as diag
 from mom6_forge.edit_command import *
 from mom6_forge.git_utils import *
 from matplotlib.widgets import RectangleSelector
@@ -16,12 +18,13 @@ class TopoEditor(widgets.HBox):
     # Construction
     # ------------------------------------------------------------------
 
-    def __init__(self, topo, build_ui=True):
+    def __init__(self, topo, build_ui=True, open_boundaries=False):
         self.topo = topo
         self.ny = self.topo.masked_depth.data.shape[0]
         self.nx = self.topo.masked_depth.data.shape[1]
         self._selected_cell = None
         self.build_ui = build_ui
+        self._show_obc = open_boundaries  # draw the open-boundary overlay
 
         # --- Command Manager ---
         if self.has_version_control:
@@ -186,6 +189,9 @@ class TopoEditor(widgets.HBox):
                 self._display_mode_toggle,
             ]
         )
+        if self._show_obc:
+            self._obc_html = widgets.HTML(layout={"width": "90%"})
+            self.display_section.children += (self._obc_html,)
         self.global_settings_section = widgets.VBox(
             [
                 widgets.HTML("<h3>Global Settings</h3>"),
@@ -347,6 +353,9 @@ class TopoEditor(widgets.HBox):
             ],
             crs=ccrs.PlateCarree(),
         )
+        if self._show_obc:  # domain edge: open magenta, closed grey; X on tiny runs
+            self._obc_lines = self.ax.add_collection(LineCollection([]), autolim=False)
+            (self._obc_tiny,) = self.ax.plot([], [], "X", ms=9, mfc="#d7191c", mec="w")
 
         # Axis labels and title
         self.ax.set_title("Double click on a cell to change its depth.")
@@ -459,6 +468,12 @@ class TopoEditor(widgets.HBox):
             return [(j, i)]
         return []
 
+    @property
+    def open_boundaries(self):
+        """Sides with open water in the current mask, in S/E/N/W order."""
+        runs = diag.open_boundary_runs(self.topo._grid, ocean=self.topo.tmask > 0)
+        return [s for s in diag.OBC_SIDES if runs[s]["runs"]]
+
     # ------------------------------------------------------------------
     # Display / refresh
     # ------------------------------------------------------------------
@@ -495,8 +510,30 @@ class TopoEditor(widgets.HBox):
             raise ValueError(f"Unknown display mode: {mode}")
         self.fig.canvas.draw_idle()
 
+    def _update_open_boundaries(self):
+        """Redraw the open-boundary overlay and its summary from the current mask."""
+        c, grid, segs, xy = self._central_longitude, self.topo._grid, [], []
+        runs = diag.open_boundary_runs(grid, ocean=self.topo.tmask > 0)
+        q = np.stack([grid.qlon.data - c, grid.qlat.data], axis=-1)
+        for side, edge in zip(diag.OBC_SIDES, [q[0], q[:, -1], q[-1], q[:, 0]]):
+            segs.append(np.stack([edge[:-1], edge[1:]], axis=1))
+            xy += [(r["lon"] - c, r["lat"]) for r in runs[side]["runs"] if r["tiny"]]
+        on = np.concatenate([runs[s]["ocean"] for s in diag.OBC_SIDES])
+        lw, color = np.where(on, 4.0, 0.9), np.where(on, "#CC79A7", "#4d4d4d")
+        self._obc_lines.set(segments=np.concatenate(segs), color=color, linewidth=lw)
+        self._obc_tiny.set_data(*np.reshape(xy, (-1, 2)).T)
+        names = ", ".join(s for s in diag.OBC_SIDES if runs[s]["runs"]) or "none"
+        n = len(xy)
+        warn = (
+            f"Warning: {n} small open boundar{'y' if n == 1 else 'ies'} along coastline"
+        )
+        warn = f"<span style='color:#d7191c'>{warn}</span>" if n else ""
+        self._obc_html.value = f"Open boundaries: <b>{names}</b>. {warn}".strip()
+
     def trigger_refresh(self):
         """Trigger a refresh of the interactive plot and min depth specifier."""
+        if self._show_obc:
+            self._update_open_boundaries()
         self.refresh_display_mode({"new": self._display_mode_toggle.value})
         self._min_depth_specifier.value = self.topo.min_depth
         self.update_undo_redo_buttons()

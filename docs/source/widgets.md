@@ -259,6 +259,12 @@ Current editing functions (`*` = available in `TopoEditor`):
 5. Generate and apply an ocean mask from a land-fraction dataset
 6. Apply a ridge to the bathymetry
 
+`TopoEditor(topo, open_boundaries=True)` also shows which domain edges stay open
+to the sea under the current mask: open stretches in magenta (closed ones thin
+grey), a red X on any tiny stretch that hugs the coast, and a summary line in
+the panel. It updates after every edit; `editor.open_boundaries` lists the open
+sides, ready for CrocoDash's `case.configure_forcings(boundaries=...)`.
+
 You can also reapply an initializer (none supported in the TopoEditor):
 
 1. Set flat bathy

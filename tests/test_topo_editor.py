@@ -2,7 +2,9 @@ from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
+from matplotlib.colors import to_rgba
 
+from mom6_forge import corner_diagnostics as diag
 from mom6_forge.grid import Grid
 from mom6_forge.topo import Topo
 from mom6_forge.topo_editor import TopoEditor
@@ -298,3 +300,87 @@ def test_erase_basin_redraws_canvas(tmp_path, handler):
 
     assert not np.array_equal(before, after)
     assert np.array_equal(after, np.asarray(topo.basintmask.data, dtype=float))
+
+
+# --- open-boundary overlay ---
+
+
+def _editor_with_inlet(tmp_path, open_boundaries=True):
+    """A 40 x 30 editor whose south edge is land but for a 2-cell inlet (i = 10, 11)."""
+    grid = Grid(
+        resolution=0.1, xstart=278.0, lenx=4.0, ystart=7.0, leny=3.0, name="obc"
+    )
+    topo = Topo(grid, min_depth=0, version_control_dir=tmp_path, git=True)
+    topo.set_flat(1000)
+    topo.depth.data[:3, :] = -10.0
+    topo.depth.data[:3, 10:12] = 1000.0
+    return topo, TopoEditor(topo, build_ui=False, open_boundaries=open_boundaries)
+
+
+def test_open_boundary_overlay_off_by_default(tmp_path):
+    _, off = _editor_with_inlet(tmp_path / "off", open_boundaries=False)
+    _, on = _editor_with_inlet(tmp_path / "on")
+    assert not hasattr(off, "_obc_lines") and not hasattr(off, "_obc_html")
+    assert len(on.ax.collections) == len(off.ax.collections) + 1
+    assert len(on.ax.lines) == len(off.ax.lines) + 1
+    assert len(on.display_section.children) == len(off.display_section.children) + 1
+
+
+def test_open_boundary_overlay_matches_open_boundary_runs(tmp_path):
+    topo, editor = _editor_with_inlet(tmp_path)
+    runs = diag.open_boundary_runs(topo._grid, ocean=topo.tmask.values.astype(bool))
+    assert [[r["length_cells"] for r in runs[s]["runs"]] for s in diag.OBC_SIDES] == [
+        [2],
+        [27],
+        [40],
+        [27],
+    ]
+    # One segment per outer cell edge (S, E, N, W), magenta and thick where open
+    segs = editor._obc_lines.get_segments()
+    on = np.concatenate([runs[s]["ocean"] for s in diag.OBC_SIDES])
+    assert len(segs) == len(on) == 2 * (40 + 30)
+    assert np.array_equal(np.asarray(editor._obc_lines.get_linewidths()) == 4.0, on)
+    magenta = np.all(np.isclose(editor._obc_lines.get_colors(), to_rgba("#CC79A7")), 1)
+    assert np.array_equal(magenta, on)
+    # ... on the axes' (recentred) frame: the inlet's south edges at nodes 10-12
+    qlon, qlat = topo._grid.qlon.data, topo._grid.qlat.data
+    inlet = np.concatenate([segs[10], segs[11]])
+    np.testing.assert_allclose(
+        inlet[:, 0], qlon[0, [10, 11, 11, 12]] - editor._central_longitude
+    )
+    np.testing.assert_allclose(inlet[:, 1], qlat[0, [10, 11, 11, 12]])
+    # An X on the one tiny run, at its middle cell
+    tiny = [r for s in diag.OBC_SIDES for r in runs[s]["runs"] if r["tiny"]]
+    assert len(tiny) == len(editor._obc_tiny.get_xdata()) == 1
+    x, y = editor._obc_tiny.get_xdata()[0], editor._obc_tiny.get_ydata()[0]
+    assert (x + editor._central_longitude, y) == pytest.approx(
+        (tiny[0]["lon"], tiny[0]["lat"])
+    )
+    assert editor.open_boundaries == ["south", "east", "north", "west"]
+    assert editor._obc_html.value == (
+        "Open boundaries: <b>south, east, north, west</b>. <span style='color:#d7191c'>"
+        "Warning: 1 small open boundary along coastline</span>"
+    )
+
+
+def test_closing_a_tiny_run_removes_its_x_and_warning(tmp_path):
+    _, editor = _editor_with_inlet(tmp_path)
+    editor._selected_cells = [(0, 20)]  # a second, 1-cell inlet
+    editor.on_mask_change({"new": "Ocean"})
+    assert len(editor._obc_tiny.get_xdata()) == 2
+    assert "Warning: 2 small open boundaries along coastline" in editor._obc_html.value
+    editor._selected_cells = [(0, 10), (0, 11), (0, 20)]
+    editor.on_mask_change({"new": "Land"})
+    assert len(editor._obc_tiny.get_xdata()) == 0
+    assert editor._obc_html.value == "Open boundaries: <b>east, north, west</b>."
+    assert editor.open_boundaries == ["east", "north", "west"]
+    editor.undo_last_edit()
+    assert len(editor._obc_tiny.get_xdata()) == 2
+    assert "small open boundaries" in editor._obc_html.value
+
+
+def test_min_depth_change_updates_open_boundaries(tmp_path):
+    _, editor = _editor_with_inlet(tmp_path)
+    editor._min_depth_specifier.value = 1000.0  # every cell becomes land
+    assert not np.any(np.asarray(editor._obc_lines.get_linewidths()) == 4.0)
+    assert editor._obc_html.value == "Open boundaries: <b>none</b>."
