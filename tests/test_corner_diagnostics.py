@@ -1,4 +1,5 @@
 import copy
+import re
 import time
 from types import SimpleNamespace
 import numpy as np
@@ -154,8 +155,8 @@ def test_messages_are_sentences_about_ocean_cells_only(get_california_grid):
     m = diag.cell_metrics(cg)
     errors, warns = diag.quality_messages(cg, metrics=m)
     assert not errors and all(w[0].isupper() and w.endswith(".") for w in warns)
-    assert any(w.startswith("Abrupt cell-size change ") for w in warns)
-    assert any(" near " in w and w.endswith(" cells).") for w in warns)
+    where = r"[\d,]+ cells( in [\d,]+ areas)?, worst .* \(\d+\.\d\dN \d+\.\d\dW\)"
+    assert any(re.match(f"Abrupt cell-size change: {where}", w) for w in warns)
     at = [(0, 0), (0, 19), (49, 19), (49, 0), (25, 19), (25, 10)]
     places = ["near corner 1", "near corner 2", "near corner 3", "near corner 4"]
     places += ["near the east side", "in the interior"]
@@ -166,6 +167,21 @@ def test_messages_are_sentences_about_ocean_cells_only(get_california_grid):
     land = diag.cell_metrics(cg, wet=wet)
     assert (land["status"] == 0).all() and m["status"].any()
     assert diag.quality_messages(cg, wet=wet, metrics=land) == ([], [])
+
+
+def test_many_flagged_areas_make_one_capped_sentence():
+    flagged = np.zeros((20, 30), bool)
+    flagged[2:4, 2:5] = flagged[10, 10] = flagged[15:18, 20:22] = True
+    flagged[0, 29] = flagged[19, 0] = flagged[4, 5] = True  # (4, 5) joins (3, 4)
+    value = np.where(flagged, 1.5, 1.0)
+    value[10, 10], value[16, 21], value[0, 29] = 3.0, 2.5, 2.0
+    lon, lat = np.meshgrid(np.linspace(-77, -75, 30), np.linspace(36, 38, 20))
+    msg = diag._areas("Abrupt cell-size change", value, flagged, "{:.2f}x ", lon, lat)
+    head = "Abrupt cell-size change: 16 cells in 5 areas, worst 3.00x in the interior"
+    assert msg.startswith(head) and msg.endswith(", and 2 more areas.")
+    assert msg.count(" at ") == 2 and "2.50x at 37.68N 75.55W" in msg
+    one = diag._areas("Stretched cells", value, flagged & (value > 2.9), "", lon, lat)
+    assert one == "Stretched cells: 1 cell in the interior (37.05N 76.31W)."
 
 
 def test_size_jumps_to_land_neighbours_do_not_count():
@@ -182,7 +198,12 @@ def test_a_folded_cell_is_an_error(get_trapezoid):
     m = diag.cell_metrics(cg)
     assert m["folded"].any() and (m["status"][m["folded"]] == 2).all()
     errors, _ = diag.quality_messages(cg, metrics=m)
-    assert len(errors) == 1 and errors[0].startswith("Folded (inside-out) cells in the")
+    assert len(errors) == 1 and errors[0].startswith("Folded (inside-out) cells: ")
+    m["folded"][:] = False
+    m["folded"][[1, 1, 5], [1, 2, 6]] = True
+    errors, _ = diag.quality_messages(cg, metrics=m)
+    head = "Folded (inside-out) cells: 3 cells in 2 areas, one near "
+    assert errors[0].startswith(head) and "), also at " in errors[0]
 
 
 # --- timestep_limits ---

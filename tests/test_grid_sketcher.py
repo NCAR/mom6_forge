@@ -1,5 +1,6 @@
 import random
 import re
+import time
 import types
 
 import matplotlib.pyplot as plt
@@ -679,6 +680,42 @@ def test_flagged_edges_and_the_hover_on_a_shared_edge(get_sketch, monkeypatch):
     assert "(i=4, j=4): OK" in s.ax.format_coord(cg.x[9, 9], cg.y[9, 9])
 
 
+def test_small_flagged_cells_are_boxed_until_zoomed_in(monkeypatch):
+    real = diag.cell_metrics
+
+    def fake(cg, **kw):
+        m = real(cg, **kw)
+        m["status"] = 0 * m["status"]
+        m["status"][5::30, 5::30], m["status"][35, 35:37] = 1, 2
+        return m
+
+    monkeypatch.setattr(diag, "cell_metrics", fake)
+    s = _new(Outline.from_bbox(-10, 10, -5, 5), resolution_km=10)
+    x0, x1, y0, y1, cells = s._boxes
+    status = s._metrics["status"]
+    assert 1 < len(x0) <= gs._MAX_BOXES and cells.sum() == (status > 0).sum()
+    colors = [to_hex(c) for c in s.flag_lines.get_colors()]
+    assert colors.count(RED) == 1 and len(colors) == len(x0)
+    for seg in s.flag_lines.get_segments():  # at least _BOX_PX on screen
+        assert (np.ptp(s.ax.transData.transform(seg), axis=0) >= 11.99).all()
+    j, i = np.argwhere(status == 2)[0]
+    x, y = s._shown.x[2 * j + 1, 2 * i + 1], s._shown.y[2 * j + 1, 2 * i + 1]
+    assert "2 flagged cells here: zoom in" in s.ax.format_coord(x, y)
+    # Too many groups: bigger tiles merge them
+    monkeypatch.setattr(gs, "_MAX_BOXES", 4)
+    s._draw_grid_lines(s._shown)
+    assert 1 <= len(s._boxes[0]) <= 4
+    # A moving view hides the boxes; zoomed in, the cells' own edges show
+    hx = 5e3 * np.median(s._metrics["size"])
+    s._move_view((x - hx, x + hx), (y - hx, y + hx))
+    assert not s.flag_lines.get_visible()
+    t0 = time.perf_counter()
+    _fire(s, "lite")
+    assert time.perf_counter() - t0 < 0.5
+    colors = [to_hex(c) for c in s.flag_lines.get_colors()]
+    assert s._boxes is None and s.flag_lines.get_visible() and colors.count(RED) == 7
+
+
 def test_only_ocean_cells_are_flagged_and_warned_about(get_california, monkeypatch):
     s = _new(Outline(**get_california), resolution_km=12)
     cg, wet = s._shown, s._wet
@@ -698,7 +735,8 @@ def test_only_ocean_cells_are_flagged_and_warned_about(get_california, monkeypat
     # With no coastline every cell counts, so land cells are flagged too
     monkeypatch.setattr(diag, "ocean_mask", lambda cg: None)
     everywhere = _new(Outline(**get_california), resolution_km=12)
-    assert len(everywhere.flag_lines.get_segments()) > len(s.flag_lines.get_segments())
+    # Zoomed out, the flagged cells are boxed: the boxes hold more of them
+    assert everywhere._boxes[-1].sum() > s._boxes[-1].sum() > 0
 
 
 def test_the_messages_block_shows_only_headers_with_lines():

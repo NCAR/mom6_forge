@@ -15,6 +15,7 @@ from matplotlib.path import Path as MplPath
 from matplotlib.ticker import AutoLocator, FixedLocator, FuncFormatter, NullFormatter
 from pathlib import Path
 from pyproj import Transformer
+from scipy import ndimage
 from scipy.spatial import cKDTree
 import mom6_forge._conformal as cf
 from mom6_forge import corner_diagnostics as diag
@@ -35,6 +36,9 @@ _FRAME_S, _CATCHUP_MS = 1 / 30, 60
 # Pan/zoom: a redraw per 45 ms, full detail 250 ms after the last step, 1.25x per click
 _COALESCE_MS, _LITE_MS, _ZOOM_STEP = 45, 250, 1.25
 _HOVER_MS = 250  # the tooltip shows once the cursor rests this long
+# Flagged cells under 6 px on screen get boxes, one per group of touching 16 px tiles
+# with any, at least 12 px wide and at most 150 (bigger tiles, if more)
+_FLAG_PX, _TILE_PX, _BOX_PX, _MAX_BOXES = 6, 16, 12, 150
 # A pan turns the globe once the view's middle is this many degrees of arc from the
 # point it faces, or from a pole (then it faces the pole)
 _TURN_DEG = 20
@@ -393,6 +397,7 @@ class GridSketcher(widgets.HBox):
         self.frame_times, self._timers = [], {}
         self.ax = self.shade_mesh = self._cbar = self._ring = None
         self._runs = self._metrics = self._wet = self._tree = self._hover_xy = None
+        self._boxes = self._shown = None
         self._drag = self._pending = self._pan = self._click = None
         self._drag_changed = self._lite_on = False
         self._last_frame = self._last_redraw = self._closed_at = 0.0
@@ -589,6 +594,8 @@ class GridSketcher(widgets.HBox):
         self.ax.set_position([0.02, 0.76 * f, 0.96, 0.98 - 0.76 * f])
         self.cbar_ax.set_position([0.15, 0.48 * f, 0.7, 0.12 * f])
         if resize is not None:
+            if self._shown is not None and self._drag is None:
+                self._draw_grid_lines(self._shown, lite=self._lite_on)
             self._redraw()
 
     def _set_land(self, lon, lat, factor):
@@ -741,7 +748,8 @@ class GridSketcher(widgets.HBox):
             self.vertex_text.value = "\n".join(rows)
 
     def _draw_grid_lines(self, cg, lite=False):
-        """Interior grid lines as whole grey polylines, warn/bad edges on top.
+        """Interior grid lines as whole grey polylines, flags on top: the edges of
+        warn/bad cells, or boxes round them once they are too small to see.
 
         While the view moves (`lite`), every 4th line in flat grey and no flags.
         """
@@ -754,23 +762,92 @@ class GridSketcher(widgets.HBox):
         k *= 4 if lite else 1
         rows, cols = np.arange(k, cg.ny, k), np.arange(k, cg.nx, k)
         self.grid_lines.set_segments([q[j] for j in rows] + [q[:, i] for i in cols])
+        self.flag_lines.set_visible(not lite)
         if lite:
-            self.flag_lines.set_visible(False)
             self.grid_lines.set(color="#999999", linewidth=0.4, antialiased=False)
             return
         grey = to_rgba(diag.STATUS_COLORS[0], 0.35)
         self.grid_lines.set(color=grey, linewidth=0.4, antialiased=True)
-        # An edge takes the worse status of its two cells; -1 pads the boundary
-        pad = np.pad(self._metrics["status"], 1, constant_values=-1)
-        horiz = np.maximum(pad[:-1, 1:-1], pad[1:, 1:-1])[rows]
-        vert = np.maximum(pad[1:-1, :-1], pad[1:-1, 1:])[:, cols]
+        # Flagged cells under _FLAG_PX on screen are boxed, bigger ones edged
+        status, size, self._boxes = self._metrics["status"], self._metrics["size"], None
+        small = 1e3 * size * scale < _FLAG_PX * self.fig.dpi / 100
+        boxes, boxed = self._flag_boxes(cg, status * small)
+        # Every interior edge of a bigger flagged cell near the view (two of its own
+        # widths), in the worse status of its two cells; -1 pads the boundary
+        edged, (j, i) = np.zeros_like(status), np.nonzero((status > 0) & ~small)
+        cx, cy, r = cg.x[1::2, 1::2][j, i], cg.y[1::2, 1::2][j, i], 2e3 * size[j, i]
+        near = (cx > x0 - r) & (cx < x1 + r) & (cy > y0 - r) & (cy < y1 + r)
+        edged[j[near], i[near]] = status[j[near], i[near]]
+        pad = np.pad(edged, 1, constant_values=-1)
+        horiz = np.maximum(pad[:-1, 1:-1], pad[1:, 1:-1])[1:-1]
+        vert = np.maximum(pad[1:-1, :-1], pad[1:-1, 1:])[:, 1:-1]
         (jh, ih), (jv, iv) = np.nonzero(horiz > 0), np.nonzero(vert > 0)
-        h = np.stack([q[rows[jh], ih], q[rows[jh], ih + 1]], axis=1)
-        v = np.stack([q[jv, cols[iv]], q[jv + 1, cols[iv]]], axis=1)
-        worst = np.concatenate([horiz[jh, ih], vert[jv, iv]])
-        self.flag_lines.set_segments(np.concatenate([h, v]))
+        h = np.stack([q[jh + 1, ih], q[jh + 1, ih + 1]], axis=1)
+        v = np.stack([q[jv, iv + 1], q[jv + 1, iv + 1]], axis=1)
+        worst = np.r_[horiz[jh, ih], vert[jv, iv]]
+        self.flag_lines.set_segments([*h, *v, *boxes])
+        lw = np.r_[0.8 + 0.1 * (worst == 2), np.full(len(boxed), 1.5)]
+        worst = np.r_[worst, boxed].astype(int)
         colors = [diag.STATUS_COLORS[s] for s in worst]
-        self.flag_lines.set(color=colors, lw=0.8 + 0.1 * (worst == 2), visible=True)
+        self.flag_lines.set(color=colors, lw=lw)
+
+    def _flag_boxes(self, cg, status):
+        """Boxes round the flagged cells in view: their centres binned in 4 px bins,
+        touching _TILE_PX tiles with any merged, each box round its group's bins.
+
+        Returns the boxes' outlines in map metres and each one's worst status, and
+        keeps each box's extent and number of flagged cells in ``_boxes``.
+        """
+        j, i = np.nonzero(status > 0)
+        (x0, x1), (y0, y1), box = self.ax.get_xlim(), self.ax.get_ylim(), self.ax.bbox
+        d, n_x, n_y = self.fig.dpi / 100, int(box.width), int(box.height)
+        bin_px, sx, sy = 4 * d, box.width / (x1 - x0), box.height / (y1 - y0)
+        bx = np.floor((cg.x[1::2, 1::2][j, i] - x0) * sx / bin_px)
+        by = np.floor((cg.y[1::2, 1::2][j, i] - y0) * sy / bin_px)
+        shape = (int(n_y / bin_px) + 1, int(n_x / bin_px) + 1)
+        on = (bx >= 0) & (by >= 0) & (bx < shape[1]) & (by < shape[0])  # no NaN
+        flat = (by[on] * shape[1] + bx[on]).astype(int)
+        count = np.bincount(flat, minlength=shape[0] * shape[1]).reshape(shape)
+        bad = np.bincount(flat, status[j, i][on] == 2, shape[0] * shape[1]) > 0
+        worst = (count > 0) + bad.reshape(shape).astype(int)
+        fy, fx = np.nonzero(count)
+        if not len(fy):
+            return np.empty((0, 2, 2)), np.empty(0, int)
+        # Touching tiles with flagged cells are one group: bigger tiles if too many
+        for t in _TILE_PX // 4 * 2 ** np.arange(8):
+            tiles = np.zeros((shape[0] // t + 1, shape[1] // t + 1), bool)
+            tiles[fy // t, fx // t] = True
+            groups, n = ndimage.label(tiles, np.ones((3, 3)))
+            # A group whose box would be mostly empty tiles (a slanting band) gets a
+            # box per tile row
+            rows, ext = tiles.shape[0], ndimage.find_objects(groups)
+            area = [(a.stop - a.start) * (b.stop - b.start) for a, b in ext]
+            full = ndimage.sum(tiles, groups, range(1, n + 1))
+            sparse = np.r_[False, full < 0.3 * np.r_[area]]
+            key = groups * rows + sparse[groups] * np.arange(rows)[:, None]
+            keys = np.unique(np.r_[0, key.ravel()])
+            groups, n = np.searchsorted(keys, key), len(keys) - 1
+            if n <= _MAX_BOXES:
+                break
+        label = np.zeros(shape, int)
+        label[fy, fx] = groups[fy // t, fx // t]
+        index = np.arange(1, n + 1)
+        (by0, by1), (bx0, bx1) = (
+            np.array(
+                [[(s.start, s.stop) for s in sl] for sl in ndimage.find_objects(label)]
+            )
+            .reshape(-1, 2, 2)
+            .transpose(1, 2, 0)
+        )
+        # Bins to map metres, 2 px clear of the cells and at least _BOX_PX across
+        half_x = np.maximum((bx1 - bx0) * bin_px / 2 + 2 * d, _BOX_PX * d / 2) / sx
+        half_y = np.maximum((by1 - by0) * bin_px / 2 + 2 * d, _BOX_PX * d / 2) / sy
+        cx, cy = x0 + (bx0 + bx1) * bin_px / 2 / sx, y0 + (by0 + by1) * bin_px / 2 / sy
+        ex, ey = (cx - half_x, cx + half_x), (cy - half_y, cy + half_y)
+        corners = [(ex[0], ey[0]), (ex[1], ey[0]), (ex[1], ey[1]), (ex[0], ey[1])]
+        segs = np.array(corners + corners[:1]).transpose(2, 0, 1)
+        self._boxes = (*ex, *ey, ndimage.sum(count, label, index))
+        return segs, ndimage.maximum(worst, label, index).astype(int)
 
     def _draw_shading(self, cg):
         if self.shade_mesh is not None:
@@ -920,7 +997,7 @@ class GridSketcher(widgets.HBox):
             except Exception as exc:
                 problem = f"Preview failed: {str(exc).rstrip('.')}."
         self.preview = self.quality = self._runs = self._tree = self._ring = None
-        self._shown = None
+        self._shown = self._boxes = None
         self.grid_lines.set_segments([])
         self.flag_lines.set_segments([])
         self.summary.value = self.details_html.value = self.cells_actual.value = ""
@@ -1304,6 +1381,10 @@ class GridSketcher(widgets.HBox):
         if sides and wet is not None:
             state = "open boundary (ocean)" if wet[j, i] else "closed (land)"
             note = f" · {sides} side: {state}"
+        if self._boxes is not None:
+            x0, x1, y0, y1, count = self._boxes
+            n = int(count[(x0 <= x) & (x <= x1) & (y0 <= y) & (y <= y1)].sum())
+            note += f" · {n:,} flagged cell{'s' * (n > 1)} here: zoom in" * (n > 0)
         status = int(m["status"][j, i])
         if wet is not None and not wet[j, i]:
             return f"Cell (i={i}, j={j}): over land{note}"

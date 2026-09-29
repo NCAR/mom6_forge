@@ -6,6 +6,7 @@ local scale factor (one factor serves every direction, since the map is conforma
 
 import numpy as np
 from pyproj import Geod, Proj
+from scipy import ndimage
 from shapely import contains_xy
 from mom6_forge import _conformal as cf
 
@@ -429,6 +430,31 @@ def _and(items):
     return f"{', '.join(head)} and {last}" if head else last
 
 
+def _lonlat(lon, lat):
+    lon, lat = (float(lon) + 180.0) % 360.0 - 180.0, float(lat)
+    return f"{abs(lat):.2f}{'NS'[lat < 0]} {abs(lon):.2f}{'EW'[lon < 0]}"
+
+
+def _areas(text, value, flagged, fmt, lon, lat, top=3):
+    """One sentence on the flagged cells of a kind: how many, in how many areas
+    (8-connected groups), and the worst cell of each of the `top` worst areas."""
+    labels, n_areas = ndimage.label(flagged, np.ones((3, 3)))
+    value = np.where(flagged, value, -np.inf)
+    pos = ndimage.maximum_position(value, labels, np.arange(1, n_areas + 1))
+    pos = sorted(pos, key=lambda p: -value[p])[:top]
+    spots = [f"{fmt.format(value[p])}at {_lonlat(lon[p], lat[p])}" for p in pos]
+    n, where = int(flagged.sum()), _place(*pos[0], *flagged.shape)
+    head = f"{text}: {n:,} cell{'s' * (n > 1)}"
+    head += f" in {n_areas:,} areas" if n_areas > 1 else ""
+    lead = ("worst " if n > 1 else "") if fmt else ("one " if n_areas > 1 else "")
+    first = lead + spots[0].replace("at ", f"{where} (", 1) + ")"
+    parts = [head, first] if fmt or n_areas > 1 else [f"{head} {first}"]
+    parts += [f"also {_and(spots[1:])}"] if len(spots) > 1 else []
+    more = n_areas - len(pos)
+    parts += [f"and {more:,} more area{'s' * (more > 1)}"] if more > 0 else []
+    return ", ".join(parts) + "."
+
+
 def quality_messages(cg, wet=None, metrics=None, runs=None):
     """Errors and warnings about a solved grid's ocean cells, one sentence per kind.
 
@@ -447,24 +473,23 @@ def quality_messages(cg, wet=None, metrics=None, runs=None):
     -------
     errors, warnings : list of str
         Errors are folded cells, which make the grid unusable. Warnings are cell-size
-        jumps, non-orthogonal or stretched cells (each with how many cells, and where
-        the worst one is), crowding, nearly flat corners and open-boundary problems.
+        jumps, non-orthogonal or stretched cells (each with how many cells in how many
+        areas, and where the worst cells of the 3 worst areas are), crowding, nearly
+        flat corners and open-boundary problems.
     """
     m = cell_metrics(cg, wet) if metrics is None else metrics
     ny, nx = m["size"].shape
     ocean = np.ones((ny, nx), bool) if wet is None else np.asarray(wet, dtype=bool)
     th, errors, warns = m["thresholds"], [], []
-    checks = [(errors, "Folded (inside-out) cell{s}", m["folded"], m["folded"])]
-    names = dict(ratio="Abrupt cell-size change", ortho="Non-orthogonal cell{s}")
-    names.update(aspect="Stretched cell{s}")
-    checks += [(warns, t, m[k], m[k] > th[f"{k}_warn"]) for k, t in names.items()]
-    for out, text, value, flagged in checks:
-        flagged = flagged & ocean
+    lon, lat = _cell_centers(cg)
+    checks = [(errors, "Folded (inside-out) cells", "folded", "")]
+    checks += [(warns, "Abrupt cell-size change", "ratio", "{:.2f}x ")]
+    checks += [(warns, "Non-orthogonal cells", "ortho", "{:.1f} deg ")]
+    checks += [(warns, "Stretched cells", "aspect", "aspect {:.1f} ")]
+    for out, text, key, fmt in checks:
+        flagged = ocean & (m[key] if key == "folded" else m[key] > th[f"{key}_warn"])
         if flagged.any():
-            k = int(np.argmax(np.where(flagged, value, -np.inf)))
-            n, where = int(flagged.sum()), _place(*divmod(k, nx), ny, nx)
-            text = text.format(s="s" * (n > 1))
-            out.append(f"{text} {where} ({n} cells)." if n > 1 else f"{text} {where}.")
+            out.append(_areas(text, m[key], flagged, fmt, lon, lat))
     size = m["size"][ocean]
     if size.size and size.max() > 50 * size.min():
         lo, hi = size.min(), size.max()
