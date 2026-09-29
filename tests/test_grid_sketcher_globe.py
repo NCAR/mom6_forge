@@ -1,7 +1,9 @@
 """GridSketcher's map: a globe facing the outline, zoomable out to all of it."""
 
+import re
 from types import SimpleNamespace
 import numpy as np
+import xarray as xr
 from mom6_forge.grid_sketcher import GridSketcher, Outline
 
 
@@ -67,4 +69,35 @@ def test_an_outline_round_the_pole_is_fitted_on_a_globe_facing_it():
     (x0, x1), (y0, y1) = sk.ax.get_xlim(), sk.ax.get_ylim()
     x, y = sk.vertex_scatter.get_data()
     assert x0 < x.min() and x.max() < x1 and y0 < y.min() and y.max() < y1
+    sk.close()
+
+
+def _eastward(lon):
+    """A uniform 0.5 m/s eastward current on a global lon/lat grid."""
+    lat = np.arange(-80.0, 90.0, 1.0)
+    u = np.full((lat.size, lon.size), 0.5)
+    return xr.Dataset(
+        {"u": (("lat", "lon"), u), "v": (("lat", "lon"), 0 * u)},
+        coords={"lat": lat, "lon": lon},
+    )
+
+
+def test_current_arrows_point_east_on_the_map_and_hide_while_panning():
+    for lon in (np.arange(0.0, 360.0, 1.0), np.arange(-180.0, 180.0, 1.0)):
+        sk = GridSketcher(currents=_eastward(lon))
+        uv = sk.current_arrows.U, sk.current_arrows.V
+        assert len(uv[0]) > 50 and (uv[0] > 0).all() and (abs(uv[1]) < uv[0]).all()
+        sk._set_lite(True)
+        assert sk.current_arrows is None
+        sk._set_lite(False)
+        sk.show_currents.value = False
+        assert sk.current_arrows is None
+        sk.close()
+
+
+def test_details_give_the_angle_of_the_current_to_each_open_side():
+    sk = GridSketcher(currents=_eastward(np.arange(0.0, 360.0, 1.0)))
+    html = sk.details_html.value
+    assert "West side: mean current 0.50 m/s, " in html  # nearly across it
+    assert re.search(r"South side: mean current 0.50 m/s, (8\d|90)°", html)
     sk.close()

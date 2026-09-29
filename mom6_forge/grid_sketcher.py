@@ -45,6 +45,8 @@ _FLAG_PX, _TILE_PX, _BOX_PX, _MAX_BOXES = 6, 16, 12, 150
 # point it faces, or from a pole (then it faces the pole)
 _TURN_DEG = 20
 _STATUS_ROWS = 100  # the Status box keeps this many messages
+# Current arrows: one per this many CSS pixels, full length at 0.5 m/s, none under 2 cm/s
+_ARROW_PX, _ARROW_SPEED, _ARROW_MIN = 28, 0.5, 0.02
 # Build peaks near 0.3 GB + 1.6 kB per cell (measured): about 4 GB at 2.4 million cells
 _MAX_CELLS = 2_400_000
 _EDGE_STEPS = 8  # points per outline edge drawn on the globe
@@ -356,6 +358,67 @@ def _depth_levels(depth, count=6):
     return [levels[k] for k in pick] if levels else []
 
 
+def _load_currents(currents):
+    """(u, v, lon0, dlon, nlon_wrap, lat0, dlat) of a regular lon/lat grid of currents.
+
+    `currents` is a NetCDF path or an xarray Dataset with u/uo, v/vo (m/s) on
+    lon/longitude and lat/latitude; any other dimensions of length 1 are dropped.
+    """
+    ds = xr.open_dataset(currents) if isinstance(currents, (str, Path)) else currents
+    get = lambda *names: ds[next(k for k in names if k in ds.variables)].squeeze()
+    lon, lat = (
+        get(*k).values.astype(float)
+        for k in (("lon", "longitude"), ("lat", "latitude"))
+    )
+    u, v = (np.asarray(get(*k).values, "f4") for k in (("u", "uo"), ("v", "vo")))
+    dlon = float(lon[1] - lon[0])
+    wrap = len(lon) if len(lon) * abs(dlon) > 359.9 else 0  # a global grid wraps round
+    return u, v, float(lon[0]), dlon, wrap, float(lat[0]), float(lat[1] - lat[0])
+
+
+def _sample_currents(fields, lon, lat):
+    """(u, v) at the nearest grid point to each (lon, lat): NaN outside or on land."""
+    u, v, lon0, dlon, wrap, lat0, dlat = fields
+    ix = np.rint(((np.asarray(lon) - lon0) % 360.0) / dlon).astype(int)
+    ix = ix % wrap if wrap else ix
+    iy = np.rint((np.asarray(lat) - lat0) / dlat).astype(int)
+    ok = (ix >= 0) & (ix < u.shape[1]) & (iy >= 0) & (iy < u.shape[0])
+    uv = np.full((2, ix.size), np.nan)
+    uv[:, ok] = u[iy[ok], ix[ok]], v[iy[ok], ix[ok]]
+    return uv
+
+
+def _side_currents_html(cg, runs, fields):
+    """Per open side: its mean current speed and the speed-weighted angle between the
+    current and the side's normal (0: straight across the boundary)."""
+    rows = []
+    q = [a[::2, ::2] for a in (cg.lon, cg.lat)]
+    # Sides as in _update_obc; the normal's sign doesn't matter, only its angle
+    for side, sl in zip(diag.OBC_SIDES, [0, (..., -1), -1, (..., 0)]):
+        lon, lat = (np.asarray(a[sl], float) for a in q)
+        open_ = np.zeros(len(lon) - 1, bool)
+        for r in runs[side]["runs"]:
+            open_[r["start"] : r["stop"]] = True
+        mlon = lon[:-1] + 0.5 * ((lon[1:] - lon[:-1] + 180) % 360 - 180)
+        mlat = 0.5 * (lat[1:] + lat[:-1])
+        tx = ((lon[1:] - lon[:-1] + 180) % 360 - 180) * np.cos(np.radians(mlat))
+        ty = lat[1:] - lat[:-1]
+        u, v = _sample_currents(fields, mlon, mlat)
+        w = np.hypot(tx, ty) * open_ * np.isfinite(u)
+        if not w.any():
+            continue
+        u, v, speed = np.nan_to_num(u), np.nan_to_num(v), np.nan_to_num(np.hypot(u, v))
+        nx, ny = ty, -tx
+        cos = np.abs(u * nx + v * ny) / np.maximum(speed * np.hypot(nx, ny), 1e-12)
+        angle = np.degrees(np.arccos(np.clip(cos, 0, 1)))
+        mean = float((w * speed).sum() / w.sum())
+        deg = float((w * speed * angle).sum() / max((w * speed).sum(), 1e-12))
+        rows.append(
+            f"{side.capitalize()} side: mean current {mean:.2f} m/s, {deg:.0f}° from the normal"
+        )
+    return "".join(f"<div>{escape(r)}</div>" for r in rows)
+
+
 def _contour_segments(fields, count):
     """About `count` xi and eta level curves each, clear of the raster's jagged edge."""
     segments = []
@@ -420,6 +483,11 @@ class GridSketcher(widgets.HBox):
     bathymetry : str, pathlib.Path or xarray.DataArray, optional
         Elevation (m, negative in the ocean) on ``lon``/``lat`` coordinates, or a
         NetCDF file of it such as GEBCO's, drawn as faint depth contours. Default: none.
+    currents : str, pathlib.Path or xarray.Dataset, optional
+        Time-mean currents to draw faintly under the grid, and to compare each open
+        side with in Details: a NetCDF path or Dataset of u, v (m/s, eastward and
+        northward; or uo, vo) on a regular lon/lat grid, (lat, lon) ordered.
+        Default: none.
 
     Notes
     -----
@@ -440,6 +508,7 @@ class GridSketcher(widgets.HBox):
         figsize=None,
         blank=False,
         bathymetry=None,
+        currents=None,
     ):
         if blank:
             outline = Outline([], [])
@@ -465,8 +534,9 @@ class GridSketcher(widgets.HBox):
         if self._auto:
             self._fit_projection()
         self.working_dir = Path(working_dir or Path.cwd())
+        self._currents = None if currents is None else _load_currents(currents)
         self.preview = self.quality = self.grid = None
-        self.timings = {"frame": None, "preview": None, "full": None}
+        self.timings = {"frame": None, "preview": None, "full": None, "currents": None}
         self.frame_times, self._timers = [], {}
         self.ax = self.shade_mesh = self._cbar = self._ring = None
         self._runs = self._metrics = self._wet = self._tree = self._hover_xy = None
@@ -535,6 +605,10 @@ class GridSketcher(widgets.HBox):
             b.observe(lambda c, k=kind: self._safe(self._on_projection, k, c), "value")
             self.projection_buttons[kind] = b
         self.shade_cells = W.Checkbox(value=True, description="Shade cell size")
+        on = self._currents is not None
+        self.show_currents = W.Checkbox(
+            value=on, disabled=not on, description="Currents"
+        )
         has_bathy, narrow = self._elev is not None, {"width": "auto"}
         self.depth_box = W.Checkbox(value=has_bathy, description="Depth contours")
         self.depth_box.disabled = not has_bathy
@@ -543,7 +617,7 @@ class GridSketcher(widgets.HBox):
             not has_bathy,
             "170px",
         )
-        for box in (self.shade_cells, self.depth_box):
+        for box in (self.shade_cells, self.depth_box, self.show_currents):
             box.layout, box.indent = narrow, False
         self.undo_button = self._button("Undo", lambda: self._edit("undo"))
         self.redo_button = self._button("Redo", lambda: self._edit("redo"))
@@ -561,7 +635,8 @@ class GridSketcher(widgets.HBox):
         self.reset_view_button = self._button("Reset view", self._on_reset_view)
         boxes = [self.resolution_box, self.shade_cells, self.depth_box]
         fns = [self._on_resolution, self._on_shade, self._on_depth]
-        boxes, fns = boxes + [self.depth_count], fns + [self._on_depth]
+        boxes += [self.depth_count, self.show_currents]
+        fns += [self._on_depth, self._on_currents]
         for box, fn in zip(boxes, fns):
             box.observe(lambda change, fn=fn: self._safe(fn, change), "value")
         details = W.Accordion([self.details_html], titles=("Details",))
@@ -572,9 +647,11 @@ class GridSketcher(widgets.HBox):
         )
         panel = [W.HBox([self.resolution_box, self.cells_actual], layout=row)]
         projections = [W.HTML("Projection"), *self.projection_buttons.values()]
+        overlays = [self.shade_cells, self.show_currents]
+        depths = [self.depth_box, self.depth_count]
         panel += [W.HBox(projections, layout=row)]
-        layers = [self.shade_cells, self.depth_box, self.depth_count]
-        panel += [W.HBox(layers, layout=row), self.obc_html]
+        panel += [W.HBox(overlays, layout=row), W.HBox(depths, layout=row)]
+        panel += [self.obc_html]
         edits = [self.undo_button, self.redo_button, self.clear_button, self.box_button]
         panel += [W.HBox(edits, layout=row)]
         panel += [self.build_button]
@@ -677,6 +754,7 @@ class GridSketcher(widgets.HBox):
         # Its box now, not at the browser's next draw, so a press before that lands
         self.ax.apply_aspect()
         self._init_artists()
+        self._draw_currents()
         if view is None:
             self._set_land(*self._extent_lonlat(), 6.0)
         else:  # the land in view
@@ -691,6 +769,7 @@ class GridSketcher(widgets.HBox):
         if resize is not None:
             if self._shown is not None and self._drag is None:
                 self._draw_grid_lines(self._shown, lite=self._lite_on)
+            self._draw_currents()
             self._redraw()
 
     def _set_land(self, lon, lat, factor):
@@ -795,6 +874,7 @@ class GridSketcher(widgets.HBox):
         (self.move_handle,) = ax.plot([], [], "s", ms=8, mfc="w", mew=1.8, **handle)
         (self.rotate_handle,) = ax.plot([], [], "o", ms=8, **handle)
         self.hover_annotation = ax.annotate("", (0, 0), (12, 12), visible=False, **kw)
+        self.current_arrows = None
 
     # ------------------------------------------------------------------
     # Drawing
@@ -1057,6 +1137,53 @@ class GridSketcher(widgets.HBox):
         self._draw_shading(self._shown)
         self._redraw()
 
+    def _draw_currents(self):
+        """Faint arrows of the currents, _ARROW_PX apart on screen: their length and
+        opacity grow with speed. None while the view moves, or with the box unticked."""
+        if self.current_arrows is not None:
+            self.current_arrows.remove()
+            self.current_arrows = None
+        if self._currents is None or not self.show_currents.value or self._lite_on:
+            return
+        t0, box, step = (
+            time.perf_counter(),
+            self.ax.bbox,
+            _ARROW_PX * self.fig.dpi / 100,
+        )
+        px, py = np.meshgrid(
+            *(
+                np.arange(a + step / 2, a + n, step)
+                for a, n in ((box.x0, box.width), (box.y0, box.height))
+            )
+        )
+        x, y = self.ax.transData.inverted().transform(np.c_[px.ravel(), py.ravel()]).T
+        on = np.hypot(x, y) < 0.99 * self.globe.radius
+        x, y = x[on], y[on]
+        lon, lat = self.globe.to_lonlat(x, y)
+        u, v = _sample_currents(self._currents, lon, lat)
+        speed = np.hypot(u, v)
+        keep = speed > _ARROW_MIN  # False at NaN
+        x, y, lon, lat, u, v, speed = (a[keep] for a in (x, y, lon, lat, u, v, speed))
+        # The direction on the map: a short step along the current, projected
+        k = 0.05 / speed
+        dx, dy = self.globe.to_xy(lon + k * u / np.cos(np.radians(lat)), lat + k * v)
+        dx, dy = dx - x, dy - y
+        size = np.clip(np.sqrt(speed / _ARROW_SPEED), 0.3, 1.0)
+        per_px = abs(np.diff(self.ax.get_xlim())[0]) / box.width
+        scale = 0.9 * step * per_px * size / np.maximum(np.hypot(dx, dy), 1e-9)
+        color = np.tile(to_rgba("#1f4e99"), (len(x), 1))
+        color[:, 3] = 0.2 + 0.5 * size
+        kw = dict(angles="xy", scale_units="xy", scale=1, pivot="middle", units="dots")
+        kw.update(width=1.2, headwidth=4, headlength=4, headaxislength=3.5, zorder=1.8)
+        self.current_arrows = self.ax.quiver(
+            x, y, dx * scale, dy * scale, color=color, transform=self.globe.crs, **kw
+        )
+        self.timings["currents"] = time.perf_counter() - t0
+
+    def _on_currents(self, _change):
+        self._draw_currents()
+        self._redraw()
+
     def _sketch(self):
         """Sketch the dragged outline's grid as coarse xi/eta curves, no inversion."""
         segments, o, t0 = [], self.outline, time.perf_counter()
@@ -1192,6 +1319,8 @@ class GridSketcher(widgets.HBox):
             coast = "all cells: no coastline data"
         dx = f"smallest ocean cell {ts['min_wet_dx'] / 1000.0:.2f} km ({coast})"
         ts_line = f"<div style='margin-top:4px'>{dx} &middot; {ts['mom6_hint']}</div>"
+        if self._currents is not None:
+            ts_line += _side_currents_html(cg, runs, self._currents)
         self.details_html.value = _div(_summary_html(q) + ts_line, "font-size:11px")
         self.cells_actual.value = f"&nbsp;≈ {cg.nx} × {cg.ny} cells"
         self._draw_preview()
@@ -1524,6 +1653,7 @@ class GridSketcher(widgets.HBox):
             self.cbar_ax.set_visible(not on)
         if self._shown is not None:
             self._draw_grid_lines(self._shown, lite=on)
+        self._draw_currents()
         if not on:
             self._redraw(full=True)
 
