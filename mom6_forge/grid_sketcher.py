@@ -52,7 +52,7 @@ _EDGE_STEPS = 8  # points per outline edge drawn on the globe
 # a Box side gets this many vertices so it follows its parallel or meridian
 _HANDLE_PX, _STALK_PX, _BOX_SIDE = 9, 30, 4
 _WORLD = (-180.0, 180.0, -90.0, 90.0)  # the land window of views off or round the globe
-# Bathymetric contours: at most 6 of these depths (m), from at most 600 x 600 points
+# Bathymetric contours: some of these depths (m), from at most 600 x 600 points
 _DEPTHS, _BATHY_PTS = (10, 20, 50, 100, 200, 500, 1000, 2000, 3000, 4000, 5000), 600
 # The projection buttons: labelled by the first word, the whole name in the tooltip
 _PROJECTIONS = [("Lambert conformal", "lcc"), ("Mercator", "merc")]
@@ -349,10 +349,10 @@ def _read_depth(elev, window, n=_BATHY_PTS):
     return x[order], lat[rows], -z[:, order]
 
 
-def _depth_levels(depth):
-    """At most 6 of `_DEPTHS`, spread over the depths present."""
+def _depth_levels(depth, count=6):
+    """At most `count` of `_DEPTHS`, spread over the depths present."""
     levels = [d for d in _DEPTHS if d < np.nanmax(depth, initial=0.0)]
-    pick = np.unique(np.linspace(0, len(levels) - 1, 6).round().astype(int))
+    pick = np.unique(np.linspace(0, len(levels) - 1, count).round().astype(int))
     return [levels[k] for k in pick] if levels else []
 
 
@@ -535,6 +535,16 @@ class GridSketcher(widgets.HBox):
             b.observe(lambda c, k=kind: self._safe(self._on_projection, k, c), "value")
             self.projection_buttons[kind] = b
         self.shade_cells = W.Checkbox(value=True, description="Shade cell size")
+        has_bathy, narrow = self._elev is not None, {"width": "auto"}
+        self.depth_box = W.Checkbox(value=has_bathy, description="Depth contours")
+        self.depth_box.disabled = not has_bathy
+        self.depth_count = W.IntSlider(6, 2, 12, description="Levels", style=style)
+        self.depth_count.disabled, self.depth_count.layout.width = (
+            not has_bathy,
+            "170px",
+        )
+        for box in (self.shade_cells, self.depth_box):
+            box.layout, box.indent = narrow, False
         self.undo_button = self._button("Undo", lambda: self._edit("undo"))
         self.redo_button = self._button("Redo", lambda: self._edit("redo"))
         self.clear_button = self._button("Clear all", lambda: self._edit("clear"))
@@ -549,8 +559,9 @@ class GridSketcher(widgets.HBox):
         self.vertex_text = W.Textarea(description="Vertices", rows=10, style=style)
         self.apply_button = self._button("Apply coordinates", self._on_apply_vertices)
         self.reset_view_button = self._button("Reset view", self._on_reset_view)
-        boxes = [self.resolution_box, self.shade_cells]
-        fns = [self._on_resolution, self._on_shade]
+        boxes = [self.resolution_box, self.shade_cells, self.depth_box]
+        fns = [self._on_resolution, self._on_shade, self._on_depth]
+        boxes, fns = boxes + [self.depth_count], fns + [self._on_depth]
         for box, fn in zip(boxes, fns):
             box.observe(lambda change, fn=fn: self._safe(fn, change), "value")
         details = W.Accordion([self.details_html], titles=("Details",))
@@ -561,7 +572,9 @@ class GridSketcher(widgets.HBox):
         )
         panel = [W.HBox([self.resolution_box, self.cells_actual], layout=row)]
         projections = [W.HTML("Projection"), *self.projection_buttons.values()]
-        panel += [W.HBox(projections, layout=row), self.shade_cells, self.obc_html]
+        panel += [W.HBox(projections, layout=row)]
+        layers = [self.shade_cells, self.depth_box, self.depth_count]
+        panel += [W.HBox(layers, layout=row), self.obc_html]
         edits = [self.undo_button, self.redo_button, self.clear_button, self.box_button]
         panel += [W.HBox(edits, layout=row)]
         panel += [self.build_button]
@@ -691,28 +704,37 @@ class GridSketcher(widgets.HBox):
         paths, rings = _land_paths(self.globe.centre, self._land_window, scale)
         self.land_collection.set_paths(paths)
         self.coast_collection.set_segments(rings)
-        if self._elev is not None:
-            self.bathy_lines.set_segments(self._bathy_segments()[0])
+        self._set_depth_lines()
+
+    def _set_depth_lines(self):
+        on = self._elev is not None and self.depth_box.value
+        self.bathy_lines.set_segments(self._bathy_segments()[0] if on else [])
+
+    def _on_depth(self, _change):
+        self._set_depth_lines()
+        self._redraw()
 
     def _bathy_segments(self):
         """Depth contours in the land window, on the globe, and the depths they come
-        from: cached per globe and window."""
+        from: cached per globe, window and number of levels."""
         key = (self.globe.centre, self._land_window)
+        count = self.depth_count.value
         if key not in self._bathy:
-            data, segments = _read_depth(self._elev, self._land_window), []
-            if data is not None:
-                x, y, depth = data
-                gen = contour_generator(x, y, depth, line_type="Separate")
-                for level in _depth_levels(depth):
-                    segments += [self.globe.to_xy(*v.T).T for v in gen.lines(level)]
             if len(self._bathy) >= 16:
                 self._bathy.clear()
-            self._bathy[key] = (segments, data)
-        return self._bathy[key]
+            data = _read_depth(self._elev, self._land_window)
+            gen = data and contour_generator(*data, line_type="Separate")
+            self._bathy[key] = (gen, data, {})
+        gen, data, by_count = self._bathy[key]
+        if count not in by_count:
+            levels = [] if data is None else _depth_levels(data[2], count)
+            lines = [v for level in levels for v in gen.lines(level)]
+            by_count[count] = [self.globe.to_xy(*v.T).T for v in lines]
+        return by_count[count], data
 
     def _depth_at(self, x, y):
         """Depth (m) under the map point (x, y), or None without bathymetry there."""
-        if self._elev is None or (data := self._bathy_segments()[1]) is None:
+        if not self.depth_box.value or (data := self._bathy_segments()[1]) is None:
             return None
         lon, lat = self.globe.to_lonlat(x, y)
         xs, ys, depth = data
