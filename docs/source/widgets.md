@@ -164,6 +164,9 @@ instructions in a box under it, and the control panel on the right. On the map:
 - **Click an edge** to add a vertex there (keep dragging to place it).
 - **Right-click** (or **Ctrl-click**) a vertex to delete it.
 - **Double-click** a vertex to make or unmake it a corner (numbered 1-4).
+- **Drag** the centre square to move the whole outline over the sphere, or its knob
+  to rotate it; with **Box** on, **drag** on the map for a box along meridians and
+  parallels.
 - **Scroll** inside the framed map to zoom about the cursor, out to the whole
   hemisphere facing you; **drag** the empty map (or middle-drag anywhere) to pan:
   after a long pan the globe turns to face the middle of the view (near a pole,

@@ -296,7 +296,7 @@ def test_a_blank_sketch_draws_closes_on_point_1_clears_and_undoes():
     s = _new(blank=True, resolution_km=100)
     rows = [getattr(w, "children", ()) for w in s.control_panel.children]
     edits = [b.description for r in rows if s.undo_button in r for b in r]
-    assert edits == ["Undo", "Redo", "Clear all"]
+    assert edits == ["Undo", "Redo", "Clear all", "Box"]
     assert s.build_button.disabled and s.messages.value == ""
     points = [(236, 32), (242, 32), (242, 38), (236, 38), (236, 32)]
     for lon, lat in points[:4]:
@@ -875,7 +875,8 @@ def test_an_edit_after_build_drops_the_grid_until_the_next_build(get_sketch, tmp
     assert s.save_button.disabled
     s.build_button.click()
     assert s.grid is not None and not s.save_button.disabled
-    _drag(s, _middle(s), (_middle(s)[0] + 40, _middle(s)[1]))  # a pan
+    p = np.add(_middle(s), (0, -25))  # clear of the centre handle
+    _drag(s, p, np.add(p, (40, 0)))  # a pan
     s._on_scroll(_event(s, *_middle(s), step=1))
     s.shade_cells.value = not s.shade_cells.value
     assert s.grid is not None and not s.save_button.disabled
@@ -1008,3 +1009,57 @@ def test_depth_contours_follow_the_bathymetry_in_either_lon_convention(lon):
 def test_no_bathymetry_draws_no_contours():
     s = _new()
     assert not s.bathy_lines.get_segments() and s._depth_at(0.0, 0.0) is None
+
+
+def _handle_px(s, artist):
+    return tuple(s.ax.transData.transform(np.column_stack(artist.get_data()))[0])
+
+
+def test_a_box_drag_draws_a_meridian_parallel_box_in_one_undo_step(get_sketch):
+    s, k = get_sketch, gs._BOX_SIDE
+    before = s.outline.to_dict()
+    s.box_button.value = True
+    assert np.isnan(s.move_handle.get_data()[0]).all()  # hidden in Box mode
+    p = _px_of(s, -6, -3)
+    _drag(s, p, np.add(p, (2, 2)))  # too small: ignored, still in Box mode
+    assert s.outline.to_dict() == before and s.box_button.value
+    _drag(s, p, _middle(s), _px_of(s, 4, 2))
+    o = s.outline
+    assert o.n == 4 * k and o.corners == [0, k, 2 * k, 3 * k] and not s.box_button.value
+    np.testing.assert_allclose([min(o.lon), max(o.lon)], [-6, 4], atol=1e-6)
+    np.testing.assert_allclose([min(o.lat), max(o.lat)], [-3, 2], atol=1e-6)
+    assert set(np.round(o.lat[:k], 9)) == {-3.0} and s.preview is not None
+    assert np.isfinite(s.move_handle.get_data()[0]).all()
+    s._edit("undo")
+    assert s.outline.to_dict() == before
+
+
+def _gaps(o):
+    """Angles between every pair of vertices: a rigid turn keeps them."""
+    v = gs._unit(o.lon, o.lat)
+    return v.T @ v
+
+
+def test_the_centre_handle_moves_the_outline_rigidly_in_one_undo_step(get_sketch):
+    s = get_sketch
+    before, gaps = s.outline.to_dict(), _gaps(s.outline)
+    to = np.add(_handle_px(s, s.move_handle), (40, -30))
+    _drag(s, _handle_px(s, s.move_handle), to)
+    np.testing.assert_allclose(_gaps(s.outline), gaps, atol=1e-12)
+    assert s.outline.corners == before["corners"] and s.outline.lon != before["lon"]
+    # The centre square sits where it was dropped
+    assert np.hypot(*np.subtract(_handle_px(s, s.move_handle), to)) < 3
+    s._edit("undo")
+    assert s.outline.to_dict() == before
+
+
+def test_the_knob_rotates_the_outline_by_the_angle_swept(get_sketch):
+    s = get_sketch
+    lon, lat = list(s.outline.lon), list(s.outline.lat)
+    (cx, cy), (kx, ky) = (_handle_px(s, h) for h in (s.move_handle, s.rotate_handle))
+    r, a = np.hypot(kx - cx, ky - cy), np.radians(90 + 30)
+    _drag(s, (kx, ky), (cx + r * np.cos(a), cy + r * np.sin(a)))
+    axis = gs._unit(*gs._centroid(lon, lat))
+    want = gs._turn(lon, lat, axis, np.radians(30))
+    np.testing.assert_allclose([s.outline.lon, s.outline.lat], want, atol=1e-6)
+    assert len(s.outline._undo) == 1 and s._knob == np.pi / 2

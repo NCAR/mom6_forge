@@ -1,6 +1,7 @@
 import time
 from html import escape
 import numpy as np
+from numpy.linalg import norm
 import ipywidgets as widgets
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
@@ -47,6 +48,9 @@ _STATUS_ROWS = 100  # the Status box keeps this many messages
 # Build peaks near 0.3 GB + 1.6 kB per cell (measured): about 4 GB at 2.4 million cells
 _MAX_CELLS = 2_400_000
 _EDGE_STEPS = 8  # points per outline edge drawn on the globe
+# The centre (move) and knob (rotate) handles: grab radius and stalk length, CSS px;
+# a Box side gets this many vertices so it follows its parallel or meridian
+_HANDLE_PX, _STALK_PX, _BOX_SIDE = 9, 30, 4
 _WORLD = (-180.0, 180.0, -90.0, 90.0)  # the land window of views off or round the globe
 # Bathymetric contours: at most 6 of these depths (m), from at most 600 x 600 points
 _DEPTHS, _BATHY_PTS = (10, 20, 50, 100, 200, 500, 1000, 2000, 3000, 4000, 5000), 600
@@ -60,6 +64,8 @@ _HELP = (
     "<b>Drag</b> a vertex to move it · <b>click an edge</b> to add a vertex<br>"
     "<b>Right-click</b> (or Ctrl-click) a vertex to delete it<br>"
     "<b>Double-click</b> a vertex to make or unmake a corner (4 needed)<br>"
+    "<b>Drag</b> the centre square to move the outline, its knob to rotate it<br>"
+    "<b>Box</b>, then drag, for a box along meridians and parallels<br>"
     "<b>Clear all</b> to draw anew: <b>click</b> points, then point 1 to close<br>"
     "<b>Scroll</b> to zoom · <b>drag the map</b> (or middle-drag) to pan</div>"
 )
@@ -93,9 +99,12 @@ class Outline:
         self._undo, self._redo, self._dragging = [], [], False
 
     @classmethod
-    def from_bbox(cls, lon_min, lon_max, lat_min, lat_max):
-        lon = [lon_min, lon_max, lon_max, lon_min]
-        return cls(lon, [lat_min, lat_min, lat_max, lat_max], [0, 1, 2, 3])
+    def from_bbox(cls, lon_min, lon_max, lat_min, lat_max, per_side=1):
+        # Counter-clockwise from the SW corner, each side in `per_side` equal steps
+        t = np.arange(per_side) / per_side
+        lon = lon_min + (lon_max - lon_min) * np.r_[t, 1 + 0 * t, 1 - t, 0 * t]
+        lat = lat_min + (lat_max - lat_min) * np.r_[0 * t, t, 1 + 0 * t, 1 - t]
+        return cls(lon.tolist(), lat.tolist(), [k * per_side for k in range(4)])
 
     @classmethod
     def from_grid(cls, grid, per_side=1):
@@ -227,6 +236,31 @@ def _cbar_formatter(decades, minor=False):
     return FuncFormatter(label)
 
 
+def _unit(lon, lat):
+    lam, phi = np.radians(lon), np.radians(lat)
+    return np.array([np.cos(phi) * np.cos(lam), np.cos(phi) * np.sin(lam), np.sin(phi)])
+
+
+def _centroid(lon, lat):
+    """(lon, lat) of the mean of the vertices' unit vectors."""
+    v = _unit(lon, lat).mean(axis=1)
+    return np.degrees(np.arctan2(v[1], v[0])), np.degrees(np.arcsin(v[2] / norm(v)))
+
+
+def _turn(lon, lat, axis, angle):
+    """(lon, lat) rotated by `angle` radians about `axis` (right-handed), each lon
+    within 180 degrees of its old value."""
+    k, v = axis / norm(axis), _unit(lon, lat)
+    v = (
+        v * np.cos(angle)
+        + np.cross(k, v, axis=0) * np.sin(angle)
+        + np.outer(k, k @ v) * (1 - np.cos(angle))
+    )
+    new = np.degrees(np.arctan2(v[1], v[0]))
+    lon = np.asarray(lon, float) + (new - np.asarray(lon, float) + 180) % 360 - 180
+    return lon.tolist(), np.degrees(np.arcsin(np.clip(v[2], -1, 1))).tolist()
+
+
 def _nearest(px, py, vx, vy, r_vertex, r_edge):
     """(vertex, edge) at (px, py): a vertex within its radius wins, else an edge; one
     at NaN (behind the globe) is never picked."""
@@ -351,7 +385,9 @@ class GridSketcher(widgets.HBox):
     """Sketch a 4-corner outline on a map and build its conformal MOM6 grid.
 
     Drag a vertex to move it, press an edge to add one, right-click (or Ctrl-click) to
-    delete one and double-click to make or unmake a corner; scroll zooms, dragging the
+    delete one and double-click to make or unmake a corner; drag the centre square to
+    move the whole outline over the sphere and its knob to rotate it; with "Box" on, a
+    drag draws a box along meridians and parallels; scroll zooms, dragging the
     empty map pans: once a pan leaves the middle of the view 20 degrees from the point
     the globe faces, the globe turns to face it (near a pole, the pole), so pans reach
     anywhere. Each edit is solved at preview resolution and drawn with its quality,
@@ -435,7 +471,8 @@ class GridSketcher(widgets.HBox):
         self.ax = self.shade_mesh = self._cbar = self._ring = None
         self._runs = self._metrics = self._wet = self._tree = self._hover_xy = None
         self._boxes = self._shown = None
-        self._drag = self._pending = self._pan = self._click = None
+        self._drag = self._grab = self._pending = self._pan = self._click = None
+        self._knob = np.pi / 2  # the rotate knob's direction from the centre
         self._drag_changed = self._lite_on = False
         self._last_frame = self._last_redraw = self._closed_at = 0.0
         self._drawing = self.outline.n == 0
@@ -501,6 +538,10 @@ class GridSketcher(widgets.HBox):
         self.undo_button = self._button("Undo", lambda: self._edit("undo"))
         self.redo_button = self._button("Redo", lambda: self._edit("redo"))
         self.clear_button = self._button("Clear all", lambda: self._edit("clear"))
+        tip = "Drag on the map for a box along meridians and parallels"
+        self.box_button = W.ToggleButton(description="Box", tooltip=tip)
+        self.box_button.layout.width = "auto"
+        self.box_button.observe(lambda _c: self._safe(self._on_box), "value")
         self.build_button = self._button("Build final grid", self._on_build)
         self.name_box = W.Text(value=name, description="Name", style=style)
         self.name_box.layout.width = "60%"
@@ -521,7 +562,7 @@ class GridSketcher(widgets.HBox):
         panel = [W.HBox([self.resolution_box, self.cells_actual], layout=row)]
         projections = [W.HTML("Projection"), *self.projection_buttons.values()]
         panel += [W.HBox(projections, layout=row), self.shade_cells, self.obc_html]
-        edits = [self.undo_button, self.redo_button, self.clear_button]
+        edits = [self.undo_button, self.redo_button, self.clear_button, self.box_button]
         panel += [W.HBox(edits, layout=row)]
         panel += [self.build_button]
         save = W.HBox([self.name_box, self.save_button], layout=row)
@@ -727,6 +768,10 @@ class GridSketcher(widgets.HBox):
         (self.obc_tiny_markers,) = ax.plot([], [], "X", **tiny)
         box = dict(boxstyle="round,pad=0.3", fc="#ffffe0", ec="#999999", alpha=0.95)
         kw = dict(textcoords="offset points", size=9, bbox=box, zorder=10)
+        handle = dict(color="#1f4e9c", zorder=7, clip_on=True)
+        (self.stalk,) = ax.plot([], [], "-", lw=1.2, **handle)
+        (self.move_handle,) = ax.plot([], [], "s", ms=8, mfc="w", mew=1.8, **handle)
+        (self.rotate_handle,) = ax.plot([], [], "o", ms=8, **handle)
         self.hover_annotation = ax.annotate("", (0, 0), (12, 12), visible=False, **kw)
 
     # ------------------------------------------------------------------
@@ -811,12 +856,38 @@ class GridSketcher(widgets.HBox):
             xy = (cx[k], cy[k]) if labels[k] else (0, 0)
             # None behind the globe, where it has no place
             label.set(text=labels[k], position=xy, visible=bool(np.isfinite(xy).all()))
+        self._update_handles()
         self.undo_button.disabled = not o._undo
         self.redo_button.disabled = not o._redo
         if sync_text:
             star = ["*" * (k in o.corners) for k in range(o.n)]
             rows = [f"{a:.4f}, {b:.4f}{s}" for a, b, s in zip(o.lon, o.lat, star)]
             self.vertex_text.value = "\n".join(rows)
+
+    def _update_handles(self):
+        """The centre square and, on a stalk, the rotate knob; none while drawing, in
+        Box mode or behind the globe."""
+        o, xy = self.outline, np.full((2, 2), np.nan)
+        if not (self._drawing or self.box_button.value or o.n < 3):
+            (cx, cy), box = self.globe.to_xy(*_centroid(o.lon, o.lat)), self.ax.bbox
+            r = _STALK_PX * self.fig.dpi / 100
+            dx = r * np.ptp(self.ax.get_xlim()) / box.width
+            dy = r * np.ptp(self.ax.get_ylim()) / box.height
+            xy = [
+                [cx, cx + dx * np.cos(self._knob)],
+                [cy, cy + dy * np.sin(self._knob)],
+            ]
+        self.stalk.set_data(*xy)
+        self.move_handle.set_data(*np.array(xy)[:, :1])
+        self.rotate_handle.set_data(*np.array(xy)[:, 1:])
+
+    def _pick_handle(self, px, py):
+        """ "rotate" or "move" if (px, py) is within _HANDLE_PX of that handle."""
+        for kind, h in (("rotate", self.rotate_handle), ("move", self.move_handle)):
+            hx, hy = self.ax.transData.transform(np.column_stack(h.get_data()))[0]
+            if np.hypot(hx - px, hy - py) <= _HANDLE_PX * self.fig.dpi / 100:
+                return kind
+        return None
 
     def _draw_grid_lines(self, cg, lite=False):
         """Interior grid lines as whole grey polylines, flags on top: the edges of
@@ -1189,6 +1260,8 @@ class GridSketcher(widgets.HBox):
             return self._begin_pan(event)
         o, delete = self.outline, event.button == 3 or "ctrl" in event.modifiers
         i, edge = self._pick(event.x, event.y)
+        if self.box_button.value:
+            i = edge = delete = None
         if self._drawing and i == 0 and o.n >= 3 and not delete:
             return self._close_outline()  # a click on point 1 closes the outline
         if event.dblclick and (self._drawing or time.monotonic() < self._closed_at + 1):
@@ -1201,7 +1274,15 @@ class GridSketcher(widgets.HBox):
                     self._set_status(message)
             return
         self._drag_changed = False
-        if i is not None:
+        left = event.button == 1 and not event.dblclick
+        handle = self._pick_handle(event.x, event.y) if left else None
+        if (self.box_button.value and left) or handle:
+            # A box from the press, or the outline as it was, and where it was grabbed
+            o.begin_drag()
+            lonlat = tuple(map(float, self.globe.to_lonlat(*xy)))
+            self._drag = handle or "box"
+            self._grab = (list(o.lon), list(o.lat), lonlat, (event.x, event.y))
+        elif i is not None:
             o.begin_drag()
             self._drag = i
         elif edge is not None and not self._drawing:
@@ -1248,14 +1329,54 @@ class GridSketcher(widgets.HBox):
         self._redraw()
 
     def _move_dragged(self, x, y, sketch=True):
-        lon, lat = self.globe.to_lonlat(x, y)
-        self.outline.move(self._drag, float(lon), float(lat))
+        if isinstance(self._drag, str):
+            if not self._move_whole(x, y):
+                return
+        else:
+            lon, lat = self.globe.to_lonlat(x, y)
+            self.outline.move(self._drag, float(lon), float(lat))
         for artist in (self.shade_mesh, self.cbar_ax, self.flag_lines):
             if artist is not None:
                 artist.set_visible(False)
         self._update_outline_artists(sync_text=False)
         if sketch:
             self._sketch()
+
+    def _move_whole(self, x, y):
+        """Box: the box from the press to (x, y), once it is over _CLICK_PX each way.
+        Move: the outline turned over the sphere, the grabbed point to (x, y). Rotate:
+        turned about its centre by the angle the knob swept."""
+        o, (lon, lat, start, press) = self.outline, self._grab
+        at = tuple(map(float, self.globe.to_lonlat(x, y)))
+        if self._drag == "box":
+            size = np.abs(self.ax.transData.transform((x, y)) - press)
+            if size.min() <= _CLICK_PX * self.fig.dpi / 100:
+                return False
+            w = start[0] + min(0.0, (at[0] - start[0] + 180) % 360 - 180)
+            e = w + abs((at[0] - start[0] + 180) % 360 - 180)
+            (s, n), k = sorted((start[1], at[1])), _BOX_SIDE
+            box = Outline.from_bbox(w, e, s, n, per_side=k)
+            o.lon, o.lat, o.corners, self._drawing = (
+                box.lon,
+                box.lat,
+                box.corners,
+                False,
+            )
+        elif self._drag == "move":
+            a, b = _unit(*start), _unit(*at)
+            axis = np.cross(a, b)
+            if norm(axis) > 1e-12:
+                o.lon, o.lat = _turn(lon, lat, axis, np.arctan2(norm(axis), a @ b))
+        else:
+            centre = _centroid(lon, lat)
+            cx, cy = self.globe.to_xy(*centre)
+            self._knob = float(np.arctan2(y - cy, x - cx))
+            o.lon, o.lat = _turn(lon, lat, _unit(*centre), self._knob - np.pi / 2)
+        try:  # the solve plane follows it
+            self.projection = cf.projection_for(self.projection.kind, o.lon, o.lat)
+        except ValueError:
+            pass
+        return True
 
     def _on_release(self, event):
         if self._pan is not None:
@@ -1276,10 +1397,21 @@ class GridSketcher(widgets.HBox):
         xy = (event.xdata, event.ydata) if event.inaxes is self.ax else self._pending
         if self._drag_changed and xy is not None:
             self._move_dragged(*xy, sketch=False)
-        self.outline.end_drag(moved=self._drag_changed)
-        self._drag = self._pending = None
+        # Changed only if it differs from the snapshot the drag began with
+        o, self._knob = self.outline, np.pi / 2
+        self._drag_changed &= o._undo[-1:] != [o._snapshot()]
+        o.end_drag(moved=self._drag_changed)
+        if self._drag == "box" and self._drag_changed:
+            self.box_button.value = False
+        self._drag = self._grab = self._pending = None
         if self._drag_changed:
             self._refresh()
+
+    def _on_box(self):
+        # The handles hide while the Box tool is on; a box's release redraws itself
+        self._update_handles()
+        if self._drag is None:
+            self._redraw()
 
     def _edit(self, method):
         if getattr(self.outline, method)() is not False:
@@ -1349,6 +1481,7 @@ class GridSketcher(widgets.HBox):
         self.ax.set_xlim(xlim)
         self.ax.set_ylim(ylim)
         self._ensure_land_window()
+        self._update_handles()  # the stalk keeps its length in pixels
         self._cancel_hover()
         if not self._lite_on:
             self._set_lite(True)
