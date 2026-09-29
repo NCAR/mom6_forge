@@ -6,6 +6,7 @@ import types
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+import xarray as xr
 from matplotlib.backend_bases import LocationEvent
 from matplotlib.colors import to_hex
 from matplotlib.ticker import FuncFormatter
@@ -981,3 +982,29 @@ def test_random_gestures_keep_the_preview_and_buttons_consistent(get_sketch):
         assert _pressed(s) == [s.projection.kind]
     s.close()
     assert s.fig.number not in plt.get_fignums() and s.comm is None
+
+
+def _elevation(lon):
+    """A shelf deepening westward from 0 m at 242 E, on `lon` of either convention."""
+    lat = np.arange(20.0, 50.0, 0.1)
+    z = -500.0 * np.clip(242.0 - lon % 360.0, 0, None)[None, :] + 0 * lat[:, None]
+    return xr.DataArray(z, coords=dict(lat=lat, lon=lon), dims=("lat", "lon"))
+
+
+@pytest.mark.parametrize("lon", [np.arange(0.0, 360.0, 0.1), np.arange(-180, 180, 0.1)])
+def test_depth_contours_follow_the_bathymetry_in_either_lon_convention(lon):
+    s = _new(bathymetry=_elevation(lon))
+    x, y, depth = s._bathy_segments()[1]
+    assert np.all(np.diff(x) > 0) and x.size <= gs._BATHY_PTS >= y.size
+    assert len(gs._depth_levels(depth)) == 6 and s.bathy_lines.get_segments()
+    # The 1000 m contour runs down 240 E, where the hover box reads it
+    assert s._depth_at(*s.globe.to_xy(240.0, 35.0)) == pytest.approx(1000, abs=60)
+    s._set_lite(True)
+    assert not s.bathy_lines.get_visible()
+    s._set_lite(False)
+    assert s.bathy_lines.get_visible()
+
+
+def test_no_bathymetry_draws_no_contours():
+    s = _new()
+    assert not s.bathy_lines.get_segments() and s._depth_at(0.0, 0.0) is None

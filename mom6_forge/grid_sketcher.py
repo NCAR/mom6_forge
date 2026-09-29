@@ -5,6 +5,7 @@ import ipywidgets as widgets
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import shapely
+import xarray as xr
 from cartopy.mpl.path import shapely_to_path
 from contourpy import contour_generator
 from dataclasses import dataclass, field, replace
@@ -47,6 +48,8 @@ _STATUS_ROWS = 100  # the Status box keeps this many messages
 _MAX_CELLS = 2_400_000
 _EDGE_STEPS = 8  # points per outline edge drawn on the globe
 _WORLD = (-180.0, 180.0, -90.0, 90.0)  # the land window of views off or round the globe
+# Bathymetric contours: at most 6 of these depths (m), from at most 600 x 600 points
+_DEPTHS, _BATHY_PTS = (10, 20, 50, 100, 200, 500, 1000, 2000, 3000, 4000, 5000), 600
 # The projection buttons: labelled by the first word, the whole name in the tooltip
 _PROJECTIONS = [("Lambert conformal", "lcc"), ("Mercator", "merc")]
 _PROJECTIONS += [("Transverse Mercator", "tmerc"), ("Polar stereographic", "stere")]
@@ -289,6 +292,36 @@ def _land_paths(centre, window, scale):
     return tuple(paths), tuple(rings)
 
 
+def _read_depth(elev, window, n=_BATHY_PTS):
+    """Lon, lat and depth (m, positive down) of `elev` in the lon/lat window, at most
+    `n` points each way; lon runs on from the window's west edge whatever the file's
+    convention (-180..180 or 0..360)."""
+    lon0, lon1, lat0, lat1 = window
+    lon, lat = (np.asarray(elev[c], float) for c in ("lon", "lat"))
+    east = (lon - lon0) % 360.0  # degrees east of the window's west edge
+    i, j = np.flatnonzero(east <= lon1 - lon0), np.flatnonzero(
+        (lat0 <= lat) & (lat <= lat1)
+    )
+    if i.size < 2 or j.size < 2:
+        return None
+    si, sj = -(-i.size // n), -(-j.size // n)
+    # A strided slice per run of columns (two across the file's own lon seam)
+    cut = np.flatnonzero(np.diff(i) > 1) + 1
+    runs = [slice(r[0], r[-1] + 1, si) for r in np.split(i, cut)]
+    rows = slice(j[0], j[-1] + 1, sj)
+    z = np.hstack([elev.isel(lat=rows, lon=r).values for r in runs]).astype(float)
+    x = lon0 + np.hstack([east[r] for r in runs])
+    order = np.argsort(x)
+    return x[order], lat[rows], -z[:, order]
+
+
+def _depth_levels(depth):
+    """At most 6 of `_DEPTHS`, spread over the depths present."""
+    levels = [d for d in _DEPTHS if d < np.nanmax(depth, initial=0.0)]
+    pick = np.unique(np.linspace(0, len(levels) - 1, 6).round().astype(int))
+    return [levels[k] for k in pick] if levels else []
+
+
 def _contour_segments(fields, count):
     """About `count` xi and eta level curves each, clear of the raster's jagged edge."""
     segments = []
@@ -348,6 +381,9 @@ class GridSketcher(widgets.HBox):
         Map size in inches. Default (4.5, 5.0) fits beside the panel.
     blank : bool, optional
         Start with no outline, ready to click one in.
+    bathymetry : str, pathlib.Path or xarray.DataArray, optional
+        Elevation (m, negative in the ocean) on ``lon``/``lat`` coordinates, or a
+        NetCDF file of it such as GEBCO's, drawn as faint depth contours. Default: none.
 
     Notes
     -----
@@ -367,6 +403,7 @@ class GridSketcher(widgets.HBox):
         per_side=1,
         figsize=None,
         blank=False,
+        bathymetry=None,
     ):
         if blank:
             outline = Outline([], [])
@@ -402,6 +439,10 @@ class GridSketcher(widgets.HBox):
         self._drag_changed = self._lite_on = False
         self._last_frame = self._last_redraw = self._closed_at = 0.0
         self._drawing = self.outline.n == 0
+        if isinstance(bathymetry, (str, Path)):
+            ds = xr.open_dataset(bathymetry)
+            bathymetry = ds["elevation" if "elevation" in ds else list(ds)[0]]
+        self._elev, self._bathy = bathymetry, {}
         self._build_controls(name or "sketch")
         self._build_figure(figsize or (4.5, 5.0))
         self._update_outline_artists()
@@ -609,6 +650,33 @@ class GridSketcher(widgets.HBox):
         paths, rings = _land_paths(self.globe.centre, self._land_window, scale)
         self.land_collection.set_paths(paths)
         self.coast_collection.set_segments(rings)
+        if self._elev is not None:
+            self.bathy_lines.set_segments(self._bathy_segments()[0])
+
+    def _bathy_segments(self):
+        """Depth contours in the land window, on the globe, and the depths they come
+        from: cached per globe and window."""
+        key = (self.globe.centre, self._land_window)
+        if key not in self._bathy:
+            data, segments = _read_depth(self._elev, self._land_window), []
+            if data is not None:
+                x, y, depth = data
+                gen = contour_generator(x, y, depth, line_type="Separate")
+                for level in _depth_levels(depth):
+                    segments += [self.globe.to_xy(*v.T).T for v in gen.lines(level)]
+            if len(self._bathy) >= 16:
+                self._bathy.clear()
+            self._bathy[key] = (segments, data)
+        return self._bathy[key]
+
+    def _depth_at(self, x, y):
+        """Depth (m) under the map point (x, y), or None without bathymetry there."""
+        if self._elev is None or (data := self._bathy_segments()[1]) is None:
+            return None
+        lon, lat = self.globe.to_lonlat(x, y)
+        xs, ys, depth = data
+        i = np.abs((lon - xs[0]) % 360.0 + xs[0] - xs).argmin()
+        return float(depth[np.abs(ys - lat).argmin(), i])
 
     def _view_lonlat(self):
         """Lon/lat round the view's edge; None once it passes the globe's rim or is
@@ -640,6 +708,9 @@ class GridSketcher(widgets.HBox):
         self.land_collection = add(PathCollection([], fc="#ece5d8", lw=0, zorder=0))
         coast = LineCollection([], lw=0.6, colors="#555555", zorder=0.6)
         self.coast_collection = add(coast)
+        # Faint depth contours, over the land's edge but under the coast and grid
+        faint = dict(lw=0.4, colors="#5b7fa6", alpha=0.5, zorder=0.5)
+        self.bathy_lines = add(LineCollection([], **faint))
         (self.outline_line,) = ax.plot([], [], "-", color="#222222", lw=1.2, zorder=3)
         (self.vertex_scatter,) = ax.plot([], [], "wo", ms=5, mec="#333333", zorder=4)
         (self.corner_scatter,) = ax.plot([], [], "ko", ms=12, zorder=5)
@@ -1292,6 +1363,7 @@ class GridSketcher(widgets.HBox):
         self._lite_on = on
         for artist in (self.grid_lines, self.land_collection, self.coast_collection):
             artist.set_antialiased(not on)
+        self.bathy_lines.set_visible(not on)
         if self.shade_mesh is not None:
             self.shade_mesh.set_visible(not on)
             self.cbar_ax.set_visible(not on)
@@ -1341,6 +1413,8 @@ class GridSketcher(widgets.HBox):
         ann = self.hover_annotation
         ann.xy, ann.xyann = (x, y), (24 * right - 12, 24 * up - 12)
         text = self._format_coord(x, y).replace(" · ", "\n")
+        if (depth := self._depth_at(x, y)) is not None:
+            text += f"\ndepth {depth:,.0f} m" if depth > 0 else "\nabove sea level"
         ann.set(text=text, ha=["right", "left"][right], va=["top", "bottom"][up])
         ann.set_visible(True)
         self._redraw()
