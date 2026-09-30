@@ -342,11 +342,14 @@ def test_write_ww3_input_after_reconstruction_from_files(
 # --- WW3 time steps ---------------------------------------------------------
 
 
-@pytest.mark.parametrize("min_dx", [2_000.0, 5_000.0, 10_952.0, 50_000.0])
-@pytest.mark.parametrize("cpl_dt", [900.0, 1800.0, 3600.0])
+@pytest.mark.parametrize(
+    "min_dx", [30.0, 500.0, 1_000.0, 1_700.0, 2_000.0, 5_000.0, 10_952.0, 50_000.0]
+)
+@pytest.mark.parametrize("cpl_dt", [900.0, 1200.0, 1800.0, 3600.0])
 def test_ww3_timesteps_from_spacing_properties(min_dx, cpl_dt):
     """The steps must respect propagation CFL on the smallest cell, and dtmax
-    must land exactly on the coupling time."""
+    must land exactly on the coupling time. min_dx=1700 at cpl_dt=1800 once gave
+    dtmax=1800/7, which CIME's ww3 buildnml truncates to 257 and rejects."""
     from mom6_forge.topo import (
         WW3_CFL_SAFETY,
         WW3_F1,
@@ -360,11 +363,13 @@ def test_ww3_timesteps_from_spacing_properties(min_dx, cpl_dt):
     )  # deep-water group velocity, lowest frequency
 
     assert dt["dtcfl"] <= WW3_CFL_SAFETY * min_dx / cg_max * (1 + 1e-12)
-    n_global = cpl_dt / dt["dtmax"]
-    assert n_global == pytest.approx(round(n_global))
-    n_sub = dt["dtmax"] / dt["dtcfl"]
-    assert n_sub == pytest.approx(round(n_sub))
-    assert 1 <= round(n_sub) <= WW3_MAX_DT_RATIO
+    # Whole seconds, so the values survive being written out and CIME's
+    # int(dtmax) check (dtcpl % dtmax == 0) in ww3 buildnml.
+    assert dt["dtmax"] == int(dt["dtmax"])
+    assert dt["dtcfl"] == int(dt["dtcfl"])
+    assert int(cpl_dt) % int(dt["dtmax"]) == 0
+    assert int(dt["dtmax"]) % int(dt["dtcfl"]) == 0
+    assert 1 <= dt["dtmax"] // dt["dtcfl"] <= WW3_MAX_DT_RATIO
     assert dt["dtcfli"] == dt["dtcfl"]
     assert dt["dtmin"] == pytest.approx(min(10.0, dt["dtcfl"] / 10.0))
 
@@ -383,7 +388,9 @@ def test_ww3_timesteps_from_spacing_coarse_grid_takes_one_step():
     [
         (dict(min_dx=0.0, cpl_dt=1800.0), "min_dx"),
         (dict(min_dx=5000.0, cpl_dt=-1.0), "cpl_dt"),
+        (dict(min_dx=5000.0, cpl_dt=1800.5), "whole number"),
         (dict(min_dx=5000.0, cpl_dt=1800.0, max_ratio=0), "max_ratio"),
+        (dict(min_dx=10.0, cpl_dt=1800.0), "under 1 s"),
     ],
 )
 def test_ww3_timesteps_from_spacing_rejects_bad_input(kwargs, match):
@@ -408,6 +415,22 @@ def test_write_ww3_input_time_steps_follow_the_grid(get_rect_topo_without_vc, tm
         f"  {dt['dtmax']:.2f}  {dt['dtcfl']:.2f}  {dt['dtcfli']:.2f}  {dt['dtmin']:.2f}"
         in text
     )
+
+
+def test_ww3_min_grid_spacing_on_polar_projection():
+    """On a polar stereographic grid, rows are not parallels and columns are not
+    meridians. Holding lat (or lon) fixed across neighbours once measured
+    ~1e-9 m near the pole, and the timestep search then never terminated."""
+    from mom6_forge.grid import Grid
+    from mom6_forge.topo import Topo
+
+    grid = Grid.from_projection(
+        "EPSG:3031", -1e6, 1e6, -1e6, 1e6, 100_000, name="antarctic"
+    )
+    topo = Topo(grid, min_depth=10.0)
+    smallest = min(float(np.min(grid.dxt)), float(np.min(grid.dyt)))
+    assert topo.ww3_min_grid_spacing() == pytest.approx(smallest, rel=0.05)
+    topo.ww3_timesteps(1800.0)
 
 
 def test_write_ww3_input_enables_langmuir_mixing(get_rect_topo_without_vc, tmp_path):
