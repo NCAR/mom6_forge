@@ -2497,15 +2497,20 @@ default. <code class="docutils literal notranslate"><span class="pre">dtmax</spa
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">dtcfl</span></code> bounds x-y propagation: <code class="docutils literal notranslate"><span class="pre">dtcfl</span> <span class="pre">&lt;=</span> <span class="pre">min_dx</span> <span class="pre">/</span> <span class="pre">Cg</span></code>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">dtmax</span></code> is the global step, over which propagation and the source terms
-are applied in sequence. <code class="docutils literal notranslate"><span class="pre">dtmax</span></code> is chosen as the largest exact divisor
-of <code class="docutils literal notranslate"><span class="pre">cpl_dt</span></code> that meets the second constraint, so WW3 still lands on the
-coupling time without a short final step.</p></li>
+are applied in sequence. <code class="docutils literal notranslate"><span class="pre">dtmax</span></code> is chosen as the largest whole-second
+divisor of <code class="docutils literal notranslate"><span class="pre">cpl_dt</span></code> that <code class="docutils literal notranslate"><span class="pre">max_ratio</span></code> or fewer propagation sub-steps
+can cover, so WW3 still lands on the coupling time without a short final
+step. CIME’s ww3 buildnml rejects a <code class="docutils literal notranslate"><span class="pre">dtmax</span></code> whose integer part does
+not divide the coupling interval.</p></li>
 </ul>
+<p><code class="docutils literal notranslate"><span class="pre">dtcfl</span></code> is also kept to a whole number of seconds that divides <code class="docutils literal notranslate"><span class="pre">dtmax</span></code>.
+WW3 takes <code class="docutils literal notranslate"><span class="pre">ceil(dtmax</span> <span class="pre">/</span> <span class="pre">dtcfl)</span></code> sub-steps, so a fractional <code class="docutils literal notranslate"><span class="pre">dtcfl</span></code>
+rounded down when it is written out would add a sub-step.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>min_dx</strong> (<em>float</em>) – Smallest grid spacing in meters.</p></li>
-<li><p><strong>cpl_dt</strong> (<em>float</em>) – Wave coupling interval in seconds (WAV_NCPL).</p></li>
+<li><p><strong>cpl_dt</strong> (<em>float</em>) – Wave coupling interval in seconds (WAV_NCPL), a whole number.</p></li>
 <li><p><strong>f_min</strong> (<em>float</em><em>, </em><em>optional</em>) – Lowest frequency in the spectrum [Hz].</p></li>
 <li><p><strong>safety</strong> (<em>float</em><em>, </em><em>optional</em>) – Fraction of the bare CFL limit to use.</p></li>
 <li><p><strong>max_ratio</strong> (<em>int</em><em>, </em><em>optional</em>) – Most propagation sub-steps per global step.</p></li>
