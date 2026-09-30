@@ -78,6 +78,11 @@ def test_the_handles_move_and_turn_and_the_knob_keeps_its_turn(get_results):
     assert r["moved"] and r["turned"] and abs(r["knob"]) < 20
 
 
+def test_a_shift_dragged_corner_scales_the_outline_on_the_real_backend(get_results):
+    moved, corners = get_results["gestures"]["scaled"]
+    assert moved and corners == [0, 1, 2, 3]
+
+
 # --- frames: only ever in reply to the browser's draw request ---
 
 

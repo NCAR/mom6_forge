@@ -54,6 +54,9 @@ _EDGE_STEPS = 8  # points per outline edge drawn on the globe
 # The centre (move) and knob (rotate) handles: grab radius and stalk length, CSS px;
 # a Box side gets this many vertices (1: just its two corners, no intermediate points)
 _HANDLE_PX, _STALK_PX, _BOX_SIDE = 9, 30, 1
+# Shift-drag a corner to scale: a stretch factor at or below this is ignored (it
+# would collapse or flip the outline)
+_SCALE_MIN = 0.05
 _WORLD = (-180.0, 180.0, -90.0, 90.0)  # the land window of views off or round the globe
 # Bathymetric contours: some of these depths (m), from at most 600 x 600 points
 _DEPTHS, _BATHY_PTS = (10, 20, 50, 100, 200, 500, 1000, 2000, 3000, 4000, 5000), 600
@@ -68,6 +71,7 @@ _HELP = (
     "<b>Right-click</b> (or Ctrl-click) a vertex to delete it<br>"
     "<b>Double-click</b> a vertex to make or unmake a corner (4 needed)<br>"
     "<b>Drag</b> the centre square to move the outline, its knob to rotate it<br>"
+    "<b>Shift-drag</b> a corner to scale the outline<br>"
     "<b>Box</b>, then drag, for a box along meridians and parallels<br>"
     "<b>Clear all</b> to draw anew: <b>click</b> points, then point 1 to close<br>"
     "<b>Scroll</b> to zoom · <b>drag the map</b> (or middle-drag) to pan</div>"
@@ -414,7 +418,8 @@ class GridSketcher(widgets.HBox):
 
     Drag a vertex to move it, press an edge to add one, right-click (or Ctrl-click) to
     delete one and double-click to make or unmake a corner; drag the centre square to
-    move the whole outline over the sphere and its knob to rotate it; with "Box" on, a
+    move the whole outline over the sphere and its knob to rotate it; Shift-drag a
+    corner to scale the outline about its opposite corner; with "Box" on, a
     drag draws a box along meridians and parallels; scroll zooms, dragging the
     empty map pans: once a pan leaves the middle of the view 20 degrees from the point
     the globe faces, the globe turns to face it (near a pole, the pole), so pans reach
@@ -1442,6 +1447,15 @@ class GridSketcher(widgets.HBox):
             lonlat = tuple(map(float, self.globe.to_lonlat(*xy)))
             self._drag = handle or "box"
             self._grab = (list(o.lon), list(o.lat), lonlat, (event.x, event.y))
+        elif (
+            i is not None
+            and i in o.corners
+            and len(o.corners) == 4
+            and not self._drawing
+            and "shift" in event.modifiers
+        ):
+            o.begin_drag()
+            self._drag, self._grab = "scale", self._scale_grab(i)
         elif i is not None:
             o.begin_drag()
             self._drag = i
@@ -1502,11 +1516,50 @@ class GridSketcher(widgets.HBox):
         if sketch:
             self._sketch()
 
+    def _scale_grab(self, i):
+        """Vertex `i`'s opposite corner (anchor, fixed) and the vectors `u`, `v` to
+        its two neighbours, plus every vertex's (a, b) in that basis (map-plane
+        metres): `vertex = anchor + a*u + b*v`. The outline's vertices are already
+        stored in ring order, so sorting its 4 corners gives that order too."""
+        o = self.outline
+        x, y = self.globe.to_xy(o.lon, o.lat)
+        ring = sorted(o.corners)
+        k = ring.index(i)
+        far, near1, near2 = ring[(k + 2) % 4], ring[(k + 1) % 4], ring[(k + 3) % 4]
+        anchor = np.array([x[far], y[far]])
+        u = np.array([x[near1], y[near1]]) - anchor
+        v = np.array([x[near2], y[near2]]) - anchor
+        rel = np.stack([x, y]) - anchor[:, None]
+        a, b = np.linalg.solve(np.column_stack([u, v]), rel)
+        return anchor, u, v, a, b
+
     def _move_whole(self, x, y):
         """Box: the box from the press to (x, y), once it is over _CLICK_PX each way.
         Move: the outline turned over the sphere, the grabbed point to (x, y). Rotate:
-        turned about its centre by the angle swept from the press."""
-        o, (lon, lat, start, press) = self.outline, self._grab
+        turned about its centre by the angle swept from the press. Scale: a Shift-
+        dragged corner's (s, t) in its `_scale_grab` basis, applied to every vertex
+        (the opposite corner stays put); ignored once a factor would flip or
+        collapse the outline."""
+        o = self.outline
+        if self._drag == "scale":
+            anchor, u, v, a, b = self._grab
+            rel = [x - anchor[0], y - anchor[1]]
+            try:
+                s, t = np.linalg.solve(np.column_stack([u, v]), rel)
+            except np.linalg.LinAlgError:
+                return False
+            if min(abs(s), abs(t)) <= _SCALE_MIN:
+                return False
+            nx = anchor[0] + s * a * u[0] + t * b * v[0]
+            ny = anchor[1] + s * a * u[1] + t * b * v[1]
+            lon, lat = self.globe.to_lonlat(nx, ny)
+            o.lon, o.lat = list(map(float, lon)), list(map(float, lat))
+            try:  # the solve plane follows it
+                self.projection = cf.projection_for(self.projection.kind, o.lon, o.lat)
+            except ValueError:
+                pass
+            return True
+        lon, lat, start, press = self._grab
         at = tuple(map(float, self.globe.to_lonlat(x, y)))
         if self._drag == "box":
             size = np.abs(self.ax.transData.transform((x, y)) - press)

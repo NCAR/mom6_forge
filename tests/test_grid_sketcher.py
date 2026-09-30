@@ -1100,6 +1100,34 @@ def test_the_knob_turns_the_outline_by_the_angle_swept_and_stays_turned(get_sket
     assert abs(np.degrees(np.arctan2(ky - cy, kx - cx)) - 120) < 2
 
 
+def test_a_shift_drag_on_a_corner_scales_the_box_about_its_opposite(get_sketch):
+    s, o = get_sketch, get_sketch.outline
+    before = o.to_dict()
+    gx, gy = s.globe.to_xy(o.lon, o.lat)
+    anchor = np.array([gx[2], gy[2]])  # corner 2 (NE) is opposite corner 0 (SW)
+    new_xy = anchor + 2 * (np.array([gx[0], gy[0]]) - anchor)
+    lon2, lat2 = s.globe.to_lonlat(*new_xy)
+    _drag(s, _px(s, 0), _px_of(s, lon2, lat2), modifiers=("shift",))
+    assert o.corners == before["corners"] == [0, 1, 2, 3]
+    np.testing.assert_allclose([o.lon[0], o.lat[0]], [lon2, lat2], atol=1e-6)
+    np.testing.assert_allclose([max(o.lon) - min(o.lon)], [2 * 20], rtol=0.15)  # width
+    np.testing.assert_allclose([max(o.lat) - min(o.lat)], [2 * 10], rtol=0.15)  # height
+    # The opposite corner (its anchor) barely moved, in metres
+    ngx, ngy = s.globe.to_xy(o.lon[2], o.lat[2])
+    assert np.hypot(ngx - anchor[0], ngy - anchor[1]) < 5
+    s._edit("undo")
+    assert o.to_dict() == before
+
+
+def test_a_plain_corner_drag_still_moves_only_that_corner(get_sketch):
+    s, o = get_sketch, get_sketch.outline
+    before = o.to_dict()
+    _drag(s, _px(s, 0), np.add(_px(s, 0), (15, 9)))
+    assert o.lon[1:] == before["lon"][1:] and o.lat[1:] == before["lat"][1:]
+    assert (o.lon[0], o.lat[0]) != (before["lon"][0], before["lat"][0])
+    assert o.corners == before["corners"]
+
+
 def test_depth_controls_toggle_and_thin_the_contours():
     s = _new(bathymetry=_elevation(np.arange(0.0, 360.0, 0.1)))
     many = len(s.bathy_lines.get_segments())

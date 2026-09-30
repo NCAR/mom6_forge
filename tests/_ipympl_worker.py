@@ -246,6 +246,21 @@ def gestures():
     r.update(turned=drag(s.rotate_handle, my - ky, my - ky))
     (mx, my), (kx, ky) = handle(s.move_handle), handle(s.rotate_handle)
     r.update(knob=float(np.degrees(np.arctan2(my - ky, kx - mx))))
+
+    # Shift-drag a corner: scales the outline, leaving its corner count alone
+    before, p = (s.outline.lon[0], s.outline.lat[0]), at(s, 0)
+    send(c, "button_press", x=p["x"], y=p["y"], modifiers=["shift"])
+    send(c, "motion_notify", x=p["x"] - 40, y=p["y"] + 40, modifiers=["shift"])
+    send(
+        c,
+        "button_release",
+        buttons=0,
+        x=p["x"] - 40,
+        y=p["y"] + 40,
+        modifiers=["shift"],
+    )
+    moved = (s.outline.lon[0], s.outline.lat[0]) != before
+    r.update(scaled=[moved, s.outline.corners])
     return r
 
 
