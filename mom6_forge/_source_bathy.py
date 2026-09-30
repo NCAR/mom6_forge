@@ -142,11 +142,23 @@ class SourceBathy:
             {self.lat_name: slice(lat_extent[0] - buf, lat_extent[1] + buf)}
         )
 
-        self._ds = longitude_slicer(
-            self._ds,
-            np.array(lon_extent) + np.array([-buf, buf]),
-            self.lon_name,
+        # A pole-encircling target (e.g. polar stereographic including a pole)
+        # has a qlon range bounded only by pyproj's arbitrary choice for the
+        # pole singularity — the outer rim actually wraps every azimuth. Slicing
+        # on that misleading extent chops the source at the antimeridian and
+        # leaves the bathymetry regridder with a gap. Keep the full source in
+        # longitude and let xESMF's periodic wrap handle the seam.
+        encircles_pole = (
+            (lon_extent[1] - lon_extent[0]) >= 350.0
+            or lat_extent[1] > 89.0
+            or lat_extent[0] < -89.0
         )
+        if not encircles_pole:
+            self._ds = longitude_slicer(
+                self._ds,
+                np.array(lon_extent) + np.array([-buf, buf]),
+                self.lon_name,
+            )
 
         return self._ds
 
