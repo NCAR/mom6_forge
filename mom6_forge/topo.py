@@ -1496,12 +1496,22 @@ class Topo:
                 output_dir / "bathymetry_unfinished.nc"
             )
 
+        # A polar target grid crosses the antimeridian along its outer rim,
+        # so destination cells there need xESMF to wrap the source in lon.
+        # Infer periodicity from the source lon span rather than the target grid.
+        src_lons = np.asarray(self.src_bathymetry_dataset[self.src.lon_name].values)
+        src_dlon = float(src_lons[1] - src_lons[0]) if src_lons.size > 1 else 0.0
+        src_is_periodic = bool(
+            (float(src_lons.max() - src_lons.min()) + abs(src_dlon)) >= 359.9
+        )
+
         self.depth = regrid_dataset_via_xesmf(
             input_dataset=self.src_bathymetry_dataset,
             output_dataset=self.destination_bathymetry,
             regridding_method=regridding_method,
             write_to_file=write_to_file,
             output_path=output_dir / "bathymetry_unfinished.nc",
+            periodic=src_is_periodic,
         )["depth"]
         if write_to_file:
             self.write_topo(
