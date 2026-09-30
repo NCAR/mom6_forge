@@ -3,6 +3,7 @@
 import re
 from types import SimpleNamespace
 import numpy as np
+import pytest
 import xarray as xr
 from mom6_forge.grid_sketcher import GridSketcher, Outline
 
@@ -72,58 +73,42 @@ def test_an_outline_round_the_pole_is_fitted_on_a_globe_facing_it():
     sk.close()
 
 
-def _eastward(lon):
-    """A uniform eastward transport of 100 m2/s and its streamfunction on a global
-    lon/lat grid: psi falls 11.1 Sv per degree north."""
-    lat = np.arange(-80.0, 90.0, 1.0)
-    u = np.full((lat.size, lon.size), 100.0)
-    psi = -100.0 * 6.371e6 * np.radians(lat + 80.0)[:, None] / 1e6 + 0 * u
-    names = {"psi": psi, "U": u, "V": 0 * u}
-    return xr.Dataset(
-        {k: (("lat", "lon"), v) for k, v in names.items()},
-        coords={"lat": lat, "lon": lon},
-    )
-
-
-def test_streamlines_follow_the_parallels_and_hide_while_panning():
-    for lon in (np.arange(0.0, 360.0, 1.0), np.arange(-180.0, 180.0, 1.0)):
-        sk = GridSketcher(currents=_eastward(lon))
-        lines = sk.flow_lines.get_segments()
-        assert 5 <= len(lines) <= 20 and sk.timings["currents"] > 0
-        lat = [sk.globe.to_lonlat(*v.T)[1] for v in lines]
-        assert max(np.ptp(v) for v in lat) < 0.1
-        psi = sk._value_at("flow", *sk.globe.to_xy(240.0, 35.0))
-        assert abs(psi + 100.0 * 6.371 * np.radians(115.0)) < 6
-        sk._set_lite(True)
-        assert not sk.flow_lines.get_visible()
-        sk._set_lite(False)
-        sk.show_currents.value = False
-        assert not sk.flow_lines.get_segments()
-        sk.close()
-
-
-def test_details_give_the_transport_and_angle_across_each_open_side():
-    sk = GridSketcher(currents=_eastward(np.arange(0.0, 360.0, 1.0)))
-    html = sk.details_html.value
-    assert re.search(r"West side: net \+\d+\.\d Sv into the grid, flow \d°", html)
-    assert re.search(
-        r"South side: net [+-]0\.\d Sv into the grid, flow (8\d|90)°", html
-    )
-    sk.close()
-
-
-def test_ssh_is_contoured_at_whole_cm_over_the_view_with_the_surface_flow(tmp_path):
+def test_ssh_levels_follow_the_slider_over_the_domain(tmp_path):
     lon, lat = np.arange(-180.0, 180.0, 0.25), np.arange(-80.0, 80.0, 0.25)
     ssh = np.float32(0.5 + 0.01 * lat[:, None] + 0 * lon)  # flows along parallels
     path = tmp_path / "ssh.nc"
     xr.Dataset({"ssh": (("lat", "lon"), ssh)}, {"lat": lat, "lon": lon}).to_netcdf(path)
-    sk = GridSketcher(currents=path)  # 235-243 E, 31-39 N
-    levels = np.unique(sk.flow_lines.get_array())
-    # About 10 of 1 cm over the view's 10 degrees, not 5 cm over the land window's
-    assert 8 <= levels.size <= 13 and np.allclose(np.diff(levels), 0.01)
-    assert 0.75 < levels.min() and levels.max() < 0.95
-    assert abs(sk._value_at("flow", *sk.globe.to_xy(239.0, 35.0)) - 0.85) < 0.01
+    sk = GridSketcher(ssh=path)  # 235-243 E, 31-39 N: 0.81-0.89 m
+    counts = []
+    for n in (4, 10, 20):
+        sk.ssh_count.value = n
+        levels = np.unique(sk.ssh_lines.get_array())
+        assert 0.81 < levels.min() and levels.max() < 0.89  # the domain, not the view
+        counts.append(levels.size)
+    step = np.diff(levels)
+    assert counts[0] < counts[1] < counts[2] and np.ptp(step) < 1e-9 and step[0] < 0.01
+    lat = [sk.globe.to_lonlat(*v.T)[1] for v in sk.ssh_lines.get_segments()]
+    assert max(np.ptp(v) for v in lat) < 0.1 and sk.timings["ssh"] > 0
+    assert abs(sk._value_at("ssh", *sk.globe.to_xy(239.0, 35.0)) - 0.85) < 0.01
     html = sk.details_html.value
     assert re.search(r"West side: surface flow 0° from the normal", html)
     assert re.search(r"North side: surface flow (89|90)° from the normal", html)
+    sk._set_lite(True)
+    assert not sk.ssh_lines.get_visible()
+    sk._set_lite(False)
+    sk.show_ssh.value = False
+    assert not sk.ssh_lines.get_segments()
     sk.close()
+
+
+def test_ssh_takes_zos_on_longitude_latitude_and_refuses_other_fields():
+    lon, lat = np.arange(0.0, 360.0, 1.0), np.arange(-80.0, 80.0, 1.0)
+    field = 0.01 * lat[:, None] + 0 * lon
+    zos = xr.Dataset({"zos": (("latitude", "longitude"), field)})
+    sk = GridSketcher(ssh=zos.assign_coords(latitude=lat, longitude=lon))
+    assert sk.ssh_lines.get_segments() and not sk.ssh_count.disabled
+    sk.close()
+    psi = xr.Dataset({"psi": (("lat", "lon"), field)}, {"lat": lat, "lon": lon})
+    with pytest.raises(ValueError, match="'ssh' or 'zos'"):
+        GridSketcher(ssh=psi)
+    assert GridSketcher().ssh_count.disabled
