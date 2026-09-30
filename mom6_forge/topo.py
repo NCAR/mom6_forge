@@ -65,16 +65,22 @@ def ww3_timesteps_from_spacing(
 
     * ``dtcfl`` bounds x-y propagation: ``dtcfl <= min_dx / Cg``.
     * ``dtmax`` is the global step, over which propagation and the source terms
-      are applied in sequence. ``dtmax`` is chosen as the largest exact divisor
-      of ``cpl_dt`` that meets the second constraint, so WW3 still lands on the
-      coupling time without a short final step.
+      are applied in sequence. ``dtmax`` is chosen as the largest whole-second
+      divisor of ``cpl_dt`` that ``max_ratio`` or fewer propagation sub-steps
+      can cover, so WW3 still lands on the coupling time without a short final
+      step. CIME's ww3 buildnml rejects a ``dtmax`` whose integer part does
+      not divide the coupling interval.
+
+    ``dtcfl`` is also kept to a whole number of seconds that divides ``dtmax``.
+    WW3 takes ``ceil(dtmax / dtcfl)`` sub-steps, so a fractional ``dtcfl``
+    rounded down when it is written out would add a sub-step.
 
     Parameters
     ----------
     min_dx: float
         Smallest grid spacing in meters.
     cpl_dt: float
-        Wave coupling interval in seconds (WAV_NCPL).
+        Wave coupling interval in seconds (WAV_NCPL), a whole number.
     f_min: float, optional
         Lowest frequency in the spectrum [Hz].
     safety: float, optional
@@ -91,23 +97,37 @@ def ww3_timesteps_from_spacing(
         raise ValueError(f"min_dx must be positive, got {min_dx}")
     if cpl_dt <= 0:
         raise ValueError(f"cpl_dt must be positive, got {cpl_dt}")
+    if cpl_dt != int(cpl_dt):
+        raise ValueError(f"cpl_dt must be a whole number of seconds, got {cpl_dt}")
     if max_ratio < 1:
         raise ValueError(f"max_ratio must be at least 1, got {max_ratio}")
 
     cg_max = _GRAVITY / (4.0 * np.pi * f_min)  # deep-water group velocity [m/s]
     dtcfl_limit = safety * min_dx / cg_max
 
-    # Split the coupling interval into n_global equal steps, taking the fewest
-    # that keep the propagation sub-steps within max_ratio. n_sub falls to 1
-    # once dtmax drops below dtcfl_limit, so this always terminates.
-    n_global = 1
-    while True:
-        dtmax = cpl_dt / n_global
-        n_sub = int(np.ceil(dtmax / dtcfl_limit))
-        if n_sub <= max_ratio:
+    # Split the coupling interval into n_global equal whole-second steps, taking
+    # the fewest that max_ratio or fewer whole-second sub-steps can cover.
+    cpl_dt = int(cpl_dt)
+    for n_global in range(1, cpl_dt + 1):
+        if cpl_dt % n_global:
+            continue
+        dtmax = cpl_dt // n_global
+        n_sub = next(
+            (
+                n
+                for n in range(1, max_ratio + 1)
+                if dtmax % n == 0 and dtmax // n <= dtcfl_limit
+            ),
+            None,
+        )
+        if n_sub is not None:
             break
-        n_global += 1
-    dtcfl = dtmax / n_sub
+    else:
+        raise ValueError(
+            f"The smallest cell ({min_dx:.1f} m) needs a WW3 propagation step "
+            f"under 1 s (limit {dtcfl_limit:.3f} s), which CESM cannot run."
+        )
+    dtcfl = dtmax // n_sub
 
     return {
         "dtmax": float(dtmax),
@@ -2325,19 +2345,17 @@ class Topo:
         tlon = self._grid.tlon.data
         tlat = self._grid.tlat.data
 
-        # Zonal neighbours (i, i+1); the longitude difference is wrapped so a
-        # grid that crosses the dateline does not report a ~360 deg step.
-        dlon = (np.diff(tlon, axis=1) + 180.0) % 360.0 - 180.0
+        # Distances between actual neighbours along i and j. Both coordinates of
+        # the second point must come from the neighbour: on a curvilinear grid
+        # (e.g. polar stereographic) rows are not parallels and columns are not
+        # meridians, so holding lat or lon fixed measures near-zero spurious
+        # steps. haversine is periodic in longitude, so dateline crossings need
+        # no wrapping.
         dx = haversine(
-            tlat[:, :-1],
-            tlon[:, :-1],
-            tlat[:, :-1],
-            tlon[:, :-1] + dlon,
-            _DEFAULT_RADIUS,
+            tlat[:, :-1], tlon[:, :-1], tlat[:, 1:], tlon[:, 1:], _DEFAULT_RADIUS
         )
-        # Meridional neighbours (j, j+1).
         dy = haversine(
-            tlat[:-1, :], tlon[:-1, :], tlat[1:, :], tlon[:-1, :], _DEFAULT_RADIUS
+            tlat[:-1, :], tlon[:-1, :], tlat[1:, :], tlon[1:, :], _DEFAULT_RADIUS
         )
 
         spacings = np.concatenate([dx.ravel(), dy.ravel()])
