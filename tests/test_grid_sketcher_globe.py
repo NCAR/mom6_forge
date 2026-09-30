@@ -73,31 +73,40 @@ def test_an_outline_round_the_pole_is_fitted_on_a_globe_facing_it():
 
 
 def _eastward(lon):
-    """A uniform 0.5 m/s eastward current on a global lon/lat grid."""
+    """A uniform eastward transport of 100 m2/s and its streamfunction on a global
+    lon/lat grid: psi falls 11.1 Sv per degree north."""
     lat = np.arange(-80.0, 90.0, 1.0)
-    u = np.full((lat.size, lon.size), 0.5)
+    u = np.full((lat.size, lon.size), 100.0)
+    psi = -100.0 * 6.371e6 * np.radians(lat + 80.0)[:, None] / 1e6 + 0 * u
+    names = {"psi": psi, "U": u, "V": 0 * u}
     return xr.Dataset(
-        {"u": (("lat", "lon"), u), "v": (("lat", "lon"), 0 * u)},
+        {k: (("lat", "lon"), v) for k, v in names.items()},
         coords={"lat": lat, "lon": lon},
     )
 
 
-def test_current_arrows_point_east_on_the_map_and_hide_while_panning():
+def test_streamlines_follow_the_parallels_and_hide_while_panning():
     for lon in (np.arange(0.0, 360.0, 1.0), np.arange(-180.0, 180.0, 1.0)):
         sk = GridSketcher(currents=_eastward(lon))
-        uv = sk.current_arrows.U, sk.current_arrows.V
-        assert len(uv[0]) > 50 and (uv[0] > 0).all() and (abs(uv[1]) < uv[0]).all()
+        lines = sk.psi_lines.get_segments()
+        assert 5 <= len(lines) <= 20 and sk.timings["currents"] > 0
+        lat = [sk.globe.to_lonlat(*v.T)[1] for v in lines]
+        assert max(np.ptp(v) for v in lat) < 0.1
+        psi = sk._value_at("psi", *sk.globe.to_xy(240.0, 35.0))
+        assert abs(psi + 100.0 * 6.371 * np.radians(115.0)) < 6
         sk._set_lite(True)
-        assert sk.current_arrows is None
+        assert not sk.psi_lines.get_visible()
         sk._set_lite(False)
         sk.show_currents.value = False
-        assert sk.current_arrows is None
+        assert not sk.psi_lines.get_segments()
         sk.close()
 
 
-def test_details_give_the_angle_of_the_current_to_each_open_side():
+def test_details_give_the_transport_and_angle_across_each_open_side():
     sk = GridSketcher(currents=_eastward(np.arange(0.0, 360.0, 1.0)))
     html = sk.details_html.value
-    assert "West side: mean current 0.50 m/s, " in html  # nearly across it
-    assert re.search(r"South side: mean current 0.50 m/s, (8\d|90)°", html)
+    assert re.search(r"West side: net \+\d+\.\d Sv into the grid, flow \d°", html)
+    assert re.search(
+        r"South side: net [+-]0\.\d Sv into the grid, flow (8\d|90)°", html
+    )
     sk.close()

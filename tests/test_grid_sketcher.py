@@ -995,11 +995,13 @@ def _elevation(lon):
 @pytest.mark.parametrize("lon", [np.arange(0.0, 360.0, 0.1), np.arange(-180, 180, 0.1)])
 def test_depth_contours_follow_the_bathymetry_in_either_lon_convention(lon):
     s = _new(bathymetry=_elevation(lon))
-    x, y, depth = s._bathy_segments()[1]
+    x, y, depth = s._window_field("depth")[1]
     assert np.all(np.diff(x) > 0) and x.size <= gs._BATHY_PTS >= y.size
     assert len(gs._depth_levels(depth)) == 6 and s.bathy_lines.get_segments()
     # The 1000 m contour runs down 240 E, where the hover box reads it
-    assert s._depth_at(*s.globe.to_xy(240.0, 35.0)) == pytest.approx(1000, abs=60)
+    assert s._value_at("depth", *s.globe.to_xy(240.0, 35.0)) == pytest.approx(
+        1000, abs=60
+    )
     s._set_lite(True)
     assert not s.bathy_lines.get_visible()
     s._set_lite(False)
@@ -1008,7 +1010,7 @@ def test_depth_contours_follow_the_bathymetry_in_either_lon_convention(lon):
 
 def test_no_bathymetry_draws_no_contours():
     s = _new()
-    assert not s.bathy_lines.get_segments() and s._depth_at(0.0, 0.0) is None
+    assert not s.bathy_lines.get_segments() and s._value_at("depth", 0.0, 0.0) is None
     assert s.depth_box.disabled and not s.depth_box.value
 
 
@@ -1075,4 +1077,4 @@ def test_depth_controls_toggle_and_thin_the_contours():
     s.depth_count.value = 2
     assert 0 < len(s.bathy_lines.get_segments()) < many
     s.depth_box.value = False
-    assert not s.bathy_lines.get_segments() and s._depth_at(0.0, 0.0) is None
+    assert not s.bathy_lines.get_segments() and s._value_at("depth", 0.0, 0.0) is None

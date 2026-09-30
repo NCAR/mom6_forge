@@ -14,7 +14,8 @@ from functools import lru_cache
 from matplotlib.collections import LineCollection, PathCollection
 from matplotlib.colors import LogNorm, to_rgba
 from matplotlib.path import Path as MplPath
-from matplotlib.ticker import AutoLocator, FixedLocator, FuncFormatter, NullFormatter
+from matplotlib.ticker import AutoLocator, FixedLocator, FuncFormatter, MaxNLocator
+from matplotlib.ticker import NullFormatter
 from pathlib import Path
 from pyproj import Transformer
 from scipy import ndimage
@@ -45,8 +46,7 @@ _FLAG_PX, _TILE_PX, _BOX_PX, _MAX_BOXES = 6, 16, 12, 150
 # point it faces, or from a pole (then it faces the pole)
 _TURN_DEG = 20
 _STATUS_ROWS = 100  # the Status box keeps this many messages
-# Current arrows: one per this many CSS pixels, full length at 0.5 m/s, none under 2 cm/s
-_ARROW_PX, _ARROW_SPEED, _ARROW_MIN = 28, 0.5, 0.02
+_PSI_LEVELS = 12  # streamfunction contours: about this many, at 1-2-2.5-5 Sv steps
 # Build peaks near 0.3 GB + 1.6 kB per cell (measured): about 4 GB at 2.4 million cells
 _MAX_CELLS = 2_400_000
 _EDGE_STEPS = 8  # points per outline edge drawn on the globe
@@ -328,12 +328,12 @@ def _land_paths(centre, window, scale):
     return tuple(paths), tuple(rings)
 
 
-def _read_depth(elev, window, n=_BATHY_PTS):
-    """Lon, lat and depth (m, positive down) of `elev` in the lon/lat window, at most
-    `n` points each way; lon runs on from the window's west edge whatever the file's
+def _read_window(field, window, n=_BATHY_PTS):
+    """Lon, lat and values of `field` in the lon/lat window, at most `n` points each
+    way, masked where NaN; lon runs on from the window's west edge whatever the file's
     convention (-180..180 or 0..360)."""
     lon0, lon1, lat0, lat1 = window
-    lon, lat = (np.asarray(elev[c], float) for c in ("lon", "lat"))
+    lon, lat = (np.asarray(field[c], float) for c in ("lon", "lat"))
     east = (lon - lon0) % 360.0  # degrees east of the window's west edge
     i, j = np.flatnonzero(east <= lon1 - lon0), np.flatnonzero(
         (lat0 <= lat) & (lat <= lat1)
@@ -345,39 +345,44 @@ def _read_depth(elev, window, n=_BATHY_PTS):
     cut = np.flatnonzero(np.diff(i) > 1) + 1
     runs = [slice(r[0], r[-1] + 1, si) for r in np.split(i, cut)]
     rows = slice(j[0], j[-1] + 1, sj)
-    z = np.hstack([elev.isel(lat=rows, lon=r).values for r in runs]).astype(float)
+    z = np.hstack([field.isel(lat=rows, lon=r).values for r in runs]).astype(float)
     x = lon0 + np.hstack([east[r] for r in runs])
     order = np.argsort(x)
-    return x[order], lat[rows], -z[:, order]
+    return x[order], lat[rows], np.ma.masked_invalid(z[:, order])
 
 
 def _depth_levels(depth, count=6):
     """At most `count` of `_DEPTHS`, spread over the depths present."""
-    levels = [d for d in _DEPTHS if d < np.nanmax(depth, initial=0.0)]
+    levels = [d for d in _DEPTHS if d < depth.max()]
     pick = np.unique(np.linspace(0, len(levels) - 1, count).round().astype(int))
     return [levels[k] for k in pick] if levels else []
 
 
-def _load_currents(currents):
-    """(u, v, lon0, dlon, nlon_wrap, lat0, dlat) of a regular lon/lat grid of currents.
-
-    `currents` is a NetCDF path or an xarray Dataset with u/uo, v/vo (m/s) on
-    lon/longitude and lat/latitude; any other dimensions of length 1 are dropped.
-    """
-    ds = xr.open_dataset(currents) if isinstance(currents, (str, Path)) else currents
-    get = lambda *names: ds[next(k for k in names if k in ds.variables)].squeeze()
-    lon, lat = (
-        get(*k).values.astype(float)
-        for k in (("lon", "longitude"), ("lat", "latitude"))
+def _psi_levels(psi, count=_PSI_LEVELS):
+    """About `count` round streamfunction values (Sv) over those present."""
+    if not psi.count():
+        return []
+    ticks = MaxNLocator(count, steps=[1, 2, 2.5, 5, 10]).tick_values(
+        psi.min(), psi.max()
     )
-    u, v = (np.asarray(get(*k).values, "f4") for k in (("u", "uo"), ("v", "vo")))
+    return [float(t) for t in ticks if psi.min() < t < psi.max()]
+
+
+def _load_currents(currents):
+    """The streamfunction psi (Sv) and (U, V, lon0, dlon, nlon_wrap, lat0, dlat), the
+    depth-integrated transports (m2/s) on the same regular lon/lat grid."""
+    ds = xr.open_dataset(currents) if isinstance(currents, (str, Path)) else currents
+    ds = ds.rename({k: k[:3] for k in ("longitude", "latitude") if k in ds.dims})
+    lon, lat = (ds[k].values.astype(float) for k in ("lon", "lat"))
+    u, v = (np.asarray(ds[k].squeeze().values, "f4") for k in ("U", "V"))
     dlon = float(lon[1] - lon[0])
     wrap = len(lon) if len(lon) * abs(dlon) > 359.9 else 0  # a global grid wraps round
-    return u, v, float(lon[0]), dlon, wrap, float(lat[0]), float(lat[1] - lat[0])
+    fields = u, v, float(lon[0]), dlon, wrap, float(lat[0]), float(lat[1] - lat[0])
+    return ds["psi"].squeeze().load(), fields
 
 
 def _sample_currents(fields, lon, lat):
-    """(u, v) at the nearest grid point to each (lon, lat): NaN outside or on land."""
+    """(U, V) at the nearest grid point to each (lon, lat): NaN outside or on land."""
     u, v, lon0, dlon, wrap, lat0, dlat = fields
     ix = np.rint(((np.asarray(lon) - lon0) % 360.0) / dlon).astype(int)
     ix = ix % wrap if wrap else ix
@@ -389,32 +394,35 @@ def _sample_currents(fields, lon, lat):
 
 
 def _side_currents_html(cg, runs, fields):
-    """Per open side: its mean current speed and the speed-weighted angle between the
-    current and the side's normal (0: straight across the boundary)."""
-    rows = []
+    """Per open side: the net transport into the grid across it and the
+    transport-weighted angle between the flow and the side's normal (0: straight
+    across the boundary)."""
+    rows, m = [], np.radians(6.371e6)  # metres per degree
     q = [a[::2, ::2] for a in (cg.lon, cg.lat)]
-    # Sides as in _update_obc; the normal's sign doesn't matter, only its angle
-    for side, sl in zip(diag.OBC_SIDES, [0, (..., -1), -1, (..., 0)]):
+    # Sides as in _update_obc, walked with i or j; (ty, -tx) points out of the south
+    # and east sides, into the north and west ones
+    for side, sl, out in zip(
+        diag.OBC_SIDES, [0, (..., -1), -1, (..., 0)], [1, 1, -1, -1]
+    ):
         lon, lat = (np.asarray(a[sl], float) for a in q)
         open_ = np.zeros(len(lon) - 1, bool)
         for r in runs[side]["runs"]:
             open_[r["start"] : r["stop"]] = True
         mlon = lon[:-1] + 0.5 * ((lon[1:] - lon[:-1] + 180) % 360 - 180)
         mlat = 0.5 * (lat[1:] + lat[:-1])
-        tx = ((lon[1:] - lon[:-1] + 180) % 360 - 180) * np.cos(np.radians(mlat))
-        ty = lat[1:] - lat[:-1]
+        tx = m * ((lon[1:] - lon[:-1] + 180) % 360 - 180) * np.cos(np.radians(mlat))
+        ty = m * (lat[1:] - lat[:-1])
         u, v = _sample_currents(fields, mlon, mlat)
-        w = np.hypot(tx, ty) * open_ * np.isfinite(u)
-        if not w.any():
+        u, v = u * open_, v * open_  # NaN on land stays NaN
+        if not np.isfinite(u).any():
             continue
-        u, v, speed = np.nan_to_num(u), np.nan_to_num(v), np.nan_to_num(np.hypot(u, v))
-        nx, ny = ty, -tx
-        cos = np.abs(u * nx + v * ny) / np.maximum(speed * np.hypot(nx, ny), 1e-12)
-        angle = np.degrees(np.arccos(np.clip(cos, 0, 1)))
-        mean = float((w * speed).sum() / w.sum())
-        deg = float((w * speed * angle).sum() / max((w * speed).sum(), 1e-12))
+        u, v = np.nan_to_num(u), np.nan_to_num(v)
+        flux, w = u * ty - v * tx, np.hypot(u, v) * np.hypot(tx, ty)
+        angle = np.degrees(np.arccos(np.clip(abs(flux) / np.maximum(w, 1e-9), 0, 1)))
+        net, deg = -out * flux.sum() / 1e6, (w * angle).sum() / max(w.sum(), 1e-9)
         rows.append(
-            f"{side.capitalize()} side: mean current {mean:.2f} m/s, {deg:.0f}° from the normal"
+            f"{side.capitalize()} side: net {net:+.1f} Sv into the grid, "
+            f"flow {deg:.0f}° from the normal"
         )
     return "".join(f"<div>{escape(r)}</div>" for r in rows)
 
@@ -484,9 +492,10 @@ class GridSketcher(widgets.HBox):
         Elevation (m, negative in the ocean) on ``lon``/``lat`` coordinates, or a
         NetCDF file of it such as GEBCO's, drawn as faint depth contours. Default: none.
     currents : str, pathlib.Path or xarray.Dataset, optional
-        Time-mean currents to draw faintly under the grid, and to compare each open
-        side with in Details: a NetCDF path or Dataset of u, v (m/s, eastward and
-        northward; or uo, vo) on a regular lon/lat grid, (lat, lon) ordered.
+        Time-mean barotropic circulation, drawn as faint streamfunction contours
+        and compared with each open side in Details: a NetCDF path or Dataset of
+        ``psi`` (Sv) and the depth-integrated transports ``U``, ``V`` (m2/s,
+        eastward and northward) on a regular lon/lat grid, (lat, lon) ordered.
         Default: none.
 
     Notes
@@ -534,7 +543,9 @@ class GridSketcher(widgets.HBox):
         if self._auto:
             self._fit_projection()
         self.working_dir = Path(working_dir or Path.cwd())
-        self._currents = None if currents is None else _load_currents(currents)
+        self._psi, self._currents = (
+            (None, None) if currents is None else _load_currents(currents)
+        )
         self.preview = self.quality = self.grid = None
         self.timings = {"frame": None, "preview": None, "full": None, "currents": None}
         self.frame_times, self._timers = [], {}
@@ -548,7 +559,7 @@ class GridSketcher(widgets.HBox):
         if isinstance(bathymetry, (str, Path)):
             ds = xr.open_dataset(bathymetry)
             bathymetry = ds["elevation" if "elevation" in ds else list(ds)[0]]
-        self._elev, self._bathy = bathymetry, {}
+        self._elev, self._cache = bathymetry, {"depth": {}, "psi": {}}
         self._build_controls(name or "sketch")
         self._build_figure(figsize or (4.5, 5.0))
         self._update_outline_artists()
@@ -633,9 +644,9 @@ class GridSketcher(widgets.HBox):
         self.apply_button = self._button("Apply coordinates", self._on_apply_vertices)
         self.reset_view_button = self._button("Reset view", self._on_reset_view)
         boxes = [self.resolution_box, self.shade_cells, self.depth_box]
-        fns = [self._on_resolution, self._on_shade, self._on_depth]
+        fns = [self._on_resolution, self._on_shade, self._on_contours]
         boxes += [self.depth_count, self.show_currents]
-        fns += [self._on_depth, self._on_currents]
+        fns += [self._on_contours, self._on_contours]
         for box, fn in zip(boxes, fns):
             box.observe(lambda change, fn=fn: self._safe(fn, change), "value")
         details = W.Accordion([self.details_html], titles=("Details",))
@@ -753,7 +764,6 @@ class GridSketcher(widgets.HBox):
         # Its box now, not at the browser's next draw, so a press before that lands
         self.ax.apply_aspect()
         self._init_artists()
-        self._draw_currents()
         if view is None:
             self._set_land(*self._extent_lonlat(), 6.0)
         else:  # the land in view
@@ -768,7 +778,6 @@ class GridSketcher(widgets.HBox):
         if resize is not None:
             if self._shown is not None and self._drag is None:
                 self._draw_grid_lines(self._shown, lite=self._lite_on)
-            self._draw_currents()
             self._redraw()
 
     def _set_land(self, lon, lat, factor):
@@ -782,42 +791,65 @@ class GridSketcher(widgets.HBox):
         paths, rings = _land_paths(self.globe.centre, self._land_window, scale)
         self.land_collection.set_paths(paths)
         self.coast_collection.set_segments(rings)
-        self._set_depth_lines()
+        self._set_contours()
 
-    def _set_depth_lines(self):
+    def _set_contours(self):
+        """The depth and (timed) streamfunction contours in the land window, if ticked."""
         on = self._elev is not None and self.depth_box.value
-        self.bathy_lines.set_segments(self._bathy_segments()[0] if on else [])
+        self.bathy_lines.set_segments(
+            [v for _, v in self._contours("depth")] if on else []
+        )
+        t0, on = time.perf_counter(), self._psi is not None and self.show_currents.value
+        lines = self._contours("psi") if on else []
+        self.psi_lines.set_segments([v for _, v in lines])
+        self.psi_lines.set_array(np.array([level for level, _ in lines], float))
+        if lines:
+            self.psi_lines.set_clim(lines[0][0], lines[-1][0])
+            self.timings["currents"] = time.perf_counter() - t0
 
-    def _on_depth(self, _change):
-        self._set_depth_lines()
+    def _on_contours(self, _change):
+        self._set_contours()
         self._redraw()
 
-    def _bathy_segments(self):
-        """Depth contours in the land window, on the globe, and the depths they come
-        from: cached per globe, window and number of levels."""
-        key = (self.globe.centre, self._land_window)
-        count = self.depth_count.value
-        if key not in self._bathy:
-            if len(self._bathy) >= 16:
-                self._bathy.clear()
-            data = _read_depth(self._elev, self._land_window)
+    def _window_field(self, kind):
+        """(contour generator, (lon, lat, values)) of the depth or psi in the land
+        window, cached per globe and window; (None, None) with no data there."""
+        key, cache = (self.globe.centre, self._land_window), self._cache[kind]
+        if key not in cache:
+            if len(cache) >= 16:
+                cache.clear()
+            data = _read_window(self._elev if kind == "depth" else self._psi, key[1])
+            if data is not None and kind == "depth":
+                data = (*data[:2], -data[2])  # elevation to depth, positive down
             gen = data and contour_generator(*data, line_type="Separate")
-            self._bathy[key] = (gen, data, {})
-        gen, data, by_count = self._bathy[key]
-        if count not in by_count:
-            levels = [] if data is None else _depth_levels(data[2], count)
-            lines = [v for level in levels for v in gen.lines(level)]
-            by_count[count] = [self.globe.to_xy(*v.T).T for v in lines]
-        return by_count[count], data
+            cache[key] = [gen, data, {}]
+        return cache[key]
 
-    def _depth_at(self, x, y):
-        """Depth (m) under the map point (x, y), or None without bathymetry there."""
-        if not self.depth_box.value or (data := self._bathy_segments()[1]) is None:
+    def _contours(self, kind):
+        """[(level, xy on the globe)] of the depth or psi contours in the land window,
+        cached per globe, window and number of levels."""
+        gen, data, by_count = self._window_field(kind)
+        count = self.depth_count.value if kind == "depth" else _PSI_LEVELS
+        if count not in by_count:
+            pick = _depth_levels if kind == "depth" else _psi_levels
+            levels = [] if data is None else pick(data[2], count)
+            by_count[count] = [
+                (level, self.globe.to_xy(*v.T).T)
+                for level in levels
+                for v in gen.lines(level)
+            ]
+        return by_count[count]
+
+    def _value_at(self, kind, x, y):
+        """Depth (m) or psi (Sv) under the map point (x, y) while drawn, else None."""
+        box = self.depth_box if kind == "depth" else self.show_currents
+        if not box.value or (data := self._window_field(kind)[1]) is None:
             return None
         lon, lat = self.globe.to_lonlat(x, y)
-        xs, ys, depth = data
+        xs, ys, value = data
         i = np.abs((lon - xs[0]) % 360.0 + xs[0] - xs).argmin()
-        return float(depth[np.abs(ys - lat).argmin(), i])
+        value = value[np.abs(ys - lat).argmin(), i]
+        return None if value is np.ma.masked else float(value)
 
     def _view_lonlat(self):
         """Lon/lat round the view's edge; None once it passes the globe's rim or is
@@ -852,6 +884,9 @@ class GridSketcher(widgets.HBox):
         # Faint depth contours, over the land's edge but under the coast and grid
         faint = dict(lw=0.4, colors="#5b7fa6", alpha=0.5, zorder=0.5)
         self.bathy_lines = add(LineCollection([], **faint))
+        # Streamfunction contours coloured by psi, over the cell shading
+        faint.update(colors=None, cmap="coolwarm", lw=0.8, alpha=0.6, zorder=1.8)
+        self.psi_lines = add(LineCollection([], **faint))
         (self.outline_line,) = ax.plot([], [], "-", color="#222222", lw=1.2, zorder=3)
         (self.vertex_scatter,) = ax.plot([], [], "wo", ms=5, mec="#333333", zorder=4)
         (self.corner_scatter,) = ax.plot([], [], "ko", ms=12, zorder=5)
@@ -873,7 +908,6 @@ class GridSketcher(widgets.HBox):
         (self.move_handle,) = ax.plot([], [], "s", ms=8, mfc="w", mew=1.8, **handle)
         (self.rotate_handle,) = ax.plot([], [], "o", ms=8, **handle)
         self.hover_annotation = ax.annotate("", (0, 0), (12, 12), visible=False, **kw)
-        self.current_arrows = None
 
     # ------------------------------------------------------------------
     # Drawing
@@ -1139,53 +1173,6 @@ class GridSketcher(widgets.HBox):
 
     def _on_shade(self, _change):
         self._draw_shading(self._shown)
-        self._redraw()
-
-    def _draw_currents(self):
-        """Faint arrows of the currents, _ARROW_PX apart on screen: their length and
-        opacity grow with speed. None while the view moves, or with the box unticked."""
-        if self.current_arrows is not None:
-            self.current_arrows.remove()
-            self.current_arrows = None
-        if self._currents is None or not self.show_currents.value or self._lite_on:
-            return
-        t0, box, step = (
-            time.perf_counter(),
-            self.ax.bbox,
-            _ARROW_PX * self.fig.dpi / 100,
-        )
-        px, py = np.meshgrid(
-            *(
-                np.arange(a + step / 2, a + n, step)
-                for a, n in ((box.x0, box.width), (box.y0, box.height))
-            )
-        )
-        x, y = self.ax.transData.inverted().transform(np.c_[px.ravel(), py.ravel()]).T
-        on = np.hypot(x, y) < 0.99 * self.globe.radius
-        x, y = x[on], y[on]
-        lon, lat = self.globe.to_lonlat(x, y)
-        u, v = _sample_currents(self._currents, lon, lat)
-        speed = np.hypot(u, v)
-        keep = speed > _ARROW_MIN  # False at NaN
-        x, y, lon, lat, u, v, speed = (a[keep] for a in (x, y, lon, lat, u, v, speed))
-        # The direction on the map: a short step along the current, projected
-        k = 0.05 / speed
-        dx, dy = self.globe.to_xy(lon + k * u / np.cos(np.radians(lat)), lat + k * v)
-        dx, dy = dx - x, dy - y
-        size = np.clip(np.sqrt(speed / _ARROW_SPEED), 0.3, 1.0)
-        per_px = abs(np.diff(self.ax.get_xlim())[0]) / box.width
-        scale = 0.9 * step * per_px * size / np.maximum(np.hypot(dx, dy), 1e-9)
-        color = np.tile(to_rgba("#1f4e99"), (len(x), 1))
-        color[:, 3] = 0.2 + 0.5 * size
-        kw = dict(angles="xy", scale_units="xy", scale=1, pivot="middle", units="dots")
-        kw.update(width=1.2, headwidth=4, headlength=4, headaxislength=3.5, zorder=1.8)
-        self.current_arrows = self.ax.quiver(
-            x, y, dx * scale, dy * scale, color=color, transform=self.globe.crs, **kw
-        )
-        self.timings["currents"] = time.perf_counter() - t0
-
-    def _on_currents(self, _change):
-        self._draw_currents()
         self._redraw()
 
     def _sketch(self):
@@ -1659,12 +1646,12 @@ class GridSketcher(widgets.HBox):
         for artist in (self.grid_lines, self.land_collection, self.coast_collection):
             artist.set_antialiased(not on)
         self.bathy_lines.set_visible(not on)
+        self.psi_lines.set_visible(not on)
         if self.shade_mesh is not None:
             self.shade_mesh.set_visible(not on)
             self.cbar_ax.set_visible(not on)
         if self._shown is not None:
             self._draw_grid_lines(self._shown, lite=on)
-        self._draw_currents()
         if not on:
             self._redraw(full=True)
 
@@ -1709,8 +1696,10 @@ class GridSketcher(widgets.HBox):
         ann = self.hover_annotation
         ann.xy, ann.xyann = (x, y), (24 * right - 12, 24 * up - 12)
         text = self._format_coord(x, y).replace(" · ", "\n")
-        if (depth := self._depth_at(x, y)) is not None:
+        if (depth := self._value_at("depth", x, y)) is not None:
             text += f"\ndepth {depth:,.0f} m" if depth > 0 else "\nabove sea level"
+        if (psi := self._value_at("psi", x, y)) is not None:
+            text += f"\nstreamfunction {psi:.0f} Sv"
         ann.set(text=text, ha=["right", "left"][right], va=["top", "bottom"][up])
         ann.set_visible(True)
         self._redraw()
