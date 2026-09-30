@@ -70,7 +70,7 @@ def test_a_drag_moves_by_the_dragged_pixels_and_sketches_at_once(get_results):
 
 def test_leaving_mid_pan_ends_it_so_box_then_drag_draws_a_box(get_results):
     r = get_results["gestures"]
-    assert r["still"] and r["box"] == [16, False]
+    assert r["still"] and r["box"] == [4, False]  # 4 corners, no intermediate points
 
 
 def test_the_handles_move_and_turn_and_the_knob_keeps_its_turn(get_results):

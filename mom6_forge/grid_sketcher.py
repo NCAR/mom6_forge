@@ -50,8 +50,8 @@ _STATUS_ROWS = 100  # the Status box keeps this many messages
 _MAX_CELLS = 2_400_000
 _EDGE_STEPS = 8  # points per outline edge drawn on the globe
 # The centre (move) and knob (rotate) handles: grab radius and stalk length, CSS px;
-# a Box side gets this many vertices so it follows its parallel or meridian
-_HANDLE_PX, _STALK_PX, _BOX_SIDE = 9, 30, 4
+# a Box side gets this many vertices (1: just its two corners, no intermediate points)
+_HANDLE_PX, _STALK_PX, _BOX_SIDE = 9, 30, 1
 _WORLD = (-180.0, 180.0, -90.0, 90.0)  # the land window of views off or round the globe
 # Bathymetric contours: some of these depths (m), from at most 600 x 600 points
 _DEPTHS, _BATHY_PTS = (10, 20, 50, 100, 200, 500, 1000, 2000, 3000, 4000, 5000), 600
@@ -502,7 +502,7 @@ class GridSketcher(widgets.HBox):
         NetCDF file of it such as GEBCO's, drawn as faint depth contours. Default: none.
     ssh : str, pathlib.Path, xarray.Dataset or xarray.DataArray, optional
         Time-mean sea surface height (m) as guidance for placing open boundaries:
-        drawn as faint contours, about "SSH levels" of them over the domain, with the
+        drawn as faint contours, about "Levels" of them over the domain, with the
         surface flow's angle to each open side in Details. A NetCDF path or Dataset
         of ``ssh`` or ``zos``, or a DataArray, on a regular lon/lat grid, (lat, lon)
         ordered; read only in view, so it may be large. Default: none.
@@ -624,18 +624,20 @@ class GridSketcher(widgets.HBox):
         self.shade_cells = W.Checkbox(value=True, description="Shade cell size")
         on = self._ssh is not None
         self.show_ssh = W.Checkbox(value=on, disabled=not on, description="Mean SSH")
-        self.ssh_count = W.IntSlider(10, 2, 20, description="SSH levels", style=style)
+        self.ssh_count = W.IntSlider(10, 2, 20, description="Levels", style=style)
         self.ssh_count.disabled, self.ssh_count.layout.width = not on, "200px"
         has_bathy, narrow = self._elev is not None, {"width": "auto"}
+        label_w = {"width": "150px"}
         self.depth_box = W.Checkbox(value=has_bathy, description="Depth contours")
         self.depth_box.disabled = not has_bathy
         self.depth_count = W.IntSlider(6, 2, 12, description="Levels", style=style)
         self.depth_count.disabled, self.depth_count.layout.width = (
             not has_bathy,
-            "170px",
+            "200px",
         )
-        for box in (self.shade_cells, self.depth_box, self.show_ssh):
-            box.layout, box.indent = narrow, False
+        self.shade_cells.layout, self.shade_cells.indent = narrow, False
+        for box in (self.depth_box, self.show_ssh):
+            box.layout, box.indent = label_w, False
         self.undo_button = self._button("Undo", lambda: self._edit("undo"))
         self.redo_button = self._button("Redo", lambda: self._edit("redo"))
         self.clear_button = self._button("Clear all", lambda: self._edit("clear"))
@@ -656,7 +658,8 @@ class GridSketcher(widgets.HBox):
         fns += [self._on_contours, self._on_ssh, self._on_ssh]
         for box, fn in zip(boxes, fns):
             box.observe(lambda change, fn=fn: self._safe(fn, change), "value")
-        details = W.Accordion([self.details_html], titles=("Details",))
+        details_body = W.VBox([self.obc_html, self.details_html])
+        details = W.Accordion([details_body], titles=("Details",))
         coords = W.VBox([self.vertex_text, self.apply_button])
         coords = W.Accordion([coords], titles=("Edit coordinates",))
         self.status_box = W.Accordion(
@@ -664,10 +667,11 @@ class GridSketcher(widgets.HBox):
         )
         panel = [W.HBox([self.resolution_box, self.cells_actual], layout=row)]
         projections = [W.HTML("Projection"), *self.projection_buttons.values()]
-        depths = [self.shade_cells, self.depth_box, self.depth_count]
-        panel += [W.HBox(projections, layout=row), W.HBox(depths, layout=row)]
+        panel += [W.HBox(projections, layout=row)]
+        panel += [W.HBox([self.shade_cells], layout=row)]
+        panel += [W.HBox([self.depth_box, self.depth_count], layout=row)]
         panel += [W.HBox([self.show_ssh, self.ssh_count], layout=row)]
-        panel += [self.obc_html]
+        panel += [W.HTML("<i>Note adding levels can slow grid refresh.</i>")]
         edits = [self.undo_button, self.redo_button, self.clear_button, self.box_button]
         panel += [W.HBox(edits, layout=row)]
         panel += [self.build_button]
