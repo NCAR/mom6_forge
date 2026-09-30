@@ -361,13 +361,13 @@ def _depth_levels(depth, count=6):
 
 
 def _flow_levels(values, unit, count=_FLOW_LEVELS):
-    """About `count` round levels over the values present, in 1-2-2.5-5 steps (psi in
+    """About `count` round levels over the values present, in 1-2-2.5-3-5 steps (psi in
     Sv, `unit` 1) or whole cm (SSH in m, `unit` 0.01)."""
     values = np.ma.compressed(values) / unit
     if not values.size:
         return []
     lo, hi = values.min(), values.max()
-    locator = MaxNLocator(count, steps=[1, 2, 2.5, 5, 10], integer=unit < 1)
+    locator = MaxNLocator(count, steps=[1, 2, 2.5, 3, 5, 10], integer=unit < 1)
     return [float(t) * unit for t in locator.tick_values(lo, hi) if lo < t < hi]
 
 
