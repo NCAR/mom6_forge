@@ -103,10 +103,10 @@ def get_sketch():
 # --- construction ---
 
 
-def test_the_default_box_previews_about_ten_thousand_cells_with_a_mom6_line():
+def test_the_default_box_starts_at_10_km_with_a_mom6_line():
     s = _new()
     assert s.outline.lon == [235, 243, 243, 235] and s.outline.corners == [0, 1, 2, 3]
-    assert 8_000 < s.preview.nx * s.preview.ny < 12_000
+    assert s.resolution_km == 10.0 and 5_000 < s.preview.nx * s.preview.ny < 8_000
     assert f"{s.preview.nx} × {s.preview.ny}</b> cells" in s.summary.value
     assert "cells" not in s.status.value
     assert f"{s.preview.nx} × {s.preview.ny}" in s.cells_actual.value

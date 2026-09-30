@@ -430,7 +430,7 @@ class GridSketcher(widgets.HBox):
     outline : Outline or mom6_forge.grid.Grid, optional
         A `Grid` with an ``outline`` reopens it; other grids have their edge traced.
     resolution_km : float, optional
-        Target cell size in km. Default: the grid's own, or about 10,000 cells.
+        Target cell size in km. Default: the grid's own, or 10 km.
     projection : str or MapProjection, optional
         "lcc", "merc", "tmerc", "stere" or a `MapProjection`, re-centred on the outline
         after each edit. Default (None or "auto"): the recommended kind, whose cells
@@ -490,9 +490,6 @@ class GridSketcher(widgets.HBox):
                 resolution_km = resolution_km or float(f"{km:.2g}")
             name = name or grid.name
         self.outline = outline or Outline.from_bbox(*_DEFAULT_BBOX)
-        if resolution_km is None and self.outline.n:
-            area = cf.outline_area_km2(self.outline.lon, self.outline.lat)
-            resolution_km = float(f"{np.sqrt(area / 10_000):.2g}")
         self.resolution_km = float(resolution_km or 10.0)
         self._ratios, self._auto = (None, {}), projection in (None, "auto")
         self.projection = cf.as_projection(projection, *self._extent_lonlat())
