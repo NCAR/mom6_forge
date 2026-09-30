@@ -88,17 +88,17 @@ def _eastward(lon):
 def test_streamlines_follow_the_parallels_and_hide_while_panning():
     for lon in (np.arange(0.0, 360.0, 1.0), np.arange(-180.0, 180.0, 1.0)):
         sk = GridSketcher(currents=_eastward(lon))
-        lines = sk.psi_lines.get_segments()
+        lines = sk.flow_lines.get_segments()
         assert 5 <= len(lines) <= 20 and sk.timings["currents"] > 0
         lat = [sk.globe.to_lonlat(*v.T)[1] for v in lines]
         assert max(np.ptp(v) for v in lat) < 0.1
-        psi = sk._value_at("psi", *sk.globe.to_xy(240.0, 35.0))
+        psi = sk._value_at("flow", *sk.globe.to_xy(240.0, 35.0))
         assert abs(psi + 100.0 * 6.371 * np.radians(115.0)) < 6
         sk._set_lite(True)
-        assert not sk.psi_lines.get_visible()
+        assert not sk.flow_lines.get_visible()
         sk._set_lite(False)
         sk.show_currents.value = False
-        assert not sk.psi_lines.get_segments()
+        assert not sk.flow_lines.get_segments()
         sk.close()
 
 
@@ -109,4 +109,21 @@ def test_details_give_the_transport_and_angle_across_each_open_side():
     assert re.search(
         r"South side: net [+-]0\.\d Sv into the grid, flow (8\d|90)°", html
     )
+    sk.close()
+
+
+def test_ssh_is_contoured_at_whole_cm_over_the_view_with_the_surface_flow(tmp_path):
+    lon, lat = np.arange(-180.0, 180.0, 0.25), np.arange(-80.0, 80.0, 0.25)
+    ssh = np.float32(0.5 + 0.01 * lat[:, None] + 0 * lon)  # flows along parallels
+    path = tmp_path / "ssh.nc"
+    xr.Dataset({"ssh": (("lat", "lon"), ssh)}, {"lat": lat, "lon": lon}).to_netcdf(path)
+    sk = GridSketcher(currents=path)  # 235-243 E, 31-39 N
+    levels = np.unique(sk.flow_lines.get_array())
+    # About 10 of 1 cm over the view's 10 degrees, not 5 cm over the land window's
+    assert 8 <= levels.size <= 13 and np.allclose(np.diff(levels), 0.01)
+    assert 0.75 < levels.min() and levels.max() < 0.95
+    assert abs(sk._value_at("flow", *sk.globe.to_xy(239.0, 35.0)) - 0.85) < 0.01
+    html = sk.details_html.value
+    assert re.search(r"West side: surface flow 0° from the normal", html)
+    assert re.search(r"North side: surface flow (89|90)° from the normal", html)
     sk.close()

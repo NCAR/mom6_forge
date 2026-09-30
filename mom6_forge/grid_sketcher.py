@@ -46,7 +46,9 @@ _FLAG_PX, _TILE_PX, _BOX_PX, _MAX_BOXES = 6, 16, 12, 150
 # point it faces, or from a pole (then it faces the pole)
 _TURN_DEG = 20
 _STATUS_ROWS = 100  # the Status box keeps this many messages
-_PSI_LEVELS = 12  # streamfunction contours: about this many, at 1-2-2.5-5 Sv steps
+# Streamfunction or SSH contours: about this many over the view, at 1-2-2.5-5 Sv or
+# whole-cm steps
+_FLOW_LEVELS = 12
 # Build peaks near 0.3 GB + 1.6 kB per cell (measured): about 4 GB at 2.4 million cells
 _MAX_CELLS = 2_400_000
 _EDGE_STEPS = 8  # points per outline edge drawn on the globe
@@ -358,21 +360,25 @@ def _depth_levels(depth, count=6):
     return [levels[k] for k in pick] if levels else []
 
 
-def _psi_levels(psi, count=_PSI_LEVELS):
-    """About `count` round streamfunction values (Sv) over those present."""
-    if not psi.count():
+def _flow_levels(values, unit, count=_FLOW_LEVELS):
+    """About `count` round levels over the values present, in 1-2-2.5-5 steps (psi in
+    Sv, `unit` 1) or whole cm (SSH in m, `unit` 0.01)."""
+    values = np.ma.compressed(values) / unit
+    if not values.size:
         return []
-    ticks = MaxNLocator(count, steps=[1, 2, 2.5, 5, 10]).tick_values(
-        psi.min(), psi.max()
-    )
-    return [float(t) for t in ticks if psi.min() < t < psi.max()]
+    lo, hi = values.min(), values.max()
+    locator = MaxNLocator(count, steps=[1, 2, 2.5, 5, 10], integer=unit < 1)
+    return [float(t) * unit for t in locator.tick_values(lo, hi) if lo < t < hi]
 
 
 def _load_currents(currents):
-    """The streamfunction psi (Sv) and (U, V, lon0, dlon, nlon_wrap, lat0, dlat), the
-    depth-integrated transports (m2/s) on the same regular lon/lat grid."""
+    """The mean SSH (m, left on disk) and None, or the streamfunction psi (Sv) and
+    (U, V, lon0, dlon, nlon_wrap, lat0, dlat), the depth-integrated transports (m2/s)
+    on the same regular lon/lat grid."""
     ds = xr.open_dataset(currents) if isinstance(currents, (str, Path)) else currents
     ds = ds.rename({k: k[:3] for k in ("longitude", "latitude") if k in ds.dims})
+    if "ssh" in ds:
+        return ds["ssh"].squeeze(), None
     lon, lat = (ds[k].values.astype(float) for k in ("lon", "lat"))
     u, v = (np.asarray(ds[k].squeeze().values, "f4") for k in ("U", "V"))
     dlon = float(lon[1] - lon[0])
@@ -393,9 +399,23 @@ def _sample_currents(fields, lon, lat):
     return uv
 
 
-def _side_currents_html(cg, runs, fields):
-    """Per open side: the net transport into the grid across it and the
-    transport-weighted angle between the flow and the side's normal (0: straight
+def _ssh_flow(ssh, lon, lat):
+    """Fields as `_load_currents` gives, from the SSH round the points (lon, lat): the
+    surface geostrophic flow's direction, along the SSH contours, scaled by
+    |grad(ssh)|; None with no SSH there."""
+    east = (lon - lon.flat[0] + 180.0) % 360.0 - 180.0 + lon.flat[0]
+    window = (east.min() - 1, east.max() + 1, lat.min() - 1, lat.max() + 1)
+    if (data := _read_window(ssh, window)) is None:
+        return None
+    x, y, z = data
+    dy, dx = np.gradient(z.filled(np.nan), y, x)
+    dx /= np.cos(np.radians(y))[:, None]  # per degree of latitude's length
+    return -dy, dx, float(x[0]), float(x[1] - x[0]), 0, float(y[0]), float(y[1] - y[0])
+
+
+def _side_currents_html(cg, runs, fields, transport=True):
+    """Per open side: the net transport into the grid across it (if `transport`) and
+    the transport-weighted angle between the flow and the side's normal (0: straight
     across the boundary)."""
     rows, m = [], np.radians(6.371e6)  # metres per degree
     q = [a[::2, ::2] for a in (cg.lon, cg.lat)]
@@ -420,10 +440,8 @@ def _side_currents_html(cg, runs, fields):
         flux, w = u * ty - v * tx, np.hypot(u, v) * np.hypot(tx, ty)
         angle = np.degrees(np.arccos(np.clip(abs(flux) / np.maximum(w, 1e-9), 0, 1)))
         net, deg = -out * flux.sum() / 1e6, (w * angle).sum() / max(w.sum(), 1e-9)
-        rows.append(
-            f"{side.capitalize()} side: net {net:+.1f} Sv into the grid, "
-            f"flow {deg:.0f}° from the normal"
-        )
+        flow = f"net {net:+.1f} Sv into the grid, flow" if transport else "surface flow"
+        rows.append(f"{side.capitalize()} side: {flow} {deg:.0f}° from the normal")
     return "".join(f"<div>{escape(r)}</div>" for r in rows)
 
 
@@ -492,11 +510,12 @@ class GridSketcher(widgets.HBox):
         Elevation (m, negative in the ocean) on ``lon``/``lat`` coordinates, or a
         NetCDF file of it such as GEBCO's, drawn as faint depth contours. Default: none.
     currents : str, pathlib.Path or xarray.Dataset, optional
-        Time-mean barotropic circulation, drawn as faint streamfunction contours
-        and compared with each open side in Details: a NetCDF path or Dataset of
-        ``psi`` (Sv) and the depth-integrated transports ``U``, ``V`` (m2/s,
-        eastward and northward) on a regular lon/lat grid, (lat, lon) ordered.
-        Default: none.
+        Time-mean circulation, drawn as faint contours and compared with each open
+        side in Details: a NetCDF path or Dataset on a regular lon/lat grid, (lat,
+        lon) ordered, of the mean sea surface height ``ssh`` (m; read only in view,
+        so it may be large), or of the barotropic streamfunction ``psi`` (Sv) and
+        the depth-integrated transports ``U``, ``V`` (m2/s, eastward and
+        northward). Default: none.
 
     Notes
     -----
@@ -543,7 +562,7 @@ class GridSketcher(widgets.HBox):
         if self._auto:
             self._fit_projection()
         self.working_dir = Path(working_dir or Path.cwd())
-        self._psi, self._currents = (
+        self._flow, self._currents = (
             (None, None) if currents is None else _load_currents(currents)
         )
         self.preview = self.quality = self.grid = None
@@ -559,7 +578,7 @@ class GridSketcher(widgets.HBox):
         if isinstance(bathymetry, (str, Path)):
             ds = xr.open_dataset(bathymetry)
             bathymetry = ds["elevation" if "elevation" in ds else list(ds)[0]]
-        self._elev, self._cache = bathymetry, {"depth": {}, "psi": {}}
+        self._elev, self._cache = bathymetry, {"depth": {}, "flow": {}}
         self._build_controls(name or "sketch")
         self._build_figure(figsize or (4.5, 5.0))
         self._update_outline_artists()
@@ -615,7 +634,7 @@ class GridSketcher(widgets.HBox):
             b.observe(lambda c, k=kind: self._safe(self._on_projection, k, c), "value")
             self.projection_buttons[kind] = b
         self.shade_cells = W.Checkbox(value=True, description="Shade cell size")
-        on = self._currents is not None
+        on = self._flow is not None
         self.show_currents = W.Checkbox(
             value=on, disabled=not on, description="Currents"
         )
@@ -794,17 +813,21 @@ class GridSketcher(widgets.HBox):
         self._set_contours()
 
     def _set_contours(self):
-        """The depth and (timed) streamfunction contours in the land window, if ticked."""
+        """The depth and flow contours in the land window, if ticked."""
         on = self._elev is not None and self.depth_box.value
         self.bathy_lines.set_segments(
             [v for _, v in self._contours("depth")] if on else []
         )
-        t0, on = time.perf_counter(), self._psi is not None and self.show_currents.value
-        lines = self._contours("psi") if on else []
-        self.psi_lines.set_segments([v for _, v in lines])
-        self.psi_lines.set_array(np.array([level for level, _ in lines], float))
+        self._set_flow()
+
+    def _set_flow(self):
+        """The (timed) streamfunction or SSH contours, at levels over the view."""
+        t0, on = time.perf_counter(), self.show_currents.value
+        lines = self._contours("flow") if on and self._flow is not None else []
+        self.flow_lines.set_segments([v for _, v in lines])
+        self.flow_lines.set_array(np.array([level for level, _ in lines], float))
         if lines:
-            self.psi_lines.set_clim(lines[0][0], lines[-1][0])
+            self.flow_lines.set_clim(lines[0][0], lines[-1][0])
             self.timings["currents"] = time.perf_counter() - t0
 
     def _on_contours(self, _change):
@@ -812,36 +835,49 @@ class GridSketcher(widgets.HBox):
         self._redraw()
 
     def _window_field(self, kind):
-        """(contour generator, (lon, lat, values)) of the depth or psi in the land
-        window, cached per globe and window; (None, None) with no data there."""
+        """[contour generator, (lon, lat, values), {}, (x, y) of the points] of the
+        depth or flow field in the land window, cached per globe and window; Nones
+        with no data there."""
         key, cache = (self.globe.centre, self._land_window), self._cache[kind]
         if key not in cache:
             if len(cache) >= 16:
                 cache.clear()
-            data = _read_window(self._elev if kind == "depth" else self._psi, key[1])
+            data = _read_window(self._elev if kind == "depth" else self._flow, key[1])
             if data is not None and kind == "depth":
                 data = (*data[:2], -data[2])  # elevation to depth, positive down
             gen = data and contour_generator(*data, line_type="Separate")
-            cache[key] = [gen, data, {}]
+            xy = None if kind == "depth" or data is None else np.meshgrid(*data[:2])
+            xy = xy and self.globe.to_xy(*xy)
+            cache[key] = [gen, data, {}, xy]
         return cache[key]
 
     def _contours(self, kind):
-        """[(level, xy on the globe)] of the depth or psi contours in the land window,
-        cached per globe, window and number of levels."""
-        gen, data, by_count = self._window_field(kind)
-        count = self.depth_count.value if kind == "depth" else _PSI_LEVELS
-        if count not in by_count:
-            pick = _depth_levels if kind == "depth" else _psi_levels
-            levels = [] if data is None else pick(data[2], count)
-            by_count[count] = [
+        """[(level, xy on the globe)] of the depth or flow contours in the land window,
+        cached per globe, window and levels: depth ones spread over the window, flow
+        ones over the view, so a weak current in view still gets some."""
+        gen, data, by_levels, xy = self._window_field(kind)
+        if data is None:
+            return []
+        if kind == "depth":
+            levels = _depth_levels(data[2], self.depth_count.value)
+        else:
+            (x0, x1), (y0, y1), (x, y) = self.ax.get_xlim(), self.ax.get_ylim(), xy
+            view = (x0 <= x) & (x <= x1) & (y0 <= y) & (y <= y1)
+            levels = _flow_levels(data[2][view], 0.01 if self._is_ssh() else 1.0)
+        if (key := tuple(levels)) not in by_levels:
+            by_levels[key] = [
                 (level, self.globe.to_xy(*v.T).T)
                 for level in levels
                 for v in gen.lines(level)
             ]
-        return by_count[count]
+        return by_levels[key]
+
+    def _is_ssh(self):
+        return self._flow is not None and self._flow.name == "ssh"
 
     def _value_at(self, kind, x, y):
-        """Depth (m) or psi (Sv) under the map point (x, y) while drawn, else None."""
+        """Depth (m), SSH (m) or psi (Sv) under the map point (x, y) while drawn,
+        else None."""
         box = self.depth_box if kind == "depth" else self.show_currents
         if not box.value or (data := self._window_field(kind)[1]) is None:
             return None
@@ -884,9 +920,9 @@ class GridSketcher(widgets.HBox):
         # Faint depth contours, over the land's edge but under the coast and grid
         faint = dict(lw=0.4, colors="#5b7fa6", alpha=0.5, zorder=0.5)
         self.bathy_lines = add(LineCollection([], **faint))
-        # Streamfunction contours coloured by psi, over the cell shading
+        # Streamfunction or SSH contours coloured by value, over the cell shading
         faint.update(colors=None, cmap="coolwarm", lw=0.8, alpha=0.6, zorder=1.8)
-        self.psi_lines = add(LineCollection([], **faint))
+        self.flow_lines = add(LineCollection([], **faint))
         (self.outline_line,) = ax.plot([], [], "-", color="#222222", lw=1.2, zorder=3)
         (self.vertex_scatter,) = ax.plot([], [], "wo", ms=5, mec="#333333", zorder=4)
         (self.corner_scatter,) = ax.plot([], [], "ko", ms=12, zorder=5)
@@ -1310,8 +1346,11 @@ class GridSketcher(widgets.HBox):
             coast = "all cells: no coastline data"
         dx = f"smallest ocean cell {ts['min_wet_dx'] / 1000.0:.2f} km ({coast})"
         ts_line = f"<div style='margin-top:4px'>{dx} &middot; {ts['mom6_hint']}</div>"
-        if self._currents is not None:
-            ts_line += _side_currents_html(cg, runs, self._currents)
+        fields = self._currents
+        if self._is_ssh():
+            fields = _ssh_flow(self._flow, cg.lon, cg.lat)
+        if fields is not None:
+            ts_line += _side_currents_html(cg, runs, fields, not self._is_ssh())
         self.details_html.value = _div(_summary_html(q) + ts_line, "font-size:11px")
         self.cells_actual.value = f"&nbsp;≈ {cg.nx} × {cg.ny} cells"
         self._draw_preview()
@@ -1646,7 +1685,9 @@ class GridSketcher(widgets.HBox):
         for artist in (self.grid_lines, self.land_collection, self.coast_collection):
             artist.set_antialiased(not on)
         self.bathy_lines.set_visible(not on)
-        self.psi_lines.set_visible(not on)
+        if not on:
+            self._set_flow()  # at levels over the view it settled on
+        self.flow_lines.set_visible(not on)
         if self.shade_mesh is not None:
             self.shade_mesh.set_visible(not on)
             self.cbar_ax.set_visible(not on)
@@ -1698,8 +1739,9 @@ class GridSketcher(widgets.HBox):
         text = self._format_coord(x, y).replace(" · ", "\n")
         if (depth := self._value_at("depth", x, y)) is not None:
             text += f"\ndepth {depth:,.0f} m" if depth > 0 else "\nabove sea level"
-        if (psi := self._value_at("psi", x, y)) is not None:
-            text += f"\nstreamfunction {psi:.0f} Sv"
+        if (value := self._value_at("flow", x, y)) is not None:
+            ssh, psi = f"\nmean SSH {value:.2f} m", f"\nstreamfunction {value:.0f} Sv"
+            text += ssh if self._is_ssh() else psi
         ann.set(text=text, ha=["right", "left"][right], va=["top", "bottom"][up])
         ann.set_visible(True)
         self._redraw()
