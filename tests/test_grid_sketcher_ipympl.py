@@ -37,7 +37,7 @@ def test_the_framed_map_sits_beside_the_panel_and_captures_scroll(get_results):
         bars=[False, False, False, False, ""],
         panel="400px",
         help=["456px", 1],
-        nav=["Reset view"],
+        edits=["Undo", "Redo", "Clear all", "Draw Box", "Reset view"],
         tips_without_description=[],
     )
 

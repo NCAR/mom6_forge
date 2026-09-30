@@ -95,7 +95,12 @@ def layout():
         bars=bars,
         panel=s.control_panel.layout.width,
         help=[s.help_html.layout.width, s.children[0].children.index(s.help_html)],
-        nav=[b.description for b in s.children[0].children[-1].children],
+        edits=[
+            b.description
+            for row in s.control_panel.children
+            if s.undo_button in getattr(row, "children", ())
+            for b in row.children
+        ],
         tips_without_description=[
             type(w).__name__ for w in tips if not w.has_trait("description")
         ],

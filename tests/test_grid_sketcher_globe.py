@@ -1,6 +1,5 @@
 """GridSketcher's map: a globe facing the outline, zoomable out to all of it."""
 
-import re
 from types import SimpleNamespace
 import numpy as np
 import pytest
@@ -90,9 +89,6 @@ def test_ssh_levels_follow_the_slider_over_the_domain(tmp_path):
     lat = [sk.globe.to_lonlat(*v.T)[1] for v in sk.ssh_lines.get_segments()]
     assert max(np.ptp(v) for v in lat) < 0.1 and sk.timings["ssh"] > 0
     assert abs(sk._value_at("ssh", *sk.globe.to_xy(239.0, 35.0)) - 0.85) < 0.01
-    html = sk.details_html.value
-    assert re.search(r"West side: surface flow 0° from the normal", html)
-    assert re.search(r"North side: surface flow (89|90)° from the normal", html)
     sk._set_lite(True)
     assert not sk.ssh_lines.get_visible()
     sk._set_lite(False)

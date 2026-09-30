@@ -57,8 +57,8 @@ def _pressed(s):
 
 
 def _green(s):
-    """The projection kinds whose buttons are green (recommended)."""
-    return [k for k, b in s.projection_buttons.items() if b.button_style == "success"]
+    """The projection kinds whose buttons have the green recommended outline."""
+    return [k for k, b in s.projection_buttons.items() if b.layout.border]
 
 
 def _drag(s, start, *points, **kw):
@@ -296,7 +296,7 @@ def test_a_blank_sketch_draws_closes_on_point_1_clears_and_undoes():
     s = _new(blank=True, resolution_km=100)
     rows = [getattr(w, "children", ()) for w in s.control_panel.children]
     edits = [b.description for r in rows if s.undo_button in r for b in r]
-    assert edits == ["Undo", "Redo", "Clear all", "Box"]
+    assert edits == ["Undo", "Redo", "Clear all", "Draw Box", "Reset view"]
     assert s.build_button.disabled and s.messages.value == ""
     points = [(236, 32), (242, 32), (242, 38), (236, 38), (236, 32)]
     for lon, lat in points[:4]:
@@ -780,6 +780,18 @@ def test_resolution_sets_the_cells_and_the_colourbar_reads(get_sketch, monkeypat
     assert s.shade_mesh is None and not s.cbar_ax.get_visible()
 
 
+def test_build_button_label_and_tooltip_with_no_warnings(get_sketch):
+    s = get_sketch
+    s._show_messages([], ["<b>a warning</b>"])
+    assert s.build_button.button_style == "warning"
+    assert s.build_button.description == "Build final grid (hover for warning)"
+    assert s.build_button.tooltip == "a warning"  # HTML stripped
+    s._show_messages([], [])
+    assert s.build_button.button_style != "warning"
+    assert s.build_button.description == "Build final grid"
+    assert s.build_button.tooltip == ""
+
+
 def test_open_boundaries_and_a_tiny_run_that_turns_build_amber(get_sketch, monkeypatch):
     real = diag.open_boundary_runs
 
@@ -799,6 +811,9 @@ def test_open_boundaries_and_a_tiny_run_that_turns_build_amber(get_sketch, monke
     x_tiny, _ = s.globe.to_xy(0.0, -5.0)
     assert np.isclose(s.obc_tiny_markers.get_xdata(), x_tiny).sum() == 1
     assert s.build_button.button_style == "warning" and not s.build_button.disabled
+    assert s.build_button.description == "Build final grid (hover for warning)"
+    assert "2 small open boundaries along coastline" in s.build_button.tooltip
+    assert "<div" not in s.build_button.tooltip
     q, segs = s._shown, s.obc_lines.get_segments()
     south = [(q.x[0, 4], q.y[0, 4]), (q.x[0, 6], q.y[0, 6])]
     assert np.allclose(segs[2], south) and to_hex(s.obc_lines.get_colors()[2]) == PINK
@@ -941,6 +956,20 @@ def test_drawing_hints_replace_each_other_in_the_status_box():
     assert log.index("Before") == 1 and "3 points" in log[0]
     s.resolution_box.value = 90  # a refresh while drawing doesn't count up
     assert s._status_rows[0][2] == 1 and s._status_rows[1][1] == "Before"
+
+
+def test_thinking_row_shows_while_busy_and_is_removed_after(get_sketch, monkeypatch):
+    s, seen, real = get_sketch, [], cf.solve
+
+    def spy(*a, **kw):
+        seen.append("Thinking..." in s.status.value)
+        return real(*a, **kw)
+
+    monkeypatch.setattr(cf, "solve", spy)
+    s.resolution_box.value = 95  # triggers a preview solve, synchronously
+    assert seen == [True]  # shown to the browser while the solve ran
+    log = [m for _, m, _, _ in s._status_rows]
+    assert "Thinking..." not in log  # popped again, not left in the history
 
 
 # --- robustness ---

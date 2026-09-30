@@ -1,4 +1,6 @@
+import re
 import time
+from contextlib import contextmanager
 from html import escape
 import numpy as np
 from numpy.linalg import norm
@@ -382,60 +384,6 @@ def _load_ssh(ssh):
     return ds.squeeze().rename("ssh")
 
 
-def _sample_flow(fields, lon, lat):
-    """(u, v) at the nearest grid point to each (lon, lat): NaN outside or on land."""
-    u, v, lon0, dlon, lat0, dlat = fields
-    ix = np.rint(((np.asarray(lon) - lon0) % 360.0) / dlon).astype(int)
-    iy = np.rint((np.asarray(lat) - lat0) / dlat).astype(int)
-    ok = (ix >= 0) & (ix < u.shape[1]) & (iy >= 0) & (iy < u.shape[0])
-    uv = np.full((2, ix.size), np.nan)
-    uv[:, ok] = u[iy[ok], ix[ok]], v[iy[ok], ix[ok]]
-    return uv
-
-
-def _ssh_flow(ssh, lon, lat):
-    """(u, v, lon0, dlon, lat0, dlat) from the SSH round the points (lon, lat): the
-    surface geostrophic flow's direction, along the SSH contours, scaled by
-    |grad(ssh)|, on a regular lon/lat grid; None with no SSH there."""
-    east = (lon - lon.flat[0] + 180.0) % 360.0 - 180.0 + lon.flat[0]
-    window = (east.min() - 1, east.max() + 1, lat.min() - 1, lat.max() + 1)
-    if (data := _read_window(ssh, window)) is None:
-        return None
-    x, y, z = data
-    dy, dx = np.gradient(z.filled(np.nan), y, x)
-    dx /= np.cos(np.radians(y))[:, None]  # per degree of latitude's length
-    return -dy, dx, float(x[0]), float(x[1] - x[0]), float(y[0]), float(y[1] - y[0])
-
-
-def _side_flow_html(cg, runs, fields):
-    """Per open side: the flow-weighted angle between the surface flow and the side's
-    normal (0: straight across the boundary)."""
-    rows, m = [], np.radians(6.371e6)  # metres per degree
-    q = [a[::2, ::2] for a in (cg.lon, cg.lat)]
-    # Sides as in _update_obc, walked with i or j
-    for side, sl in zip(diag.OBC_SIDES, [0, (..., -1), -1, (..., 0)]):
-        lon, lat = (np.asarray(a[sl], float) for a in q)
-        open_ = np.zeros(len(lon) - 1, bool)
-        for r in runs[side]["runs"]:
-            open_[r["start"] : r["stop"]] = True
-        mlon = lon[:-1] + 0.5 * ((lon[1:] - lon[:-1] + 180) % 360 - 180)
-        mlat = 0.5 * (lat[1:] + lat[:-1])
-        tx = m * ((lon[1:] - lon[:-1] + 180) % 360 - 180) * np.cos(np.radians(mlat))
-        ty = m * (lat[1:] - lat[:-1])
-        u, v = _sample_flow(fields, mlon, mlat)
-        u, v = u * open_, v * open_  # NaN on land stays NaN
-        if not np.isfinite(u).any():
-            continue
-        u, v = np.nan_to_num(u), np.nan_to_num(v)
-        flux, w = u * ty - v * tx, np.hypot(u, v) * np.hypot(tx, ty)
-        angle = np.degrees(np.arccos(np.clip(abs(flux) / np.maximum(w, 1e-9), 0, 1)))
-        deg = (w * angle).sum() / max(w.sum(), 1e-9)
-        rows.append(
-            f"{side.capitalize()} side: surface flow {deg:.0f}° from the normal"
-        )
-    return "".join(f"<div>{escape(r)}</div>" for r in rows)
-
-
 def _contour_segments(fields, count):
     """About `count` xi and eta level curves each, clear of the raster's jagged edge."""
     segments = []
@@ -502,10 +450,9 @@ class GridSketcher(widgets.HBox):
         NetCDF file of it such as GEBCO's, drawn as faint depth contours. Default: none.
     ssh : str, pathlib.Path, xarray.Dataset or xarray.DataArray, optional
         Time-mean sea surface height (m) as guidance for placing open boundaries:
-        drawn as faint contours, about "Levels" of them over the domain, with the
-        surface flow's angle to each open side in Details. A NetCDF path or Dataset
-        of ``ssh`` or ``zos``, or a DataArray, on a regular lon/lat grid, (lat, lon)
-        ordered; read only in view, so it may be large. Default: none.
+        drawn as faint contours, about "Levels" of them over the domain. A NetCDF
+        path or Dataset of ``ssh`` or ``zos``, or a DataArray, on a regular lon/lat
+        grid, (lat, lon) ordered; read only in view, so it may be large. Default: none.
 
     Notes
     -----
@@ -546,7 +493,7 @@ class GridSketcher(widgets.HBox):
         if resolution_km is None and self.outline.n:
             area = cf.outline_area_km2(self.outline.lon, self.outline.lat)
             resolution_km = float(f"{np.sqrt(area / 10_000):.2g}")
-        self.resolution_km = float(resolution_km or 5.0)
+        self.resolution_km = float(resolution_km or 10.0)
         self._ratios, self._auto = (None, {}), projection in (None, "auto")
         self.projection = cf.as_projection(projection, *self._extent_lonlat())
         if self._auto:
@@ -575,8 +522,7 @@ class GridSketcher(widgets.HBox):
         if self._webagg:
             # The mouse instructions sit in a box under the map, as wide as the map
             self.help_html.layout.width = self.fig.canvas.layout.width
-            reset = widgets.HBox([self.reset_view_button])
-            column = [self.fig.canvas, self.help_html, reset]
+            column = [self.fig.canvas, self.help_html]
             children.insert(0, widgets.VBox(column, layout={"flex": "0 0 auto"}))
         layout = dict(width="100%", align_items="flex-start", flex_flow="row nowrap")
         super().__init__(children, layout=layout)
@@ -609,7 +555,7 @@ class GridSketcher(widgets.HBox):
         W, row = widgets, {"flex_flow": "row wrap"}
         style = {"description_width": "initial"}
         self.help_html, self.status, self.summary = W.HTML(_HELP), W.HTML(), W.HTML()
-        self._status_rows, self._status_now = [], ""
+        self._status_rows, self._status_now, self._busy = [], "", 0
         self._set_status("")
         self.obc_html, self.details_html = W.HTML(), W.HTML()
         self.cells_actual, self.messages = W.HTML(), W.HTML()
@@ -642,7 +588,7 @@ class GridSketcher(widgets.HBox):
         self.redo_button = self._button("Redo", lambda: self._edit("redo"))
         self.clear_button = self._button("Clear all", lambda: self._edit("clear"))
         tip = "Drag on the map for a box along meridians and parallels"
-        self.box_button = W.ToggleButton(description="Box", tooltip=tip)
+        self.box_button = W.ToggleButton(description="Draw Box", tooltip=tip)
         self.box_button.layout.width = "auto"
         self.box_button.observe(lambda _c: self._safe(self._on_box), "value")
         self.build_button = self._button("Build final grid", self._on_build)
@@ -668,11 +614,15 @@ class GridSketcher(widgets.HBox):
         panel = [W.HBox([self.resolution_box, self.cells_actual], layout=row)]
         projections = [W.HTML("Projection"), *self.projection_buttons.values()]
         panel += [W.HBox(projections, layout=row)]
+        caption = "<div style='font-size:11px'><i>Green outline indicates most "
+        caption += "equal cell area</i></div>"
+        panel += [W.HTML(caption)]
         panel += [W.HBox([self.shade_cells], layout=row)]
         panel += [W.HBox([self.depth_box, self.depth_count], layout=row)]
         panel += [W.HBox([self.show_ssh, self.ssh_count], layout=row)]
-        panel += [W.HTML("<i>Note adding levels can slow grid refresh.</i>")]
+        panel += [W.HTML("<i>Note: adding levels can slow grid refresh.</i>")]
         edits = [self.undo_button, self.redo_button, self.clear_button, self.box_button]
+        edits += [self.reset_view_button]
         panel += [W.HBox(edits, layout=row)]
         panel += [self.build_button]
         save = W.HBox([self.name_box, self.save_button], layout=row)
@@ -792,16 +742,22 @@ class GridSketcher(widgets.HBox):
 
     def _set_land(self, lon, lat, factor):
         """Land round the points, or (lon None) on the whole globe."""
-        window = _WORLD if lon is None else cf.land_window(lon, lat, factor)
-        lon0, lon1, lat0, lat1 = window
-        # Whole degrees, rounded outward, so nearby views share a cache entry
-        lat0, lat1 = max(np.floor(lat0), -90.0), min(np.ceil(lat1), 90.0)
-        self._land_window = (float(np.floor(lon0)), float(np.ceil(lon1)), lat0, lat1)
-        scale = "110m" if self._land_window == _WORLD else "50m"
-        paths, rings = _land_paths(self.globe.centre, self._land_window, scale)
-        self.land_collection.set_paths(paths)
-        self.coast_collection.set_segments(rings)
-        self._set_contours()
+        with self._thinking():
+            window = _WORLD if lon is None else cf.land_window(lon, lat, factor)
+            lon0, lon1, lat0, lat1 = window
+            # Whole degrees, rounded outward, so nearby views share a cache entry
+            lat0, lat1 = max(np.floor(lat0), -90.0), min(np.ceil(lat1), 90.0)
+            self._land_window = (
+                float(np.floor(lon0)),
+                float(np.ceil(lon1)),
+                lat0,
+                lat1,
+            )
+            scale = "110m" if self._land_window == _WORLD else "50m"
+            paths, rings = _land_paths(self.globe.centre, self._land_window, scale)
+            self.land_collection.set_paths(paths)
+            self.coast_collection.set_segments(rings)
+            self._set_contours()
 
     def _set_contours(self):
         """The depth and SSH contours in the land window, if ticked."""
@@ -813,12 +769,13 @@ class GridSketcher(widgets.HBox):
 
     def _set_ssh(self):
         """The (timed) SSH contours, at levels over the domain."""
-        t0, on = time.perf_counter(), self.show_ssh.value
-        lines = self._contours("ssh") if on and self._ssh is not None else []
-        self.ssh_lines.set_segments([v for _, v in lines])
-        self.ssh_lines.set_array(np.array([level for level, _ in lines], float))
-        if lines:
-            self.ssh_lines.set_clim(lines[0][0], lines[-1][0])
+        with self._thinking():
+            t0, on = time.perf_counter(), self.show_ssh.value
+            lines = self._contours("ssh") if on and self._ssh is not None else []
+            self.ssh_lines.set_segments([v for _, v in lines])
+            self.ssh_lines.set_array(np.array([level for level, _ in lines], float))
+            if lines:
+                self.ssh_lines.set_clim(lines[0][0], lines[-1][0])
             self.timings["ssh"] = time.perf_counter() - t0
 
     def _on_contours(self, _change):
@@ -1249,6 +1206,28 @@ class GridSketcher(widgets.HBox):
         self._status_now = html
         self.status.value = _status_html(rows, bool(html))
 
+    @contextmanager
+    def _thinking(self):
+        """A transient "Thinking..." status row while work the user waits for runs
+        (nested calls share one row); popped, not greyed into the history, once
+        every nested call has returned. A widget value change reaches the browser
+        as soon as it's made, so this shows while the kernel is still busy."""
+        self._busy += 1
+        if self._busy == 1:
+            self._set_status("Thinking...", transient=True)
+        try:
+            yield
+        finally:
+            self._busy -= 1
+            rows = self._status_rows
+            if self._busy == 0:
+                for i, r in enumerate(rows):
+                    if r[1] == "Thinking..." and r[3]:
+                        rows.pop(i)
+                        self._status_now = rows[0][1] if rows else ""
+                        self.status.value = _status_html(rows, bool(self._status_now))
+                        break
+
     def _outline_problem(self):
         n, c = self.outline.n, len(self.outline.corners)
         if self._drawing:
@@ -1290,38 +1269,43 @@ class GridSketcher(widgets.HBox):
             pass  # e.g. a ring being drawn round a pole: kept until it closes
 
     def _show_projections(self):
-        """The button of the projection in use pressed; the recommended one green."""
+        """The button of the projection in use pressed; the recommended one gets a
+        green outline (its toggle look is unchanged)."""
         ratios = self._size_ratios()
         best = min(ratios, key=ratios.get, default=None)
         for label, kind in _PROJECTIONS:
             b, green = self.projection_buttons[kind], kind == best
-            b.value, b.button_style = kind == self.projection.kind, "success" * green
+            b.value = kind == self.projection.kind
+            b.layout.border = "2px solid #2e7d32" if green else ""
             b.tooltip = label + " (recommended: its cells vary least in size)" * green
 
     def _recompute_preview(self):
-        self._show_projections()
-        self._set_ssh()  # levels over the new domain
-        problem, o = self._outline_problem(), self.outline
-        kw = dict(projection=self.projection, raster_points=cf.PREVIEW_RASTER_POINTS)
-        if problem is None:
-            try:
-                t0 = time.perf_counter()
-                cg = cf.solve(o.lon, o.lat, o.corners, self._n_cells(), **kw)
-                self.timings["preview"] = time.perf_counter() - t0
-                return self._show_solved_grid(cg)
-            except Exception as exc:
-                problem = f"Preview failed: {str(exc).rstrip('.')}."
-        self.preview = self.quality = self._runs = self._tree = self._ring = None
-        self._shown = self._boxes = None
-        self.grid_lines.set_segments([])
-        self.flag_lines.set_segments([])
-        self.summary.value = self.details_html.value = self.cells_actual.value = ""
-        self._cancel_hover()
-        self._draw_shading(None)
-        self._update_obc()
-        self._show_messages([] if self._drawing else [problem], [])
-        if self._drawing:
-            self._set_status(f"<i>{problem}</i>", transient=True)
+        with self._thinking():
+            self._show_projections()
+            self._set_ssh()  # levels over the new domain
+            problem, o = self._outline_problem(), self.outline
+            kw = dict(
+                projection=self.projection, raster_points=cf.PREVIEW_RASTER_POINTS
+            )
+            if problem is None:
+                try:
+                    t0 = time.perf_counter()
+                    cg = cf.solve(o.lon, o.lat, o.corners, self._n_cells(), **kw)
+                    self.timings["preview"] = time.perf_counter() - t0
+                    return self._show_solved_grid(cg)
+                except Exception as exc:
+                    problem = f"Preview failed: {str(exc).rstrip('.')}."
+            self.preview = self.quality = self._runs = self._tree = self._ring = None
+            self._shown = self._boxes = None
+            self.grid_lines.set_segments([])
+            self.flag_lines.set_segments([])
+            self.summary.value = self.details_html.value = self.cells_actual.value = ""
+            self._cancel_hover()
+            self._draw_shading(None)
+            self._update_obc()
+            self._show_messages([] if self._drawing else [problem], [])
+            if self._drawing:
+                self._set_status(f"<i>{problem}</i>", transient=True)
 
     def _show_solved_grid(self, cg):
         """Run the diagnostics once for a solved grid; redraw every layer from them."""
@@ -1343,9 +1327,6 @@ class GridSketcher(widgets.HBox):
             coast = "all cells: no coastline data"
         dx = f"smallest ocean cell {ts['min_wet_dx'] / 1000.0:.2f} km ({coast})"
         ts_line = f"<div style='margin-top:4px'>{dx} &middot; {ts['mom6_hint']}</div>"
-        fields = None if self._ssh is None else _ssh_flow(self._ssh, cg.lon, cg.lat)
-        if fields is not None:
-            ts_line += _side_flow_html(cg, runs, fields)
         self.details_html.value = _div(_summary_html(q) + ts_line, "font-size:11px")
         self.cells_actual.value = f"&nbsp;≈ {cg.nx} × {cg.ny} cells"
         self._draw_preview()
@@ -1409,7 +1390,13 @@ class GridSketcher(widgets.HBox):
         off = self.preview is None or bool(errors)
         self.build_button.disabled, self.save_button.disabled = off, True
         self.build_button.button_style = "warning" if warnings else "primary"
-        self.build_button.tooltip = "See the warnings below" if warnings else ""
+        if warnings:
+            self.build_button.description = "Build final grid (hover for warning)"
+            plain = [re.sub("<[^>]+>", "", w) for w in warnings]
+            self.build_button.tooltip = "\n".join(plain)
+        else:
+            self.build_button.description = "Build final grid"
+            self.build_button.tooltip = ""
         fix = "Fix the errors below to build." if errors else ""
         if fix != self._status_now and (fix or not stale):  # no count-up per edit
             self._set_status(fix)
