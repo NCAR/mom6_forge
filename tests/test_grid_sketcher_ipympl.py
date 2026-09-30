@@ -68,6 +68,16 @@ def test_a_drag_moves_by_the_dragged_pixels_and_sketches_at_once(get_results):
     assert r["release"][0] >= 1 and r["release"][1] == 0 and r["mode"] == "diff"
 
 
+def test_leaving_mid_pan_ends_it_so_box_then_drag_draws_a_box(get_results):
+    r = get_results["gestures"]
+    assert r["still"] and r["box"] == [16, False]
+
+
+def test_the_handles_move_and_turn_and_the_knob_keeps_its_turn(get_results):
+    r = get_results["gestures"]
+    assert r["moved"] and r["turned"] and abs(r["knob"]) < 20
+
+
 # --- frames: only ever in reply to the browser's draw request ---
 
 

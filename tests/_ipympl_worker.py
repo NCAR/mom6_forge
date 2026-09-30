@@ -4,6 +4,7 @@ real ipympl backend with the messages the browser sends, and print the results."
 import json
 
 import matplotlib
+import numpy as np
 
 matplotlib.use("module://ipympl.backend_nbagg")
 
@@ -204,10 +205,49 @@ def view():
     return r
 
 
+def gestures():
+    """A pan released off the canvas, then Box pressed as the browser does, then a
+    drag on the map; then the move handle and the rotate knob dragged."""
+    s, c = sketch()
+    b, h = s.ax.bbox, c.get_renderer().height
+    x, y = b.x0 + 0.2 * b.width, h - b.y0 - 0.2 * b.height
+    send(c, "button_press", x=x, y=y)
+    send(c, "motion_notify", x=x + 40, y=y)
+    send(c, "figure_leave", x=x + 40, y=y)
+    state = dict(method="update", state=dict(value=True), buffer_paths=[])
+    s.box_button._handle_msg(dict(content=dict(data=state), buffers=[]))
+    lim = s.ax.get_xlim()
+    send(c, "motion_notify", buttons=0, x=x - 60, y=y)
+    r = dict(still=s.ax.get_xlim() == lim)
+    send(c, "button_press", x=x, y=y)
+    for k in range(1, 5):
+        send(c, "motion_notify", x=x + 30 * k, y=y - 20 * k)
+    send(c, "button_release", buttons=0, x=x + 120, y=y - 80)
+    r.update(box=[s.outline.n, s.box_button.value])
+
+    def handle(line):
+        hx, hy = s.ax.transData.transform(np.column_stack(line.get_data()))[0]
+        return hx, h - hy
+
+    def drag(line, dx, dy):
+        (x, y), lon = handle(line), list(s.outline.lon)
+        send(c, "button_press", x=x, y=y)
+        send(c, "motion_notify", x=x + dx / 2, y=y + dy / 2)
+        send(c, "button_release", buttons=0, x=x + dx, y=y + dy)
+        return s.outline.lon != lon
+
+    r.update(moved=drag(s.move_handle, 30, 0))
+    (mx, my), (kx, ky) = handle(s.move_handle), handle(s.rotate_handle)
+    r.update(turned=drag(s.rotate_handle, my - ky, my - ky))
+    (mx, my), (kx, ky) = handle(s.move_handle), handle(s.rotate_handle)
+    r.update(knob=float(np.degrees(np.arctan2(my - ky, kx - mx))))
+    return r
+
+
 if __name__ == "__main__":
     results = dict(png=[png_size(1), png_size(2)], layout=layout())
     results.update(double_click=double_click(), drag=drag(), tooltip=tooltip())
     results.update(delete=[delete(2, ()), delete(0, ("ctrl",))], view=view())
     results.update(grab=[grab(1), grab(2)], drawing=drawing())
-    results.update(unasked=len(UNASKED))
+    results.update(gestures=gestures(), unasked=len(UNASKED))
     print(json.dumps(results))

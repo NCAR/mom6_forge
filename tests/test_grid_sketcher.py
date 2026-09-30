@@ -1054,7 +1054,7 @@ def test_the_centre_handle_moves_the_outline_rigidly_in_one_undo_step(get_sketch
     assert s.outline.to_dict() == before
 
 
-def test_the_knob_rotates_the_outline_by_the_angle_swept(get_sketch):
+def test_the_knob_turns_the_outline_by_the_angle_swept_and_stays_turned(get_sketch):
     s = get_sketch
     lon, lat = list(s.outline.lon), list(s.outline.lat)
     (cx, cy), (kx, ky) = (_handle_px(s, h) for h in (s.move_handle, s.rotate_handle))
@@ -1063,7 +1063,10 @@ def test_the_knob_rotates_the_outline_by_the_angle_swept(get_sketch):
     axis = gs._unit(*gs._centroid(lon, lat))
     want = gs._turn(lon, lat, axis, np.radians(30))
     np.testing.assert_allclose([s.outline.lon, s.outline.lat], want, atol=1e-6)
-    assert len(s.outline._undo) == 1 and s._knob == np.pi / 2
+    assert len(s.outline._undo) == 1
+    # The knob stays turned with the outline, on its top side
+    (cx, cy), (kx, ky) = (_handle_px(s, h) for h in (s.move_handle, s.rotate_handle))
+    assert abs(np.degrees(np.arctan2(ky - cy, kx - cx)) - 120) < 2
 
 
 def test_depth_controls_toggle_and_thin_the_contours():

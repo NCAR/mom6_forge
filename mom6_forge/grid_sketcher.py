@@ -542,7 +542,6 @@ class GridSketcher(widgets.HBox):
         self._runs = self._metrics = self._wet = self._tree = self._hover_xy = None
         self._boxes = self._shown = None
         self._drag = self._grab = self._pending = self._pan = self._click = None
-        self._knob = np.pi / 2  # the rotate knob's direction from the centre
         self._drag_changed = self._lite_on = False
         self._last_frame = self._last_redraw = self._closed_at = 0.0
         self._drawing = self.outline.n == 0
@@ -686,7 +685,7 @@ class GridSketcher(widgets.HBox):
         handlers.update(button_release=self._on_release, resize=self._relayout)
         handlers.update(scroll=self._on_scroll, axes_leave=self._cancel_hover)
         # Leaving the canvas straight from the map sends figure_leave but no axes_leave
-        handlers.update(figure_leave=self._cancel_hover)
+        handlers.update(figure_leave=self._on_leave)
         for name, fn in handlers.items():
             canvas.mpl_connect(f"{name}_event", lambda e, fn=fn: self._safe(fn, e))
 
@@ -967,18 +966,23 @@ class GridSketcher(widgets.HBox):
             self.vertex_text.value = "\n".join(rows)
 
     def _update_handles(self):
-        """The centre square and, on a stalk, the rotate knob; none while drawing, in
-        Box mode or behind the globe."""
+        """The centre square and, on a stalk, the rotate knob: towards the middle of
+        corners 3 and 4 (the top of a box), else up. None while drawing, in Box mode
+        or behind the globe."""
         o, xy = self.outline, np.full((2, 2), np.nan)
         if not (self._drawing or self.box_button.value or o.n < 3):
             (cx, cy), box = self.globe.to_xy(*_centroid(o.lon, o.lat)), self.ax.bbox
-            r = _STALK_PX * self.fig.dpi / 100
+            r, knob = _STALK_PX * self.fig.dpi / 100, np.pi / 2
+            if len(o.corners) == 4:
+                k = o.corners[2:]
+                tx, ty = self.globe.to_xy(
+                    *_centroid(np.take(o.lon, k), np.take(o.lat, k))
+                )
+                if np.isfinite(ty - tx) and (tx, ty) != (cx, cy):
+                    knob = np.arctan2(ty - cy, tx - cx)
             dx = r * np.ptp(self.ax.get_xlim()) / box.width
             dy = r * np.ptp(self.ax.get_ylim()) / box.height
-            xy = [
-                [cx, cx + dx * np.cos(self._knob)],
-                [cy, cy + dy * np.sin(self._knob)],
-            ]
+            xy = [[cx, cx + dx * np.cos(knob)], [cy, cy + dy * np.sin(knob)]]
         self.stalk.set_data(*xy)
         self.move_handle.set_data(*np.array(xy)[:, :1])
         self.rotate_handle.set_data(*np.array(xy)[:, 1:])
@@ -1496,7 +1500,7 @@ class GridSketcher(widgets.HBox):
     def _move_whole(self, x, y):
         """Box: the box from the press to (x, y), once it is over _CLICK_PX each way.
         Move: the outline turned over the sphere, the grabbed point to (x, y). Rotate:
-        turned about its centre by the angle the knob swept."""
+        turned about its centre by the angle swept from the press."""
         o, (lon, lat, start, press) = self.outline, self._grab
         at = tuple(map(float, self.globe.to_lonlat(x, y)))
         if self._drag == "box":
@@ -1520,9 +1524,9 @@ class GridSketcher(widgets.HBox):
                 o.lon, o.lat = _turn(lon, lat, axis, np.arctan2(norm(axis), a @ b))
         else:
             centre = _centroid(lon, lat)
-            cx, cy = self.globe.to_xy(*centre)
-            self._knob = float(np.arctan2(y - cy, x - cx))
-            o.lon, o.lat = _turn(lon, lat, _unit(*centre), self._knob - np.pi / 2)
+            (cx, cy), (sx, sy) = self.globe.to_xy(*centre), self.globe.to_xy(*start)
+            turn = np.arctan2(y - cy, x - cx) - np.arctan2(sy - cy, sx - cx)
+            o.lon, o.lat = _turn(lon, lat, _unit(*centre), turn)
         try:  # the solve plane follows it
             self.projection = cf.projection_for(self.projection.kind, o.lon, o.lat)
         except ValueError:
@@ -1549,7 +1553,7 @@ class GridSketcher(widgets.HBox):
         if self._drag_changed and xy is not None:
             self._move_dragged(*xy, sketch=False)
         # Changed only if it differs from the snapshot the drag began with
-        o, self._knob = self.outline, np.pi / 2
+        o = self.outline
         self._drag_changed &= o._undo[-1:] != [o._snapshot()]
         o.end_drag(moved=self._drag_changed)
         if self._drag == "box" and self._drag_changed:
@@ -1557,6 +1561,13 @@ class GridSketcher(widgets.HBox):
         self._drag = self._grab = self._pending = None
         if self._drag_changed:
             self._refresh()
+
+    def _on_leave(self, event):
+        # A release off the canvas never arrives, so leaving it ends a drag or pan
+        self._cancel_hover()
+        self._click = None
+        if self._drag is not None or self._pan is not None:
+            self._on_release(event)
 
     def _on_box(self):
         # The handles hide while the Box tool is on; a box's release redraws itself
