@@ -565,6 +565,11 @@ class Topo:
         umask[:, :-1] &= tmask.values  # h-point translates to the left u-point
         umask[:, 1:] &= tmask.values  # h-point translates to the right u-point
 
+        if self._grid.supergrid.is_cyclic_x:
+            # First and last columns are the same seam u-point, between the
+            # last and first T-columns: ocean only if both of those are.
+            umask[:, 0] = umask[:, -1] = umask[:, 0] & umask[:, -1]
+
         return umask
 
     @property
@@ -607,11 +612,16 @@ class Topo:
         qmask[1:, :-1] &= tmask.values  # bottom-left
         qmask[1:, 1:] &= tmask.values  # bottom-right
 
-        # Corners of the qmask are always land -> regional cases
-        qmask[0, 0] = 0
-        qmask[0, -1] = 0
-        qmask[-1, 0] = 0
-        qmask[-1, -1] = 0
+        if self._grid.supergrid.is_cyclic_x:
+            # First and last columns are the same seam q-points, shared by
+            # the last and first T-columns -- not domain corners.
+            qmask[:, 0] = qmask[:, -1] = qmask[:, 0] & qmask[:, -1]
+        else:
+            # Corners of the qmask are always land -> regional cases
+            qmask[0, 0] = 0
+            qmask[0, -1] = 0
+            qmask[-1, 0] = 0
+            qmask[-1, -1] = 0
 
         return qmask
 

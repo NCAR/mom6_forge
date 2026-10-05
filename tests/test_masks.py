@@ -158,3 +158,46 @@ def test_mask_initialization_from_tmask(get_rect_topo_without_vc):
 
     # Verify mask was initialized
     assert topo._user_mask is not None
+
+
+def _cyclic_band_topo(depth):
+    from mom6_forge.grid import Grid
+
+    grid = Grid(
+        lenx=360.0,
+        leny=40.0,
+        resolution=20.0,
+        xstart=0.0,
+        ystart=-80.0,
+        cyclic_x=True,
+        name="cyclic_band",
+    )
+    topo = Topo(grid, min_depth=5.0, git=False)
+    topo.depth = depth(grid)
+    return grid, topo
+
+
+def test_cyclic_grid_seam_q_and_u_points_are_not_corners():
+    """On a cyclic-x grid the first and last q/u columns are the same seam
+    points, not domain corners, so an all-wet band keeps them wet."""
+    grid, topo = _cyclic_band_topo(lambda g: np.full((g.ny, g.nx), 100.0))
+    assert topo.qmask.values.all()
+    assert topo.umask.values.all()
+    edge = topo.supergridmask.isel(nyp=-1).values
+    assert edge[0] == edge[-1] == 1
+
+
+def test_cyclic_grid_seam_masks_follow_both_neighbours():
+    """A seam u/q point is ocean only if the T-cells on both sides of the seam
+    (last and first columns) are ocean."""
+
+    def depth(g):
+        d = np.full((g.ny, g.nx), 100.0)
+        d[:, -1] = 0.0  # last T-column is land
+        return d
+
+    _, topo = _cyclic_band_topo(depth)
+    u, q = topo.umask.values, topo.qmask.values
+    assert (u[:, 0] == 0).all() and (u[:, -1] == 0).all()
+    assert (q[:, 0] == 0).all() and (q[:, -1] == 0).all()
+    assert u[:, 1].all()  # interior u-points between wet columns stay wet
