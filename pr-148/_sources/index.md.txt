@@ -1,0 +1,43 @@
+% mom6_forge documentation master file, created by
+% sphinx-quickstart on Tue Jul 21 11:14:34 2020.
+% You can adapt this file completely to your liking, but it should at least
+% contain the root `toctree` directive.
+
+# Welcome to `mom6_forge` documentation!
+
+`mom6_forge` is a Python tool to generate MOM6 horizontal grid and bathymetry files
+to be used within the **"CESM Simpler Models"** framework. Follow the links below
+to learn more about available tools.
+
+```{toctree}
+:maxdepth: 2
+:caption: Contents:
+
+installation
+quickstart
+bathymetry_workflow
+mapping
+notebooks
+glossary
+widgets
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Python API:
+
+api/modules
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Contributing:
+
+contributing
+```
+
+## Indices and tables
+
+* {ref}`genindex`
+* {ref}`modindex`
+* {ref}`search`
