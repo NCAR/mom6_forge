@@ -565,6 +565,11 @@ class Topo:
         umask[:, :-1] &= tmask.values  # h-point translates to the left u-point
         umask[:, 1:] &= tmask.values  # h-point translates to the right u-point
 
+        if self._grid.supergrid.is_cyclic_x:
+            # First and last columns are the same seam u-point, between the
+            # last and first T-columns: ocean only if both of those are.
+            umask[:, 0] = umask[:, -1] = umask[:, 0] & umask[:, -1]
+
         return umask
 
     @property
@@ -607,11 +612,16 @@ class Topo:
         qmask[1:, :-1] &= tmask.values  # bottom-left
         qmask[1:, 1:] &= tmask.values  # bottom-right
 
-        # Corners of the qmask are always land -> regional cases
-        qmask[0, 0] = 0
-        qmask[0, -1] = 0
-        qmask[-1, 0] = 0
-        qmask[-1, -1] = 0
+        if self._grid.supergrid.is_cyclic_x:
+            # First and last columns are the same seam q-points, shared by
+            # the last and first T-columns -- not domain corners.
+            qmask[:, 0] = qmask[:, -1] = qmask[:, 0] & qmask[:, -1]
+        else:
+            # Corners of the qmask are always land -> regional cases
+            qmask[0, 0] = 0
+            qmask[0, -1] = 0
+            qmask[-1, 0] = 0
+            qmask[-1, -1] = 0
 
         return qmask
 
@@ -853,15 +863,26 @@ class Topo:
                 f"({depth.shape[0]}x{depth.shape[1]} < {self._grid.ny}x{self._grid.nx}). "
             )
         elif depth.shape[0] > self._grid.ny or depth.shape[1] > self._grid.nx:
-            assert (
-                "geolat" in ds_topo and "geolon" in ds_topo
-            ), f"Topog file {topog_file_path} does not contain geolat and geolon fields, "
-            "which are required to determine if the grid is a subgrid of the topog file, "
-            "since the topography data is larger than the grid (in index space). "
+            # T-point coordinates: geolat/geolon, or y/x as in topog files
+            # written alongside some global grids (e.g. tx1_12).
+            coord_names = next(
+                (
+                    (lat, lon)
+                    for lat, lon in (("geolat", "geolon"), ("y", "x"))
+                    if lat in ds_topo and lon in ds_topo
+                ),
+                None,
+            )
+            assert coord_names is not None, (
+                f"Topog file {topog_file_path} does not contain geolat/geolon (or y/x) "
+                "fields, which are required to determine if the grid is a subgrid of "
+                "the topog file, since the topography data is larger than the grid "
+                "(in index space). "
+            )
 
             # Determine if the grid is a subgrid of the topog file
-            geolat = ds_topo["geolat"]
-            geolon = ds_topo["geolon"]
+            geolat = ds_topo[coord_names[0]]
+            geolon = ds_topo[coord_names[1]]
 
             # find the closest cell in the topog file to the (sub)grid's origin (southwest corner)
             topog_kdtree = cKDTree(

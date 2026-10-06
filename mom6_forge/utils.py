@@ -71,7 +71,11 @@ def longitude_slicer(data, longitude_extent, longitude_coords):
             False  # This boolean checks if the 360 + i adjustment isn't found
         )
         for i in range(-1, 2, 1):
-            if data[lon][0] <= central_longitude + 360 * i <= data[lon][-1]:
+            # Test against the data's whole period [first, first + span), not
+            # [first, last]: a midpoint in the last half-cell before the
+            # seam (e.g. 180 for a 0..360 grid against cell centres running
+            # -179.98..179.98) is still inside a global dataset.
+            if lons[0] <= central_longitude + 360 * i < lons[0] + lon_span:
                 is_longitude_extent_in_data = True
 
                 ## Shifted version of target midpoint; e.g., could be -90 vs 270

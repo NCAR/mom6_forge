@@ -246,6 +246,35 @@ def test_expand_adds_halo_and_preserves_interior(get_curvilinear_supergrid, cent
     assert expanded.y.min() >= -90.0
 
 
+def test_expand_wraps_x_halo_on_cyclic_grid():
+    grid = Grid(
+        lenx=360.0,
+        leny=20.0,
+        resolution=10.0,
+        xstart=-287.0,
+        ystart=-70.0,
+        cyclic_x=True,
+    )
+    sg = grid.supergrid
+    assert sg.is_cyclic_x
+
+    expanded = sg.expand(n_cells=1)
+    x, y = np.asarray(expanded.x), np.asarray(expanded.y)
+    sx, sy = np.asarray(sg.x), np.asarray(sg.y)
+    assert x.shape == (sx.shape[0] + 4, sx.shape[1] + 4)
+    assert np.allclose(x[2:-2, 2:-2], sx)
+
+    # x halo is the columns across the seam, shifted by 360: spacing stays even
+    assert np.allclose(np.diff(x, axis=1), sx[0, 1] - sx[0, 0])
+    assert np.allclose(x[2:-2, :2], sx[:, -3:-1] - 360.0)
+    assert np.allclose(x[2:-2, -2:], sx[:, 1:3] + 360.0)
+    # y halo is extrapolated
+    assert np.allclose(y[:2, 2], sy[0, 0] - np.array([2, 1]) * (sy[1, 0] - sy[0, 0]))
+    for metric in (expanded.dx, expanded.dy, expanded.area):
+        assert np.all(np.isfinite(metric))
+        assert np.all(np.asarray(metric) > 0)
+
+
 @pytest.mark.parametrize("center_y", [89.5, -89.5])
 def test_expand_raises_when_padding_would_exceed_the_pole(center_y):
     x, y = _make_axis_aligned_supergrid(center_y, nx=5, ny=5, dx=0.1, dy=0.1)

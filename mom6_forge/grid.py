@@ -459,6 +459,11 @@ class Grid:
                 • "south"
                 • "ic" (full domain for initial conditions)
 
+            On a cyclic-x grid, "east" and "west" are left out -- those
+            columns are the periodic seam, not an outer edge -- and "ic",
+            "north" and "south" span the full circle (``lon_min=-180``,
+            ``lon_max=180``).
+
             Each box is ``{"lon_min", "lon_max", "lat_min", "lat_max",
             "crosses_antimeridian"}``. ``lon_min`` is always a longitude in
             [-180, 180) and ``lon_max`` is ``lon_min`` plus the width of the
@@ -474,12 +479,12 @@ class Grid:
         """
         if type(hgrid) == Grid:
             hgrid = hgrid._supergrid.to_ds()
-        assert not Grid.is_cyclic_x(
-            hgrid
-        ), "Cannot compute bounding boxes for cyclic grids"
+        cyclic_x = Grid.is_cyclic_x(hgrid)
 
         def _lon_lat_bounds(lon_values, lat_values):
-            if _encircles_globe(lon_values):
+            # Every row of a cyclic-x grid goes all the way round, so it and
+            # anything built from it (the whole domain) is the full circle.
+            if cyclic_x or _encircles_globe(lon_values):
                 # This edge surrounds every longitude -- no re-centering can
                 # tighten it, so report the full circle.
                 lon_min, lon_max = -180.0, 180.0
@@ -508,26 +513,22 @@ class Grid:
                 "crosses_antimeridian": lon_max > 180.0,
             }
 
-        init_result = _lon_lat_bounds(hgrid.x.values, hgrid.y.values)
-        east_result = _lon_lat_bounds(
-            hgrid.x.isel(nxp=-1).values, hgrid.y.isel(nxp=-1).values
-        )
-        west_result = _lon_lat_bounds(
-            hgrid.x.isel(nxp=0).values, hgrid.y.isel(nxp=0).values
-        )
-        south_result = _lon_lat_bounds(
-            hgrid.x.isel(nyp=0).values, hgrid.y.isel(nyp=0).values
-        )
-        north_result = _lon_lat_bounds(
+        boxes = {}
+        if not cyclic_x:
+            boxes["east"] = _lon_lat_bounds(
+                hgrid.x.isel(nxp=-1).values, hgrid.y.isel(nxp=-1).values
+            )
+            boxes["west"] = _lon_lat_bounds(
+                hgrid.x.isel(nxp=0).values, hgrid.y.isel(nxp=0).values
+            )
+        boxes["north"] = _lon_lat_bounds(
             hgrid.x.isel(nyp=-1).values, hgrid.y.isel(nyp=-1).values
         )
-        return {
-            "east": east_result,
-            "west": west_result,
-            "north": north_result,
-            "south": south_result,
-            "ic": init_result,
-        }
+        boxes["south"] = _lon_lat_bounds(
+            hgrid.x.isel(nyp=0).values, hgrid.y.isel(nyp=0).values
+        )
+        boxes["ic"] = _lon_lat_bounds(hgrid.x.values, hgrid.y.values)
+        return boxes
 
     @classmethod
     def from_projection(
@@ -712,7 +713,10 @@ class Grid:
         llc : tuple[float, float]
             Lower left corner coordinates (lat, lon) of the subdomain to extract
         urc : tuple[float, float]
-            Upper right corner coordinates (lat, lon) of the subset to extract
+            Upper right corner coordinates (lat, lon) of the subset to extract.
+            On a cyclic-x grid, a box spanning 360 degrees of longitude (e.g.
+            ``llc=(-90, -287)``, ``urc=(-30, 73)``) keeps every column, so the
+            subgrid is cyclic too.
         name : str
             Name of the subgrid
 
@@ -730,6 +734,13 @@ class Grid:
         # subgrid indices
         llc_j, llc_i = full_grid.get_indices(llc[0], llc[1])
         urc_j, urc_i = full_grid.get_indices(urc[0], urc[1])
+
+        # A box that goes all the way round a cyclic-x grid keeps every column,
+        # so the subgrid stays cyclic (e.g. a Southern Ocean band). Nearest-cell
+        # lookup would otherwise land both corners on the same column, or drop
+        # the last one.
+        if full_grid.cyclic_x and urc[1] - llc[1] >= 360.0:
+            llc_i, urc_i = 0, full_grid.nx
 
         assert llc_j < urc_j, "Lower left corner must be below upper right corner"
         assert (

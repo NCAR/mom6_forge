@@ -248,3 +248,18 @@ def test_longitude_slicer_returns_whole_axis_for_global_request(nlon):
     for extent in ([-180.0, 180.0], [-181.0, 181.0], [-200.0, 200.0]):
         sliced = longitude_slicer(data, extent, "lon")
         assert sliced.lon.size == nlon, f"{extent} on nlon={nlon}"
+
+
+def test_longitude_slicer_midpoint_on_source_seam():
+    """A 0..360 request has midpoint 180, which falls in the half-cell gap
+    between a cell-centred -180..180 source's last and first columns. That is
+    still inside the global source, and the whole axis should come back."""
+    lon = np.arange(-179.75, 180, 0.5)
+    data = xr.DataArray(
+        np.arange(lon.size, dtype=float)[None, :].repeat(3, axis=0),
+        dims=["lat", "lon"],
+        coords={"lat": [-60.0, -50.0, -40.0], "lon": lon},
+    )
+    sliced = longitude_slicer(data, (-0.5, 360.5), "lon")
+    assert sliced.sizes["lon"] == lon.size
+    assert (np.diff(sliced["lon"].values) > 0).all()

@@ -248,6 +248,30 @@ def test_get_rectangular_segment_info(get_rect_grid):
     assert "lat_min" in res["east"].keys()
 
 
+def test_get_bounding_boxes_cyclic_grid():
+    """A cyclic-x band has no east/west edge (that's the seam), and its
+    north/south edges and IC box go all the way round."""
+    grid = Grid(
+        lenx=360.0,
+        leny=50.0,
+        resolution=5.0,
+        xstart=0.0,
+        ystart=-80.0,
+        cyclic_x=True,
+        name="cyclic_band",
+    )
+    boxes = Grid.get_bounding_boxes(grid)
+    assert set(boxes) == {"north", "south", "ic"}
+    for box in boxes.values():
+        assert (box["lon_min"], box["lon_max"]) == (-180.0, 180.0)
+        assert not box["crosses_antimeridian"]
+    assert boxes["north"]["lat_min"] == pytest.approx(-30.0)
+    assert boxes["south"]["lat_max"] == pytest.approx(-80.0)
+    assert (boxes["ic"]["lat_min"], boxes["ic"]["lat_max"]) == pytest.approx(
+        (-80.0, -30.0)
+    )
+
+
 def test_get_bounding_boxes_tight_for_seam_crossing_edge():
     """An edge that crosses a seam without needing the full circle should get a
     tight, contiguous range (not the whole globe); an edge/box that genuinely
