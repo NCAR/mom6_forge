@@ -9,6 +9,7 @@ from typing import Optional
 from scipy import interpolate
 from scipy.ndimage import label, binary_fill_holes
 from scipy.sparse import coo_matrix
+from scipy.sparse.linalg import spsolve
 from scipy.sparse.csgraph import connected_components
 from scipy.spatial import cKDTree
 from mom6_forge.utils import cell_area_rad, iterative_fill, compute_subsampling_factor
@@ -1856,6 +1857,96 @@ class Topo:
         self._erase_ocean_cells(
             (basins != largest) & (basins > 0), message="Keep largest basin"
         )
+
+    def fill_small_islands(self, max_cells=4):
+        """
+        Fill tiny land patches surrounded by water with water.
+
+        Coarse bathymetry often leaves single-cell "islands" (shallow-shelf noise
+        that falls just below min_depth). Land patches of at most `max_cells`
+        cells (4-connectivity) that do not touch the domain edge are turned into
+        water, with depths that solve Laplace's equation using the surrounding
+        water depths as boundary values, so each filled depth is the mean of its
+        four neighbours. Depths are at least min_depth + 0.1. Patches that wrap
+        across the seam of a cyclic_x grid are counted as one; only the y edges
+        (and, on a non-cyclic grid, the x edges) count as the domain edge.
+
+        Only the island cells are edited. With a user mask this is two history
+        steps (a depth edit, then a mask edit, so two undos); without one the
+        depth edit alone makes the cells water, a single step.
+
+        Parameters
+        ----------
+        max_cells : int, optional
+            Largest island, in cells, to fill. Default 4.
+
+        Returns
+        -------
+        int
+            Number of cells filled (0, with no edit, if there are none).
+        """
+        labels, num = label(self.tmask.data == 0)
+        if num == 0:
+            return 0
+        cyclic = self._grid.cyclic_x
+        if cyclic:
+            labels = self._merge_basins_across_cyclic_seam(labels, num)
+        small = np.bincount(labels.ravel()) <= max_cells
+        small[0] = False  # label 0 is water
+        edge = [labels[0], labels[-1]] + (
+            [] if cyclic else [labels[:, 0], labels[:, -1]]
+        )
+        small[np.concatenate(edge)] = False
+        cells = np.argwhere(small[labels])
+        if len(cells) == 0:
+            return 0
+
+        # Laplace: depth_k - mean(filled neighbours) = mean(water neighbours)
+        water = np.maximum(self._depth.data, self._min_depth + 0.1)
+        index = -np.ones(labels.shape, int)
+        index[tuple(cells.T)] = np.arange(len(cells))
+        n = len(cells)
+        rows, cols, vals, rhs = (
+            [np.arange(n)],
+            [np.arange(n)],
+            [np.ones(n)],
+            np.zeros(n),
+        )
+        for dj, di in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            jj, ii = cells[:, 0] + dj, (cells[:, 1] + di) % labels.shape[1]
+            nbr = index[jj, ii]
+            inner = nbr >= 0
+            rows.append(np.flatnonzero(inner))
+            cols.append(nbr[inner])
+            vals.append(np.full(inner.sum(), -0.25))
+            rhs[~inner] += water[jj, ii][~inner] / 4
+        matrix = coo_matrix(
+            (np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))),
+            shape=(n, n),
+        ).tocsr()
+        depths = np.maximum(spsolve(matrix, rhs), self._min_depth + 0.1)
+
+        indices = [tuple(idx) for idx in cells]
+        self.apply_edit(
+            DepthEditCommand(
+                self,
+                indices,
+                depths.tolist(),
+                old_values=self._depth.data[tuple(cells.T)].tolist(),
+                message="Fill small islands: depth",
+            )
+        )
+        if self._user_mask is not None:  # otherwise depth > min_depth makes water
+            self.apply_edit(
+                MaskEditCommand(
+                    self,
+                    indices,
+                    [1] * n,
+                    old_values=[0] * n,
+                    message="Fill small islands: mask",
+                )
+            )
+        return n
 
     def apply_ridge(self, height, width, lon, ilat):
         """
