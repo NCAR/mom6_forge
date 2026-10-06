@@ -15,6 +15,9 @@ from mom6_forge.topo import Topo
 from mom6_forge._supergrid import SupergridBase, ProjectedSupergrid
 from utils import on_cisl_machine
 import os
+import json
+import dataclasses
+import mom6_forge._conformal as cf
 
 
 def _rotated_supergrid_grid(
@@ -454,6 +457,99 @@ def test_grid_from_center():
     mid_lon = grid.tlon.values[grid.ny // 2, grid.nx // 2]
     assert abs(mid_lat - 40.0) < 1.0
     assert abs(mid_lon - (-70.0)) < 1.0
+
+
+# ---------------------------------------------------------------------------
+# Grid.from_lonlat_arrays and Grid.from_outline tests
+# ---------------------------------------------------------------------------
+
+RECT_LON, RECT_LAT = [0.0, 4.0, 4.0, 0.0], [-2.0, -2.0, 2.0, 2.0]
+
+
+@pytest.fixture(scope="module")
+def get_outline_grid():
+    return Grid.from_outline(RECT_LON, RECT_LAT, n_cells=64, name="outline_test")
+
+
+def test_grid_from_lonlat_arrays():
+    """Shape from the arrays, nodes kept as given, and a regional grid is not cyclic."""
+    lon, lat = np.meshgrid(280.0 + 0.5 * np.arange(13), 30.0 + 0.5 * np.arange(9))
+    grid = Grid.from_lonlat_arrays(lon, lat, name="lonlat")
+    assert (grid.nx, grid.ny, grid.tlon.shape) == (6, 4, (4, 6))
+    assert np.allclose(grid.qlon.values, lon[::2, ::2])
+    assert np.allclose(grid.qlat.values, lat[::2, ::2])
+    assert grid.cyclic_x is False
+
+
+def test_from_outline_matches_a_plain_grid(get_outline_grid):
+    """A small box on the equator solves (on Mercator) to nearly the plain lon/lat grid."""
+    direct = Grid(lenx=4.0, leny=4.0, nx=8, ny=8, xstart=0.0, ystart=-2.0, name="d")
+    grid = get_outline_grid
+    assert (grid.nx, grid.ny, grid.cyclic_x) == (8, 8, False)
+    assert np.allclose(grid.tlon.values, direct.tlon.values, atol=0.2)
+    assert np.allclose(grid.tlat.values, direct.tlat.values, atol=0.2)
+
+
+def test_from_outline_records_the_outline(get_outline_grid):
+    outline = get_outline_grid.outline
+    assert list(outline) == ["lon", "lat", "corners", "projection", "resolution_km"]
+    given = [outline[k] for k in ("lon", "lat", "corners")]
+    assert given == [RECT_LON, RECT_LAT, [0, 1, 2, 3]]
+    assert list(outline["projection"]) == ["kind", "lon_0", "lat_0", "lat_1", "lat_2"]
+    area_km2 = cf.outline_area_km2(RECT_LON, RECT_LAT)
+    assert outline["resolution_km"] == pytest.approx(np.sqrt(area_km2 / 64), rel=0.05)
+    assert json.loads(json.dumps(outline)) == outline
+
+
+def test_from_outline_keeps_a_many_vertex_outline_as_given(get_california):
+    lon, lat, corners = get_california.values()
+    projection = cf.projection_for("lcc", lon, lat)
+    grid = Grid.from_outline(
+        lon, lat, corners, resolution_km=40.0, projection=projection
+    )
+    assert [grid.outline[k] for k in ("lon", "lat", "corners")] == [lon, lat, corners]
+    assert grid.outline["projection"] == dataclasses.asdict(projection)
+    assert grid.outline["resolution_km"] == 40.0
+    assert cf.nominal_resolution_km(grid) == pytest.approx(40.0, rel=0.1)
+
+
+def test_from_outline_round_a_pole_uses_polar_stereographic():
+    grid = Grid.from_outline([0.0, 90.0, 180.0, 270.0], [75.0] * 4, n_cells=100)
+    assert grid.outline["projection"]["kind"] == "stere"
+    assert grid.outline["projection"]["lat_0"] == 90.0
+
+
+def test_from_outline_auto_picks_the_kind_whose_cells_vary_least():
+    grid = Grid.from_outline([235.0, 243, 243, 235], [31.0, 31, 39, 39], n_cells=64)
+    assert grid.outline["projection"]["kind"] == "merc"
+
+
+@pytest.mark.parametrize(
+    "kw, match",
+    [
+        (dict(lon=[0.0, 1, 2, 1.5, 0.5], lat=[0.0, 0, 1, 1.5, 1]), "corners"),
+        (dict(resolution_km=5.0, n_cells=100), "resolution_km or n_cells"),
+        (dict(corners=[0, 1, 2]), "4 distinct"),
+        (dict(projection=3857), "projection"),
+    ],
+)
+def test_from_outline_rejects_bad_input(kw, match):
+    with pytest.raises(ValueError, match=match):
+        Grid.from_outline(**(dict(lon=RECT_LON, lat=RECT_LAT) | kw))
+
+
+def test_from_outline_stores_numpy_input_as_plain_json():
+    lon, lat = np.array(RECT_LON, np.float32), np.array(RECT_LAT).astype(int)
+    grid = Grid.from_outline(lon, lat, corners=np.arange(4), n_cells=64)
+    assert json.loads(json.dumps(grid.outline))["corners"] == [0, 1, 2, 3]
+    assert grid.outline["lon"] == RECT_LON and grid.outline["lat"] == RECT_LAT
+
+
+def test_from_conformal_is_from_outline_after_the_solve(get_outline_grid):
+    cg = cf.solve(RECT_LON, RECT_LAT, [0, 1, 2, 3], n_cells=64)
+    grid = Grid._from_conformal(cg, RECT_LON, RECT_LAT, [0, 1, 2, 3], None, name="c")
+    assert grid.outline == get_outline_grid.outline
+    assert np.array_equal(grid.qlon.values, get_outline_grid.qlon.values)
 
 
 # ---------------------------------------------------------------------------
