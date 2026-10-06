@@ -1115,6 +1115,19 @@ class SupergridBase:
         ).values
 
     @staticmethod
+    def _wrap_pad_x(x, y, n_cells):
+        """Pad a cyclic-x supergrid by ``n_cells`` T-cells on the west and east
+        with copies of the columns across the seam. Column ``-1`` repeats
+        column ``0``, so it is skipped, and x is shifted by the period."""
+        pad = 2 * n_cells
+        period = x[:, -1:] - x[:, :1]
+        x = np.concatenate(
+            [x[:, -1 - pad : -1] - period, x, x[:, 1 : 1 + pad] + period], axis=1
+        )
+        y = np.concatenate([y[:, -1 - pad : -1], y, y[:, 1 : 1 + pad]], axis=1)
+        return x, y
+
+    @staticmethod
     def _create_expanded_supergrid(x, y, expansion_width=1) -> xr.Dataset:
         """
         Adds an additional boundary to the supergrid to allow for the calculation of the ``angle_dx`` for the boundary points using :func:`~mom6_angle_calculation_method`.
@@ -1164,16 +1177,25 @@ class SupergridBase:
         extrapolation on every side (a halo), by repeatedly applying
         :func:`_create_expanded_supergrid` (each call pads by half a T-cell
         per side) and rebuilding full grid metrics from the resulting x/y.
+
+        On a cyclic-x grid the first and last columns are the same seam, so
+        the x halo is not extrapolated: it is the grid's own columns from
+        across the seam, shifted by the zonal period. Only the y halo is
+        extrapolated.
         """
-        if self.is_cyclic_x or self.is_tripolar:
-            raise NotImplementedError(
-                "expand() is not supported for cyclic or tripolar grids"
-            )
+        if self.is_tripolar:
+            raise NotImplementedError("expand() is not supported for tripolar grids")
         assert n_cells >= 1, "n_cells must be a positive integer"
-        x, y = self.x, self.y
-        for _ in range(2 * n_cells):
-            padded = self._create_expanded_supergrid(x, y)
-            x, y = padded.x.values, padded.y.values
+        if self.is_cyclic_x:
+            x, y = self._wrap_pad_x(np.asarray(self.x), np.asarray(self.y), n_cells)
+            for _ in range(2 * n_cells):
+                x = np.concatenate([2 * x[:1] - x[1:2], x, 2 * x[-1:] - x[-2:-1]])
+                y = np.concatenate([2 * y[:1] - y[1:2], y, 2 * y[-1:] - y[-2:-1]])
+        else:
+            x, y = self.x, self.y
+            for _ in range(2 * n_cells):
+                padded = self._create_expanded_supergrid(x, y)
+                x, y = padded.x.values, padded.y.values
         assert (
             -90 <= y.min() and y.max() <= 90
         ), "Expanded supergrid exceeds ±90 degrees latitude; check the input grid and expansion width."
