@@ -357,3 +357,40 @@ def test_topo_channel_widths_filepath(get_rect_grid, tmp_path):
     assert len(loaded) == 1
     assert loaded[0].component == "U_width"
     assert loaded[0].place == "St. of Gibralter"
+
+
+def test_full_width_subgrid_of_cyclic_grid_reads_larger_xy_topog(tmp_path):
+    """A band cut out of a cyclic-x grid with subgrid_from_supergrid keeps every
+    column (so stays cyclic), and from_topo_file finds it inside a topog file for
+    the whole grid that names its T-point coordinates y/x (as tx1_12's does)."""
+    from mom6_forge.grid import Grid
+
+    full = Grid(
+        lenx=360.0,
+        leny=60.0,
+        resolution=10.0,
+        xstart=-287.0,
+        ystart=-80.0,
+        cyclic_x=True,
+        name="full",
+    )
+    hgrid_path = tmp_path / "ocean_hgrid_full.nc"
+    full.write_supergrid(hgrid_path)
+
+    depth = np.arange(full.ny * full.nx, dtype=float).reshape(full.ny, full.nx) + 100.0
+    xr.Dataset(
+        {
+            "depth": (("ny", "nx"), depth),
+            "y": (("ny", "nx"), full.tlat.values),
+            "x": (("ny", "nx"), full.tlon.values),
+        }
+    ).to_netcdf(tmp_path / "topog_full.nc")
+
+    sub = Grid.subgrid_from_supergrid(
+        hgrid_path, llc=(-90.0, -287.0), urc=(-40.0, 73.0), name="band"
+    )
+    assert sub.nx == full.nx and sub.supergrid.is_cyclic_x
+    assert sub.ny < full.ny
+
+    topo = Topo.from_topo_file(sub, tmp_path / "topog_full.nc")
+    np.testing.assert_array_equal(topo.depth.values, depth[: sub.ny])

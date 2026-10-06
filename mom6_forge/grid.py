@@ -713,7 +713,10 @@ class Grid:
         llc : tuple[float, float]
             Lower left corner coordinates (lat, lon) of the subdomain to extract
         urc : tuple[float, float]
-            Upper right corner coordinates (lat, lon) of the subset to extract
+            Upper right corner coordinates (lat, lon) of the subset to extract.
+            On a cyclic-x grid, a box spanning 360 degrees of longitude (e.g.
+            ``llc=(-90, -287)``, ``urc=(-30, 73)``) keeps every column, so the
+            subgrid is cyclic too.
         name : str
             Name of the subgrid
 
@@ -731,6 +734,13 @@ class Grid:
         # subgrid indices
         llc_j, llc_i = full_grid.get_indices(llc[0], llc[1])
         urc_j, urc_i = full_grid.get_indices(urc[0], urc[1])
+
+        # A box that goes all the way round a cyclic-x grid keeps every column,
+        # so the subgrid stays cyclic (e.g. a Southern Ocean band). Nearest-cell
+        # lookup would otherwise land both corners on the same column, or drop
+        # the last one.
+        if full_grid.cyclic_x and urc[1] - llc[1] >= 360.0:
+            llc_i, urc_i = 0, full_grid.nx
 
         assert llc_j < urc_j, "Lower left corner must be below upper right corner"
         assert (
