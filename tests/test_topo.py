@@ -357,3 +357,78 @@ def test_topo_channel_widths_filepath(get_rect_grid, tmp_path):
     assert len(loaded) == 1
     assert loaded[0].component == "U_width"
     assert loaded[0].place == "St. of Gibralter"
+
+
+def _topo_with_islands(grid, tmp_path, user_mask):
+    """Flat 1000 m water (min_depth 10) with islands of 1, 1, 3 and 6 cells.
+
+    Cell (5, 5) is a lone island in uniform water, (15, 30) a lone island whose
+    neighbours are 2, 4, 3 and 3 times 100 m, (10, 10:13) a 3-cell island, and
+    (20:22, 20:23) one of 6 cells. The land column i<3 is a mainland and (0, 15)
+    a one-cell island on the domain edge.
+    """
+    topo = Topo(grid, min_depth=10, version_control_dir=tmp_path, git=True)
+    topo.set_flat(1000)
+    d = topo.depth.data
+    d[:, :3] = 0
+    d[0, 15] = 0
+    d[5, 5] = 0
+    d[10, 10:13] = 0
+    d[20:22, 20:23] = 0
+    d[15, 30] = 0
+    d[15, 29], d[15, 31], d[14, 30], d[16, 30] = 200, 400, 300, 300
+    if user_mask:
+        topo.user_mask = topo.tmask.data.copy()
+    return topo
+
+
+@pytest.mark.parametrize("user_mask", [False, True])
+def test_fill_small_islands(get_rect_grid, tmp_path, user_mask):
+    topo = _topo_with_islands(get_rect_grid, tmp_path, user_mask)
+    depth0 = topo.depth.data.copy()
+    mask0 = topo.tmask.data.copy()
+    filled = np.zeros(mask0.shape, bool)
+    filled[5, 5] = filled[15, 30] = True
+    filled[10, 10:13] = True
+
+    assert topo.fill_small_islands(max_cells=4) == 5
+
+    mask, depth = topo.tmask.data, topo.depth.data
+    assert (mask[filled] == 1).all()  # the islands are water now
+    assert (mask[~filled] == mask0[~filled]).all()  # the rest keeps its mask ...
+    assert (depth[~filled] == depth0[~filled]).all()  # ... and its depth
+    assert mask[0, 15] == 0 and (mask[20:22, 20:23] == 0).all() and mask[8, 1] == 0
+    assert (depth[filled] > topo.min_depth).all()
+    assert depth[5, 5] == 1000  # uniform water around it
+    assert (depth[10, 10:13] == 1000).all()
+    assert depth[15, 30] == pytest.approx(300)  # mean of 200, 400, 300, 300
+
+    assert topo.fill_small_islands(max_cells=4) == 0  # nothing left to fill
+
+    for _ in range(2 if user_mask else 1):  # depth edit, then mask edit
+        topo.tcm.undo()
+    assert (topo.tmask.data == mask0).all()
+    assert (topo.depth.data == depth0).all()
+
+
+def test_fill_small_islands_ring_of_equal_depth(get_rect_grid):
+    """A 3-cell island ringed by 100 m water in 300 m water fills to 100 m."""
+    topo = Topo(get_rect_grid, min_depth=0, git=False)
+    topo.set_flat(300)
+    topo.depth.data[5, 10:13] = 0  # three land cells in a row
+    topo.depth.data[4:7, 9] = 100
+    topo.depth.data[4:7, 13] = 100
+    topo.depth.data[4, 10:13] = 100
+    topo.depth.data[6, 10:13] = 100
+    topo.fill_small_islands(max_cells=3)
+    assert np.allclose(topo.depth.data[5, 10:13], 100)
+
+
+def test_fill_small_islands_cyclic_seam(get_simple_global_grid):
+    topo = Topo(get_simple_global_grid, min_depth=0, git=False)
+    topo.set_flat(1000)
+    topo.depth.data[5, 0] = topo.depth.data[5, -1] = 0  # one island across the seam
+    topo.depth.data[2:4, 100:105] = 0  # 10 cells, over the limit
+    assert topo.fill_small_islands(max_cells=4) == 2
+    assert (topo.tmask.data[5, [0, -1]] == 1).all()
+    assert (topo.tmask.data[2:4, 100:105] == 0).all()
