@@ -43,4 +43,9 @@ setuptools.setup(
         "dask>=2026.3.0,<2026.4.0",
         "regionmask>=0.13.0,<0.14.0",
     ],
+    entry_points={
+        "console_scripts": [
+            "mom6_forge=mom6_forge.cli:main",
+        ],
+    },
 )

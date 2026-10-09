@@ -12,6 +12,14 @@ mom6\_forge.channel\_width module
    :undoc-members:
    :show-inheritance:
 
+mom6\_forge.cli module
+----------------------
+
+.. automodule:: mom6_forge.cli
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 mom6\_forge.command\_manager module
 -----------------------------------
 

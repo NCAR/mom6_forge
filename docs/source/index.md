@@ -15,6 +15,7 @@ to learn more about available tools.
 
 installation
 quickstart
+cli
 bathymetry_workflow
 mapping
 notebooks
