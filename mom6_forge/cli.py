@@ -1,255 +1,183 @@
 """
 Command line interface for mom6_forge.
 
-Each subcommand builds one MOM6 input file from command line arguments:
+Most of mom6_forge is a multi-step process: build an object, call methods on
+it, then write it out (``Topo(grid, min_depth)``, ``set_flat(D)``,
+``write_topo(path)``). Each top-level command wraps one class that way: its
+options are the constructor's arguments, and a short list of exposed methods
+can be chained after it, each with options taken from its own signature:
 
-    mom6_forge grid  --lenx 4 --leny 3 --resolution 0.05 --xstart 278 --ystart 7 \
-                     --name panama -o ocean_hgrid.nc
-    mom6_forge topo  --grid ocean_hgrid.nc --min-depth 10 --flat 1000 -o ocean_topog.nc
-    mom6_forge vgrid --nk 50 --depth 1000 -o ocean_vgrid.nc
+    mom6_forge grid --lenx 4 --leny 3 --resolution 0.05 --xstart 278 --ystart 7 \\
+        write_supergrid --path ocean_hgrid.nc
+    mom6_forge topo --grid ocean_hgrid.nc --min-depth 10 \\
+        set_flat --D 1000 write_topo --file-path ocean_topog.nc
+    mom6_forge vgrid hyperbolic --nk 50 --depth 1000 --ratio 0.1 \\
+        write --filename ocean_vgrid.nc
+
+To expose another method, add its name to that command's ``methods`` in
+COMMANDS; its options and help are generated from its signature and docstring.
 """
 
-import argparse
-import sys
-from pathlib import Path
+import ast
+import inspect
+from dataclasses import dataclass, field
+from typing import Callable, Optional
+
+import click
+
+from mom6_forge.grid import Grid
+from mom6_forge.topo import Topo
+from mom6_forge.vgrid import VGrid
 
 
-def _check_output(args):
-    if Path(args.output).exists() and not args.overwrite:
-        print(
-            f"Refusing to overwrite {args.output} (pass --overwrite).",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+def _load_topo(grid, min_depth):
+    """Start a bathymetry on the horizontal grid in a supergrid (ocean_hgrid) file."""
+    return Topo(Grid.from_supergrid(grid), min_depth)
 
 
-def _grid(args):
-    from mom6_forge.grid import Grid
+@dataclass
+class Command:
+    """A class exposed as a command: how to construct it, and which methods to chain."""
 
-    _check_output(args)
-    grid = Grid(
-        lenx=args.lenx,
-        leny=args.leny,
-        nx=args.nx,
-        ny=args.ny,
-        resolution=args.resolution,
-        xstart=args.xstart,
-        ystart=args.ystart,
-        cyclic_x=args.cyclic_x,
-        name=args.name,
-        type=args.type,
-    )
-    grid.write_supergrid(args.output)
-    print(f"Grid written to: {args.output}")
+    cls: type
+    help: str
+    # Builds the object from the command's own options. None means the chain
+    # starts with a classmethod that returns a new instance (e.g. VGrid.uniform).
+    init: Optional[Callable] = None
+    methods: list = field(default_factory=list)
 
 
-def _topo(args):
-    from mom6_forge.grid import Grid
-    from mom6_forge.topo import Topo
-
-    _check_output(args)
-    grid = Grid.from_supergrid(args.grid)
-    topo = Topo(grid, args.min_depth)
-    if args.flat is not None:
-        topo.set_flat(args.flat)
-    else:
-        missing = [
-            f"--{flag}"
-            for flag in ("lon-name", "lat-name", "elevation-name")
-            if getattr(args, flag.replace("-", "_")) is None
-        ]
-        if missing:
-            args.subparser.error(f"--dataset also needs {', '.join(missing)}")
-        topo.set_from_dataset(
-            bathymetry_path=args.dataset,
-            longitude_coordinate_name=args.lon_name,
-            latitude_coordinate_name=args.lat_name,
-            vertical_coordinate_name=args.elevation_name,
-            fill_channels=args.fill_channels,
-            is_input_positive_below_msl=args.positive_down,
-            mask_method=args.mask_method,
-            depth_method=args.depth_method,
-            regridding_method=args.regridding_method,
-        )
-    topo.write_topo(args.output)
-    print(f"Bathymetry written to: {args.output}")
+COMMANDS = {
+    "grid": Command(
+        Grid,
+        init=Grid,
+        methods=["write_supergrid"],
+        help="Build a MOM6 horizontal grid (supergrid).",
+    ),
+    "topo": Command(
+        Topo,
+        init=_load_topo,
+        methods=[
+            "set_flat",
+            "set_from_dataset",
+            "set_bowl",
+            "set_spoon",
+            "write_topo",
+            "write_scrip_grid",
+            "write_esmf_mesh",
+        ],
+        help="Build a MOM6 bathymetry on an existing horizontal grid.",
+    ),
+    "vgrid": Command(
+        VGrid,
+        methods=["uniform", "hyperbolic", "write"],
+        help="Build a MOM6 vertical grid.",
+    ),
+}
 
 
-def _vgrid(args):
-    from mom6_forge.vgrid import VGrid
+class _Literal(click.ParamType):
+    """A value read as a Python literal where it parses as one, else a string."""
 
-    _check_output(args)
-    if args.type == "uniform":
-        if args.ratio is not None:
-            args.subparser.error("--ratio only applies to --type hyperbolic")
-        vgrid = VGrid.uniform(nk=args.nk, depth=args.depth, name=args.name)
-    else:
-        if args.ratio is None:
-            args.subparser.error("--type hyperbolic needs --ratio")
-        vgrid = VGrid.hyperbolic(
-            nk=args.nk, depth=args.depth, ratio=args.ratio, name=args.name
-        )
-    vgrid.write(args.output)
-    print(f"Vertical grid written to: {args.output}")
+    name = "value"
+
+    def convert(self, value, param, ctx):
+        if not isinstance(value, str):
+            return value
+        try:
+            return ast.literal_eval(value)
+        except (ValueError, SyntaxError):
+            return value
 
 
-def _add_output_args(parser):
-    parser.add_argument(
-        "-o", "--output", required=True, help="Path of the netCDF file to write."
-    )
-    parser.add_argument(
-        "--overwrite",
-        action="store_true",
-        default=False,
-        help="Overwrite the output file if it already exists.",
+def _help(func):
+    """First paragraph of a docstring."""
+    doc = inspect.getdoc(func) or ""
+    return doc.split("\n\n")[0].replace("\n", " ")
+
+
+def _options(func):
+    """One click option per parameter of ``func``; required if it has no default."""
+    options = []
+    for p in inspect.signature(func).parameters.values():
+        if p.name == "self" or p.kind in (p.VAR_POSITIONAL, p.VAR_KEYWORD):
+            continue
+        flag = "--" + p.name.replace("_", "-")
+        if isinstance(p.default, bool):
+            options.append(
+                click.Option(
+                    [f"{flag}/--no-{flag[2:]}", p.name],
+                    default=p.default,
+                    show_default=True,
+                )
+            )
+        else:
+            if p.default is p.empty:
+                # No default= at all: passing one, even None, satisfies required.
+                option = click.Option([flag, p.name], type=_Literal(), required=True)
+            else:
+                option = click.Option(
+                    [flag, p.name],
+                    type=_Literal(),
+                    default=p.default,
+                    show_default=True,
+                )
+            options.append(option)
+    return options
+
+
+def _is_constructor(cls, name):
+    return isinstance(inspect.getattr_static(cls, name), classmethod)
+
+
+def _method_command(command, name):
+    """A chainable subcommand that runs ``name`` on the object built so far."""
+    func = getattr(command.cls, name)
+
+    def callback(**kwargs):
+        # The group's state dict is shared by every command in the chain. (Click
+        # creates all chained contexts up front, so ctx.obj itself can't be
+        # reassigned mid-chain.)
+        state = click.get_current_context().obj
+        if state["obj"] is None and command.init:
+            state["obj"] = command.init(**state.pop("init_kwargs"))
+        if state["obj"] is None and not _is_constructor(command.cls, name):
+            starters = [m for m in command.methods if _is_constructor(command.cls, m)]
+            raise click.UsageError(
+                f"Start the chain with one of: {', '.join(starters)}"
+            )
+        target = state["obj"] if state["obj"] is not None else command.cls
+        result = getattr(target, name)(**kwargs)
+        if isinstance(result, command.cls):
+            state["obj"] = result
+
+    return click.Command(
+        name, params=_options(func), callback=callback, help=_help(func)
     )
 
 
-def main(argv=None):
-    parser = argparse.ArgumentParser(prog="mom6_forge")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+def _class_group(name, command):
+    """A chained command group: options build the object, subcommands act on it."""
 
-    # --- grid ---
-    grid_parser = subparsers.add_parser(
-        "grid", help="Write a MOM6 horizontal grid (supergrid) file."
-    )
-    grid_parser.add_argument(
-        "--lenx", type=float, required=True, help="Grid length in x (degrees)."
-    )
-    grid_parser.add_argument(
-        "--leny", type=float, required=True, help="Grid length in y (degrees)."
-    )
-    grid_parser.add_argument(
-        "--resolution",
-        type=float,
-        default=None,
-        help="Grid spacing (degrees). Give either this or --nx and --ny.",
-    )
-    grid_parser.add_argument("--nx", type=int, default=None, help="Cells in x.")
-    grid_parser.add_argument("--ny", type=int, default=None, help="Cells in y.")
-    grid_parser.add_argument(
-        "--xstart", type=float, default=0.0, help="Starting x coordinate."
-    )
-    grid_parser.add_argument(
-        "--ystart",
-        type=float,
-        default=None,
-        help="Starting y coordinate (default: -leny/2, centering on the Equator).",
-    )
-    grid_parser.add_argument(
-        "--cyclic-x",
-        action="store_true",
-        default=False,
-        dest="cyclic_x",
-        help="Make the grid cyclic in x (needs --lenx 360).",
-    )
-    grid_parser.add_argument(
-        "--type",
-        choices=["uniform_spherical", "rectilinear_cartesian"],
-        default="uniform_spherical",
-        help="Grid type.",
-    )
-    grid_parser.add_argument("--name", default=None, help="Grid name.")
-    _add_output_args(grid_parser)
-    grid_parser.set_defaults(func=_grid)
+    def callback(**kwargs):
+        # Build the object lazily, in the first chained command, so that
+        # `<command> ... <method> --help` works without building it.
+        click.get_current_context().obj = {"obj": None, "init_kwargs": kwargs}
 
-    # --- topo ---
-    topo_parser = subparsers.add_parser(
-        "topo", help="Write a MOM6 bathymetry (TOPO_FILE) for an existing grid."
+    group = click.Group(
+        name,
+        params=_options(command.init) if command.init else [],
+        callback=callback,
+        chain=True,
+        help=command.help,
     )
-    topo_parser.add_argument(
-        "--grid", required=True, help="Path to the ocean_hgrid (supergrid) file."
-    )
-    topo_parser.add_argument(
-        "--min-depth",
-        type=float,
-        required=True,
-        dest="min_depth",
-        help="Minimum ocean depth (m); shallower cells become land.",
-    )
-    source = topo_parser.add_mutually_exclusive_group(required=True)
-    source.add_argument(
-        "--flat", type=float, default=None, help="Set a uniform depth (m)."
-    )
-    source.add_argument(
-        "--dataset",
-        default=None,
-        help="Regrid depth from this bathymetry netCDF file (e.g. GEBCO).",
-    )
-    ds_args = topo_parser.add_argument_group("--dataset options")
-    ds_args.add_argument(
-        "--lon-name", dest="lon_name", help="Longitude coordinate name (e.g. lon)."
-    )
-    ds_args.add_argument(
-        "--lat-name", dest="lat_name", help="Latitude coordinate name (e.g. lat)."
-    )
-    ds_args.add_argument(
-        "--elevation-name",
-        dest="elevation_name",
-        help="Elevation/depth variable name (e.g. elevation).",
-    )
-    ds_args.add_argument(
-        "--positive-down",
-        action="store_true",
-        default=False,
-        dest="positive_down",
-        help="The dataset's variable is positive below sea level (depth, not elevation).",
-    )
-    ds_args.add_argument(
-        "--fill-channels",
-        action="store_true",
-        default=False,
-        dest="fill_channels",
-        help="Fill narrow channels in the final depth.",
-    )
-    ds_args.add_argument(
-        "--mask-method",
-        choices=["naturalearth", "ocean_frac", "dataset"],
-        default=None,
-        dest="mask_method",
-        help="Land/ocean masking method (default: chosen from resolution diagnostics).",
-    )
-    ds_args.add_argument(
-        "--depth-method",
-        choices=["stats", "xesmf"],
-        default=None,
-        dest="depth_method",
-        help="Depth method (default: chosen from resolution diagnostics).",
-    )
-    ds_args.add_argument(
-        "--regridding-method",
-        default="bilinear",
-        dest="regridding_method",
-        help="xESMF regridding method when the xesmf depth method is used.",
-    )
-    _add_output_args(topo_parser)
-    topo_parser.set_defaults(func=_topo, subparser=topo_parser)
+    for method in command.methods:
+        group.add_command(_method_command(command, method))
+    return group
 
-    # --- vgrid ---
-    vgrid_parser = subparsers.add_parser(
-        "vgrid", help="Write a MOM6 vertical grid (layer thickness) file."
-    )
-    vgrid_parser.add_argument(
-        "--nk", type=int, required=True, help="Number of vertical layers."
-    )
-    vgrid_parser.add_argument(
-        "--depth", type=float, required=True, help="Total depth (m)."
-    )
-    vgrid_parser.add_argument(
-        "--type",
-        choices=["uniform", "hyperbolic"],
-        default="uniform",
-        help="Layer spacing.",
-    )
-    vgrid_parser.add_argument(
-        "--ratio",
-        type=float,
-        default=None,
-        help="Target ratio of top to bottom layer thicknesses (--type hyperbolic only).",
-    )
-    vgrid_parser.add_argument("--name", default=None, help="Vertical grid name.")
-    _add_output_args(vgrid_parser)
-    vgrid_parser.set_defaults(func=_vgrid, subparser=vgrid_parser)
 
-    args = parser.parse_args(argv)
-    args.func(args)
+cli = click.Group(
+    "mom6_forge", help="Build MOM6 grid, bathymetry, and vertical grid files."
+)
+for _name, _command in COMMANDS.items():
+    cli.add_command(_class_group(_name, _command))

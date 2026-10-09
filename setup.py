@@ -42,10 +42,11 @@ setuptools.setup(
         "xesmf>=0.8.10,<1.0.0",
         "dask>=2026.3.0,<2026.4.0",
         "regionmask>=0.13.0,<0.14.0",
+        "click>=8.1,<9",
     ],
     entry_points={
         "console_scripts": [
-            "mom6_forge=mom6_forge.cli:main",
+            "mom6_forge=mom6_forge.cli:cli",
         ],
     },
 )
