@@ -67,7 +67,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#module-mom6_forge.cli">mom6_forge.cli module</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.cli.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.cli.Command"><code class="docutils literal notranslate"><span class="pre">Command</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#module-mom6_forge.command_manager">mom6_forge.command_manager module</a><ul>
@@ -305,16 +305,49 @@ does not begin with U_width or V_width), matching MOM6 behaviour.</p>
 <section id="module-mom6_forge.cli">
 <span id="mom6-forge-cli-module"></span><h2>mom6_forge.cli module<a class="headerlink" href="#module-mom6_forge.cli" title="Link to this heading"></a></h2>
 <p>Command line interface for mom6_forge.</p>
-<p>Each subcommand builds one MOM6 input file from command line arguments:</p>
+<p>Most of mom6_forge is a multi-step process: build an object, call methods on
+it, then write it out (<code class="docutils literal notranslate"><span class="pre">Topo(grid,</span> <span class="pre">min_depth)</span></code>, <code class="docutils literal notranslate"><span class="pre">set_flat(D)</span></code>,
+<code class="docutils literal notranslate"><span class="pre">write_topo(path)</span></code>). Each top-level command wraps one class that way: its
+options are the constructor’s arguments, and a short list of exposed methods
+can be chained after it, each with options taken from its own signature:</p>
 <blockquote>
-<div><p>mom6_forge grid  –lenx 4 –leny 3 –resolution 0.05 –xstart 278 –ystart 7                      –name panama -o ocean_hgrid.nc
-mom6_forge topo  –grid ocean_hgrid.nc –min-depth 10 –flat 1000 -o ocean_topog.nc
-mom6_forge vgrid –nk 50 –depth 1000 -o ocean_vgrid.nc</p>
+<div><dl class="simple">
+<dt>mom6_forge grid –lenx 4 –leny 3 –resolution 0.05 –xstart 278 –ystart 7 </dt><dd><p>write_supergrid –path ocean_hgrid.nc</p>
+</dd>
+<dt>mom6_forge topo –grid ocean_hgrid.nc –min-depth 10 </dt><dd><p>set_flat –D 1000 write_topo –file-path ocean_topog.nc</p>
+</dd>
+<dt>mom6_forge vgrid hyperbolic –nk 50 –depth 1000 –ratio 0.1 </dt><dd><p>write –filename ocean_vgrid.nc</p>
+</dd>
+</dl>
 </div></blockquote>
-<dl class="py function">
-<dt class="sig sig-object py" id="mom6_forge.cli.main">
-<span class="sig-prename descclassname"><span class="pre">mom6_forge.cli.</span></span><span class="sig-name descname"><span class="pre">main</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">argv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.cli.main" title="Link to this definition"></a></dt>
+<p>To expose another method, add its name to that command’s <code class="docutils literal notranslate"><span class="pre">methods</span></code> in
+COMMANDS; its options and help are generated from its signature and docstring.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mom6_forge.cli.Command">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mom6_forge.cli.</span></span><span class="sig-name descname"><span class="pre">Command</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cls</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">help</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">init</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">methods</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.cli.Command" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>A class exposed as a command: how to construct it, and which methods to chain.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mom6_forge.cli.Command.cls">
+<span class="sig-name descname"><span class="pre">cls</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">type</span></span><a class="headerlink" href="#mom6_forge.cli.Command.cls" title="Link to this definition"></a></dt>
 <dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mom6_forge.cli.Command.help">
+<span class="sig-name descname"><span class="pre">help</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></span><a class="headerlink" href="#mom6_forge.cli.Command.help" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mom6_forge.cli.Command.init">
+<span class="sig-name descname"><span class="pre">init</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Callable</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#mom6_forge.cli.Command.init" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mom6_forge.cli.Command.methods">
+<span class="sig-name descname"><span class="pre">methods</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">list</span></span><a class="headerlink" href="#mom6_forge.cli.Command.methods" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
 
 </section>
 <section id="module-mom6_forge.command_manager">
@@ -1829,7 +1862,7 @@ If version control is disabled, the command is executed directly without recordi
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>cmd</strong> (<em>Command</em>) – The command to be applied.</p></li>
+<li><p><strong>cmd</strong> (<a class="reference internal" href="#mom6_forge.cli.Command" title="mom6_forge.cli.Command"><em>Command</em></a>) – The command to be applied.</p></li>
 <li><p><strong>skip_version_control</strong> (<em>bool</em>) – If True, the command will be executed without recording in version control even if version control is enabled. This can be useful for programmatic changes that should not be part of the user-facing version history.</p></li>
 <li><p><strong>cmd_type</strong> (<a class="reference internal" href="#mom6_forge.command_manager.CommandType" title="mom6_forge.command_manager.CommandType"><em>CommandType</em></a>) – The type of the command, used for version control categorization. Ignored if skip_version_control is True or if version control is disabled.</p></li>
 </ul>

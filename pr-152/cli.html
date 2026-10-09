@@ -51,6 +51,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#horizontal-grid">Horizontal grid</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#bathymetry">Bathymetry</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#vertical-grid">Vertical grid</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#exposing-more-methods">Exposing more methods</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="bathymetry_workflow.html">Bathymetry Workflow</a></li>
@@ -94,43 +95,62 @@
              
   <section id="command-line">
 <h1>Command line<a class="headerlink" href="#command-line" title="Link to this heading"></a></h1>
-<p><code class="docutils literal notranslate"><span class="pre">mom6_forge</span></code> installs a <code class="docutils literal notranslate"><span class="pre">mom6_forge</span></code> command with one subcommand per MOM6 input
-file. Each writes a single netCDF file and refuses to overwrite an existing one
-unless you pass <code class="docutils literal notranslate"><span class="pre">--overwrite</span></code>. Run <code class="docutils literal notranslate"><span class="pre">mom6_forge</span> <span class="pre">&lt;subcommand&gt;</span> <span class="pre">--help</span></code> for every option.</p>
-<section id="horizontal-grid">
-<h2>Horizontal grid<a class="headerlink" href="#horizontal-grid" title="Link to this heading"></a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mom6_forge<span class="w"> </span>grid<span class="w"> </span>--lenx<span class="w"> </span><span class="m">4</span><span class="w"> </span>--leny<span class="w"> </span><span class="m">3</span><span class="w"> </span>--resolution<span class="w"> </span><span class="m">0</span>.05<span class="w"> </span>--xstart<span class="w"> </span><span class="m">278</span><span class="w"> </span>--ystart<span class="w"> </span><span class="m">7</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--name<span class="w"> </span>panama<span class="w"> </span>-o<span class="w"> </span>ocean_hgrid_panama.nc
+<p><code class="docutils literal notranslate"><span class="pre">mom6_forge</span></code> installs a <code class="docutils literal notranslate"><span class="pre">mom6_forge</span></code> command with one subcommand per class:
+<code class="docutils literal notranslate"><span class="pre">grid</span></code>, <code class="docutils literal notranslate"><span class="pre">topo</span></code>, and <code class="docutils literal notranslate"><span class="pre">vgrid</span></code>. The command line mirrors the Python API. A command’s
+options are the class constructor’s arguments, and after them you chain the
+methods to run, in order, each with its own options:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mom6_forge<span class="w"> </span>topo<span class="w"> </span>--grid<span class="w"> </span>ocean_hgrid.nc<span class="w"> </span>--min-depth<span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>set_flat<span class="w"> </span>--D<span class="w"> </span><span class="m">1000</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>write_topo<span class="w"> </span>--file-path<span class="w"> </span>ocean_topog.nc
 </pre></div>
 </div>
-<p>Give either <code class="docutils literal notranslate"><span class="pre">--resolution</span></code> or <code class="docutils literal notranslate"><span class="pre">--nx</span></code> and <code class="docutils literal notranslate"><span class="pre">--ny</span></code>. <code class="docutils literal notranslate"><span class="pre">--type</span></code> selects
-<code class="docutils literal notranslate"><span class="pre">uniform_spherical</span></code> (default) or <code class="docutils literal notranslate"><span class="pre">rectilinear_cartesian</span></code>, and <code class="docutils literal notranslate"><span class="pre">--cyclic-x</span></code> makes a
-360° grid periodic in x.</p>
+<p>is the same as</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span> <span class="o">=</span> <span class="n">Topo</span><span class="p">(</span><span class="n">Grid</span><span class="o">.</span><span class="n">from_supergrid</span><span class="p">(</span><span class="s2">"ocean_hgrid.nc"</span><span class="p">),</span> <span class="n">min_depth</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">set_flat</span><span class="p">(</span><span class="n">D</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">write_topo</span><span class="p">(</span><span class="n">file_path</span><span class="o">=</span><span class="s2">"ocean_topog.nc"</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Option names are the Python argument names with <code class="docutils literal notranslate"><span class="pre">_</span></code> written as <code class="docutils literal notranslate"><span class="pre">-</span></code>. Values are
+read as Python literals where possible (<code class="docutils literal notranslate"><span class="pre">500</span></code>, <code class="docutils literal notranslate"><span class="pre">True</span></code>, <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">2]</span></code>) and as strings
+otherwise. Run <code class="docutils literal notranslate"><span class="pre">mom6_forge</span> <span class="pre">&lt;command&gt;</span> <span class="pre">--help</span></code> to list a command’s options and
+methods, and <code class="docutils literal notranslate"><span class="pre">mom6_forge</span> <span class="pre">&lt;command&gt;</span> <span class="pre">[options]</span> <span class="pre">&lt;method&gt;</span> <span class="pre">--help</span></code> for a method’s options.</p>
+<section id="horizontal-grid">
+<h2>Horizontal grid<a class="headerlink" href="#horizontal-grid" title="Link to this heading"></a></h2>
+<p>Options are the arguments of <code class="docutils literal notranslate"><span class="pre">Grid()</span></code>; chain <code class="docutils literal notranslate"><span class="pre">write_supergrid</span></code> to save it.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mom6_forge<span class="w"> </span>grid<span class="w"> </span>--lenx<span class="w"> </span><span class="m">4</span><span class="w"> </span>--leny<span class="w"> </span><span class="m">3</span><span class="w"> </span>--resolution<span class="w"> </span><span class="m">0</span>.05<span class="w"> </span>--xstart<span class="w"> </span><span class="m">278</span><span class="w"> </span>--ystart<span class="w"> </span><span class="m">7</span><span class="w"> </span>--name<span class="w"> </span>panama<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>write_supergrid<span class="w"> </span>--path<span class="w"> </span>ocean_hgrid_panama.nc
+</pre></div>
+</div>
 </section>
 <section id="bathymetry">
 <h2>Bathymetry<a class="headerlink" href="#bathymetry" title="Link to this heading"></a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">topo</span></code> needs an existing horizontal grid file. Set a flat bottom:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mom6_forge<span class="w"> </span>topo<span class="w"> </span>--grid<span class="w"> </span>ocean_hgrid_panama.nc<span class="w"> </span>--min-depth<span class="w"> </span><span class="m">10</span><span class="w"> </span>--flat<span class="w"> </span><span class="m">1000</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-o<span class="w"> </span>ocean_topog_panama.nc
-</pre></div>
-</div>
-<p>or regrid from a bathymetry dataset such as GEBCO (see
-<a class="reference internal" href="bathymetry_workflow.html"><span class="std std-doc">the bathymetry workflow</span></a> for what the mask and depth
-methods do):</p>
+<p><code class="docutils literal notranslate"><span class="pre">--grid</span></code> (a supergrid file) and <code class="docutils literal notranslate"><span class="pre">--min-depth</span></code> start the bathymetry. Set the depth
+with <code class="docutils literal notranslate"><span class="pre">set_flat</span></code>, <code class="docutils literal notranslate"><span class="pre">set_from_dataset</span></code>, <code class="docutils literal notranslate"><span class="pre">set_bowl</span></code>, or <code class="docutils literal notranslate"><span class="pre">set_spoon</span></code>, then write it with
+<code class="docutils literal notranslate"><span class="pre">write_topo</span></code> (and, if needed, <code class="docutils literal notranslate"><span class="pre">write_scrip_grid</span></code> or <code class="docutils literal notranslate"><span class="pre">write_esmf_mesh</span></code> in the same
+chain).</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mom6_forge<span class="w"> </span>topo<span class="w"> </span>--grid<span class="w"> </span>ocean_hgrid_panama.nc<span class="w"> </span>--min-depth<span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--dataset<span class="w"> </span>GEBCO_2024.nc<span class="w"> </span>--lon-name<span class="w"> </span>lon<span class="w"> </span>--lat-name<span class="w"> </span>lat<span class="w"> </span>--elevation-name<span class="w"> </span>elevation<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-o<span class="w"> </span>ocean_topog_panama.nc
+<span class="w">    </span>set_from_dataset<span class="w"> </span>--bathymetry-path<span class="w"> </span>GEBCO_2024.nc<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--longitude-coordinate-name<span class="w"> </span>lon<span class="w"> </span>--latitude-coordinate-name<span class="w"> </span>lat<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>--vertical-coordinate-name<span class="w"> </span>elevation<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>write_topo<span class="w"> </span>--file-path<span class="w"> </span>ocean_topog_panama.nc
 </pre></div>
 </div>
+<p>See <a class="reference internal" href="bathymetry_workflow.html"><span class="std std-doc">the bathymetry workflow</span></a> for what <code class="docutils literal notranslate"><span class="pre">set_from_dataset</span></code>’s
+mask and depth methods do.</p>
 </section>
 <section id="vertical-grid">
 <h2>Vertical grid<a class="headerlink" href="#vertical-grid" title="Link to this heading"></a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mom6_forge<span class="w"> </span>vgrid<span class="w"> </span>--nk<span class="w"> </span><span class="m">50</span><span class="w"> </span>--depth<span class="w"> </span><span class="m">1000</span><span class="w"> </span>-o<span class="w"> </span>ocean_vgrid_panama.nc
-mom6_forge<span class="w"> </span>vgrid<span class="w"> </span>--type<span class="w"> </span>hyperbolic<span class="w"> </span>--nk<span class="w"> </span><span class="m">50</span><span class="w"> </span>--depth<span class="w"> </span><span class="m">1000</span><span class="w"> </span>--ratio<span class="w"> </span><span class="m">0</span>.1<span class="w"> </span>-o<span class="w"> </span>ocean_vgrid_panama.nc
+<p>Start the chain with the constructor to use, <code class="docutils literal notranslate"><span class="pre">uniform</span></code> or <code class="docutils literal notranslate"><span class="pre">hyperbolic</span></code>, then <code class="docutils literal notranslate"><span class="pre">write</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mom6_forge<span class="w"> </span>vgrid<span class="w"> </span>uniform<span class="w"> </span>--nk<span class="w"> </span><span class="m">50</span><span class="w"> </span>--depth<span class="w"> </span><span class="m">1000</span><span class="w"> </span>write<span class="w"> </span>--filename<span class="w"> </span>ocean_vgrid_panama.nc
+mom6_forge<span class="w"> </span>vgrid<span class="w"> </span>hyperbolic<span class="w"> </span>--nk<span class="w"> </span><span class="m">50</span><span class="w"> </span>--depth<span class="w"> </span><span class="m">1000</span><span class="w"> </span>--ratio<span class="w"> </span><span class="m">0</span>.1<span class="w"> </span>write<span class="w"> </span>--filename<span class="w"> </span>ocean_vgrid_panama.nc
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">--ratio</span></code> is the target ratio of top to bottom layer thickness, and only applies
-to <code class="docutils literal notranslate"><span class="pre">--type</span> <span class="pre">hyperbolic</span></code>.</p>
+</section>
+<section id="exposing-more-methods">
+<h2>Exposing more methods<a class="headerlink" href="#exposing-more-methods" title="Link to this heading"></a></h2>
+<p>The commands are declared in <code class="docutils literal notranslate"><span class="pre">COMMANDS</span></code> in <code class="docutils literal notranslate"><span class="pre">mom6_forge/cli.py</span></code>. To expose another
+method, add its name to that command’s <code class="docutils literal notranslate"><span class="pre">methods</span></code> list; its options and help text
+are generated from its signature and docstring.</p>
 </section>
 </section>
 
