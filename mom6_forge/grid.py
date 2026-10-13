@@ -474,9 +474,6 @@ class Grid:
         """
         if type(hgrid) == Grid:
             hgrid = hgrid._supergrid.to_ds()
-        assert not Grid.is_cyclic_x(
-            hgrid
-        ), "Cannot compute bounding boxes for cyclic grids"
 
         def _lon_lat_bounds(lon_values, lat_values):
             if _encircles_globe(lon_values):
