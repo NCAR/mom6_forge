@@ -209,7 +209,7 @@ north. Useful for aligning a regional domain with a coastline or estuary.</p></l
 Lambert conformal projection) and reprojects it to geographic coordinates,
 remaining accurate at high latitudes.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">Grid.from_supergrid_file(file_path)</span></code> — loads a grid from an existing MOM6 supergrid file.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">Grid.from_esmf_mesh(path)</span></code> — loads a grid from an existing ESMF mesh file.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Grid.from_esmf_mesh_file(file_path)</span></code> — loads a grid from an existing ESMF mesh file.</p></li>
 </ul>
 <p>Example:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">grid</span> <span class="o">=</span> <span class="n">Grid</span><span class="o">.</span><span class="n">from_center</span><span class="p">(</span>
@@ -496,7 +496,7 @@ separately:</p>
 and bathymetry data. These files are to be read in by CESM and MOM6 during runtime.</p>
 <section id="supergrid-file">
 <h3><em>Supergrid File</em><a class="headerlink" href="#supergrid-file" title="Link to this heading"></a></h3>
-<p>The <code class="docutils literal notranslate"><span class="pre">write_supergrid</span></code> method of a <code class="docutils literal notranslate"><span class="pre">Grid</span></code> instance writes out the MOM6 supergrid file
+<p>The <code class="docutils literal notranslate"><span class="pre">write_supergrid_file</span></code> method of a <code class="docutils literal notranslate"><span class="pre">Grid</span></code> instance writes out the MOM6 supergrid file
 in netcdf format. The <code class="docutils literal notranslate"><span class="pre">GRID_FILE</span></code> parameter in <code class="docutils literal notranslate"><span class="pre">MOM_input</span></code> file can then be set to
 the path of the supergrid file written by the <code class="docutils literal notranslate"><span class="pre">Grid</span></code> instance.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">grid</span><span class="o">.</span><span class="n">write_supergrid_file</span><span class="p">(</span><span class="s2">"my_ocean_hgrid.nc"</span><span class="p">)</span>
@@ -508,7 +508,7 @@ written by the <code class="docutils literal notranslate"><span class="pre">Topo
 </section>
 <section id="topography-bathymetry-file">
 <h3><em>Topography (Bathymetry) File</em><a class="headerlink" href="#topography-bathymetry-file" title="Link to this heading"></a></h3>
-<p>The <code class="docutils literal notranslate"><span class="pre">write_topo</span></code> method of the <code class="docutils literal notranslate"><span class="pre">Topo</span></code> class writes out the MOM6 bathymetry file in netcdf format.
+<p>The <code class="docutils literal notranslate"><span class="pre">write_topo_file</span></code> method of the <code class="docutils literal notranslate"><span class="pre">Topo</span></code> class writes out the MOM6 bathymetry file in netcdf format.
 <code class="docutils literal notranslate"><span class="pre">TOPO_FILE</span></code> parameter in <code class="docutils literal notranslate"><span class="pre">MOM_input</span></code> file can then be set to the path of the topography file
 written by the <code class="docutils literal notranslate"><span class="pre">Topo</span></code> instance.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">write_topo_file</span><span class="p">(</span><span class="s2">"my_ocean_topog.nc"</span><span class="p">)</span>
@@ -517,10 +517,10 @@ written by the <code class="docutils literal notranslate"><span class="pre">Topo
 </section>
 <section id="cice-grid-file">
 <h3><em>CICE grid file</em><a class="headerlink" href="#cice-grid-file" title="Link to this heading"></a></h3>
-<p>If the model is to be run with the CICE component, the <code class="docutils literal notranslate"><span class="pre">write_cice_grid</span></code> method of the
+<p>If the model is to be run with the CICE component, the <code class="docutils literal notranslate"><span class="pre">write_cice_grid_file</span></code> method of the
 <code class="docutils literal notranslate"><span class="pre">Topo</span></code> class writes out the CICE grid file in netcdf format. The relevant CICE namelist
 parameters can then be updated to read in the CICE grid file written by the <code class="docutils literal notranslate"><span class="pre">Topo</span></code> instance.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">write_cice_grid</span><span class="p">(</span><span class="s2">"my_cice_grid.nc"</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">write_cice_grid_file</span><span class="p">(</span><span class="s2">"my_cice_grid.nc"</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>
@@ -528,9 +528,9 @@ parameters can then be updated to read in the CICE grid file written by the <cod
 <h3><em>ESMF Mesh file</em><a class="headerlink" href="#esmf-mesh-file" title="Link to this heading"></a></h3>
 <p>In addition to the MOM6 supergrid file, MOM6 topography file and CICE grid file, an
 ESMF mesh file is required when running CESM. The ESMF mesh file is used
-by the NUOPC coupler to acquire grid and mask information. The <code class="docutils literal notranslate"><span class="pre">write_esmf_mesh</span></code> method
+by the NUOPC coupler to acquire grid and mask information. The <code class="docutils literal notranslate"><span class="pre">write_esmf_mesh_file</span></code> method
 of the <code class="docutils literal notranslate"><span class="pre">Topo</span></code> class writes out the ESMF mesh file in netcdf format.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">write_esmf_mesh</span><span class="p">(</span><span class="s2">"my_esmf_mesh.nc"</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">write_esmf_mesh_file</span><span class="p">(</span><span class="s2">"my_esmf_mesh.nc"</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>
@@ -566,9 +566,9 @@ reentrant in x, and tripolar grids are not supported.</p>
 <h3><em>SCRIP Grid File</em><a class="headerlink" href="#scrip-grid-file" title="Link to this heading"></a></h3>
 <p>Modern CESM configurations use ESMF mesh files rather than SCRIP files for
 most purposes, but a SCRIP file is still needed to generate custom
-ocean-runoff mapping files (see <a class="reference internal" href="mapping.html"><span class="doc">Regridding &amp; Mapping</span></a>). The <code class="docutils literal notranslate"><span class="pre">write_scrip_grid</span></code> method
+ocean-runoff mapping files (see <a class="reference internal" href="mapping.html"><span class="doc">Regridding &amp; Mapping</span></a>). The <code class="docutils literal notranslate"><span class="pre">write_scrip_grid_file</span></code> method
 writes it out:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">write_scrip_grid</span><span class="p">(</span><span class="s2">"my_ocean_scrip.nc"</span><span class="p">)</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">topo</span><span class="o">.</span><span class="n">write_scrip_grid_file</span><span class="p">(</span><span class="s2">"my_ocean_scrip.nc"</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>

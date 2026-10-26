@@ -105,7 +105,7 @@ from scratch.</p>
 and into a land mass, avoiding a singularity within the ocean domain
 without the added complexity of a tripolar grid.</p>
 </dd>
-<dt id="term-ESMF-mesh">ESMF mesh<a class="headerlink" href="#term-ESMF-mesh" title="Link to this term"></a></dt><dd><p>An unstructured-mesh NetCDF file format (produced by <code class="docutils literal notranslate"><span class="pre">Topo.write_esmf_mesh</span></code>)
+<dt id="term-ESMF-mesh">ESMF mesh<a class="headerlink" href="#term-ESMF-mesh" title="Link to this term"></a></dt><dd><p>An unstructured-mesh NetCDF file format (produced by <code class="docutils literal notranslate"><span class="pre">Topo.write_esmf_mesh_file</span></code>)
 used by the NUOPC coupler in CESM to acquire grid and land/ocean mask
 information for a component. Most functions in <a class="reference internal" href="mapping.html"><span class="doc">Regridding &amp; Mapping</span></a> operate on
 ESMF mesh files rather than raw longitude/latitude arrays.</p>
@@ -113,11 +113,11 @@ ESMF mesh files rather than raw longitude/latitude arrays.</p>
 <dt id="term-SCRIP-grid">SCRIP grid<a class="headerlink" href="#term-SCRIP-grid" title="Link to this term"></a></dt><dd><p>An older NetCDF grid description format used by the SCRIP regridding
 library. Superseded by ESMF mesh files for most purposes in modern CESM,
 but still required to generate ocean-runoff mapping files (see
-<a class="reference internal" href="mapping.html"><span class="doc">Regridding &amp; Mapping</span></a>). Written by <code class="docutils literal notranslate"><span class="pre">Topo.write_scrip_grid</span></code>.</p>
+<a class="reference internal" href="mapping.html"><span class="doc">Regridding &amp; Mapping</span></a>). Written by <code class="docutils literal notranslate"><span class="pre">Topo.write_scrip_grid_file</span></code>.</p>
 </dd>
 <dt id="term-CICE-grid">CICE grid<a class="headerlink" href="#term-CICE-grid" title="Link to this term"></a></dt><dd><p>The grid file format expected by the CICE sea ice model, describing the
 same horizontal grid as the MOM6 supergrid and topography files. Written
-by <code class="docutils literal notranslate"><span class="pre">Topo.write_cice_grid</span></code> when a configuration includes a CICE component.</p>
+by <code class="docutils literal notranslate"><span class="pre">Topo.write_cice_grid_file</span></code> when a configuration includes a CICE component.</p>
 </dd>
 <dt id="term-Cressman-interpolation">Cressman interpolation<a class="headerlink" href="#term-Cressman-interpolation" title="Link to this term"></a></dt><dd><p>A distance-weighted interpolation scheme in which source points within a
 smoothing radius contribute to a destination value with weight

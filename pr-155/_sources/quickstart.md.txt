@@ -93,7 +93,7 @@ constructors for domains that aren't naturally expressed as `nx`/`ny`/`lenx`/`le
   Lambert conformal projection) and reprojects it to geographic coordinates,
   remaining accurate at high latitudes.
 * `Grid.from_supergrid_file(file_path)` — loads a grid from an existing MOM6 supergrid file.
-* `Grid.from_esmf_mesh(path)` — loads a grid from an existing ESMF mesh file.
+* `Grid.from_esmf_mesh_file(file_path)` — loads a grid from an existing ESMF mesh file.
 
 Example:
 
@@ -405,7 +405,7 @@ and bathymetry data. These files are to be read in by CESM and MOM6 during runti
 
 ### *Supergrid File*
 
-The `write_supergrid` method of a `Grid` instance writes out the MOM6 supergrid file
+The `write_supergrid_file` method of a `Grid` instance writes out the MOM6 supergrid file
 in netcdf format. The `GRID_FILE` parameter in `MOM_input` file can then be set to
 the path of the supergrid file written by the `Grid` instance.
 
@@ -419,7 +419,7 @@ written by the `Topo` class.
 
 ### *Topography (Bathymetry) File*
 
-The `write_topo` method of the `Topo` class writes out the MOM6 bathymetry file in netcdf format.
+The `write_topo_file` method of the `Topo` class writes out the MOM6 bathymetry file in netcdf format.
 `TOPO_FILE` parameter in `MOM_input` file can then be set to the path of the topography file
 written by the `Topo` instance.
 
@@ -429,23 +429,23 @@ topo.write_topo_file("my_ocean_topog.nc")
 
 ### *CICE grid file*
 
-If the model is to be run with the CICE component, the `write_cice_grid` method of the 
+If the model is to be run with the CICE component, the `write_cice_grid_file` method of the 
 `Topo` class writes out the CICE grid file in netcdf format. The relevant CICE namelist
 parameters can then be updated to read in the CICE grid file written by the `Topo` instance.
 
 ```python
-topo.write_cice_grid("my_cice_grid.nc")
+topo.write_cice_grid_file("my_cice_grid.nc")
 ```
 
 ### *ESMF Mesh file*
 
 In addition to the MOM6 supergrid file, MOM6 topography file and CICE grid file, an
 ESMF mesh file is required when running CESM. The ESMF mesh file is used
-by the NUOPC coupler to acquire grid and mask information. The `write_esmf_mesh` method
+by the NUOPC coupler to acquire grid and mask information. The `write_esmf_mesh_file` method
 of the `Topo` class writes out the ESMF mesh file in netcdf format.
 
 ```python
-topo.write_esmf_mesh("my_esmf_mesh.nc")
+topo.write_esmf_mesh_file("my_esmf_mesh.nc")
 ```
 
 ### *WW3 (WaveWatch III) Input Files*
@@ -484,11 +484,11 @@ reentrant in x, and tripolar grids are not supported.
 
 Modern CESM configurations use ESMF mesh files rather than SCRIP files for
 most purposes, but a SCRIP file is still needed to generate custom
-ocean-runoff mapping files (see {doc}`mapping`). The `write_scrip_grid` method
+ocean-runoff mapping files (see {doc}`mapping`). The `write_scrip_grid_file` method
 writes it out:
 
 ```python
-topo.write_scrip_grid("my_ocean_scrip.nc")
+topo.write_scrip_grid_file("my_ocean_scrip.nc")
 ```
 
 ## Step 6: Editing Grids and Bathymetry

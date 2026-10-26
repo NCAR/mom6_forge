@@ -214,13 +214,13 @@
     "topo.write_topo_file(f\"./ocean_topog_{grid_name}_{datestamp}.nc\")\n",
     "\n",
     "# CICE grid file:\n",
-    "topo.write_cice_grid(f\"./cice_grid_{grid_name}_{datestamp}.nc\")\n",
+    "topo.write_cice_grid_file(f\"./cice_grid_{grid_name}_{datestamp}.nc\")\n",
     "\n",
     "# SCRIP grid file (for runoff remapping, if needed):\n",
-    "topo.write_scrip_grid(f\"./scrip_grid_{grid_name}_{datestamp}.nc\")\n",
+    "topo.write_scrip_grid_file(f\"./scrip_grid_{grid_name}_{datestamp}.nc\")\n",
     "\n",
     "# ESMF mesh file:\n",
-    "topo.write_esmf_mesh(f\"./ESMF_mesh_{grid_name}_{datestamp}.nc\")"
+    "topo.write_esmf_mesh_file(f\"./ESMF_mesh_{grid_name}_{datestamp}.nc\")"
    ]
   },
   {
