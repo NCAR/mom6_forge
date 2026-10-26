@@ -295,7 +295,7 @@ _TX2_3V3_ESMF_MESH = "/glade/campaign/cesm/cesmdata/inputdata/ocn/mom/tx2_3v3/ES
 def tripolar_sg():
     if not on_cisl_machine():
         pytest.skip("Requires CISL/GLADE access")
-    return Grid.from_supergrid(_TX2_3V3_HGRID).supergrid
+    return Grid.from_supergrid_file(_TX2_3V3_HGRID).supergrid
 
 
 @pytest.fixture

@@ -25,7 +25,7 @@ def test_topo_from_topo_file(get_rect_topo_with_vc, tmp_path):
     topo_file_path = (
         tmp_path / "bleh.nc"
     )  # Would have this crazy depth because of the command in cell (1,1)
-    topo.write_topo(topo_file_path)
+    topo.write_topo_file(topo_file_path)
     topo_from_file = Topo.from_topo_file(
         topo._grid,
         topo_file_path,

@@ -96,10 +96,10 @@ def test_regional_grid():
     with tempfile.TemporaryDirectory() as tmpdirname:
 
         # write horizontal grid to netcdf file
-        grid.write_supergrid(tmpdirname + "/ocean_hgrid_1.nc")
+        grid.write_supergrid_file(tmpdirname + "/ocean_hgrid_1.nc")
 
         # write topo to netcdf file
-        topo.write_topo(tmpdirname + "/ocean_topog_1.nc")
+        topo.write_topo_file(tmpdirname + "/ocean_topog_1.nc")
 
         # write cice grid file
         topo.write_cice_grid(tmpdirname + "/cice_grid_1.nc")
@@ -168,14 +168,14 @@ def test_from_file():
 
     topo_path = "/glade/p/cesmdata/inputdata/ocn/mom/tx2_3v2/ocean_topog_230413.nc"
 
-    grid = Grid.from_supergrid(supergrid_path)
+    grid = Grid.from_supergrid_file(supergrid_path)
     topo = Topo.from_topo_file(grid, topo_path)
 
     # write the bathymetry to a netcdf file
     with tempfile.TemporaryDirectory() as tmpdirname:
 
         # write horizontal grid to netcdf file
-        grid.write_supergrid(tmpdirname + "/ocean_hgrid_2.nc")
+        grid.write_supergrid_file(tmpdirname + "/ocean_hgrid_2.nc")
 
         ds_orig = xr.open_dataset(supergrid_path)
         ds_new = xr.open_dataset(tmpdirname + "/ocean_hgrid_2.nc")
@@ -185,7 +185,7 @@ def test_from_file():
         assert (ds_orig.dx == ds_new.dx).all()
         assert (ds_orig.dy == ds_new.dy).all()
 
-        topo.write_topo(tmpdirname + "/ocean_topog_2.nc")
+        topo.write_topo_file(tmpdirname + "/ocean_topog_2.nc")
 
         ds_orig = xr.open_dataset(topo_path)
         ds_new = xr.open_dataset(tmpdirname + "/ocean_topog_2.nc")
@@ -420,9 +420,9 @@ def test_grid_supergrid_setter(simple_2by2_grid):
 
 def test_grid_to_netcdf_and_from_netcdf(tmp_path, simple_2by2_grid):
     path = tmp_path / "testgrid.nc"
-    simple_2by2_grid.write_supergrid(str(path))
+    simple_2by2_grid.write_supergrid_file(str(path))
     assert os.path.exists(path)
-    loaded = Grid.from_supergrid(path)
+    loaded = Grid.from_supergrid_file(path)
     assert loaded.nx == simple_2by2_grid.nx
     assert loaded.ny == simple_2by2_grid.ny
     assert loaded.name == simple_2by2_grid.name

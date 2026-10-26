@@ -92,7 +92,7 @@ constructors for domains that aren't naturally expressed as `nx`/`ny`/`lenx`/`le
   — builds a uniform grid in a given `pyproj` CRS (e.g. a polar stereographic or
   Lambert conformal projection) and reprojects it to geographic coordinates,
   remaining accurate at high latitudes.
-* `Grid.from_supergrid(path)` — loads a grid from an existing MOM6 supergrid file.
+* `Grid.from_supergrid_file(file_path)` — loads a grid from an existing MOM6 supergrid file.
 * `Grid.from_esmf_mesh(path)` — loads a grid from an existing ESMF mesh file.
 
 Example:
@@ -218,7 +218,7 @@ vgrid = VGrid.hyperbolic(nk=75, depth=6000.0, ratio=10.0)
 ### *Loading from an Existing File*
 
 ```python
-vgrid = VGrid.from_file(
+vgrid = VGrid.from_vgrid_file(
     "existing_vgrid.nc",
     variable_name="dz",
     variable_type="layer_thickness",  # or "cell_center" or "cell_interface"
@@ -236,7 +236,7 @@ vgrid = VGrid.from_file(
 ### *Writing the Vertical Grid File*
 
 ```python
-vgrid.write("my_vgrid.nc")
+vgrid.write_vgrid_file("my_vgrid.nc")
 ```
 
 `vgrid.write_z_file("my_vgrid_z.nc")` writes an alternative file containing
@@ -410,7 +410,7 @@ in netcdf format. The `GRID_FILE` parameter in `MOM_input` file can then be set 
 the path of the supergrid file written by the `Grid` instance.
 
 ```python
-grid.write_supergrid("my_ocean_hgrid.nc")
+grid.write_supergrid_file("my_ocean_hgrid.nc")
 ```
 
 The supergrid file is the only input file that is written by the `Grid` class. All other
@@ -424,7 +424,7 @@ The `write_topo` method of the `Topo` class writes out the MOM6 bathymetry file 
 written by the `Topo` instance.
 
 ```python
-topo.write_topo("my_ocean_topog.nc")
+topo.write_topo_file("my_ocean_topog.nc")
 ```
 
 ### *CICE grid file*

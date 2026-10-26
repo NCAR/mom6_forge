@@ -210,7 +210,7 @@ class Topo:
 
             # Save the grid info there (there can only be 1 grid per bathymetry)
             self.grid_file_path = self.domain_dir / "grid.nc"
-            grid.write_supergrid(self.grid_file_path)
+            grid.write_supergrid_file(self.grid_file_path)
 
             # Initialize the git repo
             self.repo = get_repo(self.domain_dir)
@@ -272,7 +272,7 @@ class Topo:
         grid_file_path = folder_path / "grid.nc"
         assert grid_file_path.exists(), f"Cannot find grid file at {grid_file_path}."
 
-        grid = Grid.from_supergrid(grid_file_path)
+        grid = Grid.from_supergrid_file(grid_file_path)
 
         # Create the topo object
         topo = Topo(
@@ -1524,7 +1524,7 @@ class Topo:
             output_path=output_dir / "bathymetry_unfinished.nc",
         )["depth"]
         if write_to_file:
-            self.write_topo(
+            self.write_topo_file(
                 output_dir / "bathymetry_unfinished.nc"
             )  # This is called unfinished because the regridding is not fully complete until the one-cell channels are filled
 
@@ -2101,7 +2101,7 @@ class Topo:
 
         return ds
 
-    def write_topo(self, file_path, title=None):
+    def write_topo_file(self, file_path, title=None):
         """
         Write the TOPO_FILE (bathymetry file) in netcdf format. The written file is
         to be read in by MOM6 during runtime.
@@ -2127,6 +2127,16 @@ class Topo:
 
         ds = self.gen_topo_ds(title=title)
         ds.to_netcdf(file_path, format="NETCDF3_64BIT")
+        return ds
+
+    def write_topo(self, file_path, title=None):
+        """Deprecated alias for :meth:`write_topo_file`."""
+        warnings.warn(
+            "Topo.write_topo is deprecated; use Topo.write_topo_file.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.write_topo_file(file_path, title)
 
     def write_cice_grid(self, file_path):
         """
