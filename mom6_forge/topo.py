@@ -210,7 +210,7 @@ class Topo:
 
             # Save the grid info there (there can only be 1 grid per bathymetry)
             self.grid_file_path = self.domain_dir / "grid.nc"
-            grid.write_supergrid(self.grid_file_path)
+            grid.write_supergrid_file(self.grid_file_path)
 
             # Initialize the git repo
             self.repo = get_repo(self.domain_dir)
@@ -272,7 +272,7 @@ class Topo:
         grid_file_path = folder_path / "grid.nc"
         assert grid_file_path.exists(), f"Cannot find grid file at {grid_file_path}."
 
-        grid = Grid.from_supergrid(grid_file_path)
+        grid = Grid.from_supergrid_file(grid_file_path)
 
         # Create the topo object
         topo = Topo(
@@ -293,7 +293,7 @@ class Topo:
     def from_topo_file(
         cls,
         grid,
-        topo_file_path,
+        file_path,
         min_depth=0.0,
         varname="depth",
         version_control_dir="TopoLibrary",
@@ -307,7 +307,7 @@ class Topo:
         ----------
         grid: mom6_forge.grid.Grid
             horizontal grid instance for which the bathymetry is to be created.
-        topo_file_path: str
+        file_path: str
             Path to an existing MOM6 topog file.
         min_depth: float, optional
             Minimum water column depth (m). Columns with shallower depths are to be masked out.
@@ -330,13 +330,13 @@ class Topo:
         )
         if topo.tcm is not None:
             topo.tcm.reapply_changes()
-        topo.set_depth_via_topog_file(topo_file_path, varname)
+        topo.set_depth_via_topog_file(file_path, varname)
         return topo
 
     @classmethod
-    def from_esmf_mesh(
+    def from_esmf_mesh_file(
         cls,
-        mesh_path,
+        file_path,
         radius=_DEFAULT_RADIUS,
         min_depth=0.0,
         version_control_dir="TopoLibrary",
@@ -347,7 +347,7 @@ class Topo:
 
         Parameters
         ----------
-        mesh_path: str or xr.Dataset
+        file_path: str or xr.Dataset
             Path to ESMF mesh file to read, or an already-opened Dataset.
         radius: float, optional
             Radius of the Earth (m). Default is _DEFAULT_RADIUS.
@@ -358,7 +358,7 @@ class Topo:
         """
 
         supergrid, mask = SupergridBase.reconstruct_from_esmf_mesh(
-            mesh_path, radius, return_mask=True
+            file_path, radius, return_mask=True
         )
         grid = Grid.from_supergrid_ds(supergrid.to_ds())
         topo = cls(grid, min_depth, version_control_dir=version_control_dir, git=git)
@@ -1524,7 +1524,7 @@ class Topo:
             output_path=output_dir / "bathymetry_unfinished.nc",
         )["depth"]
         if write_to_file:
-            self.write_topo(
+            self.write_topo_file(
                 output_dir / "bathymetry_unfinished.nc"
             )  # This is called unfinished because the regridding is not fully complete until the one-cell channels are filled
 
@@ -2101,7 +2101,7 @@ class Topo:
 
         return ds
 
-    def write_topo(self, file_path, title=None):
+    def write_topo_file(self, file_path, title=None):
         """
         Write the TOPO_FILE (bathymetry file) in netcdf format. The written file is
         to be read in by MOM6 during runtime.
@@ -2127,8 +2127,9 @@ class Topo:
 
         ds = self.gen_topo_ds(title=title)
         ds.to_netcdf(file_path, format="NETCDF3_64BIT")
+        return ds
 
-    def write_cice_grid(self, file_path):
+    def write_cice_grid_file(self, file_path):
         """
         Write the CICE grid file in netcdf format. The written file is
         to be read in by CICE during runtime.
@@ -2249,6 +2250,7 @@ class Topo:
             file_path,
             format="NETCDF3_64BIT",
         )
+        return ds
 
     # Edge names accepted by write_ww3_input's boundary_edges argument. The
     # spelling deliberately matches the one used for CrocoDash open boundary
@@ -2625,7 +2627,7 @@ class Topo:
                 "$ -------------------------------------------------------------------- $\n"
             )
 
-    def write_scrip_grid(self, file_path, title=None):
+    def write_scrip_grid_file(self, file_path, title=None):
         """
         Write the SCRIP grid file. In latest CESM versions, SCRIP grid files are
         no longer required and are replaced by ESMF mesh files. However, SCRIP
@@ -2713,8 +2715,9 @@ class Topo:
             file_path,
             format="NETCDF3_64BIT",
         )
+        return ds
 
-    def write_esmf_mesh(self, file_path, title=None):
+    def write_esmf_mesh_file(self, file_path, title=None):
         """
         Write the ESMF mesh file
 
@@ -2726,5 +2729,8 @@ class Topo:
             File title.
         """
 
-        self._grid.supergrid.to_esmf_mesh(file_path, mask=self.tmask.data, title=title)
+        ds = self._grid.supergrid.to_esmf_mesh(
+            file_path, mask=self.tmask.data, title=title
+        )
         self.mesh_path = file_path
+        return ds

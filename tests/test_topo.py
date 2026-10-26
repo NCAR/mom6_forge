@@ -25,7 +25,7 @@ def test_topo_from_topo_file(get_rect_topo_with_vc, tmp_path):
     topo_file_path = (
         tmp_path / "bleh.nc"
     )  # Would have this crazy depth because of the command in cell (1,1)
-    topo.write_topo(topo_file_path)
+    topo.write_topo_file(topo_file_path)
     topo_from_file = Topo.from_topo_file(
         topo._grid,
         topo_file_path,
@@ -269,7 +269,7 @@ def test_topo_no_git(get_rect_topo_without_vc):
 
 
 # ---------------------------------------------------------------------------
-# Topo.from_esmf_mesh tests
+# Topo.from_esmf_mesh_file tests
 # ---------------------------------------------------------------------------
 
 
@@ -280,8 +280,8 @@ def test_topo_from_esmf_mesh_roundtrip(get_rect_topo_with_vc, tmp_path):
     land_mask[:2, :3] = 0
     topo._user_mask = xr.DataArray(land_mask, dims=["ny", "nx"])
     mesh_path = str(tmp_path / "test.nc")
-    topo.write_esmf_mesh(mesh_path)
-    topo2 = Topo.from_esmf_mesh(mesh_path, git=False)
+    topo.write_esmf_mesh_file(mesh_path)
+    topo2 = Topo.from_esmf_mesh_file(mesh_path, git=False)
     assert topo2.tmask.shape == topo.tmask.shape
     assert topo2._grid.nx == topo._grid.nx
     assert topo2._grid.ny == topo._grid.ny
@@ -291,9 +291,9 @@ def test_topo_from_esmf_mesh_roundtrip(get_rect_topo_with_vc, tmp_path):
 def test_topo_from_esmf_mesh_accepts_dataset(get_rect_topo_with_vc, tmp_path):
     topo = get_rect_topo_with_vc
     mesh_path = str(tmp_path / "test.nc")
-    topo.write_esmf_mesh(mesh_path)
+    topo.write_esmf_mesh_file(mesh_path)
     ds = xr.open_dataset(mesh_path)
-    topo2 = Topo.from_esmf_mesh(ds, git=False)
+    topo2 = Topo.from_esmf_mesh_file(ds, git=False)
     assert topo2.tmask.shape == topo.tmask.shape
 
 
@@ -306,7 +306,7 @@ def test_topo_from_esmf_mesh_raises_without_mask(get_rect_topo_with_vc, tmp_path
     with xr.open_dataset(mesh_path) as ds:
         ds.drop_vars("elementMask").load().to_netcdf(no_mask_path)
     with pytest.raises(ValueError, match="elementMask"):
-        Topo.from_esmf_mesh(no_mask_path, git=False)
+        Topo.from_esmf_mesh_file(no_mask_path, git=False)
 
 
 def test_topo_channel_widths_none(get_rect_grid):

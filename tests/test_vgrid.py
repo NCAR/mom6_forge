@@ -87,7 +87,7 @@ def test_cell_interface_to_layer_thickness(
 
 
 def test_from_file_layer_thickness(get_realistic_vgrid_elements, tmp_path):
-    """Test basic from_file functionality, loading from layer_thickness with different variable names."""
+    """Test basic from_vgrid_file functionality, loading from layer_thickness with different variable names."""
 
     # Create temp directory with pytest features
     tmp_dir = tmp_path / "vgrid_testing"
@@ -103,7 +103,7 @@ def test_from_file_layer_thickness(get_realistic_vgrid_elements, tmp_path):
         ds.to_netcdf(tmpfile.name)
         ds.close()
 
-        vgrid = VGrid.from_file(filename=tmpfile.name)
+        vgrid = VGrid.from_vgrid_file(file_path=tmpfile.name)
 
         assert np.allclose(vgrid.dz, layer_thickness)
         assert np.allclose(vgrid.zl, cell_center)
@@ -116,8 +116,8 @@ def test_from_file_layer_thickness(get_realistic_vgrid_elements, tmp_path):
         ds.to_netcdf(tmpfile.name)
         ds.close()
 
-        vgrid = VGrid.from_file(
-            filename=tmpfile.name,
+        vgrid = VGrid.from_vgrid_file(
+            file_path=tmpfile.name,
             variable_name="layer_thickness",
             variable_type="layer_thickness",
         )
@@ -144,8 +144,8 @@ def test_from_file_cell_center(get_realistic_vgrid_elements, tmp_path):
         ds.to_netcdf(tmpfile.name)
         ds.close()
 
-        vgrid = VGrid.from_file(
-            filename=tmpfile.name, variable_name="z", variable_type="cell_center"
+        vgrid = VGrid.from_vgrid_file(
+            file_path=tmpfile.name, variable_name="z", variable_type="cell_center"
         )
 
         assert np.allclose(vgrid.dz, layer_thickness)
@@ -164,8 +164,8 @@ def test_from_file_cell_center(get_realistic_vgrid_elements, tmp_path):
         ds.to_netcdf(tmpfile.name)
         ds.close()
 
-        vgrid = VGrid.from_file(
-            filename=tmpfile.name, variable_name="z", variable_type="cell_center"
+        vgrid = VGrid.from_vgrid_file(
+            file_path=tmpfile.name, variable_name="z", variable_type="cell_center"
         )
 
         assert np.allclose(vgrid.dz, layer_thickness)
@@ -190,8 +190,8 @@ def test_from_file_cell_interface(get_realistic_vgrid_elements, tmp_path):
         ds.to_netcdf(tmpfile.name)
         ds.close()
 
-        vgrid = VGrid.from_file(
-            filename=tmpfile.name, variable_name="zi", variable_type="cell_interface"
+        vgrid = VGrid.from_vgrid_file(
+            file_path=tmpfile.name, variable_name="zi", variable_type="cell_interface"
         )
 
         assert np.allclose(vgrid.dz, layer_thickness)
@@ -210,8 +210,8 @@ def test_from_file_cell_interface(get_realistic_vgrid_elements, tmp_path):
         ds.to_netcdf(tmpfile.name)
         ds.close()
 
-        vgrid = VGrid.from_file(
-            filename=tmpfile.name, variable_name="zi", variable_type="cell_interface"
+        vgrid = VGrid.from_vgrid_file(
+            file_path=tmpfile.name, variable_name="zi", variable_type="cell_interface"
         )
 
         assert np.allclose(vgrid.dz, layer_thickness)

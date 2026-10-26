@@ -21,7 +21,7 @@ displaced pole grid
     without the added complexity of a tripolar grid.
 
 ESMF mesh
-    An unstructured-mesh NetCDF file format (produced by `Topo.write_esmf_mesh`)
+    An unstructured-mesh NetCDF file format (produced by `Topo.write_esmf_mesh_file`)
     used by the NUOPC coupler in CESM to acquire grid and land/ocean mask
     information for a component. Most functions in {doc}`mapping` operate on
     ESMF mesh files rather than raw longitude/latitude arrays.
@@ -30,12 +30,12 @@ SCRIP grid
     An older NetCDF grid description format used by the SCRIP regridding
     library. Superseded by ESMF mesh files for most purposes in modern CESM,
     but still required to generate ocean-runoff mapping files (see
-    {doc}`mapping`). Written by `Topo.write_scrip_grid`.
+    {doc}`mapping`). Written by `Topo.write_scrip_grid_file`.
 
 CICE grid
     The grid file format expected by the CICE sea ice model, describing the
     same horizontal grid as the MOM6 supergrid and topography files. Written
-    by `Topo.write_cice_grid` when a configuration includes a CICE component.
+    by `Topo.write_cice_grid_file` when a configuration includes a CICE component.
 
 Cressman interpolation
     A distance-weighted interpolation scheme in which source points within a

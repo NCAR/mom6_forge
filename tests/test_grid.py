@@ -96,19 +96,19 @@ def test_regional_grid():
     with tempfile.TemporaryDirectory() as tmpdirname:
 
         # write horizontal grid to netcdf file
-        grid.write_supergrid(tmpdirname + "/ocean_hgrid_1.nc")
+        grid.write_supergrid_file(tmpdirname + "/ocean_hgrid_1.nc")
 
         # write topo to netcdf file
-        topo.write_topo(tmpdirname + "/ocean_topog_1.nc")
+        topo.write_topo_file(tmpdirname + "/ocean_topog_1.nc")
 
         # write cice grid file
-        topo.write_cice_grid(tmpdirname + "/cice_grid_1.nc")
+        topo.write_cice_grid_file(tmpdirname + "/cice_grid_1.nc")
 
         # write SCRIP grid file
-        topo.write_scrip_grid(tmpdirname + "/SCRIP_grid_1.nc")
+        topo.write_scrip_grid_file(tmpdirname + "/SCRIP_grid_1.nc")
 
         # ESMF mesh file
-        topo.write_esmf_mesh(tmpdirname + "/ESMF_mesh_1.nc")
+        topo.write_esmf_mesh_file(tmpdirname + "/ESMF_mesh_1.nc")
 
 
 def test_global_grid():
@@ -168,14 +168,14 @@ def test_from_file():
 
     topo_path = "/glade/p/cesmdata/inputdata/ocn/mom/tx2_3v2/ocean_topog_230413.nc"
 
-    grid = Grid.from_supergrid(supergrid_path)
+    grid = Grid.from_supergrid_file(supergrid_path)
     topo = Topo.from_topo_file(grid, topo_path)
 
     # write the bathymetry to a netcdf file
     with tempfile.TemporaryDirectory() as tmpdirname:
 
         # write horizontal grid to netcdf file
-        grid.write_supergrid(tmpdirname + "/ocean_hgrid_2.nc")
+        grid.write_supergrid_file(tmpdirname + "/ocean_hgrid_2.nc")
 
         ds_orig = xr.open_dataset(supergrid_path)
         ds_new = xr.open_dataset(tmpdirname + "/ocean_hgrid_2.nc")
@@ -185,7 +185,7 @@ def test_from_file():
         assert (ds_orig.dx == ds_new.dx).all()
         assert (ds_orig.dy == ds_new.dy).all()
 
-        topo.write_topo(tmpdirname + "/ocean_topog_2.nc")
+        topo.write_topo_file(tmpdirname + "/ocean_topog_2.nc")
 
         ds_orig = xr.open_dataset(topo_path)
         ds_new = xr.open_dataset(tmpdirname + "/ocean_topog_2.nc")
@@ -420,9 +420,9 @@ def test_grid_supergrid_setter(simple_2by2_grid):
 
 def test_grid_to_netcdf_and_from_netcdf(tmp_path, simple_2by2_grid):
     path = tmp_path / "testgrid.nc"
-    simple_2by2_grid.write_supergrid(str(path))
+    simple_2by2_grid.write_supergrid_file(str(path))
     assert os.path.exists(path)
-    loaded = Grid.from_supergrid(path)
+    loaded = Grid.from_supergrid_file(path)
     assert loaded.nx == simple_2by2_grid.nx
     assert loaded.ny == simple_2by2_grid.ny
     assert loaded.name == simple_2by2_grid.name
@@ -457,14 +457,14 @@ def test_grid_from_center():
 
 
 # ---------------------------------------------------------------------------
-# Grid.from_esmf_mesh tests
+# Grid.from_esmf_mesh_file tests
 # ---------------------------------------------------------------------------
 
 
 def test_grid_from_esmf_mesh_non_cyclic(tmp_path, get_rect_grid):
     mesh_path = str(tmp_path / "non_cyclic.nc")
     get_rect_grid.supergrid.to_esmf_mesh(mesh_path, mask="all_unmasked")
-    grid2 = Grid.from_esmf_mesh(mesh_path)
+    grid2 = Grid.from_esmf_mesh_file(mesh_path)
     assert isinstance(grid2, Grid)
     assert grid2.nx == get_rect_grid.nx
     assert grid2.ny == get_rect_grid.ny
@@ -474,7 +474,7 @@ def test_grid_from_esmf_mesh_non_cyclic(tmp_path, get_rect_grid):
 def test_grid_from_esmf_mesh_cyclic(tmp_path, get_simple_global_grid):
     mesh_path = str(tmp_path / "cyclic.nc")
     get_simple_global_grid.supergrid.to_esmf_mesh(mesh_path, mask="all_unmasked")
-    grid2 = Grid.from_esmf_mesh(mesh_path)
+    grid2 = Grid.from_esmf_mesh_file(mesh_path)
     assert isinstance(grid2, Grid)
     assert grid2.nx == get_simple_global_grid.nx
     assert grid2.ny == get_simple_global_grid.ny
@@ -484,7 +484,7 @@ def test_grid_from_esmf_mesh_cyclic(tmp_path, get_simple_global_grid):
 def test_grid_from_esmf_mesh_coords_preserved(tmp_path, get_rect_grid):
     mesh_path = str(tmp_path / "coords.nc")
     get_rect_grid.supergrid.to_esmf_mesh(mesh_path, mask="all_unmasked")
-    grid2 = Grid.from_esmf_mesh(mesh_path)
+    grid2 = Grid.from_esmf_mesh_file(mesh_path)
     np.testing.assert_allclose(grid2.tlon.values, get_rect_grid.tlon.values, atol=1e-6)
     np.testing.assert_allclose(grid2.tlat.values, get_rect_grid.tlat.values, atol=1e-6)
 
