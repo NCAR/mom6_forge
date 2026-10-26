@@ -102,13 +102,13 @@ def test_regional_grid():
         topo.write_topo_file(tmpdirname + "/ocean_topog_1.nc")
 
         # write cice grid file
-        topo.write_cice_grid(tmpdirname + "/cice_grid_1.nc")
+        topo.write_cice_grid_file(tmpdirname + "/cice_grid_1.nc")
 
         # write SCRIP grid file
-        topo.write_scrip_grid(tmpdirname + "/SCRIP_grid_1.nc")
+        topo.write_scrip_grid_file(tmpdirname + "/SCRIP_grid_1.nc")
 
         # ESMF mesh file
-        topo.write_esmf_mesh(tmpdirname + "/ESMF_mesh_1.nc")
+        topo.write_esmf_mesh_file(tmpdirname + "/ESMF_mesh_1.nc")
 
 
 def test_global_grid():
@@ -457,14 +457,14 @@ def test_grid_from_center():
 
 
 # ---------------------------------------------------------------------------
-# Grid.from_esmf_mesh tests
+# Grid.from_esmf_mesh_file tests
 # ---------------------------------------------------------------------------
 
 
 def test_grid_from_esmf_mesh_non_cyclic(tmp_path, get_rect_grid):
     mesh_path = str(tmp_path / "non_cyclic.nc")
     get_rect_grid.supergrid.to_esmf_mesh(mesh_path, mask="all_unmasked")
-    grid2 = Grid.from_esmf_mesh(mesh_path)
+    grid2 = Grid.from_esmf_mesh_file(mesh_path)
     assert isinstance(grid2, Grid)
     assert grid2.nx == get_rect_grid.nx
     assert grid2.ny == get_rect_grid.ny
@@ -474,7 +474,7 @@ def test_grid_from_esmf_mesh_non_cyclic(tmp_path, get_rect_grid):
 def test_grid_from_esmf_mesh_cyclic(tmp_path, get_simple_global_grid):
     mesh_path = str(tmp_path / "cyclic.nc")
     get_simple_global_grid.supergrid.to_esmf_mesh(mesh_path, mask="all_unmasked")
-    grid2 = Grid.from_esmf_mesh(mesh_path)
+    grid2 = Grid.from_esmf_mesh_file(mesh_path)
     assert isinstance(grid2, Grid)
     assert grid2.nx == get_simple_global_grid.nx
     assert grid2.ny == get_simple_global_grid.ny
@@ -484,7 +484,7 @@ def test_grid_from_esmf_mesh_cyclic(tmp_path, get_simple_global_grid):
 def test_grid_from_esmf_mesh_coords_preserved(tmp_path, get_rect_grid):
     mesh_path = str(tmp_path / "coords.nc")
     get_rect_grid.supergrid.to_esmf_mesh(mesh_path, mask="all_unmasked")
-    grid2 = Grid.from_esmf_mesh(mesh_path)
+    grid2 = Grid.from_esmf_mesh_file(mesh_path)
     np.testing.assert_allclose(grid2.tlon.values, get_rect_grid.tlon.values, atol=1e-6)
     np.testing.assert_allclose(grid2.tlat.values, get_rect_grid.tlat.values, atol=1e-6)
 

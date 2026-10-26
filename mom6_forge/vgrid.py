@@ -1,5 +1,4 @@
 import os
-import warnings
 from datetime import datetime
 import numpy as np
 import xarray as xr
@@ -168,24 +167,6 @@ class VGrid:
 
         return cls(dz, name)
 
-    @classmethod
-    def from_file(
-        cls,
-        filename: str,
-        variable_name: str = "dz",
-        variable_type: Literal[
-            "layer_thickness", "cell_center", "cell_interface"
-        ] = "layer_thickness",
-        name: str = None,
-    ):
-        """Deprecated alias for :meth:`from_vgrid_file`."""
-        warnings.warn(
-            "VGrid.from_file is deprecated; use VGrid.from_vgrid_file.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return cls.from_vgrid_file(filename, variable_name, variable_type, name)
-
     def write_vgrid_file(self, file_path: str, message: str = None, author: str = None):
         """Write the vertical grid (in thickness) to a NetCDF file.
 
@@ -233,22 +214,13 @@ class VGrid:
         )
         return ds
 
-    def write(self, filename: str, message: str = None, author: str = None):
-        """Deprecated alias for :meth:`write_vgrid_file`."""
-        warnings.warn(
-            "VGrid.write is deprecated; use VGrid.write_vgrid_file.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.write_vgrid_file(filename, message, author)
-
-    def write_z_file(self, filename: str):
+    def write_z_file(self, file_path: str):
         """Write the vertical grid to a NetCDF file with interface and midpoints depths
 
         Parameters
         ----------
-        filename: str
-            Name of the NetCDF file to write
+        file_path: str
+            Path to the NetCDF file to write
         """
         ds = xr.Dataset(
             data_vars={
@@ -279,7 +251,7 @@ class VGrid:
         ds.attrs["maximum_depth"] = self.depth
         ds.attrs["history"] = f"Created on {datetime.now()}"
         ds.to_netcdf(
-            filename,
+            file_path,
             format="NETCDF3_64BIT",
         )
         return ds

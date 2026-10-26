@@ -1,6 +1,5 @@
 import os
 import copy
-import warnings
 from typing import Optional
 import numpy as np
 import xarray as xr
@@ -637,23 +636,13 @@ class Grid:
         return Grid.from_supergrid_ds(ds, name)
 
     @classmethod
-    def from_supergrid(cls, path: str, name: Optional[str] = None) -> "Grid":
-        """Deprecated alias for :meth:`from_supergrid_file`."""
-        warnings.warn(
-            "Grid.from_supergrid is deprecated; use Grid.from_supergrid_file.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return cls.from_supergrid_file(path, name)
-
-    @classmethod
-    def from_esmf_mesh(cls, path: str, name: Optional[str] = None) -> "Grid":
-        """Create a Grid instance from a supergrid file.
+    def from_esmf_mesh_file(cls, file_path: str, name: Optional[str] = None) -> "Grid":
+        """Create a Grid instance from an ESMF mesh file.
 
         Parameters
         ----------
-        path : str
-            Path to the supergrid file to be written
+        file_path : str or xr.Dataset
+            Path to the ESMF mesh file to be read, or an already-opened Dataset.
         name : str, optional
             Name of the new grid. If provided, it will be used as the name of the grid.
             If not provided, the name will be derived from the file name.
@@ -661,9 +650,9 @@ class Grid:
         Returns
         -------
         Grid
-            The Grid instance created from the supergrid file.
+            The Grid instance created from the ESMF mesh file.
         """
-        sg = SupergridBase.reconstruct_from_esmf_mesh(path)
+        sg = SupergridBase.reconstruct_from_esmf_mesh(file_path)
         return Grid.from_supergrid_ds(sg.to_ds(), name)
 
     @classmethod
@@ -1123,17 +1112,6 @@ class Grid:
         ds.attrs["filename"] = os.path.basename(file_path)
         ds.to_netcdf(file_path, format="NETCDF3_64BIT")
         return ds
-
-    def write_supergrid(
-        self, path: Optional[str] = None, author: Optional[str] = None
-    ) -> xr.Dataset:
-        """Deprecated alias for :meth:`write_supergrid_file`."""
-        warnings.warn(
-            "Grid.write_supergrid is deprecated; use Grid.write_supergrid_file.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.write_supergrid_file(path, author)
 
     def get_esmf_ready_tracer_ds(self):
         """This is to generate a ds that esmf/xesmf can use for regridding. It contains the tlat and tlon coordinates and the area variable (tarea) that can be used as weights for conservative regridding."""

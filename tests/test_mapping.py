@@ -378,7 +378,7 @@ def test_write_mapping_file_uses_shape_lookup_not_full_reconstruction(
     tmp_path, monkeypatch
 ):
     """write_mapping_file only ever needs each mesh's (nx, ny) shape - it must not
-    reconstruct full mesh geometry (Topo.from_esmf_mesh) just to get that shape."""
+    reconstruct full mesh geometry (Topo.from_esmf_mesh_file) just to get that shape."""
     src_grid = Grid(
         resolution=1.0, xstart=0.0, lenx=3.0, ystart=0.0, leny=2.0, name="src_shape"
     )
@@ -389,9 +389,11 @@ def test_write_mapping_file_uses_shape_lookup_not_full_reconstruction(
     dst_path = _write_esmf_mesh(dst_grid, tmp_path / "dst.nc")
 
     def _boom(*args, **kwargs):
-        raise AssertionError("write_mapping_file must not call Topo.from_esmf_mesh")
+        raise AssertionError(
+            "write_mapping_file must not call Topo.from_esmf_mesh_file"
+        )
 
-    monkeypatch.setattr("mom6_forge.topo.Topo.from_esmf_mesh", _boom)
+    monkeypatch.setattr("mom6_forge.topo.Topo.from_esmf_mesh_file", _boom)
 
     weights_coo = sp.coo_matrix(([1.0, 1.0], ([0, 1], [0, 1])), shape=(4, 6))
     out_path = tmp_path / "out.nc"
