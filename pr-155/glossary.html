@@ -1,0 +1,173 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Glossary &mdash; mom6_forge 0.3.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=4621528c"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="UI Widgets" href="widgets.html" />
+    <link rel="prev" title="Cressman Interpolation Deep Dive" href="notebooks/8_cressman_interpolation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            mom6_forge
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bathymetry_workflow.html">Bathymetry Workflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mapping.html">Regridding &amp; Mapping</a></li>
+<li class="toctree-l1"><a class="reference internal" href="notebooks.html">Notebooks</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="widgets.html">UI  Widgets</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Python API:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api/modules.html">mom6_forge</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contributing:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">mom6_forge</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Glossary</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/glossary.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="glossary">
+<h1>Glossary<a class="headerlink" href="#glossary" title="Link to this heading"></a></h1>
+<dl class="simple glossary">
+<dt id="term-supergrid">supergrid<a class="headerlink" href="#term-supergrid" title="Link to this term"></a></dt><dd><p>A MOM6 supergrid contains the grid metrics and the areas at twice the
+nominal resolution of the actual computational grid. During runtime,
+MOM6 reads in the supergrid file, and then decomposes the supergrid into the four
+staggered grids, each containing different sets of prognostic variables, e.g.,
+tracers, velocities, etc.</p>
+</dd>
+<dt id="term-tripolar-grid">tripolar grid<a class="headerlink" href="#term-tripolar-grid" title="Link to this term"></a></dt><dd><p>A grid with three poles instead of one, typically with two of the three
+poles displaced into Northern Hemisphere land masses so that no
+singularity falls within the ocean domain. Commonly used for global MOM6
+configurations. <code class="docutils literal notranslate"><span class="pre">mom6_forge</span></code> can modify but not yet create tripolar grids
+from scratch.</p>
+</dd>
+<dt id="term-displaced-pole-grid">displaced pole grid<a class="headerlink" href="#term-displaced-pole-grid" title="Link to this term"></a></dt><dd><p>A grid in which a single pole is moved off of the true geographic pole
+and into a land mass, avoiding a singularity within the ocean domain
+without the added complexity of a tripolar grid.</p>
+</dd>
+<dt id="term-ESMF-mesh">ESMF mesh<a class="headerlink" href="#term-ESMF-mesh" title="Link to this term"></a></dt><dd><p>An unstructured-mesh NetCDF file format (produced by <code class="docutils literal notranslate"><span class="pre">Topo.write_esmf_mesh</span></code>)
+used by the NUOPC coupler in CESM to acquire grid and land/ocean mask
+information for a component. Most functions in <a class="reference internal" href="mapping.html"><span class="doc">Regridding &amp; Mapping</span></a> operate on
+ESMF mesh files rather than raw longitude/latitude arrays.</p>
+</dd>
+<dt id="term-SCRIP-grid">SCRIP grid<a class="headerlink" href="#term-SCRIP-grid" title="Link to this term"></a></dt><dd><p>An older NetCDF grid description format used by the SCRIP regridding
+library. Superseded by ESMF mesh files for most purposes in modern CESM,
+but still required to generate ocean-runoff mapping files (see
+<a class="reference internal" href="mapping.html"><span class="doc">Regridding &amp; Mapping</span></a>). Written by <code class="docutils literal notranslate"><span class="pre">Topo.write_scrip_grid</span></code>.</p>
+</dd>
+<dt id="term-CICE-grid">CICE grid<a class="headerlink" href="#term-CICE-grid" title="Link to this term"></a></dt><dd><p>The grid file format expected by the CICE sea ice model, describing the
+same horizontal grid as the MOM6 supergrid and topography files. Written
+by <code class="docutils literal notranslate"><span class="pre">Topo.write_cice_grid</span></code> when a configuration includes a CICE component.</p>
+</dd>
+<dt id="term-Cressman-interpolation">Cressman interpolation<a class="headerlink" href="#term-Cressman-interpolation" title="Link to this term"></a></dt><dd><p>A distance-weighted interpolation scheme in which source points within a
+smoothing radius contribute to a destination value with weight
+decreasing as a function of distance. Used by <code class="docutils literal notranslate"><span class="pre">mom6_forge</span></code> (see
+<a class="reference internal" href="mapping.html"><span class="doc">Regridding &amp; Mapping</span></a>) to fill bathymetry from a coarser source dataset without
+letting nearby land elevations contaminate coastal ocean depths.</p>
+</dd>
+<dt id="term-TOPO_CONFIG">TOPO_CONFIG<a class="headerlink" href="#term-TOPO_CONFIG" title="Link to this term"></a></dt><dd><p>A MOM6 runtime parameter (set in <code class="docutils literal notranslate"><span class="pre">MOM_input</span></code>) selecting an idealized
+bathymetry shape, such as <code class="docutils literal notranslate"><span class="pre">flat</span></code>, <code class="docutils literal notranslate"><span class="pre">bowl</span></code>, or <code class="docutils literal notranslate"><span class="pre">spoon</span></code>. The <code class="docutils literal notranslate"><span class="pre">Topo</span></code> class’s
+<code class="docutils literal notranslate"><span class="pre">set_flat</span></code>, <code class="docutils literal notranslate"><span class="pre">set_bowl</span></code>, and <code class="docutils literal notranslate"><span class="pre">set_spoon</span></code> methods produce bathymetry
+matching these same idealized configurations.</p>
+</dd>
+<dt id="term-channel-width-constraint">channel width constraint<a class="headerlink" href="#term-channel-width-constraint" title="Link to this term"></a></dt><dd><p>An effective width override for a strait or channel that is too narrow to
+be resolved at the model’s grid resolution but still needs to permit
+flow. Managed by <code class="docutils literal notranslate"><span class="pre">ChannelWidth</span></code>/<code class="docutils literal notranslate"><span class="pre">ChannelWidthList</span></code> and applied on top of
+the bathymetry at runtime, independently of the depth/mask fields
+themselves.</p>
+</dd>
+</dl>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="notebooks/8_cressman_interpolation.html" class="btn btn-neutral float-left" title="Cressman Interpolation Deep Dive" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="widgets.html" class="btn btn-neutral float-right" title="UI Widgets" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, NCAR.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
