@@ -4,6 +4,7 @@ import numpy as np
 import xarray as xr
 
 from typing import Literal
+from mom6_forge.utils import deprecated_alias, renamed_kwargs
 
 
 class VGrid:
@@ -178,6 +179,11 @@ class VGrid:
             Free-text message stored as a file attribute.
         author: str, optional
             Name of the author, stored as a file attribute.
+
+        Returns
+        -------
+        xr.Dataset
+            The vertical grid dataset written to ``file_path``.
         """
         dz0 = float(self.dz[0])
         dzbot = float(self.dz[-1])
@@ -214,6 +220,7 @@ class VGrid:
         )
         return ds
 
+    @renamed_kwargs(filename="file_path")
     def write_z_file(self, file_path: str):
         """Write the vertical grid to a NetCDF file with interface and midpoints depths
 
@@ -221,6 +228,11 @@ class VGrid:
         ----------
         file_path: str
             Path to the NetCDF file to write
+
+        Returns
+        -------
+        xr.Dataset
+            The interface and midpoint depth dataset written to ``file_path``.
         """
         ds = xr.Dataset(
             data_vars={
@@ -255,6 +267,10 @@ class VGrid:
             format="NETCDF3_64BIT",
         )
         return ds
+
+    # Deprecated names, kept for one release.
+    from_file = deprecated_alias("from_vgrid_file", filename="file_path")
+    write = deprecated_alias("write_vgrid_file", filename="file_path")
 
 
 def _cell_center_to_layer_thickness(cell_centers: np.ndarray):

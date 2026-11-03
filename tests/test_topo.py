@@ -357,3 +357,24 @@ def test_topo_channel_widths_filepath(get_rect_grid, tmp_path):
     assert len(loaded) == 1
     assert loaded[0].component == "U_width"
     assert loaded[0].place == "St. of Gibralter"
+
+
+@pytest.mark.parametrize(
+    "writer, file_name",
+    [
+        ("write_topo_file", "topog.nc"),
+        ("write_cice_grid_file", "cice_grid.nc"),
+        ("write_scrip_grid_file", "scrip_grid.nc"),
+        ("write_esmf_mesh_file", "esmf_mesh.nc"),
+    ],
+)
+def test_topo_writers_return_the_dataset_they_wrote(
+    get_rect_topo_without_vc, tmp_path, writer, file_name
+):
+    file_path = tmp_path / file_name
+    ds = getattr(get_rect_topo_without_vc, writer)(file_path)
+    assert isinstance(ds, xr.Dataset)
+    with xr.open_dataset(file_path) as written:
+        assert set(ds.data_vars) == set(written.data_vars)
+        for name in ds.data_vars:
+            np.testing.assert_allclose(ds[name].values, written[name].values)
