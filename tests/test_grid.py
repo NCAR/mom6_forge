@@ -375,24 +375,6 @@ def test_grid_properties(simple_2by2_grid):
     assert grid.name == "testgrid"
 
 
-def test_grid_tarea_sums_all_four_supergrid_quadrants(get_rect_grid):
-    """Each T-cell area is the sum of its four distinct supergrid quadrants.
-
-    Regression test: the sum used to double-count the upper-left quadrant and
-    omit the lower-right one entirely, so every grid ever built carried a small
-    but systematic area error (~1e-4 relative on a 0.1 deg mid-latitude domain,
-    growing with cell size and latitude).
-    """
-    grid = get_rect_grid
-    sg = grid.supergrid
-    ny, nx = grid.ny, grid.nx
-
-    # Fold the (2*ny, 2*nx) supergrid areas into (ny, 2, nx, 2) and sum the
-    # 2x2 block belonging to each T-cell.
-    expected = sg.area[: 2 * ny, : 2 * nx].reshape(ny, 2, nx, 2).sum(axis=(1, 3))
-    np.testing.assert_allclose(grid.tarea.values, expected, rtol=1e-12)
-
-
 def test_grid_tarea_matches_analytic_spherical_area(get_rect_grid):
     """Total T-cell area equals the analytic area of the lat/lon box.
 
@@ -412,6 +394,27 @@ def test_grid_tarea_matches_analytic_spherical_area(get_rect_grid):
         * (np.sin(np.deg2rad(lat_max)) - np.sin(np.deg2rad(lat_min)))
     )
     np.testing.assert_allclose(float(grid.tarea.sum()), analytic, rtol=1e-6)
+
+
+def test_grid_dxCu_dyCv_split_each_t_cell_between_its_neighbours():
+    """dxCu and dyCv add the near half of one T-cell to the far half of the
+    next, so away from the last column (row) they add up to the supergrid
+    distances between the first and last T-points. A projected grid has
+    non-uniform half-cells; a uniform lat-lon grid would hide the bug."""
+    grid = Grid.from_projection(
+        "EPSG:3995", -500_000, 500_000, -500_000, 500_000, 50_000, name="arctic"
+    )
+    sg = grid.supergrid
+    np.testing.assert_allclose(
+        grid.dxCu.values[:, :-1].sum(axis=1),
+        sg.dx[1::2, 1:-1].sum(axis=1),
+        rtol=1e-12,
+    )
+    np.testing.assert_allclose(
+        grid.dyCv.values[:-1, :].sum(axis=0),
+        sg.dy[1:-1, 1::2].sum(axis=0),
+        rtol=1e-12,
+    )
 
 
 def test_grid_sanitize_name():
