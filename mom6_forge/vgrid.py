@@ -1,10 +1,10 @@
 import os
+import warnings
 from datetime import datetime
 import numpy as np
 import xarray as xr
 
 from typing import Literal
-from mom6_forge.utils import deprecated_alias, renamed_kwargs
 
 
 class VGrid:
@@ -220,19 +220,18 @@ class VGrid:
         )
         return ds
 
-    @renamed_kwargs(filename="file_path")
-    def write_z_file(self, file_path: str):
+    def write_z_file(self, filename: str):
         """Write the vertical grid to a NetCDF file with interface and midpoints depths
 
         Parameters
         ----------
-        file_path: str
+        filename: str
             Path to the NetCDF file to write
 
         Returns
         -------
         xr.Dataset
-            The interface and midpoint depth dataset written to ``file_path``.
+            The interface and midpoint depth dataset written to ``filename``.
         """
         ds = xr.Dataset(
             data_vars={
@@ -263,14 +262,40 @@ class VGrid:
         ds.attrs["maximum_depth"] = self.depth
         ds.attrs["history"] = f"Created on {datetime.now()}"
         ds.to_netcdf(
-            file_path,
+            filename,
             format="NETCDF3_64BIT",
         )
         return ds
 
     # Deprecated names, kept for one release.
-    from_file = deprecated_alias("from_vgrid_file", filename="file_path")
-    write = deprecated_alias("write_vgrid_file", filename="file_path")
+    @classmethod
+    def from_file(
+        cls,
+        filename: str,
+        variable_name: str = "dz",
+        variable_type: Literal[
+            "layer_thickness", "cell_center", "cell_interface"
+        ] = "layer_thickness",
+        name: str = None,
+    ):
+        """Deprecated alias for :meth:`from_vgrid_file`."""
+        warnings.warn(
+            "VGrid.from_file() is deprecated; use VGrid.from_vgrid_file(). "
+            "It will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return cls.from_vgrid_file(filename, variable_name, variable_type, name)
+
+    def write(self, filename: str, message: str = None, author: str = None):
+        """Deprecated alias for :meth:`write_vgrid_file`."""
+        warnings.warn(
+            "VGrid.write() is deprecated; use VGrid.write_vgrid_file(). "
+            "It will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.write_vgrid_file(filename, message, author)
 
 
 def _cell_center_to_layer_thickness(cell_centers: np.ndarray):

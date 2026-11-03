@@ -1,7 +1,5 @@
 """Auxiliary functions for grid property computations."""
 
-import functools
-import warnings
 from pathlib import Path
 import xarray as xr
 import numpy as np
@@ -615,71 +613,3 @@ def compute_subsampling_factor(src_nj, src_ni, dst_nj, dst_ni):
         ny_sub += 1
 
     return ny_sub, nx_sub
-
-
-# Deprecation helpers for renamed methods and keyword arguments. The old names
-# keep working for one release, with a DeprecationWarning, and are then removed.
-
-_REMOVAL = "It will be removed in a future release."
-
-
-def _warn(message, stacklevel):
-    warnings.warn(f"{message} {_REMOVAL}", DeprecationWarning, stacklevel=stacklevel)
-
-
-def _rename_kwargs(qualname, kwargs, old_to_new, stacklevel):
-    for old, new in old_to_new.items():
-        if old not in kwargs:
-            continue
-        if new in kwargs:
-            raise TypeError(
-                f"{qualname}() got both '{old}' (deprecated) and '{new}'; pass only '{new}'."
-            )
-        _warn(
-            f"The '{old}' argument of {qualname}() is deprecated; use '{new}'.",
-            stacklevel,
-        )
-        kwargs[new] = kwargs.pop(old)
-    return kwargs
-
-
-def renamed_kwargs(**old_to_new):
-    """Accept each old keyword name in ``old_to_new`` for the new one, with a
-    DeprecationWarning. Apply it under ``@classmethod``."""
-
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            kwargs = _rename_kwargs(func.__qualname__, kwargs, old_to_new, 4)
-            return func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
-
-
-class deprecated_alias:
-    """A class attribute that keeps an old method name working: it warns and
-    calls the method ``new_name``, which may be a classmethod. Old keyword
-    names in ``old_to_new`` are mapped to the new ones."""
-
-    def __init__(self, new_name, **old_to_new):
-        self.new_name = new_name
-        self.old_to_new = old_to_new
-
-    def __set_name__(self, owner, name):
-        self.old_qualname = f"{owner.__name__}.{name}"
-        self.new_qualname = f"{owner.__name__}.{self.new_name}"
-
-    def __get__(self, obj, objtype=None):
-        target = getattr(obj if obj is not None else objtype, self.new_name)
-
-        def alias(*args, **kwargs):
-            _warn(f"{self.old_qualname}() is deprecated; use {self.new_qualname}().", 3)
-            kwargs = _rename_kwargs(self.old_qualname, kwargs, self.old_to_new, 4)
-            return target(*args, **kwargs)
-
-        alias.__name__ = self.old_qualname.rsplit(".", 1)[1]
-        alias.__qualname__ = self.old_qualname
-        alias.__doc__ = f"Deprecated alias for :meth:`{self.new_qualname}`."
-        return alias

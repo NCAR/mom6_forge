@@ -1,5 +1,6 @@
 import os
 import copy
+import warnings
 from typing import Optional, Union
 import numpy as np
 import xarray as xr
@@ -11,7 +12,7 @@ from mom6_forge._supergrid import (
     SupergridBase,
     modulo_around_point,
 )
-from mom6_forge.utils import normalize_deg, deprecated_alias, renamed_kwargs
+from mom6_forge.utils import normalize_deg
 
 
 def _encircles_globe(lon_values):
@@ -702,19 +703,14 @@ class Grid:
         return obj
 
     @classmethod
-    @renamed_kwargs(path="file_path")
     def subgrid_from_supergrid(
-        cls,
-        file_path: str,
-        llc: tuple[float, float],
-        urc: tuple[float, float],
-        name: str,
+        cls, path: str, llc: tuple[float, float], urc: tuple[float, float], name: str
     ) -> "Grid":
         """Create a Grid instance from a subset of a supergrid file.
 
         Parameters
         ----------
-        file_path : str
+        path : str
             Path to the full supergrid file to be carved out.
         llc : tuple[float, float]
             Lower left corner coordinates (lat, lon) of the subdomain to extract
@@ -729,7 +725,7 @@ class Grid:
             The Grid instance created from the supergrid file.
         """
 
-        full_grid = cls.from_supergrid_file(file_path)
+        full_grid = cls.from_supergrid_file(path)
 
         assert len(llc) == 2, "llc must be a tuple of two floats"
         assert len(urc) == 2, "urc must be a tuple of two floats"
@@ -1126,9 +1122,37 @@ class Grid:
         return ds
 
     # Deprecated names, kept for one release.
-    from_supergrid = deprecated_alias("from_supergrid_file", path="file_path")
-    from_esmf_mesh = deprecated_alias("from_esmf_mesh_file", path="file_path")
-    write_supergrid = deprecated_alias("write_supergrid_file", path="file_path")
+    @classmethod
+    def from_supergrid(cls, path: str, name: Optional[str] = None):
+        """Deprecated alias for :meth:`from_supergrid_file`."""
+        warnings.warn(
+            "Grid.from_supergrid() is deprecated; use Grid.from_supergrid_file(). "
+            "It will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return cls.from_supergrid_file(path, name)
+
+    @classmethod
+    def from_esmf_mesh(cls, path: str, name: Optional[str] = None):
+        """Deprecated alias for :meth:`from_esmf_mesh_file`."""
+        warnings.warn(
+            "Grid.from_esmf_mesh() is deprecated; use Grid.from_esmf_mesh_file(). "
+            "It will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return cls.from_esmf_mesh_file(path, name)
+
+    def write_supergrid(self, path: str, author: Optional[str] = None):
+        """Deprecated alias for :meth:`write_supergrid_file`."""
+        warnings.warn(
+            "Grid.write_supergrid() is deprecated; use Grid.write_supergrid_file(). "
+            "It will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.write_supergrid_file(path, author)
 
     def get_esmf_ready_tracer_ds(self):
         """This is to generate a ds that esmf/xesmf can use for regridding. It contains the tlat and tlon coordinates and the area variable (tarea) that can be used as weights for conservative regridding."""
