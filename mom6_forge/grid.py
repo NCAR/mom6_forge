@@ -878,8 +878,14 @@ class Grid:
         )
 
         # x-distance between y points, centered at u"
+        # East half of T(i) plus west half of T(i+1). The last column has no
+        # T(i+1): on a cyclic grid it wraps to T(0)'s west half, otherwise it
+        # repeats its own east half.
+        east_half = sg.dx[1::2, 1::2]
+        west_half_of_next = sg.dx[1::2, 2::2]  # T(1) .. T(nx-1)
+        last = sg.dx[1::2, :1] if sg.is_cyclic_x else east_half[:, -1:]
         self.dxCu = xr.DataArray(
-            sg.dx[1::2, 1::2] + np.roll(sg.dx[1::2, 1::2], -1, axis=-1),
+            east_half + np.concatenate([west_half_of_next, last], axis=1),
             dims=["ny", "nx"],
             attrs={
                 "name": "x-distance between t-points, centered at u",
@@ -888,8 +894,12 @@ class Grid:
         )
 
         # y-distance between t points, centered at v"
+        # North half of T(j) plus south half of T(j+1); the top row repeats its
+        # own north half.
+        north_half = sg.dy[1::2, 1::2]
+        south_half_of_next = sg.dy[2::2, 1::2]  # T(1) .. T(ny-1)
         self.dyCv = xr.DataArray(
-            sg.dy[1::2, 1::2] + np.roll(sg.dy[1::2, 1::2], -1, axis=0),
+            north_half + np.concatenate([south_half_of_next, north_half[-1:]], axis=0),
             dims=["ny", "nx"],
             attrs={
                 "name": "y-distance between t-points, centered at v",
@@ -907,15 +917,13 @@ class Grid:
         # q angle
         self.angle_q = xr.DataArray(
             sg.angle_dx[::2, ::2],
-            dims=["ny", "nx"],
+            dims=["nyp", "nxp"],
             attrs={"name": "angle q-grid makes with latitude line", "units": "degrees"},
         )
-        # T area
+        # T area: each T-cell spans a 2x2 block of supergrid cells, so its area
+        # is the block sum.
         self.tarea = xr.DataArray(
-            sg.area[::2, ::2]
-            + sg.area[1::2, 1::2]
-            + sg.area[::2, 1::2]
-            + sg.area[::2, 1::2],
+            sg.area.reshape(self.ny, 2, self.nx, 2).sum(axis=(1, 3)),
             dims=["ny", "nx"],
             attrs={"name": "area of t-cells", "units": "meters^2"},
         )

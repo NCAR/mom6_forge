@@ -12,7 +12,7 @@ import xarray as xr
 import pytest
 from mom6_forge.grid import Grid
 from mom6_forge.topo import Topo
-from mom6_forge._supergrid import SupergridBase, ProjectedSupergrid
+from mom6_forge._supergrid import SupergridBase, ProjectedSupergrid, _DEFAULT_RADIUS
 from utils import on_cisl_machine
 import os
 
@@ -373,6 +373,48 @@ def test_grid_properties(simple_2by2_grid):
     assert grid._supergrid.lenx == 2.0
     assert grid._supergrid.leny == 2.0
     assert grid.name == "testgrid"
+
+
+def test_grid_tarea_matches_analytic_spherical_area(get_rect_grid):
+    """Total T-cell area equals the analytic area of the lat/lon box.
+
+    An independent check that does not go through sg.area at all, so a bug in
+    the quadrant bookkeeping cannot hide behind a matching bug in the
+    supergrid cell areas.
+    """
+    grid = get_rect_grid
+    ds = grid.supergrid.to_ds()
+    R = _DEFAULT_RADIUS
+
+    lon_min, lon_max = float(ds.x.min()), float(ds.x.max())
+    lat_min, lat_max = float(ds.y.min()), float(ds.y.max())
+    analytic = (
+        R**2
+        * np.deg2rad(lon_max - lon_min)
+        * (np.sin(np.deg2rad(lat_max)) - np.sin(np.deg2rad(lat_min)))
+    )
+    np.testing.assert_allclose(float(grid.tarea.sum()), analytic, rtol=1e-6)
+
+
+def test_grid_dxCu_dyCv_split_each_t_cell_between_its_neighbours():
+    """dxCu and dyCv add the near half of one T-cell to the far half of the
+    next, so away from the last column (row) they add up to the supergrid
+    distances between the first and last T-points. A projected grid has
+    non-uniform half-cells; a uniform lat-lon grid would hide the bug."""
+    grid = Grid.from_projection(
+        "EPSG:3995", -500_000, 500_000, -500_000, 500_000, 50_000, name="arctic"
+    )
+    sg = grid.supergrid
+    np.testing.assert_allclose(
+        grid.dxCu.values[:, :-1].sum(axis=1),
+        sg.dx[1::2, 1:-1].sum(axis=1),
+        rtol=1e-12,
+    )
+    np.testing.assert_allclose(
+        grid.dyCv.values[:-1, :].sum(axis=0),
+        sg.dy[1:-1, 1::2].sum(axis=0),
+        rtol=1e-12,
+    )
 
 
 def test_grid_sanitize_name():
