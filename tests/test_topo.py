@@ -87,6 +87,173 @@ def test_erase_disconnected_basin(get_rect_topo_without_vc):
     assert (topo.masked_depth[3:, 3:] == 0).all()
 
 
+def test_keep_largest_basin(get_rect_topo_without_vc):
+    topo = get_rect_topo_without_vc
+    # Carve the domain into four basins of unequal size
+    topo.depth[2, :] = 0  # horizontal land strip
+    topo.depth[:, 2] = 0  # vertical land strip
+    old_depth = topo.depth.copy()
+    assert len(set(topo.basintmask.data.ravel().tolist())) == 5  # land + 4 basins
+
+    topo.keep_largest_basin()
+
+    # The upper right quadrant is the largest of the four, so it is the survivor
+    assert topo.masked_depth[3:, 3:].equals(old_depth[3:, 3:])
+    assert (topo.masked_depth[:2, :2] == 0).all()
+    assert (topo.masked_depth[:2, 3:] == 0).all()
+    assert (topo.masked_depth[3:, :2] == 0).all()
+    assert len(set(topo.basintmask.data.ravel().tolist())) == 2  # land + 1 basin
+
+
+def test_keep_largest_basin_uses_area_not_cell_count():
+    """A basin of fewer but larger cells still wins over one of many small cells."""
+    # 1 deg grid spanning the equator to 80N, so cell area shrinks sharply with j
+    grid = Grid(
+        resolution=1.0, xstart=0.0, lenx=10.0, ystart=0.0, leny=80.0, name="area_test"
+    )
+    topo = Topo(grid, min_depth=0, git=False)
+    topo.set_flat(1000)
+
+    mask = np.zeros(topo.tmask.shape, dtype=int)
+    mask[0, 0:3] = 1  # equatorial basin: 3 large cells
+    mask[-1, 0:7] = 1  # high-latitude basin: 7 small cells
+    tarea = grid.tarea.data
+    assert tarea[0, 0:3].sum() > tarea[-1, 0:7].sum()
+    topo.user_mask = mask
+
+    topo.keep_largest_basin()
+
+    assert (topo.tmask.data[0, 0:3] == 1).all()
+    assert (topo.tmask.data[-1, 0:7] == 0).all()
+
+
+def test_keep_largest_basin_is_noop_on_single_basin(get_rect_topo_with_vc):
+    topo = get_rect_topo_with_vc  # flat 1000 m, one basin covering the domain
+    old_depth = topo.depth.copy()
+    prev_hist = sum(1 for _ in topo.tcm.repo.iter_commits())
+
+    topo.keep_largest_basin()
+
+    assert topo.depth.equals(old_depth)
+    assert prev_hist == sum(1 for _ in topo.tcm.repo.iter_commits())
+
+
+def test_keep_largest_basin_is_undoable(get_rect_topo_with_vc):
+    topo = get_rect_topo_with_vc
+    topo.depth[:, 2] = 0  # vertical land strip splits the domain in two
+    old_depth = topo.masked_depth.copy()
+
+    topo.keep_largest_basin()
+    assert (topo.masked_depth[:, :2] == 0).all()
+
+    topo.tcm.undo()
+    assert topo.masked_depth.equals(old_depth)
+
+
+def _topo_with_cyclic_seam_basin(grid):
+    """Topo on a cyclic grid holding two basins.
+
+    The first straddles the i=0 / i=nx-1 seam, split 2/2 across the wrap point;
+    the second is 3 contiguous interior cells, so it is the larger of the two
+    unless the seam halves are recognized as a single basin.
+    """
+    topo = Topo(grid, min_depth=0, git=False)
+    topo.set_flat(1000)
+    nx = grid.nx
+
+    mask = np.zeros(topo.tmask.shape, dtype=int)
+    mask[0, :2] = 1  # seam basin, eastern half
+    mask[0, -2:] = 1  # seam basin, western half
+    mask[-1, nx // 2 : nx // 2 + 3] = 1  # interior basin
+    topo.user_mask = mask
+    return topo
+
+
+def test_basintmask_merges_across_cyclic_seam(get_simple_global_grid):
+    """A basin straddling the i=0 / i=nx-1 seam is labeled once, not twice."""
+    topo = _topo_with_cyclic_seam_basin(get_simple_global_grid)
+    nx = topo._grid.nx
+
+    basins = topo.basintmask.data
+
+    assert basins[0, 0] == basins[0, -1]  # the two halves share a label
+    assert basins[0, 0] != basins[-1, nx // 2]  # the interior basin is still its own
+    assert sorted(set(basins.ravel().tolist())) == [0, 1, 2]  # labels stay contiguous
+    # Merged, the seam basin is the larger of the two, so it holds the highest label
+    assert basins[0, 0] == basins.max()
+
+
+def test_basintmask_gives_largest_basin_the_highest_label(get_rect_topo_without_vc):
+    topo = get_rect_topo_without_vc
+    topo.depth[2, :] = 0  # horizontal land strip
+    topo.depth[:, 2] = 0  # vertical land strip
+
+    basins = topo.basintmask.data
+    tarea = topo._grid.tarea.data
+    quadrants = [np.s_[:2, :2], np.s_[:2, 3:], np.s_[3:, :2], np.s_[3:, 3:]]
+
+    assert sorted(set(basins.ravel().tolist())) == [0, 1, 2, 3, 4]  # land + 4 basins
+    largest = max(quadrants, key=lambda q: tarea[q].sum())
+    assert (basins[largest] == basins.max()).all()
+
+
+def test_erase_disconnected_basin_keeps_whole_cyclic_basin(get_simple_global_grid):
+    """Selecting one half of a seam-straddling basin must not erase the other."""
+    topo = _topo_with_cyclic_seam_basin(get_simple_global_grid)
+    nx = topo._grid.nx
+
+    topo.erase_disconnected_basin(0, 0)  # select the eastern half of the seam basin
+
+    assert (topo.tmask.data[0, :2] == 1).all()
+    assert (topo.tmask.data[0, -2:] == 1).all()
+    assert (topo.tmask.data[-1, nx // 2 : nx // 2 + 3] == 0).all()
+
+
+def test_keep_largest_basin_merges_across_cyclic_seam(get_simple_global_grid):
+    """The 4-cell seam basin outweighs the 3-cell interior one once merged."""
+    topo = _topo_with_cyclic_seam_basin(get_simple_global_grid)
+    nx = topo._grid.nx
+
+    topo.keep_largest_basin()
+
+    assert (topo.tmask.data[0, :2] == 1).all()
+    assert (topo.tmask.data[0, -2:] == 1).all()
+    assert (topo.tmask.data[-1, nx // 2 : nx // 2 + 3] == 0).all()
+
+
+def test_erase_basin_on_land_cell_is_noop(get_rect_topo_without_vc):
+    """Land has no basin, so neither erase method may treat it as one."""
+    topo = get_rect_topo_without_vc
+    topo.depth[:, 2] = 0  # vertical land strip
+    old_depth = topo.masked_depth.copy()
+
+    topo.erase_selected_basin(2, 1)  # (i, j) on the land strip
+    topo.erase_disconnected_basin(2, 1)
+
+    assert topo.masked_depth.equals(old_depth)
+    assert topo.user_mask is None  # no edit was applied at all
+
+
+def test_erase_disconnected_basin_edits_ocean_cells_only(
+    get_rect_topo_without_vc, monkeypatch
+):
+    """The edit covers the erased basin, not every land cell in the domain."""
+    topo = get_rect_topo_without_vc
+    topo.depth[:, 2] = 0  # land strip splits the domain in two
+
+    captured = []
+    monkeypatch.setattr(
+        Topo, "apply_edit", lambda self, cmd, **kwargs: captured.append(cmd)
+    )
+    topo.erase_disconnected_basin(30, 1)  # keep the eastern basin
+
+    (cmd,) = captured
+    tmask = topo.tmask.data
+    assert all(tmask[j, i] == 1 for j, i in cmd.affected_indices)
+    # The western basin is the 2 columns west of the strip, and nothing else
+    assert len(cmd.affected_indices) == topo._grid.ny * 2
+
+
 def test_topo_no_git(get_rect_topo_without_vc):
     topo = get_rect_topo_without_vc
     assert topo.tcm is None

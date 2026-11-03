@@ -1,5 +1,6 @@
 import os
 import copy
+import warnings
 import numpy as np
 import xarray as xr
 import xesmf as xe
@@ -7,6 +8,8 @@ from datetime import datetime
 from typing import Optional
 from scipy import interpolate
 from scipy.ndimage import label, binary_fill_holes
+from scipy.sparse import coo_matrix
+from scipy.sparse.csgraph import connected_components
 from scipy.spatial import cKDTree
 from mom6_forge.utils import cell_area_rad, iterative_fill, compute_subsampling_factor
 from mom6_forge.grid import Grid
@@ -27,6 +30,111 @@ from mom6_forge._supergrid import _DEFAULT_RADIUS, SupergridBase
 
 VALID_MASK_METHODS = ("naturalearth", "ocean_frac", "dataset", "manual")
 VALID_DEPTH_METHODS = ("stats", "cressman", "xesmf")
+
+# WW3 spectral discretization written into ww3_grid.inp.
+WW3_NK = 25  # number of frequencies (wavenumbers)
+WW3_NTH = 24  # number of directions
+WW3_F1 = 0.04118  # lowest frequency [Hz]
+WW3_FREQ_FACTOR = 1.1  # frequency increment factor
+WW3_CFL_SAFETY = 0.8  # fraction of the CFL limit to actually use
+WW3_MAX_DT_RATIO = 4  # most propagation sub-steps to take per global step
+# Wavenumbers of the partitioned surface Stokes drift bands WW3 sends.
+# TODO: MOM6 applies its own copy of these (SURFBAND_WAVENUMBERS in CESM's
+# MOM_input.yaml) to the bands that arrive and never sees the list below, so if
+# CESM retunes them this one goes stale with no error anywhere -- just a wrong
+# Stokes profile. Read them off the CESM in use instead of keeping a copy.
+WW3_STOKES_WAVENUMBERS = (0.04, 0.11, 0.33)  # [rad m-1]
+# Sea-ice dissipation method (IC4), as in CESM's own WW3 grids
+# (grid_inp.wgx3v7.260527): the Meylan, Horvat & Bitz (2021) fit in ice
+# thickness and floe size. Without it WW3 uses method 1, an empirical fit whose
+# first coefficient the CESM cap fills with the ice thickness.
+WW3_IC4_METHOD = 10
+_GRAVITY = 9.81  # [m s-2]
+
+
+def ww3_timesteps_from_spacing(
+    min_dx,
+    cpl_dt,
+    f_min=WW3_F1,
+    safety=WW3_CFL_SAFETY,
+    max_ratio=WW3_MAX_DT_RATIO,
+):
+    """WW3 time steps (seconds) for a grid whose smallest cell is ``min_dx`` meters.
+
+    Two constraints set the steps:
+
+    * ``dtcfl`` bounds x-y propagation: ``dtcfl <= min_dx / Cg``.
+    * ``dtmax`` is the global step, over which propagation and the source terms
+      are applied in sequence. ``dtmax`` is chosen as the largest whole-second
+      divisor of ``cpl_dt`` that ``max_ratio`` or fewer propagation sub-steps
+      can cover, so WW3 still lands on the coupling time without a short final
+      step. CIME's ww3 buildnml rejects a ``dtmax`` whose integer part does
+      not divide the coupling interval.
+
+    ``dtcfl`` is also kept to a whole number of seconds that divides ``dtmax``.
+    WW3 takes ``ceil(dtmax / dtcfl)`` sub-steps, so a fractional ``dtcfl``
+    rounded down when it is written out would add a sub-step.
+
+    Parameters
+    ----------
+    min_dx: float
+        Smallest grid spacing in meters.
+    cpl_dt: float
+        Wave coupling interval in seconds (WAV_NCPL), a whole number.
+    f_min: float, optional
+        Lowest frequency in the spectrum [Hz].
+    safety: float, optional
+        Fraction of the bare CFL limit to use.
+    max_ratio: int, optional
+        Most propagation sub-steps per global step.
+
+    Returns
+    -------
+    dict
+        ``dtmax``, ``dtcfl``, ``dtcfli``, ``dtmin`` in seconds.
+    """
+    if min_dx <= 0:
+        raise ValueError(f"min_dx must be positive, got {min_dx}")
+    if cpl_dt <= 0:
+        raise ValueError(f"cpl_dt must be positive, got {cpl_dt}")
+    if cpl_dt != int(cpl_dt):
+        raise ValueError(f"cpl_dt must be a whole number of seconds, got {cpl_dt}")
+    if max_ratio < 1:
+        raise ValueError(f"max_ratio must be at least 1, got {max_ratio}")
+
+    cg_max = _GRAVITY / (4.0 * np.pi * f_min)  # deep-water group velocity [m/s]
+    dtcfl_limit = safety * min_dx / cg_max
+
+    # Split the coupling interval into n_global equal whole-second steps, taking
+    # the fewest that max_ratio or fewer whole-second sub-steps can cover.
+    cpl_dt = int(cpl_dt)
+    for n_global in range(1, cpl_dt + 1):
+        if cpl_dt % n_global:
+            continue
+        dtmax = cpl_dt // n_global
+        n_sub = next(
+            (
+                n
+                for n in range(1, max_ratio + 1)
+                if dtmax % n == 0 and dtmax // n <= dtcfl_limit
+            ),
+            None,
+        )
+        if n_sub is not None:
+            break
+    else:
+        raise ValueError(
+            f"The smallest cell ({min_dx:.1f} m) needs a WW3 propagation step "
+            f"under 1 s (limit {dtcfl_limit:.3f} s), which CESM cannot run."
+        )
+    dtcfl = dtmax // n_sub
+
+    return {
+        "dtmax": float(dtmax),
+        "dtcfl": float(dtcfl),
+        "dtcfli": float(dtcfl),
+        "dtmin": float(min(10.0, dtcfl / 10.0)),
+    }
 
 
 class Topo:
@@ -511,10 +619,60 @@ class Topo:
     def basintmask(self):
         """
         Ocean domain mask at T grid. Seperate number for each connected water cell, 0 if land.
+
+        Labels are contiguous, starting at 1, and the basin of greatest total area
+        carries the highest label. The remaining labels are in no particular order.
+
+        On a zonally periodic grid (cyclic_x), the components touching the i=0 and
+        i=nx-1 columns of a common row are merged, so a basin straddling the seam is
+        labeled once rather than twice.
         """
         res, num_features = label(self.tmask)
 
+        if num_features > 1:
+            if self._grid.cyclic_x:
+                res = self._merge_basins_across_cyclic_seam(res, num_features)
+            res = self._promote_largest_basin(res)
+
         return xr.DataArray(res)
+
+    def _promote_largest_basin(self, basins):
+        """
+        Relabel so that the basin of greatest total area carries the highest label.
+
+        Only that one label moves: it trades places with whichever basin holds the
+        highest label, leaving every other basin where it is. Land stays 0.
+        """
+        areas = np.bincount(basins.ravel(), weights=self._grid.tarea.data.ravel())
+        areas[0] = 0.0  # land is not a basin, so it can never be the largest
+        largest = int(np.argmax(areas))
+        highest = areas.size - 1  # labels are contiguous, so this is the last one
+
+        if largest == highest:
+            return basins  # already there, no relabeling needed
+
+        swap = np.arange(areas.size, dtype=basins.dtype)
+        swap[[largest, highest]] = [highest, largest]
+        return swap[basins]
+
+    @staticmethod
+    def _merge_basins_across_cyclic_seam(basins, num_features):
+        """
+        Give a common label to the basins that meet across the i=0 / i=nx-1 seam.
+
+        Takes the labels from scipy.ndimage.label and treats each ocean pair at the
+        two ends of a row as an edge between their labels, so the connected components
+        of that graph are the basins of the periodic domain. Land is label 0 and has
+        no edges, so it stays 0, and the merged labels come back contiguous.
+        """
+        west, east = basins[:, 0], basins[:, -1]
+        seam = (west > 0) & (east > 0)
+        joined = coo_matrix(
+            (np.ones(seam.sum()), (west[seam], east[seam])),
+            shape=(num_features + 1, num_features + 1),
+        )
+        _, merged = connected_components(joined, directed=False)
+        return merged[basins]
 
     @property
     def supergridmask(self):
@@ -1001,10 +1159,11 @@ class Topo:
         Returns
         -------
         bool
-            True if Cressman / stats-based masking is recommended (ratio >= 12x),
-            False otherwise.
+            True if Cressman / stats-based masking is recommended (ratio >= 12x
+            and the clipped source dataset has at most 1e6 points), False otherwise.
         """
         CRESSMAN_THRESHOLD = 12.0
+        MAX_CRESSMAN_SRC_POINTS = 2e6
 
         # --- Model T-cell spacing in meters ---
         # sqrt(tarea) gives the geometric mean cell spacing (equiv. to sqrt(dxt * dyt))
@@ -1044,7 +1203,26 @@ class Topo:
         print(f"    median = {ratio_median:.1f}x")
         print(f"    max    = {ratio_max:.1f}x")
         print(f"\n  Cressman / stats-mask threshold: {CRESSMAN_THRESHOLD:.0f}x")
-        if ratio_median >= CRESSMAN_THRESHOLD:
+        n_src_lon, n_src_lat = src.lon.size, src.lat.size
+        n_src = n_src_lon * n_src_lat
+        use_stats_depth = bool(ratio_median >= CRESSMAN_THRESHOLD)
+        if use_stats_depth and n_src > MAX_CRESSMAN_SRC_POINTS:
+            print(
+                f"  Ratio {ratio_median:.1f}x is above the threshold, but the source dataset"
+            )
+            print(
+                f"    is large for this domain ({n_src_lon} x {n_src_lat} = {n_src:,} points > {MAX_CRESSMAN_SRC_POINTS:,.0f})."
+            )
+            print(f"  → RECOMMENDED: direct_xesmf_regrid()  (bilinear / conservative)")
+            print(
+                f"    Stats-based masking and Cressman interpolation are turned off to avoid"
+            )
+            print(
+                f"    long runtimes. To use them anyway, pass mask_method='ocean_frac' and"
+            )
+            print(f"    depth_method='cressman' to set_from_dataset().")
+            use_stats_depth = False
+        elif use_stats_depth:
             print(f"  → RECOMMENDED: high_res_regrid()  (Cressman + stats mask)")
             print(
                 f"    Each model cell spans ~{ratio_median:.0f} dataset pixels per side."
@@ -1058,7 +1236,7 @@ class Topo:
             )
             print(f"    likely provides benefit over xesmf regridding.")
         print(sep)
-        return bool(ratio_median >= CRESSMAN_THRESHOLD)
+        return use_stats_depth
 
     def generate_mask_from_stats_ocean_frac(
         self,
@@ -1243,7 +1421,11 @@ class Topo:
                 self.set_depth_from_stats(statistic="mean")
             elif depth_method == "cressman":
                 self.direct_cressman_interp(
-                    weights_path=Path(output_dir) / "cressman_weights.nc"
+                    weights_path=(
+                        Path(output_dir) / "cressman_weights.nc"
+                        if write_to_file
+                        else None
+                    )
                 )
             elif depth_method == "xesmf":
                 if use_stats_depth:
@@ -1274,7 +1456,11 @@ class Topo:
                     "Resolution diagnostics recommend using stats-based method, which we will set for depth as cressman method because no depth option was specified"
                 )
                 self.direct_cressman_interp(
-                    weights_path=Path(output_dir) / "cressman_weights.nc"
+                    weights_path=(
+                        Path(output_dir) / "cressman_weights.nc"
+                        if write_to_file
+                        else None
+                    )
                 )
 
         # Tidy the dataset (fill channels, is_input_positive_below_msl, etc...)
@@ -1445,7 +1631,7 @@ class Topo:
         estimates are never contaminated by land elevations.
 
         Weights are computed by :func:`~mom6_forge.mapping.compute_cressman_weights`,
-        saved to an ESMF-compatible netCDF, and applied through ``xe.Regridder`` —
+        optionally saved to an ESMF-compatible netCDF, and applied through ``xe.Regridder`` —
         all orchestrated by :func:`~mom6_forge.mapping.regrid_dataset_via_cressman`.
         Cells that receive no source coverage are filled by iterative neighbour
         averaging (up to 100 passes).
@@ -1457,12 +1643,9 @@ class Topo:
         cressman_exp : float
             Exponent for the Cressman weight function. Default ``2.0``.
         weights_path : str or Path or None
-            Where to save the ESMF weights netCDF. If ``None``, a file named
-            ``cressman_weights.nc`` is written next to the bathymetry file.
+            Where to save the ESMF weights netCDF. If ``None`` (default), the
+            weights are kept in memory and nothing is written.
         """
-        if weights_path is None:
-            weights_path = self.src.path.parent / "cressman_weights.nc"
-
         # --- Regrid via mapping module (weights → file → cressman Regridder) ---
 
         dst_ds = self._grid.get_esmf_ready_tracer_ds()
@@ -1615,27 +1798,64 @@ class Topo:
         # Reset the mask through Mask Edit
         self.user_mask = ocean_mask
 
-    def erase_selected_basin(self, i, j):
-        label = self.basintmask.data[j, i]
-        affected = np.where(self.basintmask.data == label)
-        indices = list(zip(affected[0], affected[1]))
+    def _erase_ocean_cells(self, doomed, message="Mask Edit"):
+        """
+        Mask out (turn to land) the cells flagged in the boolean array `doomed`.
+
+        Only ocean cells may be flagged, so that the edit records an old mask value
+        of 1. Leaving land out also keeps the command proportional to the area
+        erased rather than to the size of the domain.
+        """
+        indices = [tuple(idx) for idx in np.argwhere(doomed)]
         if not indices:
-            return
-        old_values = [self.tmask.data[jj, ii] for jj, ii in indices]
-        new_values = [0] * len(indices)
-        cmd = MaskEditCommand(self, indices, new_values, old_values=old_values)
+            return  # nothing to erase
+
+        cmd = MaskEditCommand(
+            self,
+            indices,
+            [0] * len(indices),
+            old_values=[1] * len(indices),
+            message=message,
+        )
         self.apply_edit(cmd)
 
+    def erase_selected_basin(self, i, j):
+        """
+        Erase the basin containing cell (i, j). A no-op if that cell is land.
+        """
+        basins = self.basintmask.data
+        selected = basins[j, i]
+        if selected == 0:
+            return  # land cell: no basin to erase
+        self._erase_ocean_cells(basins == selected, message="Erase selected basin")
+
     def erase_disconnected_basin(self, i, j):
-        label = self.basintmask.data[j, i]
-        affected = np.where(self.basintmask.data != label)
-        indices = list(zip(affected[0], affected[1]))
-        if not indices:
-            return
-        old_values = [self.tmask.data[jj, ii] for jj, ii in indices]
-        new_values = [0] * len(indices)
-        cmd = MaskEditCommand(self, indices, new_values, old_values=old_values)
-        self.apply_edit(cmd)
+        """
+        Erase every basin but the one containing cell (i, j). A no-op if that cell is land.
+        """
+        basins = self.basintmask.data
+        selected = basins[j, i]
+        if selected == 0:
+            return  # land cell: no basin to keep
+        self._erase_ocean_cells(
+            (basins != selected) & (basins > 0), message="Erase disconnected basins"
+        )
+
+    def keep_largest_basin(self):
+        """
+        Remove every disconnected ocean basin except the largest one.
+
+        Basins are the connected components of the ocean mask (4-connectivity, and
+        wrapping in x when the grid is cyclic). basintmask gives the basin of greatest
+        total area the highest label, so that one is kept and every other basin is
+        masked out as land. This is a no-op when the domain holds at most one basin.
+        """
+        basins = self.basintmask.data
+        largest = basins.max()  # 0 if the domain is all land, flagging nothing below
+
+        self._erase_ocean_cells(
+            (basins != largest) & (basins > 0), message="Keep largest basin"
+        )
 
     def apply_ridge(self, height, width, lon, ilat):
         """
@@ -2030,7 +2250,166 @@ class Topo:
             format="NETCDF3_64BIT",
         )
 
-    def write_ww3_input(self, file_dir, grid_alias):
+    # Edge names accepted by write_ww3_input's boundary_edges argument. The
+    # spelling deliberately matches the one used for CrocoDash open boundary
+    # segments ("south"/"north"/"west"/"east") so a caller can pass the same
+    # list it uses to configure the ocean boundaries.
+    _WW3_EDGE_NAMES = ("south", "north", "west", "east")
+
+    def _normalize_ww3_boundary_edges(self, boundary_edges):
+        """
+        Validate write_ww3_input's boundary_edges argument.
+
+        Parameters
+        ----------
+        boundary_edges : None, str or iterable of str
+            None selects every edge of a non-cyclic (regional) grid and no
+            edge of a cyclic-x grid, matching open_boundary=True. Edge names may
+            be in any case and any order; a bare string is treated as a single
+            edge (rather than as an iterable of characters).
+
+        Raises
+        ------
+        ValueError
+            If an edge name is not one of _WW3_EDGE_NAMES, or if the east or
+            west edge is requested on a grid that is reentrant in x. The
+            latter is rejected rather than silently dropped: a reentrant edge
+            has no physical boundary, so asking for boundary forcing there
+            means the caller and the grid disagree about the domain.
+
+        Returns
+        -------
+        set of str
+            The requested edges, lowercased and de-duplicated.
+        """
+        if boundary_edges is None:
+            boundary_edges = (
+                () if self._grid.supergrid.is_cyclic_x else self._WW3_EDGE_NAMES
+            )
+        if isinstance(boundary_edges, str):
+            boundary_edges = (boundary_edges,)
+        edges = {str(edge).strip().lower() for edge in boundary_edges}
+
+        unknown = edges - set(self._WW3_EDGE_NAMES)
+        if unknown:
+            raise ValueError(
+                f"Unknown WW3 boundary edge(s) {sorted(unknown)}; valid edges "
+                f"are {list(self._WW3_EDGE_NAMES)}."
+            )
+
+        cyclic_edges = edges & {"east", "west"}
+        if cyclic_edges and self._grid.supergrid.is_cyclic_x:
+            raise ValueError(
+                f"Cannot flag the {sorted(cyclic_edges)} edge(s) as WW3 boundary "
+                "points: this grid is reentrant in x, so it has no physical "
+                "east/west boundary."
+            )
+
+        return edges
+
+    def _compute_ww3_mapsta(self, boundary_edges):
+        """
+        Compute the WW3 mapsta status-code array for this grid.
+
+        Status codes follow WW3's convention: 0 = land, 1 = sea point,
+        2 = active boundary point. Ocean cells on the requested perimeter
+        edges are flagged as active boundary points; land cells stay land
+        wherever they fall. Edges are named by index, not geography:
+        south is j=0, north is j=ny-1, west is i=0, east is i=nx-1.
+
+        ww3_grid does not take the perimeter verbatim: it keeps the 2s but
+        demotes any perimeter sea point (1) to an excluded point (MAPSTA=-1)
+        -- the south and north rows always, the west and east columns
+        whenever the closure is 'NONE', i.e. on every non-cyclic grid
+        (w3gridmd.F90, READMP perimeter pass). So an unlisted edge is not an
+        ordinary sea point but a closed wall, and with no edges listed WW3
+        runs on the grid minus its outer ring of sea cells.
+
+        Either way the domain edge absorbs: coastal reflection is off unless
+        REFCOAST is set, so energy propagating into an excluded point or into
+        a zero-energy status-2 point is discarded alike. The difference is
+        that a status-2 ring keeps the outermost active row on the full
+        third-order stencil (w3pro3md requires all neighbours >= 1), and that
+        it can be fed spectra via ww3_bounc / nest.ww3. Without nest.ww3 WW3
+        warns, sets FLBPI=.FALSE. and leaves the ring at zero energy, so a
+        caller that generates spectra for only some edges should list those.
+
+        Parameters
+        ----------
+        boundary_edges : set of str
+            Already validated by _normalize_ww3_boundary_edges. An empty set
+            yields a plain land/sea mask with no boundary points; ww3_grid then
+            excludes the perimeter sea cells and WW3 runs without open boundary
+            forcing.
+
+        Returns
+        -------
+        numpy.ndarray
+            (ny, nx) integer array of WW3 mapsta status codes.
+        """
+        tmask = self.tmask.data  # (ny, nx), 1=ocean, 0=land
+        mapsta = tmask.astype(int)
+
+        # Row j=0 is the southernmost row (the files are written IDLA=1), and
+        # column i=0 is the westernmost.
+        is_boundary = np.zeros_like(mapsta, dtype=bool)
+        if "south" in boundary_edges:
+            is_boundary[0, :] = True
+        if "north" in boundary_edges:
+            is_boundary[-1, :] = True
+        if "west" in boundary_edges:
+            is_boundary[:, 0] = True
+        if "east" in boundary_edges:
+            is_boundary[:, -1] = True
+
+        mapsta[is_boundary & (tmask == 1)] = 2
+        return mapsta
+
+    def ww3_min_grid_spacing(self):
+        """Smallest cell spacing on the grid, in meters."""
+        tlon = self._grid.tlon.data
+        tlat = self._grid.tlat.data
+
+        # Distances between actual neighbours along i and j. Both coordinates of
+        # the second point must come from the neighbour: on a curvilinear grid
+        # (e.g. polar stereographic) rows are not parallels and columns are not
+        # meridians, so holding lat or lon fixed measures near-zero spurious
+        # steps. haversine is periodic in longitude, so dateline crossings need
+        # no wrapping.
+        dx = haversine(
+            tlat[:, :-1], tlon[:, :-1], tlat[:, 1:], tlon[:, 1:], _DEFAULT_RADIUS
+        )
+        dy = haversine(
+            tlat[:-1, :], tlon[:-1, :], tlat[1:, :], tlon[1:, :], _DEFAULT_RADIUS
+        )
+
+        spacings = np.concatenate([dx.ravel(), dy.ravel()])
+        spacings = spacings[np.isfinite(spacings) & (spacings > 0.0)]
+        if spacings.size == 0:
+            raise ValueError("Could not determine grid spacing for WW3 time steps.")
+        return float(spacings.min())
+
+    def ww3_timesteps(self, cpl_dt=1800.0):
+        """WW3 time steps for this grid.
+
+        See :func:`ww3_timesteps_from_spacing` for the CFL reasoning.
+
+        Parameters
+        ----------
+        cpl_dt: float, optional
+            Wave coupling interval in seconds (WAV_NCPL), 1800 s in CESM by
+            default. ``dtmax`` is derived from it rather than taken as given.
+        """
+        return ww3_timesteps_from_spacing(self.ww3_min_grid_spacing(), cpl_dt)
+
+    def write_ww3_input(
+        self,
+        file_dir,
+        grid_alias,
+        boundary_edges=None,
+        open_boundary=None,
+        cpl_dt=1800.0,
+    ):
         """
         Write the text-based WW3 input files ww3_grid.inp, [grid_alias]_x.inp, [grid_alias]_y.inp,
         [grid_alias]_mapsta.inp, [grid_alias]_bottom.inp, which are to be read by the WW3
@@ -2042,11 +2421,54 @@ class Topo:
             Directory to write the WW3 input files to.
         grid_alias: str
             The alias for the grid, which will be used in the file names of the WW3 input files.
+        boundary_edges: None, str or iterable of str, optional
+            Domain edges whose ocean cells become WW3 active boundary points
+            (mapsta status 2): any of "south" (j=0), "north" (j=ny-1), "west"
+            (i=0), "east" (i=nx-1). None (default) selects all four edges of a
+            non-cyclic (regional) grid and no edge of a cyclic-x grid, so a
+            global grid does not declare boundary points it has no data for; a
+            zonally periodic band that is open to the south and north lists
+            them explicitly. An empty list writes a plain land/sea mask; ww3_grid then excludes
+            the perimeter sea cells. Spectral boundary data reach status-2
+            points via ww3_bounc / nest.ww3; without it they stay at zero
+            energy, so whatever generates the spectra should list the edges it
+            covers.
+        open_boundary: bool, optional
+            Deprecated; use boundary_edges. True is the default edge set,
+            False is no edges.
+        cpl_dt: float, optional
+            Wave coupling interval in seconds (WAV_NCPL), which the time steps
+            are derived from. Defaults to the CESM value of 1800 s.
+
+        Raises
+        ------
+        ValueError
+            If boundary_edges names an unknown edge, names the east or west
+            edge on a grid that is reentrant in x, or the grid is tripolar
+            (the closure written has no 'TRPL' case). Raised before anything
+            is written.
         """
 
         assert (
             "degrees" in self._grid.tlat.units and "degrees" in self._grid.tlon.units
         ), "Unsupported coord"
+        if open_boundary is not None:
+            warnings.warn(
+                "open_boundary is deprecated; use boundary_edges.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            if boundary_edges is not None:
+                raise ValueError(
+                    "Pass either boundary_edges or open_boundary, not both."
+                )
+            boundary_edges = None if open_boundary else ()
+        # The closure written below has no 'TRPL' case, so a pole fold would be
+        # written out as though it were an ordinary grid edge.
+        if self._grid.supergrid.is_tripolar:
+            raise ValueError("write_ww3_input does not support tripolar grids.")
+        # Validate before creating the directory or writing any file.
+        boundary_edges = self._normalize_ww3_boundary_edges(boundary_edges)
 
         file_dir = Path(file_dir)
         file_dir.mkdir(parents=True, exist_ok=True)
@@ -2086,10 +2508,9 @@ class Topo:
         # ww3_tp2.5 (regtests/ww3_tp2.5/input/depth.361x361.IDLA1.dat).
         _write_rows(bottom_file, lambda j, i: f"{depth_m[j, i]:.8f}", sep=" ")
 
-        # --- map status file (1=ocean, 0=land) ---
-        # TODO: WW3 also supports mapsta codes 2 (active boundary), 3 (excluded),
-        # and negative values (ice). Extend when nested/boundary-forced runs are needed.
-        _write_rows(mapsta_file, lambda j, i: str(int(tmask[j, i])), sep=" ")
+        # --- map status file (0=land, 1=interior sea, 2=active boundary) ---
+        mapsta = self._compute_ww3_mapsta(boundary_edges)
+        _write_rows(mapsta_file, lambda j, i: str(int(mapsta[j, i])), sep=" ")
 
         # --- Write ww3_grid.inp ---
         # Use IDLA=1 (bottom-to-top) and IDFM=1 (free format) to match the
@@ -2105,18 +2526,17 @@ class Topo:
             )
             grid_name = grid_alias.ljust(30)[:30]
             f.write(f"  '{grid_name}'\n")
-            # TODO: frequency/direction counts, model flags, and timesteps below
-            # are copied from the ww3a reference grid. Parameterize when this
-            # method is used for grids with different resolution or physics.
-            nk = 25  # number of frequencies (wavenumbers)
-            nth = 24  # number of directions
+            nk = WW3_NK  # number of frequencies (wavenumbers)
+            nth = WW3_NTH  # number of directions
+            dt = self.ww3_timesteps(cpl_dt)
+            stk_wn = ", ".join(f"{k}" for k in WW3_STOKES_WAVENUMBERS)
             f.write(
                 "$\n"
                 "$ Frequency increment factor and first frequency (Hz) ---------------- $\n"
                 "$ number of frequencies (wavenumbers) and directions, relative offset\n"
                 "$ of first direction in terms of the directional increment [-0.5,0.5].\n"
                 "$\n"
-                f"  1.1  0.04118  {nk}  {nth}  0.0\n"
+                f"  {WW3_FREQ_FACTOR}  {WW3_F1}  {nk}  {nth}  0.0\n"
                 "$\n"
                 "$ Set model flags ---------------------------------------------------- $\n"
                 "$  - FLDRY         Dry run (input/output only, no calculation).\n"
@@ -2130,12 +2550,55 @@ class Topo:
                 "$     maximum global time step, maximum CFL time step for x-y and\n"
                 "$     k-theta, minimum source term time step (all in seconds).\n"
                 "$\n"
-                "  600.00  300.00  300.00   30.00\n"
+                f"  {dt['dtmax']:.2f}  {dt['dtcfl']:.2f}  {dt['dtcfli']:.2f}  {dt['dtmin']:.2f}\n"
                 "$\n"
                 "$ Start of namelist input section ------------------------------------ $\n"
                 "$\n"
+                "$ Gridded output selection ------------------------------------------- $\n"
+                "$  - E3D          1-D frequency spectrum over bins I1E3D..I2E3D.\n"
+                "$  - USSP/IUSSP   Export the surface Stokes drift split into this many\n"
+                "$                 bands. MOM6 reads them when WAVE_METHOD is\n"
+                "$                 SURFACE_BANDS; the legacy EFACTOR method ignores them.\n"
+                "$  - STK_WN       Central wavenumbers of those bands. These must match\n"
+                "$                 MOM6's SURFBAND_WAVENUMBERS.\n"
+                "$  - STK_TAIL     Fold the high-frequency tail into the last band.\n"
+                "$\n"
                 "&OUTS\n"
                 f"  E3D = 1, I1E3D = 1, I2E3D = {nk}\n"
+                f"  USSP = 1, IUSSP = {len(WW3_STOKES_WAVENUMBERS)}, STK_TAIL = T\n"
+                f"  STK_WN = {stk_wn}\n"
+                "/\n"
+                "$\n"
+                "$ Li et al. (2016) Langmuir mixing parameterization ------------------- $\n"
+                "$  - LMPENABLED    Accumulate the surface-layer averaged Stokes drift\n"
+                "$                  (USSHX/USSHY), and with it the Langmuir multiplier\n"
+                "$                  Sw_lamult, which stays 1 everywhere without it. Only\n"
+                "$                  the legacy EFACTOR coupling reads Sw_lamult; under\n"
+                "$                  SURFACE_BANDS MOM6 gets the Langmuir number from the\n"
+                "$                  Stokes bands instead.\n"
+                "$  - SDTAIL        Include the high-frequency tail in the Stokes drift.\n"
+                "$  - HSLMODE       1 = surface layer depth from the coupler boundary\n"
+                "$                  layer depth; 0 = constant 10 m (testing only).\n"
+                "$\n"
+                "&LMPN\n"
+                "  LMPENABLED = T, SDTAIL = T, HSLMODE = 1\n"
+                "/\n"
+                "$\n"
+                "$ Sea-ice dissipation, as in CESM's own WW3 grids -------------------- $\n"
+                "$  - IC4METHOD     10 = Meylan, Horvat & Bitz (2021) fit in ice\n"
+                "$                  thickness and floe size, floored at 0.1 m and a\n"
+                "$                  2.5 m floe radius, so ice without them (DICE)\n"
+                "$                  still dissipates. The default, 1, is an empirical\n"
+                "$                  fit whose first coefficient the CESM cap fills\n"
+                "$                  with the ice thickness.\n"
+                "$  - ICNUMERICS    Add the ice term to the other source terms,\n"
+                "$                  scaled by ice concentration.\n"
+                "$\n"
+                "&SIC4\n"
+                f"  IC4METHOD = {WW3_IC4_METHOD}\n"
+                "/\n"
+                "&MISC\n"
+                "  ICNUMERICS = T\n"
                 "/\n"
                 "\n"
                 "END OF NAMELISTS\n"

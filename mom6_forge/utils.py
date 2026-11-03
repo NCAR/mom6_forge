@@ -131,14 +131,20 @@ def longitude_slicer(data, longitude_extent, longitude_coords):
                 "The longitude of the data doesn't seem to include the longitude of the grid."
             )
 
-        data = new_data.isel(
-            {
-                lon: slice(
-                    data[lon].shape[0] // 2 - num_lonpoints,
-                    data[lon].shape[0] // 2 + num_lonpoints,
-                )
-            }
-        )
+        nlon = data[lon].shape[0]
+        half = nlon // 2
+
+        if num_lonpoints >= half:
+            # An at-least-global request. Slicing it would make the start index
+            # negative, which Python reads as an offset from the end and returns
+            # a sliver at the seam; clamping the half-width to `half` instead
+            # would drop the last point on an odd-length axis (2 * (nlon // 2)).
+            # Either way, take the whole axis.
+            data = new_data
+        else:
+            data = new_data.isel(
+                {lon: slice(half - num_lonpoints, half + num_lonpoints)}
+            )
 
     return data
 

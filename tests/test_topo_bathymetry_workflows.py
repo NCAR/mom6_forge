@@ -180,6 +180,33 @@ def test_diagnose_resolution_above_threshold(synthetic_bathy_file, tmp_path):
     assert result is True
 
 
+def test_diagnose_resolution_rejects_large_source(tmp_path):
+    """Above the ratio threshold, but a source with > 2M points turns Cressman off."""
+    # 2-degree model vs ~0.0025-degree source → ratio far above 12x, but the
+    # clipped source is ~1600 x 1600 = ~2.6M points, over the 2M cap
+    lon = np.arange(277.5, 282.5, 0.0025)
+    lat = np.arange(6.5, 11.5, 0.0025)
+    bathy_file = tmp_path / "large_bathy.nc"
+    xr.Dataset(
+        {"elevation": (["lat", "lon"], np.full((lat.size, lon.size), -500.0, "f4"))},
+        coords={"lon": lon, "lat": lat},
+    ).to_netcdf(bathy_file)
+
+    coarse_grid = Grid(
+        resolution=2.0,
+        xstart=278.0,
+        lenx=4.0,
+        ystart=7.0,
+        leny=4.0,
+        name="coarse_test",
+    )
+    coarse_topo = Topo(coarse_grid, min_depth=0, version_control_dir=tmp_path)
+    coarse_topo.set_flat(1000)
+    coarse_topo.src = SourceBathy(coarse_topo, bathy_file, depth_name="elevation")
+    assert coarse_topo.src.lon.size * coarse_topo.src.lat.size > 2e6
+    assert coarse_topo.diagnose_resolution() is False
+
+
 def test_set_from_dataset_stats_path(get_rect_topo_without_vc, synthetic_bathy_file):
     """set_from_dataset with explicit mask_method='ocean_frac' and depth_method='stats' sets depth from stats."""
     get_rect_topo_without_vc.set_from_dataset(

@@ -518,15 +518,18 @@ def get_PM_seam_grid():
 
 @pytest.fixture(scope="module")
 def get_dateline_seam_grid():
-    """2×2 grid straddling the dateline / antimeridian seam (-1-1°E, -1-1°N).
+    """2×2 grid straddling the dateline / antimeridian seam (179-181°E, -1-1°N).
 
     Use to verify that longitude arithmetic handles the ±180° wraparound
     correctly.  Pair with get_PM_seam_grid to distinguish dateline-seam bugs
     from Prime-Meridian-seam bugs.
+
+    Note: xstart=-1 previously put this at 0°E (the Prime Meridian, same seam
+    as get_PM_seam_grid), not the antimeridian its name/docstring claimed.
     """
     grid = Grid(
         resolution=1,
-        xstart=-1,
+        xstart=179,
         lenx=2,
         ystart=-1,
         leny=2,

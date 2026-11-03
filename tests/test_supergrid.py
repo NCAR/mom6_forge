@@ -368,6 +368,31 @@ def test_tripolar_mesh_matches_reference(tripolar_mesh, reference_tripolar_mesh)
     np.testing.assert_allclose(our_area_sum, ref_area_sum, rtol=1e-4)
 
 
+@pytest.mark.parametrize(
+    "mesh_fixture", ["cyclic_mesh", "non_cyclic_mesh", "tripolar_mesh"]
+)
+def test_reconstruct_infers_missing_grid_topology(mesh_fixture, request):
+    """A mesh lacking grid_topology, as ESMF meshes from other tools are,
+    reconstructs the same as one carrying it."""
+    mesh = request.getfixturevalue(mesh_fixture)
+    expected = SupergridBase.reconstruct_from_esmf_mesh(mesh)
+
+    stripped = mesh.copy()
+    del stripped.attrs["grid_topology"]
+    inferred = SupergridBase.reconstruct_from_esmf_mesh(stripped)
+
+    np.testing.assert_array_equal(inferred.x, expected.x)
+    np.testing.assert_array_equal(inferred.y, expected.y)
+
+
+def test_reconstruct_rejects_mis_inferred_topology(tripolar_mesh):
+    """A node count matching no layout is caught, not reshaped on regardless."""
+    mesh = tripolar_mesh.copy().isel(nodeCount=slice(None, -1))
+    del mesh.attrs["grid_topology"]
+    with pytest.raises((ValueError, AssertionError)):
+        SupergridBase.reconstruct_from_esmf_mesh(mesh)
+
+
 def test_tripolar_roundtrip(tripolar_sg, tmp_path):
     """reconstruct_from_esmf_mesh should recover corner and center coords exactly for tx2_3v3."""
     path = tmp_path / "tripolar.nc"
@@ -382,3 +407,70 @@ def test_tripolar_roundtrip(tripolar_sg, tmp_path):
     np.testing.assert_array_equal(sg2.y[::2, ::2], tripolar_sg.y[::2, ::2])
     np.testing.assert_array_equal(sg2.x[1::2, 1::2], tripolar_sg.x[1::2, 1::2])
     np.testing.assert_array_equal(sg2.y[1::2, 1::2], tripolar_sg.y[1::2, 1::2])
+
+
+# --------------------------------------------------------------------------- #
+# Degenerate (triangular) quadrilaterals
+# --------------------------------------------------------------------------- #
+def test_quadrilateral_area_with_repeated_vertex_is_triangle_area():
+    """A quad with a doubled vertex is a spherical triangle, not a NaN.
+
+    The tripolar fold seam and a collapsed pole row both produce coincident nodes.
+    """
+    R = 6371e3
+    v1 = latlon_to_cartesian(0, 0, R)
+    v2 = latlon_to_cartesian(0, 90, R)
+    v3 = latlon_to_cartesian(90, 0, R)
+    octant = 4 * np.pi * R**2 / 8
+
+    for quad in [
+        (v1, v2, v3, v3),
+        (v1, v1, v2, v3),
+        (v1, v2, v2, v3),
+        (v1, v2, v3, v1),
+    ]:
+        np.testing.assert_allclose(quadrilateral_area(*quad), octant, rtol=1e-12)
+
+
+def test_quadrilateral_areas_no_nan_with_collapsed_row():
+    """A grid row collapsed to a single point yields finite, non-negative areas."""
+    lat = np.array([[0.0, 0.0, 0.0], [30.0, 30.0, 30.0], [90.0, 90.0, 90.0]])
+    lon = np.array([[0.0, 60.0, 120.0], [0.0, 60.0, 120.0], [0.0, 0.0, 0.0]])
+
+    areas = quadrilateral_areas(lat, lon, 6371e3)
+
+    assert np.all(np.isfinite(areas))
+    assert np.all(areas >= 0)
+
+
+def test_quadrilateral_area_of_sliver():
+    """A very thin cell still gets an accurate, positive area.
+
+    The old formula added up the four corner angles and subtracted 2*pi, which
+    loses all its precision on the sliver-shaped cells along a tripolar fold and
+    used to hand back large negative areas for them.
+    """
+    R = 6371e3
+    lat1, lat2, lon1, dlon = 49.7, 49.72, -287.0, 1e-9
+    corner = lambda la, lo: np.array(latlon_to_cartesian(la, lo, R))
+
+    # a spherical rectangle's area is known exactly
+    exact = (
+        R**2 * np.deg2rad(dlon) * (np.sin(np.deg2rad(lat2)) - np.sin(np.deg2rad(lat1)))
+    )
+    area = quadrilateral_area(
+        corner(lat1, lon1),
+        corner(lat1, lon1 + dlon),
+        corner(lat2, lon1 + dlon),
+        corner(lat2, lon1),
+    )
+    np.testing.assert_allclose(area, exact, rtol=1e-3)
+
+    # a sub-cell taken from the tx2_3v3 Arctic fold, which computed as -2.1e12
+    fold_cell = [
+        (49.701392, -287.0),
+        (49.720101, -286.792302),
+        (49.720127, -286.791940),
+        (49.710161, -287.0),
+    ]
+    assert quadrilateral_area(*[corner(la, lo) for la, lo in fold_cell]) > 0
