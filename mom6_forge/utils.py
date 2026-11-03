@@ -1,5 +1,7 @@
 """Auxiliary functions for grid property computations."""
 
+import functools
+import warnings
 from pathlib import Path
 import xarray as xr
 import numpy as np
@@ -613,3 +615,30 @@ def compute_subsampling_factor(src_nj, src_ni, dst_nj, dst_ni):
         ny_sub += 1
 
     return ny_sub, nx_sub
+
+
+def renamed_kwargs(**old_to_new):
+    """Keep old keyword names working for one release: each old name in
+    ``old_to_new`` is passed on as its new name, with a DeprecationWarning.
+    Put it under ``@classmethod``."""
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            for old, new in old_to_new.items():
+                if old not in kwargs:
+                    continue
+                if new in kwargs:
+                    raise TypeError(f"{func.__qualname__}() got both {old}= and {new}=")
+                warnings.warn(
+                    f"{func.__qualname__}({old}=...) is deprecated; use {new}=. "
+                    "It will be removed in a future release.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                kwargs[new] = kwargs.pop(old)
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator

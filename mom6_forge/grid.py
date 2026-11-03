@@ -12,7 +12,7 @@ from mom6_forge._supergrid import (
     SupergridBase,
     modulo_around_point,
 )
-from mom6_forge.utils import normalize_deg
+from mom6_forge.utils import normalize_deg, renamed_kwargs
 
 
 def _encircles_globe(lon_values):
@@ -703,14 +703,19 @@ class Grid:
         return obj
 
     @classmethod
+    @renamed_kwargs(path="file_path")
     def subgrid_from_supergrid(
-        cls, path: str, llc: tuple[float, float], urc: tuple[float, float], name: str
+        cls,
+        file_path: str,
+        llc: tuple[float, float],
+        urc: tuple[float, float],
+        name: str,
     ) -> "Grid":
         """Create a Grid instance from a subset of a supergrid file.
 
         Parameters
         ----------
-        path : str
+        file_path : str
             Path to the full supergrid file to be carved out.
         llc : tuple[float, float]
             Lower left corner coordinates (lat, lon) of the subdomain to extract
@@ -725,7 +730,7 @@ class Grid:
             The Grid instance created from the supergrid file.
         """
 
-        full_grid = cls.from_supergrid_file(path)
+        full_grid = cls.from_supergrid_file(file_path)
 
         assert len(llc) == 2, "llc must be a tuple of two floats"
         assert len(urc) == 2, "urc must be a tuple of two floats"

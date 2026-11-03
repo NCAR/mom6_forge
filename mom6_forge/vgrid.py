@@ -6,6 +6,8 @@ import xarray as xr
 
 from typing import Literal
 
+from mom6_forge.utils import renamed_kwargs
+
 
 class VGrid:
     """
@@ -220,18 +222,19 @@ class VGrid:
         )
         return ds
 
-    def write_z_file(self, filename: str):
+    @renamed_kwargs(filename="file_path")
+    def write_z_file(self, file_path: str):
         """Write the vertical grid to a NetCDF file with interface and midpoints depths
 
         Parameters
         ----------
-        filename: str
+        file_path: str
             Path to the NetCDF file to write
 
         Returns
         -------
         xr.Dataset
-            The interface and midpoint depth dataset written to ``filename``.
+            The interface and midpoint depth dataset written to ``file_path``.
         """
         ds = xr.Dataset(
             data_vars={
@@ -262,7 +265,7 @@ class VGrid:
         ds.attrs["maximum_depth"] = self.depth
         ds.attrs["history"] = f"Created on {datetime.now()}"
         ds.to_netcdf(
-            filename,
+            file_path,
             format="NETCDF3_64BIT",
         )
         return ds
