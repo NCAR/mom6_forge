@@ -7,16 +7,28 @@ pytest
 ```
 
 Most of the test suite runs anywhere. A handful of tests in
-`tests/test_git_efficiency.py` are marked `benchmark` and require a
-GLADE-mounted global grid (`tx2_3v3`) that is only available on NCAR HPC
-systems (e.g. Casper, Derecho). Those tests skip themselves automatically
-when that data isn't present, so a plain `pytest` run is safe anywhere — no
-special flags are needed unless you want to specifically run and time them on
-an NCAR system:
+`tests/test_git_efficiency.py` (GLADE-mounted `tx2_3v3` global grid) and
+`tests/test_conformal.py` (one full-resolution California solve) are
+marked `benchmark` and skip themselves automatically off NCAR HPC systems
+(via `tests/utils.py`'s `on_cisl_machine()`), so a plain `pytest` run is safe
+anywhere — no special flags are needed unless you want to specifically run
+and time them on an NCAR system:
 
 ```bash
-pytest tests/test_git_efficiency.py -m benchmark -v -s
+pytest tests/test_git_efficiency.py tests/test_conformal.py -m benchmark -v -s
 ```
+
+`tests/test_grid_sketcher_ipympl.py` runs the real `ipympl` backend in a
+subprocess and turns a missing `ipympl` install into a skip rather than a
+failure, so it is safe to run unconditionally.
+
+Most `GridSketcher`/map-drawing tests (anything that builds a `GridSketcher`
+or calls `corner_diagnostics.ocean_mask`) draw land and coastline via cartopy's
+Natural Earth 50 m shapefiles. On a machine where these are already cached
+(e.g. an NCAR HPC system with prior cartopy use) this needs no network
+access; on a fresh environment — including a CI runner — cartopy fetches
+them once, on demand, the first time they're needed, which adds a small
+amount of one-time download latency to that job.
 
 ## Building the Documentation
 

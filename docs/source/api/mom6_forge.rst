@@ -28,6 +28,14 @@ mom6\_forge.edit\_command module
    :undoc-members:
    :show-inheritance:
 
+mom6\_forge.corner\_diagnostics module
+---------------------------------------
+
+.. automodule:: mom6_forge.corner_diagnostics
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 mom6\_forge.git\_utils module
 -----------------------------
 
@@ -48,6 +56,14 @@ mom6\_forge.grid\_creator module
 --------------------------------
 
 .. automodule:: mom6_forge.grid_creator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+mom6\_forge.grid\_sketcher module
+-----------------------------------
+
+.. automodule:: mom6_forge.grid_sketcher
    :members:
    :undoc-members:
    :show-inheritance:
