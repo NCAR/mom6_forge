@@ -17,6 +17,7 @@ should construct a ``SourceBathy`` explicitly::
 import numpy as np
 import xarray as xr
 from pathlib import Path
+from mom6_forge.grid import _encircles_globe
 from mom6_forge.utils import longitude_slicer
 
 
@@ -115,7 +116,11 @@ class SourceBathy:
         """Clip ``self._ds`` to the topo grid extent plus ``buf`` degrees.
 
         Handles the global-longitude seam and regional domains automatically.
-        Stores ``topo`` as ``self.topo`` and mutates ``self._ds`` in place.
+        A grid that goes around a pole keeps every source longitude, and a
+        source that repeats its seam column (lon on -180..180 inclusive) loses
+        the repeat. Stores ``topo`` as ``self.topo``, sets ``self.is_periodic``
+        to whether the clipped source covers the whole circle, and mutates
+        ``self._ds`` in place.
 
         Parameters
         ----------
@@ -132,7 +137,13 @@ class SourceBathy:
             The clipped dataset (also stored as ``self._ds``).
         """
         self.topo = topo
-        lon_extent = (float(topo._grid.qlon.min()), float(topo._grid.qlon.max()))
+        qlon = topo._grid.qlon.values
+        lon_extent = (float(qlon.min()), float(qlon.max()))
+        if _encircles_globe(qlon):
+            # A grid around a pole needs every longitude. Its qlon range only
+            # shows where the projection put its branch cut, so slicing on it
+            # would drop a sector of the source.
+            lon_extent = (-180.0, 180.0)
         lat_extent = (float(topo._grid.qlat.min()), float(topo._grid.qlat.max()))
         print(
             f"Slicing source bathymetry to domain: {lon_extent} x {lat_extent} with buffer {buf}"
@@ -142,23 +153,22 @@ class SourceBathy:
             {self.lat_name: slice(lat_extent[0] - buf, lat_extent[1] + buf)}
         )
 
-        # A pole-encircling target (e.g. polar stereographic including a pole)
-        # has a qlon range bounded only by pyproj's arbitrary choice for the
-        # pole singularity — the outer rim actually wraps every azimuth. Slicing
-        # on that misleading extent chops the source at the antimeridian and
-        # leaves the bathymetry regridder with a gap. Keep the full source in
-        # longitude and let xESMF's periodic wrap handle the seam.
-        encircles_pole = (
-            (lon_extent[1] - lon_extent[0]) >= 350.0
-            or lat_extent[1] > 89.0
-            or lat_extent[0] < -89.0
+        # A source on -180..180 inclusive stores the seam column twice. ESMF
+        # cannot build a periodic grid from that, so keep one copy.
+        lon = self._ds[self.lon_name].values
+        dlon = lon[1] - lon[0]
+        if abs(lon[-1] - lon[0] - 360.0) < dlon / 2:
+            self._ds = self._ds.isel({self.lon_name: slice(0, -1)})
+
+        self._ds = longitude_slicer(
+            self._ds,
+            np.array(lon_extent) + np.array([-buf, buf]),
+            self.lon_name,
         )
-        if not encircles_pole:
-            self._ds = longitude_slicer(
-                self._ds,
-                np.array(lon_extent) + np.array([-buf, buf]),
-                self.lon_name,
-            )
+
+        # Periodic when the slice covers the whole circle exactly once.
+        lon = self._ds[self.lon_name].values
+        self.is_periodic = abs(lon[-1] - lon[0] + dlon - 360.0) < dlon / 2
 
         return self._ds
 
