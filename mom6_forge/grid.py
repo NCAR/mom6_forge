@@ -471,12 +471,21 @@ class Grid:
             ``lon_min <= lon <= lon_max`` from a source on [-180, 180] has to
             branch on that flag and take the two pieces separately. Wrapping
             ``lon_max`` down to -170 first and comparing would select nothing.
+
+            On a cyclic-x grid, such as a band that wraps all the way around
+            the globe, the "ic", "north" and "south" boxes always span the
+            full circle, -180 to 180, wherever the grid starts. "east" and
+            "west" are then the same seam meridian.
         """
         if type(hgrid) == Grid:
             hgrid = hgrid._supergrid.to_ds()
+        # Decide cyclic once, up front. The 2D winding test reads a band as not
+        # encircling, and re-centering points that span exactly 360 degrees
+        # can drop the seam cell to float round-off.
+        cyclic = Grid.is_cyclic_x(hgrid)
 
-        def _lon_lat_bounds(lon_values, lat_values):
-            if _encircles_globe(lon_values):
+        def _lon_lat_bounds(lon_values, lat_values, full_circle=False):
+            if full_circle or _encircles_globe(lon_values):
                 # This edge surrounds every longitude -- no re-centering can
                 # tighten it, so report the full circle.
                 lon_min, lon_max = -180.0, 180.0
@@ -505,7 +514,7 @@ class Grid:
                 "crosses_antimeridian": lon_max > 180.0,
             }
 
-        init_result = _lon_lat_bounds(hgrid.x.values, hgrid.y.values)
+        init_result = _lon_lat_bounds(hgrid.x.values, hgrid.y.values, cyclic)
         east_result = _lon_lat_bounds(
             hgrid.x.isel(nxp=-1).values, hgrid.y.isel(nxp=-1).values
         )
@@ -513,10 +522,10 @@ class Grid:
             hgrid.x.isel(nxp=0).values, hgrid.y.isel(nxp=0).values
         )
         south_result = _lon_lat_bounds(
-            hgrid.x.isel(nyp=0).values, hgrid.y.isel(nyp=0).values
+            hgrid.x.isel(nyp=0).values, hgrid.y.isel(nyp=0).values, cyclic
         )
         north_result = _lon_lat_bounds(
-            hgrid.x.isel(nyp=-1).values, hgrid.y.isel(nyp=-1).values
+            hgrid.x.isel(nyp=-1).values, hgrid.y.isel(nyp=-1).values, cyclic
         )
         return {
             "east": east_result,
