@@ -324,6 +324,26 @@ def test_bounding_boxes_flag_an_antimeridian_crossing():
     assert plain["lon_max"] - plain["lon_min"] == pytest.approx(20.0)
 
 
+def test_bounding_boxes_cover_every_longitude_on_a_cyclic_grid():
+    """A cyclic band needs the full circle for its domain and its north and
+    south edges, wherever it starts. A non-integer xstart used to leave the
+    "ic" box half a cell short at the seam."""
+    grid = Grid(
+        lenx=360.0,
+        leny=20.0,
+        resolution=1.0,
+        xstart=0.3,
+        ystart=-70.0,
+        cyclic_x=True,
+        name="cyclic_band",
+    )
+    boxes = Grid.get_bounding_boxes(grid)
+    for edge in ("ic", "north", "south"):
+        assert boxes[edge]["lon_min"] == -180.0, edge
+        assert boxes[edge]["lon_max"] == 180.0, edge
+        assert boxes[edge]["crosses_antimeridian"] is False, edge
+
+
 def test_bounding_box_selects_the_intended_source_points():
     """The documented way to use a crossing box: split it at the antimeridian
     rather than comparing against a wrapped lon_max, which selects nothing."""
