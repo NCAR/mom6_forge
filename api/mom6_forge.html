@@ -142,6 +142,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.iterative_fill"><code class="docutils literal notranslate"><span class="pre">iterative_fill()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.longitude_slicer"><code class="docutils literal notranslate"><span class="pre">longitude_slicer()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.normalize_deg"><code class="docutils literal notranslate"><span class="pre">normalize_deg()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.utils.renamed_kwargs"><code class="docutils literal notranslate"><span class="pre">renamed_kwargs()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#module-mom6_forge.vgrid">mom6_forge.vgrid module</a><ul>
@@ -926,18 +927,24 @@ Example: angle_deg=45 places the x-axis along a NE–SW estuary mouth.</p></li>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.grid.Grid.from_esmf_mesh">
-<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_esmf_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid"><span class="pre">Grid</span></a></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.from_esmf_mesh" title="Link to this definition"></a></dt>
-<dd><p>Create a Grid instance from a supergrid file.</p>
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_esmf_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.grid.Grid.from_esmf_mesh" title="Link to this definition"></a></dt>
+<dd><p>Deprecated alias for <a class="reference internal" href="#mom6_forge.grid.Grid.from_esmf_mesh_file" title="mom6_forge.grid.Grid.from_esmf_mesh_file"><code class="xref py py-meth docutils literal notranslate"><span class="pre">from_esmf_mesh_file()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.grid.Grid.from_esmf_mesh_file">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_esmf_mesh_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Dataset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid"><span class="pre">Grid</span></a></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.from_esmf_mesh_file" title="Link to this definition"></a></dt>
+<dd><p>Create a Grid instance from an ESMF mesh file.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>path</strong> (<em>str</em>) – Path to the supergrid file to be written</p></li>
+<li><p><strong>file_path</strong> (<em>str</em><em> or </em><em>xr.Dataset</em>) – Path to the ESMF mesh file to be read, or an already-opened Dataset.</p></li>
 <li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of the new grid. If provided, it will be used as the name of the grid.
 If not provided, the name will be derived from the file name.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>The Grid instance created from the supergrid file.</p>
+<dd class="field-even"><p>The Grid instance created from the ESMF mesh file.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid">Grid</a></p>
@@ -978,14 +985,19 @@ latitudes where RectilinearCartesianSupergrid degrades.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.grid.Grid.from_supergrid">
-<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_supergrid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid"><span class="pre">Grid</span></a></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.from_supergrid" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_supergrid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.grid.Grid.from_supergrid" title="Link to this definition"></a></dt>
+<dd><p>Deprecated alias for <a class="reference internal" href="#mom6_forge.grid.Grid.from_supergrid_file" title="mom6_forge.grid.Grid.from_supergrid_file"><code class="xref py py-meth docutils literal notranslate"><span class="pre">from_supergrid_file()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.grid.Grid.from_supergrid_ds">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_supergrid_ds</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ds</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dataset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid"><span class="pre">Grid</span></a></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.from_supergrid_ds" title="Link to this definition"></a></dt>
 <dd><p>Create a Grid instance from a supergrid file.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>path</strong> (<em>str</em>) – Path to the supergrid file to be written</p></li>
-<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of the new grid. If provided, it will be used as the name of the grid.
-If not provided, the name will be derived from the file name.</p></li>
+<li><p><strong>ds</strong> (<em>xr.Dataset</em>) – xarray Dataset of the supergrid file to be written</p></li>
+<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of the new grid. If provided, it will be used as the name of the grid.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -998,14 +1010,15 @@ If not provided, the name will be derived from the file name.</p></li>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="mom6_forge.grid.Grid.from_supergrid_ds">
-<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_supergrid_ds</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ds</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dataset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid"><span class="pre">Grid</span></a></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.from_supergrid_ds" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="mom6_forge.grid.Grid.from_supergrid_file">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_supergrid_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid"><span class="pre">Grid</span></a></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.from_supergrid_file" title="Link to this definition"></a></dt>
 <dd><p>Create a Grid instance from a supergrid file.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>ds</strong> (<em>xr.Dataset</em>) – xarray Dataset of the supergrid file to be written</p></li>
-<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of the new grid. If provided, it will be used as the name of the grid.</p></li>
+<li><p><strong>file_path</strong> (<em>str</em>) – Path to the supergrid file to be read</p></li>
+<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of the new grid. If provided, it will be used as the name of the grid.
+If not provided, the name will be derived from the file name.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -1192,12 +1205,12 @@ Warning: cartopy module must be installed seperately</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.grid.Grid.subgrid_from_supergrid">
-<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">subgrid_from_supergrid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">llc</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">urc</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid"><span class="pre">Grid</span></a></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.subgrid_from_supergrid" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">subgrid_from_supergrid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">llc</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">urc</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid"><span class="pre">Grid</span></a></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.subgrid_from_supergrid" title="Link to this definition"></a></dt>
 <dd><p>Create a Grid instance from a subset of a supergrid file.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>path</strong> (<em>str</em>) – Path to the full supergrid file to be carved out.</p></li>
+<li><p><strong>file_path</strong> (<em>str</em>) – Path to the full supergrid file to be carved out.</p></li>
 <li><p><strong>llc</strong> (<em>tuple</em><em>[</em><em>float</em><em>, </em><em>float</em><em>]</em>) – Lower left corner coordinates (lat, lon) of the subdomain to extract</p></li>
 <li><p><strong>urc</strong> (<em>tuple</em><em>[</em><em>float</em><em>, </em><em>float</em><em>]</em>) – Upper right corner coordinates (lat, lon) of the subset to extract</p></li>
 <li><p><strong>name</strong> (<em>str</em>) – Name of the subgrid</p></li>
@@ -1237,15 +1250,27 @@ also updates the nominal grid coordinates and metrics.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.grid.Grid.write_supergrid">
-<span class="sig-name descname"><span class="pre">write_supergrid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">author</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.write_supergrid" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">write_supergrid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">author</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.grid.Grid.write_supergrid" title="Link to this definition"></a></dt>
+<dd><p>Deprecated alias for <a class="reference internal" href="#mom6_forge.grid.Grid.write_supergrid_file" title="mom6_forge.grid.Grid.write_supergrid_file"><code class="xref py py-meth docutils literal notranslate"><span class="pre">write_supergrid_file()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.grid.Grid.write_supergrid_file">
+<span class="sig-name descname"><span class="pre">write_supergrid_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">author</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dataset</span></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.write_supergrid_file" title="Link to this definition"></a></dt>
 <dd><p>Write supergrid to a netcdf file. The supergrid file is to be read in by MOM6
 during runtime.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>path</strong> (<em>str</em><em>, </em><em>optional</em>) – Path to the supergrid file to be written.</p></li>
+<li><p><strong>file_path</strong> (<em>str</em>) – Path to the supergrid file to be written.</p></li>
 <li><p><strong>author</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of the author. If provided, the name will appear in files as metadata.</p></li>
 </ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The supergrid dataset written to <code class="docutils literal notranslate"><span class="pre">file_path</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>xr.Dataset</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1969,11 +1994,17 @@ weights are kept in memory and nothing is written.</p></li>
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.from_esmf_mesh">
 <span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_esmf_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mesh_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">radius</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">6371000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_depth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version_control_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'TopoLibrary'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">git</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.from_esmf_mesh" title="Link to this definition"></a></dt>
+<dd><p>Deprecated alias for <a class="reference internal" href="#mom6_forge.topo.Topo.from_esmf_mesh_file" title="mom6_forge.topo.Topo.from_esmf_mesh_file"><code class="xref py py-meth docutils literal notranslate"><span class="pre">from_esmf_mesh_file()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.from_esmf_mesh_file">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_esmf_mesh_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">radius</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">6371000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_depth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version_control_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'TopoLibrary'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">git</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.from_esmf_mesh_file" title="Link to this definition"></a></dt>
 <dd><p>Construct a topo object from the ESMF mesh + Mask, there is no depth associated with this</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>mesh_path</strong> (<em>str</em><em> or </em><em>xr.Dataset</em>) – Path to ESMF mesh file to read, or an already-opened Dataset.</p></li>
+<li><p><strong>file_path</strong> (<em>str</em><em> or </em><em>xr.Dataset</em>) – Path to ESMF mesh file to read, or an already-opened Dataset.</p></li>
 <li><p><strong>radius</strong> (<em>float</em><em>, </em><em>optional</em>) – Radius of the Earth (m). Default is _DEFAULT_RADIUS.</p></li>
 <li><p><strong>min_depth</strong> (<em>float</em><em>, </em><em>optional</em>) – Minimum water column depth (m). Columns with shallower depths are to be masked out. Default is 0.0.</p></li>
 <li><p><strong>git</strong> (<em>bool</em><em>, </em><em>optional</em>) – Passed through to Topo.__init__. See Topo docstring for details. Default is False.</p></li>
@@ -1984,13 +2015,13 @@ weights are kept in memory and nothing is written.</p></li>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.from_topo_file">
-<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_topo_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topo_file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_depth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">varname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'depth'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version_control_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'TopoLibrary'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">git</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel_widths</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.from_topo_file" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_topo_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_depth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">varname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'depth'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">version_control_dir</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'TopoLibrary'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">git</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">channel_widths</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.from_topo_file" title="Link to this definition"></a></dt>
 <dd><p>Create a bathymetry object from an existing topog file.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>grid</strong> (<a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid"><em>mom6_forge.grid.Grid</em></a>) – horizontal grid instance for which the bathymetry is to be created.</p></li>
-<li><p><strong>topo_file_path</strong> (<em>str</em>) – Path to an existing MOM6 topog file.</p></li>
+<li><p><strong>file_path</strong> (<em>str</em>) – Path to an existing MOM6 topog file.</p></li>
 <li><p><strong>min_depth</strong> (<em>float</em><em>, </em><em>optional</em>) – Minimum water column depth (m). Columns with shallower depths are to be masked out.</p></li>
 <li><p><strong>varname</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of the variable representing ocean depth in the dataset. Default is “depth”.</p></li>
 <li><p><strong>git</strong> (<em>bool</em><em>, </em><em>optional</em>) – Passed through to Topo.__init__. See Topo docstring for details.</p></li>
@@ -2230,12 +2261,12 @@ Default: <code class="docutils literal notranslate"><span class="pre">'bilinear'
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.set_depth_via_topog_file">
-<span class="sig-name descname"><span class="pre">set_depth_via_topog_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">topog_file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">varname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'depth'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skip_version_control</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.set_depth_via_topog_file" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">set_depth_via_topog_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">varname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'depth'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skip_version_control</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.set_depth_via_topog_file" title="Link to this definition"></a></dt>
 <dd><p>Apply a bathymetry read from an existing topog file</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>topog_file_path</strong> (<em>str</em>) – absolute path to an existing MOM6 topog file</p></li>
+<li><p><strong>file_path</strong> (<em>str</em>) – absolute path to an existing MOM6 topog file</p></li>
 <li><p><strong>varname</strong> (<em>str</em>) – Name of the variable representing ocean depth in the dataset.</p></li>
 </ul>
 </dd>
@@ -2372,11 +2403,23 @@ When set, the depth property applies masking: ocean cells enforced greater than 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.write_cice_grid">
 <span class="sig-name descname"><span class="pre">write_cice_grid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.write_cice_grid" title="Link to this definition"></a></dt>
+<dd><p>Deprecated alias for <a class="reference internal" href="#mom6_forge.topo.Topo.write_cice_grid_file" title="mom6_forge.topo.Topo.write_cice_grid_file"><code class="xref py py-meth docutils literal notranslate"><span class="pre">write_cice_grid_file()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.write_cice_grid_file">
+<span class="sig-name descname"><span class="pre">write_cice_grid_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.write_cice_grid_file" title="Link to this definition"></a></dt>
 <dd><p>Write the CICE grid file in netcdf format. The written file is
 to be read in by CICE during runtime.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>file_path</strong> (<em>str</em>) – Path to CICE grid file to be written.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The CICE grid dataset written to <code class="docutils literal notranslate"><span class="pre">file_path</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>xr.Dataset</p>
 </dd>
 </dl>
 </dd></dl>
@@ -2384,6 +2427,12 @@ to be read in by CICE during runtime.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.write_esmf_mesh">
 <span class="sig-name descname"><span class="pre">write_esmf_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.write_esmf_mesh" title="Link to this definition"></a></dt>
+<dd><p>Deprecated alias for <a class="reference internal" href="#mom6_forge.topo.Topo.write_esmf_mesh_file" title="mom6_forge.topo.Topo.write_esmf_mesh_file"><code class="xref py py-meth docutils literal notranslate"><span class="pre">write_esmf_mesh_file()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.write_esmf_mesh_file">
+<span class="sig-name descname"><span class="pre">write_esmf_mesh_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.write_esmf_mesh_file" title="Link to this definition"></a></dt>
 <dd><p>Write the ESMF mesh file</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -2392,12 +2441,24 @@ to be read in by CICE during runtime.</p>
 <li><p><strong>title</strong> (<em>str</em><em>, </em><em>optional</em>) – File title.</p></li>
 </ul>
 </dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The ESMF mesh dataset written to <code class="docutils literal notranslate"><span class="pre">file_path</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>xr.Dataset</p>
+</dd>
 </dl>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.write_scrip_grid">
 <span class="sig-name descname"><span class="pre">write_scrip_grid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.write_scrip_grid" title="Link to this definition"></a></dt>
+<dd><p>Deprecated alias for <a class="reference internal" href="#mom6_forge.topo.Topo.write_scrip_grid_file" title="mom6_forge.topo.Topo.write_scrip_grid_file"><code class="xref py py-meth docutils literal notranslate"><span class="pre">write_scrip_grid_file()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.write_scrip_grid_file">
+<span class="sig-name descname"><span class="pre">write_scrip_grid_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.write_scrip_grid_file" title="Link to this definition"></a></dt>
 <dd><p>Write the SCRIP grid file. In latest CESM versions, SCRIP grid files are
 no longer required and are replaced by ESMF mesh files. However, SCRIP
 files are still needed to generate custom ocean-runoff mapping files.</p>
@@ -2408,12 +2469,24 @@ files are still needed to generate custom ocean-runoff mapping files.</p>
 <li><p><strong>title</strong> (<em>str</em><em>, </em><em>optional</em>) – File title.</p></li>
 </ul>
 </dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The SCRIP grid dataset written to <code class="docutils literal notranslate"><span class="pre">file_path</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>xr.Dataset</p>
+</dd>
 </dl>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.topo.Topo.write_topo">
 <span class="sig-name descname"><span class="pre">write_topo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.write_topo" title="Link to this definition"></a></dt>
+<dd><p>Deprecated alias for <a class="reference internal" href="#mom6_forge.topo.Topo.write_topo_file" title="mom6_forge.topo.Topo.write_topo_file"><code class="xref py py-meth docutils literal notranslate"><span class="pre">write_topo_file()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.topo.Topo.write_topo_file">
+<span class="sig-name descname"><span class="pre">write_topo_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.topo.Topo.write_topo_file" title="Link to this definition"></a></dt>
 <dd><p>Write the TOPO_FILE (bathymetry file) in netcdf format. The written file is
 to be read in by MOM6 during runtime.</p>
 <dl class="field-list simple">
@@ -2422,6 +2495,12 @@ to be read in by MOM6 during runtime.</p>
 <li><p><strong>file_path</strong> (<em>str</em>) – Path to TOPO_FILE to be written.</p></li>
 <li><p><strong>title</strong> (<em>str</em><em>, </em><em>optional</em>) – File title.</p></li>
 </ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The bathymetry dataset written to <code class="docutils literal notranslate"><span class="pre">file_path</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>xr.Dataset</p>
 </dd>
 </dl>
 <div class="admonition note">
@@ -2894,6 +2973,14 @@ coordinate re-centred to match the target domain.</p>
 </dl>
 </dd></dl>
 
+<dl class="py function">
+<dt class="sig sig-object py" id="mom6_forge.utils.renamed_kwargs">
+<span class="sig-prename descclassname"><span class="pre">mom6_forge.utils.</span></span><span class="sig-name descname"><span class="pre">renamed_kwargs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">old_to_new</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.utils.renamed_kwargs" title="Link to this definition"></a></dt>
+<dd><p>Keep old keyword names working for one release: each old name in
+<code class="docutils literal notranslate"><span class="pre">old_to_new</span></code> is passed on as its new name, with a DeprecationWarning.
+Put it under <code class="docutils literal notranslate"><span class="pre">&#64;classmethod</span></code>.</p>
+</dd></dl>
+
 </section>
 <section id="module-mom6_forge.vgrid">
 <span id="mom6-forge-vgrid-module"></span><h2>mom6_forge.vgrid module<a class="headerlink" href="#module-mom6_forge.vgrid" title="Link to this heading"></a></h2>
@@ -2961,14 +3048,20 @@ coordinate re-centred to match the target domain.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.vgrid.VGrid.from_file">
 <span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variable_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'dz'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variable_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'layer_thickness'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'cell_center'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'cell_interface'</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'layer_thickness'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.vgrid.VGrid.from_file" title="Link to this definition"></a></dt>
+<dd><p>Deprecated alias for <a class="reference internal" href="#mom6_forge.vgrid.VGrid.from_vgrid_file" title="mom6_forge.vgrid.VGrid.from_vgrid_file"><code class="xref py py-meth docutils literal notranslate"><span class="pre">from_vgrid_file()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.vgrid.VGrid.from_vgrid_file">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_vgrid_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variable_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'dz'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variable_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'layer_thickness'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'cell_center'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'cell_interface'</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'layer_thickness'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.vgrid.VGrid.from_vgrid_file" title="Link to this definition"></a></dt>
 <dd><p>Create a vertical grid from an existing vertical grid file.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>filename</strong> (<em>str</em>) – Name of the NetCDF file containing the vertical grid</p></li>
-<li><p><strong>coordinate_name</strong> (<em>str</em><em>, </em><em>default: &quot;dz&quot;</em>) – Name of the variable to access within the given NetCDF file to get
+<li><p><strong>file_path</strong> (<em>str</em>) – Path to the NetCDF file containing the vertical grid</p></li>
+<li><p><strong>variable_name</strong> (<em>str</em><em>, </em><em>default: &quot;dz&quot;</em>) – Name of the variable to access within the given NetCDF file to get
 a vertical coordinate.</p></li>
-<li><p><strong>coordinate_type</strong> (<em>{&quot;layer_thickness&quot;</em><em>, </em><em>&quot;cell_center&quot;</em><em>, </em><em>&quot;cell_interface&quot;}</em><em>, </em><em>default: &quot;layer_thickness&quot;</em>) – <p>Type of vertical coordinate information given by the file and variable.</p>
+<li><p><strong>variable_type</strong> (<em>{&quot;layer_thickness&quot;</em><em>, </em><em>&quot;cell_center&quot;</em><em>, </em><em>&quot;cell_interface&quot;}</em><em>, </em><em>default: &quot;layer_thickness&quot;</em>) – <p>Type of vertical coordinate information given by the file and variable.</p>
 <ul>
 <li><p>layer_thickness: specifies the thickness of each layer in the vertical grid. Size of n for n layers.</p></li>
 <li><p>cell_center: gives the depth at the center of each vertical cell. Size of n for n layers.</p></li>
@@ -3020,21 +3113,43 @@ a vertical coordinate.</p></li>
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.vgrid.VGrid.write">
 <span class="sig-name descname"><span class="pre">write</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">message</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">author</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.vgrid.VGrid.write" title="Link to this definition"></a></dt>
+<dd><p>Deprecated alias for <a class="reference internal" href="#mom6_forge.vgrid.VGrid.write_vgrid_file" title="mom6_forge.vgrid.VGrid.write_vgrid_file"><code class="xref py py-meth docutils literal notranslate"><span class="pre">write_vgrid_file()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.vgrid.VGrid.write_vgrid_file">
+<span class="sig-name descname"><span class="pre">write_vgrid_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">message</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">author</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.vgrid.VGrid.write_vgrid_file" title="Link to this definition"></a></dt>
 <dd><p>Write the vertical grid (in thickness) to a NetCDF file.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>filename</strong> (<em>str</em>) – Name of the NetCDF file to write</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>file_path</strong> (<em>str</em>) – Path to the NetCDF file to write</p></li>
+<li><p><strong>message</strong> (<em>str</em><em>, </em><em>optional</em>) – Free-text message stored as a file attribute.</p></li>
+<li><p><strong>author</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of the author, stored as a file attribute.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The vertical grid dataset written to <code class="docutils literal notranslate"><span class="pre">file_path</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>xr.Dataset</p>
 </dd>
 </dl>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.vgrid.VGrid.write_z_file">
-<span class="sig-name descname"><span class="pre">write_z_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.vgrid.VGrid.write_z_file" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">write_z_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.vgrid.VGrid.write_z_file" title="Link to this definition"></a></dt>
 <dd><p>Write the vertical grid to a NetCDF file with interface and midpoints depths</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>filename</strong> (<em>str</em>) – Name of the NetCDF file to write</p>
+<dd class="field-odd"><p><strong>file_path</strong> (<em>str</em>) – Path to the NetCDF file to write</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The interface and midpoint depth dataset written to <code class="docutils literal notranslate"><span class="pre">file_path</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>xr.Dataset</p>
 </dd>
 </dl>
 </dd></dl>
