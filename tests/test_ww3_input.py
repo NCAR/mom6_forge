@@ -301,7 +301,7 @@ def test_write_ww3_input_after_reconstruction_from_files(
 ):
     """visualCaseGen's WW3 input generator reconstructs the Grid/Topo from the saved ocean grid
     files (ocean_hgrid + ocean_topog) before writing the *.inp files. Exercise that exact
-    sequence: save the grid/topo, reload via Grid.from_supergrid + Topo.from_topo_file, then
+    sequence: save the grid/topo, reload via Grid.from_supergrid_file + Topo.from_topo_file, then
     write the WW3 inputs and confirm they are produced and consistent with the grid."""
     import xarray as xr
     from mom6_forge.grid import Grid
@@ -313,15 +313,15 @@ def test_write_ww3_input_after_reconstruction_from_files(
     # Save the ocean grid files, as the mom6_forge notebook would.
     supergrid_file = tmp_path / "ocean_hgrid.nc"
     topo_file = tmp_path / "ocean_topog.nc"
-    topo._grid.write_supergrid(supergrid_file.as_posix())
-    topo.write_topo(topo_file.as_posix())
+    topo._grid.write_supergrid_file(supergrid_file.as_posix())
+    topo.write_topo_file(topo_file.as_posix())
 
     # Reconstruct from the saved files (mirrors WW3InputGenerator): read min_depth from the
     # topog attribute so the WW3 land/sea mask matches the ocean mask. This also confirms
-    # write_topo persists the min_depth attribute.
+    # write_topo_file persists the min_depth attribute.
     with xr.open_dataset(topo_file) as ds_topo:
         min_depth = float(ds_topo.attrs["min_depth"])
-    grid = Grid.from_supergrid(supergrid_file.as_posix())
+    grid = Grid.from_supergrid_file(supergrid_file.as_posix())
     reloaded = Topo.from_topo_file(grid, topo_file.as_posix(), min_depth=min_depth)
 
     out_dir = tmp_path / "ocnice"

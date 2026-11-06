@@ -1,9 +1,12 @@
 import os
+import warnings
 from datetime import datetime
 import numpy as np
 import xarray as xr
 
 from typing import Literal
+
+from mom6_forge.utils import renamed_kwargs
 
 
 class VGrid:
@@ -114,9 +117,9 @@ class VGrid:
         return cls(dz, name=name)
 
     @classmethod
-    def from_file(
+    def from_vgrid_file(
         cls,
-        filename: str,
+        file_path: str,
         variable_name: str = "dz",
         variable_type: Literal[
             "layer_thickness", "cell_center", "cell_interface"
@@ -127,12 +130,12 @@ class VGrid:
 
         Parameters
         ----------
-        filename: str
-            Name of the NetCDF file containing the vertical grid
-        coordinate_name: str, default: "dz"
+        file_path: str
+            Path to the NetCDF file containing the vertical grid
+        variable_name: str, default: "dz"
             Name of the variable to access within the given NetCDF file to get
             a vertical coordinate.
-        coordinate_type: {"layer_thickness", "cell_center", "cell_interface"}, default: "layer_thickness"
+        variable_type: {"layer_thickness", "cell_center", "cell_interface"}, default: "layer_thickness"
             Type of vertical coordinate information given by the file and variable.
 
             - layer_thickness: specifies the thickness of each layer in the vertical grid. Size of n for n layers.
@@ -140,18 +143,18 @@ class VGrid:
             - cell_interface: gives the depth at the interface between each vertical cell. Size of n+1 for n layers.
         """
 
-        assert filename.endswith(".nc"), f"File {filename} is not a NetCDF file"
-        assert os.path.exists(filename), f"File {filename} does not exist"
+        assert file_path.endswith(".nc"), f"File {file_path} is not a NetCDF file"
+        assert os.path.exists(file_path), f"File {file_path} does not exist"
 
         valid_coordinate_types = {"layer_thickness", "cell_center", "cell_interface"}
         assert (
             variable_type in valid_coordinate_types
         ), f"Coordinate type {variable_type} is not a valid option from {valid_coordinate_types}"
 
-        ds = xr.open_dataset(filename)
+        ds = xr.open_dataset(file_path)
         assert (
             variable_name in ds
-        ), f"File {filename} does not contain a '{variable_name}' variable"
+        ), f"File {file_path} does not contain a '{variable_name}' variable"
 
         if variable_type == "layer_thickness":
             dz = ds[variable_name].values
@@ -167,13 +170,22 @@ class VGrid:
 
         return cls(dz, name)
 
-    def write(self, filename: str, message: str = None, author: str = None):
+    def write_vgrid_file(self, file_path: str, message: str = None, author: str = None):
         """Write the vertical grid (in thickness) to a NetCDF file.
 
         Parameters
         ----------
-        filename: str
-            Name of the NetCDF file to write
+        file_path: str
+            Path to the NetCDF file to write
+        message: str, optional
+            Free-text message stored as a file attribute.
+        author: str, optional
+            Name of the author, stored as a file attribute.
+
+        Returns
+        -------
+        xr.Dataset
+            The vertical grid dataset written to ``file_path``.
         """
         dz0 = float(self.dz[0])
         dzbot = float(self.dz[-1])
@@ -205,18 +217,24 @@ class VGrid:
         if author:
             ds.attrs["author"] = author
         ds.to_netcdf(
-            filename,
+            file_path,
             format="NETCDF3_64BIT",
         )
         return ds
 
-    def write_z_file(self, filename: str):
+    @renamed_kwargs(filename="file_path")
+    def write_z_file(self, file_path: str):
         """Write the vertical grid to a NetCDF file with interface and midpoints depths
 
         Parameters
         ----------
-        filename: str
-            Name of the NetCDF file to write
+        file_path: str
+            Path to the NetCDF file to write
+
+        Returns
+        -------
+        xr.Dataset
+            The interface and midpoint depth dataset written to ``file_path``.
         """
         ds = xr.Dataset(
             data_vars={
@@ -247,10 +265,40 @@ class VGrid:
         ds.attrs["maximum_depth"] = self.depth
         ds.attrs["history"] = f"Created on {datetime.now()}"
         ds.to_netcdf(
-            filename,
+            file_path,
             format="NETCDF3_64BIT",
         )
         return ds
+
+    # Deprecated names, kept for one release.
+    @classmethod
+    def from_file(
+        cls,
+        filename: str,
+        variable_name: str = "dz",
+        variable_type: Literal[
+            "layer_thickness", "cell_center", "cell_interface"
+        ] = "layer_thickness",
+        name: str = None,
+    ):
+        """Deprecated alias for :meth:`from_vgrid_file`."""
+        warnings.warn(
+            "VGrid.from_file() is deprecated; use VGrid.from_vgrid_file(). "
+            "It will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return cls.from_vgrid_file(filename, variable_name, variable_type, name)
+
+    def write(self, filename: str, message: str = None, author: str = None):
+        """Deprecated alias for :meth:`write_vgrid_file`."""
+        warnings.warn(
+            "VGrid.write() is deprecated; use VGrid.write_vgrid_file(). "
+            "It will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.write_vgrid_file(filename, message, author)
 
 
 def _cell_center_to_layer_thickness(cell_centers: np.ndarray):

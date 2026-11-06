@@ -277,7 +277,7 @@ class VGridCreator(widgets.HBox):
         self.vgrid.name = name
 
         nc_path = os.path.join(self.vgrids_dir, f"vgrid_{name}.nc")
-        self.vgrid.write(nc_path, message=msg)
+        self.vgrid.write_vgrid_file(nc_path, message=msg)
         print(f"Saved vgrid '{os.path.basename(nc_path)}' in '{self.vgrids_dir}'.")
         self.refresh_commit_dropdown()
         return
@@ -289,7 +289,7 @@ class VGridCreator(widgets.HBox):
             return
         nc_path = os.path.join(self.vgrids_dir, val)
         try:
-            self.vgrid = VGrid.from_file(nc_path, name=None)
+            self.vgrid = VGrid.from_vgrid_file(nc_path, name=None)
             # Infer ratio and grid type from dz
             ratio_value, grid_type = self.infer_ratio_and_type(self.vgrid.dz)
             # Temporarily remove observers to avoid recursion

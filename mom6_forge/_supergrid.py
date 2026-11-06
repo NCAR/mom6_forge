@@ -798,6 +798,7 @@ class SupergridBase:
         }  # disable _FillValue for all variables to avoid issues in ESMF
 
         ds.to_netcdf(file_path, format="NETCDF3_64BIT", encoding=all_vars_encoding)
+        return ds
 
     @classmethod
     def reconstruct_from_esmf_mesh(

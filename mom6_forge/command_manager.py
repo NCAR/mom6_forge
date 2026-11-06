@@ -195,13 +195,13 @@ class TopoCommandManager(CommandManager):
         self._topo = topo
         self._original_topo_path = self.directory / "original_topog.nc"
         if not self._original_topo_path.exists():  # I.E. first time init
-            self._topo.write_topo(self._original_topo_path)
+            self._topo.write_topo_file(self._original_topo_path)
         self.load_history()
 
     def save(self, file_name="topog.nc"):
         """Save the current topo state, and make history permanent as a git tag with the given name."""
         # Write Topo
-        self._topo.write_topo(self.directory / file_name)
+        self._topo.write_topo_file(self.directory / file_name)
 
     def tag(self, tag_name):
         """Tag the current state of the topo."""

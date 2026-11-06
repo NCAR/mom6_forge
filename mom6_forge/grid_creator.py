@@ -961,7 +961,7 @@ class GridCreator(widgets.HBox):
         self.grid.name = name
 
         nc_path = os.path.join(self.grids_dir, f"grid_{name}.nc")
-        self.grid.write_supergrid(nc_path)
+        self.grid.write_supergrid_file(nc_path)
         print(f"Saved grid '{os.path.basename(nc_path)}' in '{self.grids_dir}'.")
         self.refresh_library_dropdown()
 
@@ -972,7 +972,7 @@ class GridCreator(widgets.HBox):
             if not val:
                 return
             nc_path = os.path.join(self.grids_dir, val)
-            candidate = Grid.from_supergrid(nc_path)
+            candidate = Grid.from_supergrid_file(nc_path)
         else:
             candidate = grid
 
@@ -1164,7 +1164,7 @@ class GridCreator(widgets.HBox):
             return
         abs_path = os.path.join(self.grids_dir, val)
         try:
-            grid = Grid.from_supergrid(abs_path)
+            grid = Grid.from_supergrid_file(abs_path)
             ds = xr.open_dataset(abs_path)
             name = ds.attrs.get("name", "")
             date = ds.attrs.get("Created", "")

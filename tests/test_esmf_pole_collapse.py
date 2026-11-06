@@ -103,7 +103,7 @@ def test_collapse_is_noop(south_lats, north_lats):
 
 
 # --------------------------------------------------------------------------- #
-# Integration tests through write_esmf_mesh
+# Integration tests through write_esmf_mesh_file
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize(
     "kw, width, collapses",
@@ -138,7 +138,7 @@ def test_write_esmf_mesh_pole_handling(tmp_path, kw, width, collapses):
     nx, ny = kw["nx"], kw["ny"]
     grid, topo = _make_topo(name="g", **kw)
     p = str(tmp_path / "mesh.nc")
-    topo.write_esmf_mesh(p)
+    topo.write_esmf_mesh_file(p)
     m = xr.open_dataset(p)
 
     conn = m.elementConn.values.astype(int)
@@ -174,7 +174,7 @@ def test_tripolar_branch_skips_collapse(tmp_path, monkeypatch):
         type(grid.supergrid), "is_tripolar", property(lambda self: True)
     )
     p = str(tmp_path / "mesh.nc")
-    topo.write_esmf_mesh(p)
+    topo.write_esmf_mesh_file(p)
     m = xr.open_dataset(p)
 
     assert "history" not in m.attrs  # collapse skipped
@@ -204,7 +204,7 @@ def test_reconstruct_roundtrip_through_collapse(tmp_path, kw):
     recover the original q- and t-points exactly."""
     grid, topo = _make_topo(name="g", **kw)
     p = str(tmp_path / "mesh.nc")
-    topo.write_esmf_mesh(p)
+    topo.write_esmf_mesh_file(p)
 
     sg = grid.supergrid
     sg2 = SupergridBase.reconstruct_from_esmf_mesh(p)

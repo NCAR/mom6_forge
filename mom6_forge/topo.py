@@ -11,7 +11,12 @@ from scipy.ndimage import label, binary_fill_holes
 from scipy.sparse import coo_matrix
 from scipy.sparse.csgraph import connected_components
 from scipy.spatial import cKDTree
-from mom6_forge.utils import cell_area_rad, iterative_fill, compute_subsampling_factor
+from mom6_forge.utils import (
+    cell_area_rad,
+    iterative_fill,
+    compute_subsampling_factor,
+    renamed_kwargs,
+)
 from mom6_forge.grid import Grid
 from mom6_forge.git_utils import get_domain_dir, get_repo
 from pathlib import Path
@@ -210,7 +215,7 @@ class Topo:
 
             # Save the grid info there (there can only be 1 grid per bathymetry)
             self.grid_file_path = self.domain_dir / "grid.nc"
-            grid.write_supergrid(self.grid_file_path)
+            grid.write_supergrid_file(self.grid_file_path)
 
             # Initialize the git repo
             self.repo = get_repo(self.domain_dir)
@@ -272,7 +277,7 @@ class Topo:
         grid_file_path = folder_path / "grid.nc"
         assert grid_file_path.exists(), f"Cannot find grid file at {grid_file_path}."
 
-        grid = Grid.from_supergrid(grid_file_path)
+        grid = Grid.from_supergrid_file(grid_file_path)
 
         # Create the topo object
         topo = Topo(
@@ -290,10 +295,11 @@ class Topo:
         return topo
 
     @classmethod
+    @renamed_kwargs(topo_file_path="file_path")
     def from_topo_file(
         cls,
         grid,
-        topo_file_path,
+        file_path,
         min_depth=0.0,
         varname="depth",
         version_control_dir="TopoLibrary",
@@ -307,7 +313,7 @@ class Topo:
         ----------
         grid: mom6_forge.grid.Grid
             horizontal grid instance for which the bathymetry is to be created.
-        topo_file_path: str
+        file_path: str
             Path to an existing MOM6 topog file.
         min_depth: float, optional
             Minimum water column depth (m). Columns with shallower depths are to be masked out.
@@ -330,13 +336,13 @@ class Topo:
         )
         if topo.tcm is not None:
             topo.tcm.reapply_changes()
-        topo.set_depth_via_topog_file(topo_file_path, varname)
+        topo.set_depth_via_topog_file(file_path, varname)
         return topo
 
     @classmethod
-    def from_esmf_mesh(
+    def from_esmf_mesh_file(
         cls,
-        mesh_path,
+        file_path,
         radius=_DEFAULT_RADIUS,
         min_depth=0.0,
         version_control_dir="TopoLibrary",
@@ -347,7 +353,7 @@ class Topo:
 
         Parameters
         ----------
-        mesh_path: str or xr.Dataset
+        file_path: str or xr.Dataset
             Path to ESMF mesh file to read, or an already-opened Dataset.
         radius: float, optional
             Radius of the Earth (m). Default is _DEFAULT_RADIUS.
@@ -358,7 +364,7 @@ class Topo:
         """
 
         supergrid, mask = SupergridBase.reconstruct_from_esmf_mesh(
-            mesh_path, radius, return_mask=True
+            file_path, radius, return_mask=True
         )
         grid = Grid.from_supergrid_ds(supergrid.to_ds())
         topo = cls(grid, min_depth, version_control_dir=version_control_dir, git=git)
@@ -823,39 +829,38 @@ class Topo:
         # Save to object
         self.send_entire_depth_change_to_tcm(depth)
 
+    @renamed_kwargs(topog_file_path="file_path")
     def set_depth_via_topog_file(
-        self, topog_file_path, varname="depth", skip_version_control=False
+        self, file_path, varname="depth", skip_version_control=False
     ):
         """
         Apply a bathymetry read from an existing topog file
 
         Parameters
         ----------
-        topog_file_path: str
+        file_path: str
             absolute path to an existing MOM6 topog file
         varname : str
             Name of the variable representing ocean depth in the dataset.
         """
 
-        assert os.path.exists(
-            topog_file_path
-        ), f"Cannot find topog file at {topog_file_path}."
+        assert os.path.exists(file_path), f"Cannot find topog file at {file_path}."
 
-        ds_topo = xr.open_dataset(topog_file_path)
+        ds_topo = xr.open_dataset(file_path)
         assert (
             varname in ds_topo
-        ), f"Cannot find the '{varname}' field in topog file {topog_file_path}"
+        ), f"Cannot find the '{varname}' field in topog file {file_path}"
         depth = ds_topo[varname]
 
         if depth.shape[0] < self._grid.ny or depth.shape[1] < self._grid.nx:
             raise ValueError(
-                f"Topography data in {topog_file_path} is smaller than the grid size "
+                f"Topography data in {file_path} is smaller than the grid size "
                 f"({depth.shape[0]}x{depth.shape[1]} < {self._grid.ny}x{self._grid.nx}). "
             )
         elif depth.shape[0] > self._grid.ny or depth.shape[1] > self._grid.nx:
             assert (
                 "geolat" in ds_topo and "geolon" in ds_topo
-            ), f"Topog file {topog_file_path} does not contain geolat and geolon fields, "
+            ), f"Topog file {file_path} does not contain geolat and geolon fields, "
             "which are required to determine if the grid is a subgrid of the topog file, "
             "since the topography data is larger than the grid (in index space). "
 
@@ -873,12 +878,12 @@ class Topo:
             cj, ci = np.unravel_index(indices, geolon.shape)
 
             assert 0 <= cj <= geolat.shape[0] - self._grid.ny, (
-                f"Topography data in {topog_file_path} appears to only contain a subregion "
+                f"Topography data in {file_path} appears to only contain a subregion "
                 f"of the grid, and does not contain enough rows to accommodate the grid size "
                 f"({self._grid.ny}). "
             )
             assert 0 <= ci <= geolon.shape[1] - self._grid.nx, (
-                f"Topography data in {topog_file_path} appears to only contain a subregion "
+                f"Topography data in {file_path} appears to only contain a subregion "
                 f"of the grid, and does not contain enough columns to accommodate the grid size "
                 f"({self._grid.nx}). "
             )
@@ -900,7 +905,7 @@ class Topo:
             )
             if not grid_overlaps_topo:
                 raise ValueError(
-                    f"The topography data in {topog_file_path} is larger than the grid "
+                    f"The topography data in {file_path} is larger than the grid "
                     f"data which does not appear to be a subgrid of the topography data. "
                     f"Topography data shape: {depth.shape}, grid shape: "
                     f"({self._grid.ny}, {self._grid.nx}). "
@@ -1524,7 +1529,7 @@ class Topo:
             output_path=output_dir / "bathymetry_unfinished.nc",
         )["depth"]
         if write_to_file:
-            self.write_topo(
+            self.write_topo_file(
                 output_dir / "bathymetry_unfinished.nc"
             )  # This is called unfinished because the regridding is not fully complete until the one-cell channels are filled
 
@@ -2101,7 +2106,7 @@ class Topo:
 
         return ds
 
-    def write_topo(self, file_path, title=None):
+    def write_topo_file(self, file_path, title=None):
         """
         Write the TOPO_FILE (bathymetry file) in netcdf format. The written file is
         to be read in by MOM6 during runtime.
@@ -2112,6 +2117,11 @@ class Topo:
             Path to TOPO_FILE to be written.
         title: str, optional
             File title.
+
+        Returns
+        -------
+        xr.Dataset
+            The bathymetry dataset written to ``file_path``.
 
         Note
         ----
@@ -2127,8 +2137,9 @@ class Topo:
 
         ds = self.gen_topo_ds(title=title)
         ds.to_netcdf(file_path, format="NETCDF3_64BIT")
+        return ds
 
-    def write_cice_grid(self, file_path):
+    def write_cice_grid_file(self, file_path):
         """
         Write the CICE grid file in netcdf format. The written file is
         to be read in by CICE during runtime.
@@ -2137,6 +2148,11 @@ class Topo:
         ----------
         file_path: str
             Path to CICE grid file to be written.
+
+        Returns
+        -------
+        xr.Dataset
+            The CICE grid dataset written to ``file_path``.
         """
 
         assert (
@@ -2249,6 +2265,7 @@ class Topo:
             file_path,
             format="NETCDF3_64BIT",
         )
+        return ds
 
     # Edge names accepted by write_ww3_input's boundary_edges argument. The
     # spelling deliberately matches the one used for CrocoDash open boundary
@@ -2625,7 +2642,7 @@ class Topo:
                 "$ -------------------------------------------------------------------- $\n"
             )
 
-    def write_scrip_grid(self, file_path, title=None):
+    def write_scrip_grid_file(self, file_path, title=None):
         """
         Write the SCRIP grid file. In latest CESM versions, SCRIP grid files are
         no longer required and are replaced by ESMF mesh files. However, SCRIP
@@ -2637,6 +2654,11 @@ class Topo:
             Path to SCRIP file to be written.
         title: str, optional
             File title.
+
+        Returns
+        -------
+        xr.Dataset
+            The SCRIP grid dataset written to ``file_path``.
         """
 
         ds = xr.Dataset()
@@ -2713,8 +2735,9 @@ class Topo:
             file_path,
             format="NETCDF3_64BIT",
         )
+        return ds
 
-    def write_esmf_mesh(self, file_path, title=None):
+    def write_esmf_mesh_file(self, file_path, title=None):
         """
         Write the ESMF mesh file
 
@@ -2724,7 +2747,76 @@ class Topo:
             Path to ESMF mesh file to be written.
         title: str, optional
             File title.
+
+        Returns
+        -------
+        xr.Dataset
+            The ESMF mesh dataset written to ``file_path``.
         """
 
-        self._grid.supergrid.to_esmf_mesh(file_path, mask=self.tmask.data, title=title)
+        ds = self._grid.supergrid.to_esmf_mesh(
+            file_path, mask=self.tmask.data, title=title
+        )
         self.mesh_path = file_path
+        return ds
+
+    # Deprecated names, kept for one release.
+    @classmethod
+    def from_esmf_mesh(
+        cls,
+        mesh_path,
+        radius=_DEFAULT_RADIUS,
+        min_depth=0.0,
+        version_control_dir="TopoLibrary",
+        git=False,
+    ):
+        """Deprecated alias for :meth:`from_esmf_mesh_file`."""
+        warnings.warn(
+            "Topo.from_esmf_mesh() is deprecated; use Topo.from_esmf_mesh_file(). "
+            "It will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return cls.from_esmf_mesh_file(
+            mesh_path, radius, min_depth, version_control_dir, git
+        )
+
+    def write_topo(self, file_path, title=None):
+        """Deprecated alias for :meth:`write_topo_file`."""
+        warnings.warn(
+            "Topo.write_topo() is deprecated; use Topo.write_topo_file(). "
+            "It will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.write_topo_file(file_path, title)
+
+    def write_cice_grid(self, file_path):
+        """Deprecated alias for :meth:`write_cice_grid_file`."""
+        warnings.warn(
+            "Topo.write_cice_grid() is deprecated; use Topo.write_cice_grid_file(). "
+            "It will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.write_cice_grid_file(file_path)
+
+    def write_scrip_grid(self, file_path, title=None):
+        """Deprecated alias for :meth:`write_scrip_grid_file`."""
+        warnings.warn(
+            "Topo.write_scrip_grid() is deprecated; use Topo.write_scrip_grid_file(). "
+            "It will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.write_scrip_grid_file(file_path, title)
+
+    def write_esmf_mesh(self, file_path, title=None):
+        """Deprecated alias for :meth:`write_esmf_mesh_file`."""
+        warnings.warn(
+            "Topo.write_esmf_mesh() is deprecated; use Topo.write_esmf_mesh_file(). "
+            "It will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.write_esmf_mesh_file(file_path, title)
