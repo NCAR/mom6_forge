@@ -430,7 +430,9 @@ class ClearMaskCommand(EditCommand):
                     dims=["ny", "nx"],
                     attrs={"name": "binary ocean/land mask"},
                 )
-            return cls(topo, old_mask=old_mask)
+            command = cls(topo)
+            command.old_mask = old_mask
+            return command
 
         return factory
 
