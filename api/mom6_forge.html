@@ -1068,6 +1068,10 @@ box, so the pair always names a contiguous eastward arc and
 <code class="docutils literal notranslate"><span class="pre">lon_min</span> <span class="pre">&lt;=</span> <span class="pre">lon</span> <span class="pre">&lt;=</span> <span class="pre">lon_max</span></code> from a source on [-180, 180] has to
 branch on that flag and take the two pieces separately. Wrapping
 <code class="docutils literal notranslate"><span class="pre">lon_max</span></code> down to -170 first and comparing would select nothing.</p>
+<p>On a cyclic-x grid, such as a band that wraps all the way around
+the globe, the “ic”, “north” and “south” boxes always span the
+full circle, -180 to 180, wherever the grid starts. “east” and
+“west” are then the same seam meridian.</p>
 </p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
