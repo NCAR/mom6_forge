@@ -3,6 +3,7 @@ from mom6_forge._supergrid import *
 from mom6_forge.grid import Grid
 import numpy as np
 import xarray as xr
+from pyproj import Geod
 from utils import on_cisl_machine
 
 # ---------------------------------------------------------------------------
@@ -474,3 +475,42 @@ def test_quadrilateral_area_of_sliver():
         (49.710161, -287.0),
     ]
     assert quadrilateral_area(*[corner(la, lo) for la, lo in fold_cell]) > 0
+
+
+# --- dxdy guard tests ---
+
+
+def test_polar_row_stays_smallangle_bit_identical():
+    """A plain lon/lat grid touching the pole keeps the smallangle convention exactly."""
+    sg = UniformSphericalSupergrid.from_extents(
+        lon_min=0.0, len_x=20.0, lat_min=70.0, len_y=20.0, nx=4, ny=4
+    )
+    assert sg._dx_dy_calc_type == "smallangle"
+    dx, dy = SupergridBase._calc_dx_dy(sg.x, sg.y, type="smallangle")
+    np.testing.assert_array_equal(sg.dx, dx)
+    np.testing.assert_array_equal(sg.dy, dy)
+
+
+def test_rotated_grid_is_not_rectilinear():
+    """A grid rotated off the meridian/parallel grain is not a lon/lat mesh."""
+    rotated = ProjectedSupergrid.from_center(
+        40.0, -70.0, 200_000, 200_000, 50_000, angle_deg=30.0
+    )
+    assert not SupergridBase._is_rectilinear_lonlat(rotated.x, rotated.y)
+
+
+def test_rotated_grid_via_update_supergrid_switches_to_haversine():
+    """update_supergrid inherits smallangle from a plain grid, but a rotated
+    lon/lat array fed through it is caught and switched to haversine."""
+    grid = Grid(lenx=10.0, leny=10.0, nx=4, ny=4)
+    rotated = ProjectedSupergrid.from_center(
+        40.0, -70.0, 200_000, 200_000, 50_000, angle_deg=30.0
+    )
+    grid.update_supergrid(rotated.x, rotated.y)
+    assert grid.supergrid._dx_dy_calc_type == "haversine"
+
+    geod = Geod(a=6371e3, f=0.0)
+    _, _, geod_dx = geod.inv(
+        rotated.x[:, :-1], rotated.y[:, :-1], rotated.x[:, 1:], rotated.y[:, 1:]
+    )
+    np.testing.assert_allclose(grid.supergrid.dx, geod_dx, rtol=0.005)
