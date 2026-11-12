@@ -1521,12 +1521,15 @@ class Topo:
                 output_dir / "bathymetry_unfinished.nc"
             )
 
+        # A polar target grid crosses the antimeridian along its outer rim,
+        # so destination cells there need xESMF to wrap the source in lon.
         self.depth = regrid_dataset_via_xesmf(
             input_dataset=self.src_bathymetry_dataset,
             output_dataset=self.destination_bathymetry,
             regridding_method=regridding_method,
             write_to_file=write_to_file,
             output_path=output_dir / "bathymetry_unfinished.nc",
+            periodic=self.src.is_periodic,
         )["depth"]
         if write_to_file:
             self.write_topo_file(
