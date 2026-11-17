@@ -236,14 +236,16 @@ def test_iterative_fill():
     assert result2[1, 2] == 0, "Land cell should not be filled"
 
 
+@pytest.mark.parametrize("start", [-180.0, 0.0])
 @pytest.mark.parametrize("nlon", [4320, 4319, 721, 720])
-def test_longitude_slicer_returns_whole_axis_for_global_request(nlon):
+def test_longitude_slicer_returns_whole_axis_for_global_request(nlon, start):
     """An at-least-global extent (e.g. a polar-cap bounding box plus a buffer)
     must come back as the whole longitude axis, not a sliver at the seam and not
-    one point short on an odd-length axis."""
+    one point short on an odd-length axis. Cell-centred data on 0..360 doesn't
+    hold 0, the midpoint of a -180..180 request, and must work too."""
     data = xr.Dataset(
         {"v": ("lon", np.arange(nlon, dtype=float))},
-        coords={"lon": np.linspace(-180, 180, nlon, endpoint=False)},
+        coords={"lon": start + (np.arange(nlon) + 0.5) * 360.0 / nlon},
     )
     for extent in ([-180.0, 180.0], [-181.0, 181.0], [-200.0, 200.0]):
         sliced = longitude_slicer(data, extent, "lon")

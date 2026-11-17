@@ -1516,8 +1516,10 @@ class Topo:
                 output_dir / "bathymetry_unfinished.nc"
             )
 
-        # A polar target grid crosses the antimeridian along its outer rim,
-        # so destination cells there need xESMF to wrap the source in lon.
+        # Wrap the source in longitude whenever its slice covers the whole
+        # circle: global and tripolar grids as well as polar caps, whose rim
+        # crosses the antimeridian. Without it, destination cells between the
+        # source's last and first column get no data.
         self.depth = regrid_dataset_via_xesmf(
             input_dataset=self.src_bathymetry_dataset,
             output_dataset=self.destination_bathymetry,

@@ -67,6 +67,12 @@ def longitude_slicer(data, longitude_extent, longitude_coords):
             np.diff(lons), dlons * np.ones(np.size(lons) - 1), atol=1e-4, rtol=0
         ), "provided longitude coordinate must be uniformly spaced"
 
+        if longitude_extent[1] - longitude_extent[0] >= 360:
+            # An at-least-global request takes the whole axis as it is. Its
+            # midpoint need not lie in the data's range: a full circle asked
+            # for as -180..180 has midpoint 0, which data on 0.25..359.75 lacks.
+            continue
+
         is_longitude_extent_in_data = (
             False  # This boolean checks if the 360 + i adjustment isn't found
         )

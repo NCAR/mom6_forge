@@ -116,9 +116,10 @@ class SourceBathy:
         """Clip ``self._ds`` to the topo grid extent plus ``buf`` degrees.
 
         Handles the global-longitude seam and regional domains automatically.
-        A grid that goes around a pole keeps every source longitude, and a
-        source that repeats its seam column (lon on -180..180 inclusive) loses
-        the repeat. Stores ``topo`` as ``self.topo``, sets ``self.is_periodic``
+        A grid that goes around a pole keeps every source longitude and every
+        row up to that pole, plus a row at the pole itself (see
+        ``_add_pole_row``), and a source that repeats its seam column (lon on
+        -180..180 inclusive) loses the repeat. Stores ``topo`` as ``self.topo``, sets ``self.is_periodic``
         to whether the clipped source covers the whole circle, and mutates
         ``self._ds`` in place.
 
@@ -139,12 +140,16 @@ class SourceBathy:
         self.topo = topo
         qlon = topo._grid.qlon.values
         lon_extent = (float(qlon.min()), float(qlon.max()))
+        lat_extent = (float(topo._grid.qlat.min()), float(topo._grid.qlat.max()))
+        pole = None
         if _encircles_globe(qlon):
             # A grid around a pole needs every longitude. Its qlon range only
             # shows where the projection put its branch cut, so slicing on it
-            # would drop a sector of the source.
+            # would drop a sector of the source. It also needs every source
+            # row up to that pole: its corners can stop well short of it.
             lon_extent = (-180.0, 180.0)
-        lat_extent = (float(topo._grid.qlat.min()), float(topo._grid.qlat.max()))
+            pole = 90.0 if lat_extent[1] > 0 else -90.0
+            lat_extent = (min(lat_extent[0], pole), max(lat_extent[1], pole))
         print(
             f"Slicing source bathymetry to domain: {lon_extent} x {lat_extent} with buffer {buf}"
         )
@@ -156,8 +161,8 @@ class SourceBathy:
         # A source on -180..180 inclusive stores the seam column twice. ESMF
         # cannot build a periodic grid from that, so keep one copy.
         lon = self._ds[self.lon_name].values
-        dlon = lon[1] - lon[0]
-        if abs(lon[-1] - lon[0] - 360.0) < dlon / 2:
+        dlon = abs(lon[1] - lon[0])  # abs: some sources store lon decreasing
+        if abs(abs(lon[-1] - lon[0]) - 360.0) < dlon / 2:
             self._ds = self._ds.isel({self.lon_name: slice(0, -1)})
 
         self._ds = longitude_slicer(
@@ -168,9 +173,42 @@ class SourceBathy:
 
         # Periodic when the slice covers the whole circle exactly once.
         lon = self._ds[self.lon_name].values
-        self.is_periodic = abs(lon[-1] - lon[0] + dlon - 360.0) < dlon / 2
+        self.is_periodic = abs(abs(lon[-1] - lon[0]) + dlon - 360.0) < dlon / 2
+
+        if pole is not None:
+            self._add_pole_row(pole)
 
         return self._ds
+
+    def _add_pole_row(self, pole):
+        """Give the source a row at ``pole`` holding the mean of its row
+        nearest it.
+
+        A cell-centred source stops half a source cell short of the pole. A
+        periodic regrid fills the gap with ESMF's artificial pole, which takes
+        the average of the slice's *other* end row: a cell centred on the North
+        Pole of an Arctic cap got the depth along the cap's southern edge. With
+        a real row at the pole, that cell lies inside the source.
+        """
+        lat = self._ds[self.lat_name].values
+        edge = -1 if pole > 0 else 0
+        if np.isclose(lat[edge], pole):
+            return  # a grid-registered source already has its pole row
+        row = self._ds.isel({self.lat_name: [edge]})
+        pole_row = row.assign_coords({self.lat_name: [pole]})
+        with xr.set_options(keep_attrs=True):
+            for name, var in row.data_vars.items():
+                if self.lon_name in var.dims:
+                    mean = (var * 0 + var.mean(self.lon_name)).astype(var.dtype)
+                    pole_row[name] = mean.assign_coords({self.lat_name: [pole]})
+        rows = [self._ds, pole_row] if pole > 0 else [pole_row, self._ds]
+        self._ds = xr.concat(
+            rows,
+            dim=self.lat_name,
+            data_vars="minimal",
+            coords="minimal",
+            compat="override",
+        )
 
     def _ensure_depth_is_positive_below_msl(self, is_input_positive_below_msl):
         """Flip depth sign if the source convention is positive *above* MSL.
