@@ -6,6 +6,11 @@ import tempfile
 from pathlib import Path
 import xarray as xr
 from mom6_forge._source_bathy import SourceBathy
+from mom6_forge.grid import Grid
+from mom6_forge.topo import Topo
+
+# Bilinear on a 0.5-degree source, against the source formula at cell centres.
+TOLERANCE_M = 0.1
 
 
 def test_simple_source_bathy_calls(get_rect_topo_without_vc, synthetic_bathy_file):
@@ -79,3 +84,119 @@ def test_source_bathy_depth_conversion(get_rect_topo_without_vc, synthetic_bathy
     assert np.any(non_nan_values > 0), "Expected positive depth values for ocean"
 
     assert depth.shape == src.depth.shape
+
+
+def _depth_at(lon):
+    """The test sources' depth: smooth across the antimeridian, but different
+    at every longitude, so a cell that gets the wrong source columns shows."""
+    return 1000.0 + 500.0 * np.sin(np.deg2rad(lon))
+
+
+def _global_source(path, lon):
+    """All-ocean 0.5-degree source on the given longitudes, GEBCO sign."""
+    lat = np.arange(-89.75, 90.0, 0.5)
+    elevation = -np.broadcast_to(_depth_at(lon), (lat.size, lon.size))
+    xr.Dataset(
+        {"elevation": (["lat", "lon"], elevation)},
+        coords={"lon": lon, "lat": lat},
+    ).to_netcdf(path)
+    return path
+
+
+def _flat_topo(grid):
+    topo = Topo(grid, min_depth=0, git=False)
+    topo.set_flat(1000)
+    return topo
+
+
+def _assert_source_depth_everywhere(topo):
+    """Every cell, those along the antimeridian included, has the source's
+    depth at its own longitude."""
+    expected = _depth_at(topo._grid.tlon.values)
+    np.testing.assert_allclose(topo.depth.values, expected, atol=TOLERANCE_M)
+
+
+@pytest.mark.parametrize(
+    "make_grid",
+    [
+        # Goes around the South Pole, but its qlon only spans -171 to 149
+        # and its qlat stops short of -89.
+        lambda: Grid.from_projection(
+            "EPSG:3031", -360e3, 5640e3, -396e3, 3204e3, 300e3
+        ),
+        lambda: Grid.from_projection("EPSG:3995", -300e3, 300e3, -300e3, 300e3, 100e3),
+        # A global grid gets the whole source and a periodic regrid as well.
+        lambda: Grid(resolution=2.0, xstart=0.0, lenx=360.0, ystart=-70.0, leny=140.0),
+    ],
+    ids=["south_cap", "north_cap", "global"],
+)
+def test_grids_around_the_globe_regrid_without_a_seam(make_grid, tmp_path):
+    """A grid around a pole, or the whole globe, crosses the antimeridian, so it
+    needs every source longitude and a periodic regrid, or cells there stay at
+    zero or take the wrong source columns."""
+    topo = _flat_topo(make_grid())
+    topo.set_src(
+        _global_source(tmp_path / "global.nc", np.arange(-179.75, 180.0, 0.5)),
+        "lon",
+        "lat",
+        "elevation",
+    )
+    topo.set_depth_from_xesmf()
+    _assert_source_depth_everywhere(topo)
+
+
+def test_a_cell_centred_on_the_pole_gets_the_depth_there(tmp_path):
+    """A cell-centred source stops half a source cell short of the pole. A cell
+    centred on the pole must get the source's depth there, not ESMF's artificial
+    pole, which takes the average of the slice's far (southern) edge."""
+    lon = np.arange(-179.75, 180.0, 0.5)
+    lat = np.arange(-89.75, 90.0, 0.5)
+    depth = np.broadcast_to(100.0 * np.abs(lat)[:, None], (lat.size, lon.size))
+    path = tmp_path / "by_latitude.nc"
+    xr.Dataset(
+        {"elevation": (["lat", "lon"], -depth)}, coords={"lon": lon, "lat": lat}
+    ).to_netcdf(path)
+    topo = _flat_topo(
+        Grid.from_projection("EPSG:3995", -350e3, 350e3, -350e3, 350e3, 100e3)
+    )
+    topo.set_src(path, "lon", "lat", "elevation")
+    topo.set_depth_from_xesmf()
+    tlat = topo._grid.tlat.values
+    pole_cell = np.unravel_index(tlat.argmax(), tlat.shape)
+    assert tlat[pole_cell] == pytest.approx(90.0)
+    assert topo.depth.values[pole_cell] == pytest.approx(100.0 * 89.75)
+
+
+def test_source_with_a_repeated_seam_column_regrids(tmp_path):
+    """A source on -180..180 inclusive, like grid-registered ETOPO1, stores the
+    seam column twice. ESMF cannot build a periodic grid from that, and on some
+    builds aborts the whole process, so the repeat has to be gone before the
+    regrid starts."""
+    topo = _flat_topo(
+        Grid.from_projection("EPSG:3995", -300e3, 300e3, -300e3, 300e3, 100e3)
+    )
+    src = topo.set_src(
+        _global_source(tmp_path / "etopo.nc", np.arange(-180.0, 180.25, 0.5)),
+        "lon",
+        "lat",
+        "elevation",
+    )
+    assert src.lon.size == 720
+    assert src.is_periodic
+    topo.set_depth_from_xesmf()
+    _assert_source_depth_everywhere(topo)
+
+
+def test_grid_reaching_toward_a_pole_still_slices_the_source(tmp_path):
+    """Reaching 89.5N is not going around the pole. A 30-degree-wide grid needs
+    about 31 degrees of source longitude, not the whole globe."""
+    topo = _flat_topo(
+        Grid(resolution=0.1, xstart=0.0, lenx=30.0, ystart=80.0, leny=9.5)
+    )
+    src = topo.set_src(
+        _global_source(tmp_path / "global.nc", np.arange(-179.75, 180.0, 0.5)),
+        "lon",
+        "lat",
+        "elevation",
+    )
+    assert src.lon.max() - src.lon.min() < 32.0

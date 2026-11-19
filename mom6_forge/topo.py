@@ -1521,12 +1521,17 @@ class Topo:
                 output_dir / "bathymetry_unfinished.nc"
             )
 
+        # Wrap the source in longitude whenever its slice covers the whole
+        # circle: global and tripolar grids as well as polar caps, whose rim
+        # crosses the antimeridian. Without it, destination cells between the
+        # source's last and first column get no data.
         self.depth = regrid_dataset_via_xesmf(
             input_dataset=self.src_bathymetry_dataset,
             output_dataset=self.destination_bathymetry,
             regridding_method=regridding_method,
             write_to_file=write_to_file,
             output_path=output_dir / "bathymetry_unfinished.nc",
+            periodic=self.src.is_periodic,
         )["depth"]
         if write_to_file:
             self.write_topo_file(
