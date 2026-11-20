@@ -1,0 +1,216 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "id": "c54ce533",
+   "metadata": {},
+   "source": [
+    "# Interactive editors\n",
+    "\n",
+    "`mom6_forge` has two notebook widgets:\n",
+    "\n",
+    "* `VGridCreator` builds a vertical grid (`VGrid`), uniform or hyperbolic, and keeps a library of saved grids.\n",
+    "* `TopoEditor` edits a bathymetry (`Topo`) cell by cell: depths, land and ocean, basins, with undo and redo.\n",
+    "\n",
+    "Each widget is a front end over ordinary `mom6_forge` calls, so whatever you do in one can also be done in Python.\n",
+    "\n",
+    "The widgets run in JupyterLab, Jupyter Notebook 7, VS Code, Colab and marimo; on NCAR's JupyterHub, install anywidget for your user once first. The [widgets page](../widgets.md) explains that, describes every control, and has live versions of both widgets that run in your browser.\n",
+    "\n",
+    "On the documentation website the widgets below are shown as they were when the documentation was built. No Python runs there, so most controls do nothing; run the notebook to use them."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "7acb43e6",
+   "metadata": {},
+   "source": [
+    "## 1. A small test domain\n",
+    "\n",
+    "A 6° x 4° box at 0.1° (60 x 40 cells) with a bowl-shaped bathymetry, 200 m at the edges and 2000 m in the middle.\n",
+    "\n",
+    "`git=True` keeps an edit history in a `TopoLibrary/` folder next to the notebook. That gives TopoEditor its undo, redo, reset, tag and branch controls. With `git=False` (the default) the editor still edits, but keeps no history."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "fecc9107",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from mom6_forge.grid import Grid\n",
+    "from mom6_forge.topo import Topo\n",
+    "from mom6_forge.vgrid import VGrid\n",
+    "from mom6_forge.widgets import TopoEditor, VGridCreator\n",
+    "\n",
+    "grid = Grid(lenx=6.0, leny=4.0, resolution=0.1, xstart=283.0, ystart=35.0, name=\"editor_demo\")\n",
+    "topo = Topo(grid, min_depth=10.0, git=True)\n",
+    "topo.set_bowl(max_depth=2000.0, dedge=200.0)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "f65ec8e8",
+   "metadata": {},
+   "source": [
+    "Wall off the south-east corner with land, so that it becomes a separate basin to try the basin tools on. This uses `topo.apply_edits`, the same call TopoEditor makes for each edit. Cells are `(j, i)` index pairs."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "a6665697",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "wall = [(j, 45) for j in range(16)] + [(15, i) for i in range(45, 60)]\n",
+    "changed = topo.apply_edits([{\"op\": \"land\", \"cells\": wall}])"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "20f4a0fa",
+   "metadata": {},
+   "source": [
+    "## 2. VGridCreator\n",
+    "\n",
+    "Start from a hyperbolic grid. Passing `topo` lets the widget warn when the grid is shallower than the deepest point of the bathymetry; here it is (1500 m against 2000 m).\n",
+    "\n",
+    "* **Uniform / Hyperbolic**: uniform layers all have the same thickness; hyperbolic layers change thickness smoothly with depth.\n",
+    "* **Levels** and **Depth (m)**: the number of layers and the total depth.\n",
+    "* **Bottom/top thickness ratio** (hyperbolic only): bottom layer thickness divided by top layer thickness. Above 1 gives thin layers near the surface and thick ones at depth.\n",
+    "* **Reset to the starting grid**: back to the grid the widget was opened with.\n",
+    "* **Library**: **Save** writes `VGridLibrary/vgrid_<name>.nc` with your message, **Load** reads a saved grid back. Saving under an existing name asks before replacing it.\n",
+    "\n",
+    "The plot shows each layer as a bar as wide as its thickness, at its depth."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "3596801a",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "vgrid = VGrid.hyperbolic(nk=20, depth=1500.0, ratio=8.0, name=\"editor_demo\")\n",
+    "vgc = VGridCreator(vgrid=vgrid, topo=topo)\n",
+    "vgc"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "43d7699c",
+   "metadata": {},
+   "source": [
+    "The grid in the widget is `vgc.vgrid`, an ordinary `VGrid`:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "fc1b0f62",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "vgrid = vgc.vgrid"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "aef3586b",
+   "metadata": {},
+   "source": [
+    "## 3. TopoEditor\n",
+    "\n",
+    "The map is drawn in grid-index space: one pixel per cell, `i` to the right and `j` up. That keeps picking a cell exact on rotated, curvilinear and polar grids. Hover over a cell to see its `i`, `j`, longitude, latitude and depth.\n",
+    "\n",
+    "Things to try:\n",
+    "\n",
+    "1. Switch the view to **basinmask**. The walled-off corner is its own basin.\n",
+    "2. With the **Select** tool, click a cell in the large basin, then **Erase disconnected basins**. The corner becomes land.\n",
+    "3. Click **Undo**, and the corner comes back.\n",
+    "4. Drag a box, type a depth and click **Set depth**. Or pick **Paint land** and paint over a few cells.\n",
+    "\n",
+    "The editor changes `topo` in place."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "c92fd564",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "editor = TopoEditor(topo)\n",
+    "editor"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "c5923a55",
+   "metadata": {},
+   "source": [
+    "## 4. The same edits in Python\n",
+    "\n",
+    "Every editor action is one `topo.apply_edits` entry, so a script or an AI assistant can make the same edits. The ops are `depth`, `land`, `ocean`, `clear_mask`, `min_depth`, `fill_from_stats`, `erase_selected_basin` and `erase_disconnected_basin`; the `Topo.apply_edits` docstring gives the fields of each. Each entry is one history step, and `topo.undo()`, `topo.redo()` and `topo.reset()` step through the history (they need `git=True`).\n",
+    "\n",
+    "An open editor does not redraw for edits made from Python; run a cell with just `editor` to show it again from the current `topo`. The cell below changes nothing in the end, so the editor above stays current."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "2bc58498",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Deepen two cells, then take it back.\n",
+    "changed = topo.apply_edits([{\"op\": \"depth\", \"cells\": [(20, 10), (20, 11)], \"value\": 2500.0}])\n",
+    "changed = topo.undo()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "70a5a386",
+   "metadata": {},
+   "source": [
+    "## 5. Save the results"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "cff6ef13",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "topo.write_topo_file(\"ocean_topog_editor_demo.nc\")\n",
+    "vgrid.write_vgrid_file(\"ocean_vgrid_editor_demo.nc\");"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3 (ipykernel)",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.11.15"
+  },
+  "nbsphinx": {
+   "execute": "always"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}

@@ -1,0 +1,448 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interactive Widgets &mdash; mom6_forge 0.3.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Vibur" />
+      <link rel="stylesheet" type="text/css" href="_static/jupyterlite_sphinx.css?v=f676e775" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=4621528c"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script src="_static/jupyterlite_sphinx.js?v=96e329c5"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@jupyter-widgets/html-manager@^1.0.1/dist/embed-amd.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="mom6_forge" href="api/modules.html" />
+    <link rel="prev" title="Glossary" href="glossary.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            mom6_forge
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bathymetry_workflow.html">Bathymetry Workflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mapping.html">Regridding &amp; Mapping</a></li>
+<li class="toctree-l1"><a class="reference internal" href="notebooks.html">Notebooks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Interactive Widgets</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#where-the-widgets-run">Where the widgets run</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#topoeditor">TopoEditor</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#try-it-in-your-browser">Try it in your browser</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#the-map">The map</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#controls">Controls</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#the-same-edits-from-python">The same edits from Python</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#vgridcreator">VGridCreator</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id1">Try it in your browser</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#edit-history">Edit history</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#gridcreator-was-removed">GridCreator was removed</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Python API:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api/modules.html">mom6_forge</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Contributing:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">mom6_forge</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Interactive Widgets</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/widgets.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="interactive-widgets">
+<h1>Interactive Widgets<a class="headerlink" href="#interactive-widgets" title="Link to this heading"></a></h1>
+<p><code class="docutils literal notranslate"><span class="pre">mom6_forge</span></code> has two notebook widgets:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">TopoEditor</span></code> edits a bathymetry (<code class="docutils literal notranslate"><span class="pre">Topo</span></code>) cell by cell.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">VGridCreator</span></code> builds a vertical grid (<code class="docutils literal notranslate"><span class="pre">VGrid</span></code>) and keeps a library of saved ones.</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mom6_forge.widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">TopoEditor</span><span class="p">,</span> <span class="n">VGridCreator</span>
+</pre></div>
+</div>
+<p>Each widget is a front end over ordinary <code class="docutils literal notranslate"><span class="pre">mom6_forge</span></code> calls. It does nothing you
+could not do in Python, and what it builds is an ordinary object: the editor
+changes the <code class="docutils literal notranslate"><span class="pre">Topo</span></code> you give it, and the creator’s grid is <code class="docutils literal notranslate"><span class="pre">creator.vgrid</span></code>. The
+<a class="reference internal" href="notebooks/7_demo_editors.html"><span class="doc">Interactive editors</span></a> notebook shows both.</p>
+<section id="where-the-widgets-run">
+<h2>Where the widgets run<a class="headerlink" href="#where-the-widgets-run" title="Link to this heading"></a></h2>
+<p>The widgets are <a class="reference external" href="https://anywidget.dev">anywidgets</a> with plain JavaScript front
+ends. They run in JupyterLab, Jupyter Notebook 7, VS Code, Google Colab and
+marimo. Installing <code class="docutils literal notranslate"><span class="pre">mom6_forge</span></code> installs <code class="docutils literal notranslate"><span class="pre">anywidget</span></code>; nothing else is needed (no
+<code class="docutils literal notranslate"><span class="pre">%matplotlib</span> <span class="pre">ipympl</span></code>).</p>
+<p><strong>NCAR’s JupyterHub.</strong> The Hub’s JupyterLab server runs from NCAR’s own
+environment, which does not include anywidget’s browser side, so the widgets do
+not appear. Install it once for your user, with the same anywidget version as
+your <code class="docutils literal notranslate"><span class="pre">mom6_forge</span></code> environment (the browser side only loads widgets of a matching
+version). In a terminal with that environment active:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>--user<span class="w"> </span><span class="s2">"anywidget==</span><span class="k">$(</span>python<span class="w"> </span>-c<span class="w"> </span><span class="s1">'import anywidget; print(anywidget.__version__)'</span><span class="k">)</span><span class="s2">"</span>
+</pre></div>
+</div>
+<p>Then restart your server (File &gt; Hub Control Panel &gt; Stop My Server, then start
+it again). Alternatively, ask CISL to add anywidget to the Hub environment.</p>
+<p><strong>Errors</strong> show inside the widget, in a red box. If something goes wrong in the
+browser, the error is also kept in Python as <code class="docutils literal notranslate"><span class="pre">widget.js_errors</span></code>; the traceback of
+the last Python error is <code class="docutils literal notranslate"><span class="pre">widget.last_traceback</span></code>. Include them when you report a
+problem.</p>
+</section>
+<section id="topoeditor">
+<h2>TopoEditor<a class="headerlink" href="#topoeditor" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">TopoEditor</span></code> is for fixing a bathymetry by hand: filling bays, opening or closing
+straits, removing lakes and disconnected basins, and setting the minimum depth.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mom6_forge.topo</span><span class="w"> </span><span class="kn">import</span> <span class="n">Topo</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mom6_forge.widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">TopoEditor</span>
+
+<span class="n">topo</span> <span class="o">=</span> <span class="n">Topo</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">min_depth</span><span class="o">=</span><span class="mf">10.0</span><span class="p">,</span> <span class="n">git</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># git=True keeps an edit history</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">set_from_dataset</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>                   <span class="c1"># or set_flat, Topo.from_topo_file, ...</span>
+
+<span class="n">editor</span> <span class="o">=</span> <span class="n">TopoEditor</span><span class="p">(</span><span class="n">topo</span><span class="p">)</span>
+<span class="n">editor</span>
+</pre></div>
+</div>
+<p>The editor changes <code class="docutils literal notranslate"><span class="pre">topo</span></code> in place (<code class="docutils literal notranslate"><span class="pre">editor.topo</span></code> is the same object). Write it
+out with <code class="docutils literal notranslate"><span class="pre">topo.write_topo_file(...)</span></code> when you are done.</p>
+<p>With <code class="docutils literal notranslate"><span class="pre">git=True</span></code>, every button press and every brush stroke is one step in the
+edit history, which gives you undo, redo, reset, tags and branches (see
+<a class="reference internal" href="#topo-edit-history"><span class="std std-ref">Edit history</span></a> below). With <code class="docutils literal notranslate"><span class="pre">git=False</span></code> (the default) the editor
+edits the same way, but keeps no history.</p>
+<section id="try-it-in-your-browser">
+<h3>Try it in your browser<a class="headerlink" href="#try-it-in-your-browser" title="Link to this heading"></a></h3>
+<p>The button below starts Python in your browser (Pyodide, through JupyterLite),
+installs <code class="docutils literal notranslate"><span class="pre">mom6_forge</span></code> and opens the editor on a small test bathymetry. Nothing
+is installed on your computer, and nothing you do is kept. There is no git in
+the browser, so this topo has no edit history.</p>
+
+                <div
+                    class="jupyterlite_sphinx_iframe_container"
+                    style="width: 100%; height: 1000px;"
+                    onclick="window.jupyterliteShowIframe(
+                        '4753ac8c-8e2a-4b4d-9318-a0908741e3ed',
+                        window.jupyterliteConcatSearchParams('lite/repl/index.html?kernel=python&execute=1&clearCellsOnExecute=0&clearCodeContentOnExecute=0&hideCodeInput=0&showBanner=1&promptCellPosition=bottom&code=import%20piplite%0Aawait%20piplite.install%28%5B%22anywidget%22%2C%20%22numpy%22%2C%20%22scipy%22%2C%20%22xarray%22%2C%20%22pyproj%22%5D%29%0Aawait%20piplite.install%28%5B%22mom6_forge%22%5D%2C%20deps%3DFalse%29%20%20%23%20skip%20ESMF%20and%20the%20rest%2C%20not%20needed%20here%0Afrom%20mom6_forge.grid%20import%20Grid%0Afrom%20mom6_forge.topo%20import%20Topo%0Afrom%20mom6_forge.widgets%20import%20TopoEditor%0Agrid%20%3D%20Grid%28lenx%3D6.0%2C%20leny%3D4.0%2C%20resolution%3D0.1%2C%20xstart%3D283.0%2C%20ystart%3D35.0%2C%20name%3D%22demo%22%29%0Atopo%20%3D%20Topo%28grid%2C%20min_depth%3D10.0%29%0Atopo.set_bowl%28max_depth%3D2000.0%2C%20dedge%3D200.0%29%0ATopoEditor%28topo%29', false)
+                    )"
+                >
+                    <div
+                        id=4753ac8c-8e2a-4b4d-9318-a0908741e3ed
+                        class="jupyterlite_sphinx_try_it_button jupyterlite_sphinx_try_it_button_unclicked"
+                        style="background-color: #f7dc1e;"
+                    >
+                    Start TopoEditor
+                    </div>
+                </div>
+            </section>
+<section id="the-map">
+<h3>The map<a class="headerlink" href="#the-map" title="Link to this heading"></a></h3>
+<p>The map is drawn in grid-index space: one pixel per cell, <code class="docutils literal notranslate"><span class="pre">i</span></code> to the right and
+<code class="docutils literal notranslate"><span class="pre">j</span></code> up. Picking a cell is exact on any grid, including rotated, curvilinear and
+polar ones, where a longitude/latitude map would distort the domain or split it.
+Hover over a cell to read its <code class="docutils literal notranslate"><span class="pre">i</span></code>, <code class="docutils literal notranslate"><span class="pre">j</span></code>, longitude, latitude and depth under the
+map; the colour bar below gives the depth scale.</p>
+<p>Scroll to zoom, or use the <strong>+</strong>, <strong>−</strong> and fit buttons at the corner of the
+map. Pan with the right mouse button, or by holding Space and dragging.</p>
+</section>
+<section id="controls">
+<h3>Controls<a class="headerlink" href="#controls" title="Link to this heading"></a></h3>
+<p><strong>View</strong> chooses what the map shows:</p>
+<ul class="simple">
+<li><p><strong>depth</strong>: ocean cells coloured by depth.</p></li>
+<li><p><strong>mask</strong>: land and ocean only.</p></li>
+<li><p><strong>basinmask</strong>: each connected ocean basin in its own colour, to find lakes and
+basins cut off from the main ocean.</p></li>
+</ul>
+<p><strong>Tool</strong> chooses what clicking and dragging on the map does:</p>
+<ul class="simple">
+<li><p><strong>Select</strong>: click a cell, or drag to select a rectangle of cells.</p></li>
+<li><p><strong>Paint depth</strong>, <strong>Paint land</strong>, <strong>Paint ocean</strong>: paint with a brush. Paint
+depth sets each painted cell to the depth in the <strong>Selection</strong> depth field.
+The <strong>Brush</strong> slider sets the brush radius in cells. One stroke is one edit.</p></li>
+</ul>
+<p><strong>Selection</strong> acts on the selected cell or rectangle. Selecting one ocean cell
+puts its depth in the depth field.</p>
+<ul class="simple">
+<li><p><strong>Set depth</strong>: set every selected cell to the depth in the field (m, positive
+down).</p></li>
+<li><p><strong>Set land</strong>, <strong>Set ocean</strong>: mark the selected cells as land or ocean in the
+manual mask.</p></li>
+<li><p><strong>From source: Mean / Max / Min</strong>: set each selected cell to the mean, maximum
+or minimum of the source bathymetry over that cell. These buttons appear only
+when the topo has source statistics (<code class="docutils literal notranslate"><span class="pre">topo.stats</span></code>), which <code class="docutils literal notranslate"><span class="pre">set_from_dataset</span></code>
+computes on its sub-sampling path; otherwise call <code class="docutils literal notranslate"><span class="pre">topo.set_src(...)</span></code> and
+<code class="docutils literal notranslate"><span class="pre">topo.compute_stats(...)</span></code> first.</p></li>
+<li><p><strong>Clear selection</strong>.</p></li>
+</ul>
+<p><strong>Mask and minimum depth</strong>:</p>
+<ul class="simple">
+<li><p><strong>Clear manual mask</strong>: drop the land and ocean marks you made and go back to
+the mask that follows from depth and minimum depth.</p></li>
+<li><p>The minimum depth field and <strong>Apply</strong>: cells shallower than this become land.</p></li>
+</ul>
+<p>Land and ocean edits change only the manual mask, never the depth. The first
+one starts the manual mask; from then on, depth and minimum-depth edits no
+longer change which cells are land, until you clear the manual mask.</p>
+<p><strong>Basins</strong> (shown in the basinmask view) act on the basin that contains the
+selected ocean cell:</p>
+<ul class="simple">
+<li><p><strong>Erase selected basin</strong>: turn that basin into land.</p></li>
+<li><p><strong>Erase disconnected basins</strong>: keep that basin and turn every basin not
+connected to it into land.</p></li>
+</ul>
+<p><strong>History</strong> (only with <code class="docutils literal notranslate"><span class="pre">git=True</span></code>; otherwise the panel says how to turn it on):</p>
+<ul class="simple">
+<li><p><strong>Undo</strong>, <strong>Redo</strong>.</p></li>
+<li><p><strong>Reset</strong>: go back to the bathymetry as it was before your edits, that is, to
+the last call that set the whole field (<code class="docutils literal notranslate"><span class="pre">set_flat</span></code>, <code class="docutils literal notranslate"><span class="pre">set_from_dataset</span></code>, …).
+A reset is itself a history step, so it can be undone.</p></li>
+<li><p><strong>Tag</strong>: name the current state. This also writes <code class="docutils literal notranslate"><span class="pre">&lt;tag&gt;_topog.nc</span></code> into the
+topo’s history folder. The tags are listed below the buttons.</p></li>
+<li><p><strong>Create branch</strong>, and the branch list with <strong>Checkout</strong>: keep alternative
+versions of the bathymetry and switch between them. The list marks the current
+branch.</p></li>
+</ul>
+<p>A status line under the map says what the last action changed.</p>
+</section>
+<section id="the-same-edits-from-python">
+<h3>The same edits from Python<a class="headerlink" href="#the-same-edits-from-python" title="Link to this heading"></a></h3>
+<p>Every editor action is one call to <code class="docutils literal notranslate"><span class="pre">topo.apply_edits</span></code>, so a script or an AI
+assistant can make the same edits. Cells are <code class="docutils literal notranslate"><span class="pre">(j,</span> <span class="pre">i)</span></code> index pairs:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">changed</span> <span class="o">=</span> <span class="n">topo</span><span class="o">.</span><span class="n">apply_edits</span><span class="p">([</span>
+    <span class="p">{</span><span class="s2">"op"</span><span class="p">:</span> <span class="s2">"depth"</span><span class="p">,</span> <span class="s2">"cells"</span><span class="p">:</span> <span class="p">[(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">),</span> <span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">21</span><span class="p">)],</span> <span class="s2">"value"</span><span class="p">:</span> <span class="mf">250.0</span><span class="p">},</span>
+    <span class="p">{</span><span class="s2">"op"</span><span class="p">:</span> <span class="s2">"land"</span><span class="p">,</span> <span class="s2">"cells"</span><span class="p">:</span> <span class="p">[(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">7</span><span class="p">)]},</span>
+    <span class="p">{</span><span class="s2">"op"</span><span class="p">:</span> <span class="s2">"erase_disconnected_basin"</span><span class="p">,</span> <span class="s2">"cell"</span><span class="p">:</span> <span class="p">[</span><span class="mi">30</span><span class="p">,</span> <span class="mi">40</span><span class="p">]},</span>
+<span class="p">])</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">undo</span><span class="p">()</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">redo</span><span class="p">()</span>
+<span class="n">topo</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>The ops are <code class="docutils literal notranslate"><span class="pre">depth</span></code>, <code class="docutils literal notranslate"><span class="pre">land</span></code>, <code class="docutils literal notranslate"><span class="pre">ocean</span></code>, <code class="docutils literal notranslate"><span class="pre">clear_mask</span></code>, <code class="docutils literal notranslate"><span class="pre">min_depth</span></code>,
+<code class="docutils literal notranslate"><span class="pre">fill_from_stats</span></code>, <code class="docutils literal notranslate"><span class="pre">erase_selected_basin</span></code> and <code class="docutils literal notranslate"><span class="pre">erase_disconnected_basin</span></code>; the
+<a class="reference internal" href="api/mom6_forge.html#mom6_forge.topo.Topo.apply_edits" title="mom6_forge.topo.Topo.apply_edits"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Topo.apply_edits</span></code></a> docstring gives
+the fields of each. Each entry is one history step. Every entry is checked
+before any is applied, so a bad one raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> and changes nothing; an
+edit that changes nothing adds no history step. <code class="docutils literal notranslate"><span class="pre">apply_edits</span></code>, <code class="docutils literal notranslate"><span class="pre">undo</span></code>, <code class="docutils literal notranslate"><span class="pre">redo</span></code>
+and <code class="docutils literal notranslate"><span class="pre">reset</span></code> return the <code class="docutils literal notranslate"><span class="pre">(j,</span> <span class="pre">i)</span></code> cells that changed. <code class="docutils literal notranslate"><span class="pre">undo</span></code>, <code class="docutils literal notranslate"><span class="pre">redo</span></code> and <code class="docutils literal notranslate"><span class="pre">reset</span></code>
+need <code class="docutils literal notranslate"><span class="pre">git=True</span></code>; <code class="docutils literal notranslate"><span class="pre">topo.can_undo</span></code> and <code class="docutils literal notranslate"><span class="pre">topo.can_redo</span></code> say whether there is
+anything to undo or redo.</p>
+<p>An open editor does not redraw for edits made from Python. Show it again (run a
+cell with just <code class="docutils literal notranslate"><span class="pre">editor</span></code>) and every view of it redraws from the current topo.</p>
+</section>
+</section>
+<section id="vgridcreator">
+<h2>VGridCreator<a class="headerlink" href="#vgridcreator" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">VGridCreator</span></code> is for choosing the number of layers, the depth and the layer
+spacing of a vertical grid by eye.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mom6_forge.vgrid</span><span class="w"> </span><span class="kn">import</span> <span class="n">VGrid</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mom6_forge.widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">VGridCreator</span>
+
+<span class="n">creator</span> <span class="o">=</span> <span class="n">VGridCreator</span><span class="p">()</span>  <span class="c1"># uniform, 10 levels, 100 m</span>
+<span class="n">creator</span> <span class="o">=</span> <span class="n">VGridCreator</span><span class="p">(</span><span class="n">vgrid</span><span class="o">=</span><span class="n">VGrid</span><span class="o">.</span><span class="n">hyperbolic</span><span class="p">(</span><span class="mi">50</span><span class="p">,</span> <span class="mf">4000.0</span><span class="p">,</span> <span class="mf">10.0</span><span class="p">),</span> <span class="n">topo</span><span class="o">=</span><span class="n">topo</span><span class="p">)</span>
+<span class="n">creator</span>
+
+<span class="n">vgrid</span> <span class="o">=</span> <span class="n">creator</span><span class="o">.</span><span class="n">vgrid</span>
+</pre></div>
+</div>
+<p>All arguments are optional:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">vgrid</span></code>: the grid to start from. <strong>Reset</strong> returns to it.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">topo</span></code>: anything with a <code class="docutils literal notranslate"><span class="pre">max_depth</span></code>, such as a <code class="docutils literal notranslate"><span class="pre">Topo</span></code>. The widget warns while
+the grid is shallower than that.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">repo_root</span></code>: the folder that holds <code class="docutils literal notranslate"><span class="pre">VGridLibrary/</span></code>. Default: the current
+directory.</p></li>
+</ul>
+<p>Controls:</p>
+<ul class="simple">
+<li><p><strong>Uniform / Hyperbolic</strong>: uniform layers all have the same thickness;
+hyperbolic layers change thickness smoothly with depth (see <a class="reference internal" href="quickstart.html"><span class="doc">Quickstart Guide</span></a>).</p></li>
+<li><p><strong>Levels</strong> and <strong>Depth (m)</strong>: the number of layers and the total depth.</p></li>
+<li><p><strong>Bottom/top thickness ratio</strong> (hyperbolic only): bottom layer thickness
+divided by top layer thickness, as in <code class="docutils literal notranslate"><span class="pre">VGrid.hyperbolic</span></code>. Above 1 gives thin
+layers near the surface and thick ones at depth; below 1 the reverse.</p></li>
+<li><p><strong>Reset to the starting grid</strong>.</p></li>
+</ul>
+<p>The plot shows each layer as a bar from its top to its bottom interface, as wide
+as its thickness, with a dot at the layer centre. The caption gives the number
+of layers, the total depth and the top and bottom layer thicknesses.</p>
+<p>A grid passed in, or loaded from the library, need not be uniform or hyperbolic.
+The widget then shows it as it is and sets the controls to the nearest uniform
+or hyperbolic settings; changing a control replaces it with a grid built from
+the controls.</p>
+<p><strong>Library.</strong> Enter a name (letters, digits, <code class="docutils literal notranslate"><span class="pre">_</span></code>, <code class="docutils literal notranslate"><span class="pre">-</span></code> or <code class="docutils literal notranslate"><span class="pre">.</span></code>) and a message
+saying what the grid is for, then <strong>Save</strong> to write
+<code class="docutils literal notranslate"><span class="pre">VGridLibrary/vgrid_&lt;name&gt;.nc</span></code>. The folder is created on the first save. If a
+grid with that name exists, the widget asks before replacing it. The table lists
+the saved grids, newest first, with their levels, depth, date and message;
+<strong>Load</strong> opens one.</p>
+<section id="id1">
+<h3>Try it in your browser<a class="headerlink" href="#id1" title="Link to this heading"></a></h3>
+<p>As for TopoEditor, the button below runs VGridCreator in your browser. The
+library does not work there: a saved grid is listed, but cannot be read back.</p>
+
+                <div
+                    class="jupyterlite_sphinx_iframe_container"
+                    style="width: 100%; height: 800px;"
+                    onclick="window.jupyterliteShowIframe(
+                        'c4d7e958-0f04-4fd5-a748-0ae1da45f928',
+                        window.jupyterliteConcatSearchParams('lite/repl/index.html?kernel=python&execute=1&clearCellsOnExecute=0&clearCodeContentOnExecute=0&hideCodeInput=0&showBanner=1&promptCellPosition=bottom&code=import%20piplite%0Aawait%20piplite.install%28%5B%22anywidget%22%2C%20%22numpy%22%2C%20%22scipy%22%2C%20%22xarray%22%5D%29%0Aawait%20piplite.install%28%5B%22mom6_forge%22%5D%2C%20deps%3DFalse%29%20%20%23%20skip%20ESMF%20and%20the%20rest%2C%20not%20needed%20here%0Afrom%20mom6_forge.vgrid%20import%20VGrid%0Afrom%20mom6_forge.widgets%20import%20VGridCreator%0AVGridCreator%28vgrid%3DVGrid.hyperbolic%28nk%3D20%2C%20depth%3D1500.0%2C%20ratio%3D8.0%2C%20name%3D%22demo%22%29%29', false)
+                    )"
+                >
+                    <div
+                        id=c4d7e958-0f04-4fd5-a748-0ae1da45f928
+                        class="jupyterlite_sphinx_try_it_button jupyterlite_sphinx_try_it_button_unclicked"
+                        style="background-color: #f7dc1e;"
+                    >
+                    Start VGridCreator
+                    </div>
+                </div>
+            </section>
+</section>
+<section id="edit-history">
+<span id="topo-edit-history"></span><h2>Edit history<a class="headerlink" href="#edit-history" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">Topo(grid,</span> <span class="pre">min_depth,</span> <span class="pre">git=True)</span></code> records every edit in a git repository, which
+is what powers undo, redo, reset, tags and branches, in the editor and in
+Python. The repository is a folder under <code class="docutils literal notranslate"><span class="pre">TopoLibrary/</span></code> (set with
+<code class="docutils literal notranslate"><span class="pre">version_control_dir</span></code>), named after a hash of the grid’s cell centres, so every
+<code class="docutils literal notranslate"><span class="pre">Topo</span></code> on the same grid shares one folder:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>TopoLibrary/&lt;grid hash&gt;/
+    .gitignore
+    command_history.json   # every edit, keyed by commit
+    grid.nc                # the horizontal grid
+    original_topog.nc      # the blank topo the history is replayed onto
+    &lt;tag&gt;_topog.nc         # one per tag
+</pre></div>
+</div>
+<p>Each edit is one commit, and <code class="docutils literal notranslate"><span class="pre">command_history.json</span></code> maps each commit to the
+edit it made, for example:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>"8e351d1a94...": {"type": "DepthEditCommand", "affected_indices": [[0, 0], [0, 1], ...], ...}
+</pre></div>
+</div>
+<p>Undo and redo are commits too, named <code class="docutils literal notranslate"><span class="pre">UNDO-&lt;sha&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">REDO-&lt;sha&gt;</span></code>, so the full
+history, including what was undone, is kept. You can read it with <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">log</span></code> in
+the folder:</p>
+<figure class="align-center" id="id2">
+<a class="reference internal image-reference" href="_images/TopoSampleGitLog.png"><img alt="_images/TopoSampleGitLog.png" src="_images/TopoSampleGitLog.png" style="width: 500px;" />
+</a>
+<figcaption>
+<p><span class="caption-text">Example <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">log</span></code> of a topo editing session.</span><a class="headerlink" href="#id2" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<p>From Python:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">topo.undo()</span></code>, <code class="docutils literal notranslate"><span class="pre">topo.redo()</span></code>, <code class="docutils literal notranslate"><span class="pre">topo.reset()</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">topo.tcm.tag(&quot;name&quot;)</span></code> tags the current state and writes <code class="docutils literal notranslate"><span class="pre">name_topog.nc</span></code>.
+Tags cannot be checked out.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">topo.tcm.create_branch(&quot;name&quot;)</span></code> and <code class="docutils literal notranslate"><span class="pre">topo.tcm.checkout(&quot;name&quot;)</span></code> create and
+switch branches. <code class="docutils literal notranslate"><span class="pre">topo.tcm.list_branches()</span></code> lists them.</p></li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Only read the folder with git (<code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">log</span></code> and the like). mom6_forge manages it,
+and git commands that change it, such as <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">checkout</span></code> or <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">reset</span></code>, can
+leave the topo history in a broken state.</p>
+</div>
+<p>There are three ways to get a <code class="docutils literal notranslate"><span class="pre">Topo</span></code> with history:</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Topo(grid,</span> <span class="pre">min_depth,</span> <span class="pre">git=True)</span></code>: start a new bathymetry. If the grid’s
+folder already exists, new edits are added to its history.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Topo.from_version_control(path)</span></code>: rebuild a topo from a history folder by
+replaying its edits.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Topo.from_topo_file(grid,</span> <span class="pre">file,</span> <span class="pre">git=True)</span></code>: read a topography file and
+record it as an edit on top of the folder’s history.</p></li>
+</ol>
+</section>
+<section id="gridcreator-was-removed">
+<h2>GridCreator was removed<a class="headerlink" href="#gridcreator-was-removed" title="Link to this heading"></a></h2>
+<p>Earlier versions had a <code class="docutils literal notranslate"><span class="pre">GridCreator</span></code> widget for drawing horizontal grids on a
+map. It has been removed; an interactive replacement (GridSketcher) is planned.
+Until then, make grids in code with <code class="docutils literal notranslate"><span class="pre">Grid(...)</span></code>, <code class="docutils literal notranslate"><span class="pre">Grid.from_center(...)</span></code> (a
+rotated rectangle around a centre point) or <code class="docutils literal notranslate"><span class="pre">Grid.from_projection(...)</span></code> (any
+map projection, including polar stereographic); see <a class="reference internal" href="quickstart.html"><span class="doc">Quickstart Guide</span></a>.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="glossary.html" class="btn btn-neutral float-left" title="Glossary" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="api/modules.html" class="btn btn-neutral float-right" title="mom6_forge" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, NCAR.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

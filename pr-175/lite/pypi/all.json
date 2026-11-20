@@ -1,0 +1,28 @@
+{
+  "mom6-forge": {
+    "releases": {
+      "0.4.0": [
+        {
+          "comment_text": "",
+          "digests": {
+            "md5": "e909ced6f1fbc2b36af4069305826e0c",
+            "sha256": "504eec82599e138543f718c43b4dcad84830c58ed51712dcb22b13fb2be47851"
+          },
+          "downloads": -1,
+          "filename": "mom6_forge-0.4.0-py3-none-any.whl",
+          "has_sig": false,
+          "md5_digest": "e909ced6f1fbc2b36af4069305826e0c",
+          "packagetype": "bdist_wheel",
+          "python_version": "py3",
+          "requires_python": ">=3.11,<3.15",
+          "size": 134792,
+          "upload_time": "2026-11-20T22:35:40.393847Z",
+          "upload_time_iso_8601": "2026-11-20T22:35:40.393847Z",
+          "url": "./mom6_forge-0.4.0-py3-none-any.whl",
+          "yanked": false,
+          "yanked_reason": null
+        }
+      ]
+    }
+  }
+}
