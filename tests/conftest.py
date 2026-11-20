@@ -4,13 +4,7 @@ from pathlib import Path
 import xarray as xr
 from mom6_forge.grid import Grid
 from mom6_forge.topo import Topo
-from mom6_forge.topo_editor import TopoEditor
 from mom6_forge._source_bathy import SourceBathy
-
-
-@pytest.fixture
-def get_editor(get_rect_topo_with_vc):
-    return TopoEditor(get_rect_topo_with_vc, build_ui=False)
 
 
 @pytest.fixture
