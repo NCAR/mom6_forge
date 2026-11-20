@@ -25,8 +25,11 @@ jobs:
       - name: Set up Micromamba (with caching)
         uses: mamba-org/setup-micromamba@v2
         with:
-          environment-file: environment.yml    
+          environment-file: environment.yml
           cache-environment: true
+          # The env pip-installs mom6_forge, so its dependencies come from setup.py.
+          # Rebuild the cached env when they change, not only when environment.yml does.
+          cache-environment-key: env-${{ hashFiles('setup.py') }}
           cache-downloads: true
           micromamba-version: "latest"
 
