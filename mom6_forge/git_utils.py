@@ -1,5 +1,4 @@
 import os
-import git
 import hashlib
 from pathlib import Path
 
@@ -23,6 +22,8 @@ def get_repo(path):
     Ensure a git repository exists at the given path. If not, initialize one.
     Returns the repo object.
     """
+    import git  # GitPython; imported here so Topo works without it when git=False
+
     if not os.path.exists(os.path.join(path, ".git")):
         repo = git.Repo.init(path)
         # Path to .gitignore

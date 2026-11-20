@@ -52,8 +52,8 @@ def test_TopoCommandManager_undo(get_rect_topo_with_vc, gen_MinDepthCommand):
         and sha_of_command in topo.tcm.repo.head.commit.message
     )  # Assert head commit is an undo commit and the reference is to the correct sha
     assert (
-        len(topo.tcm._history_state()) == 4
-    )  # Initial + execute + the undone order, there should not be an additional history command for the undo in the history state, after all it is just the opposite of the executed command
+        len(topo.tcm._history_state()["cmd_data"]) == 3
+    )  # Initial + set_flat + execute, there should not be an additional history command for the undo in the history state, after all it is just the opposite of the executed command
     topo.tcm.undo()  # Undo the initial two commands
     assert topo.tcm.undo(check_only=True)  # At least one command to undo
     topo.tcm.undo()
@@ -79,8 +79,8 @@ def test_TopoCommandManager_redo(get_rect_topo_with_vc, gen_MinDepthCommand):
         and sha_of_command in topo.tcm.repo.head.commit.message
     )  # Assert head commit is an redo commit and the reference is to the correct sha
     assert (
-        len(topo.tcm._history_state()) == 4
-    )  # Initial + execute + the undone order, there should not be an additional history command for the undo or redo in the history state, after all it is just the opposite and reapplication of the executed command
+        len(topo.tcm._history_state()["cmd_data"]) == 3
+    )  # Initial + set_flat + execute, there should not be an additional history command for the undo or redo in the history state, after all it is just the opposite and reapplication of the executed command
     topo.tcm.undo()  # Undo the three commands
     topo.tcm.undo()
     topo.tcm.undo()
@@ -121,8 +121,9 @@ def test_TopoCommandManager_reset(get_rect_topo_with_vc, gen_MinDepthCommand):
     topo.tcm.execute(gen_MinDepthCommand)
     assert topo.min_depth == 10.0  # Assert Action taken
     topo.tcm.reset()
-    assert (topo.masked_depth == 0).all()  # Assert reset worked
+    assert (topo.masked_depth == 1000).all()  # Back to set_flat, not a blank topo
     assert topo.min_depth == 0.0  # Assert min depth reset
+    assert topo.tcm.repo.head.commit.message.startswith("UNDO")  # Reset is recorded
 
 
 def test_tcm_checkout(get_rect_topo_with_vc, gen_MinDepthCommand):

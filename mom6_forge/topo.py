@@ -3,7 +3,6 @@ import copy
 import warnings
 import numpy as np
 import xarray as xr
-import xesmf as xe
 from datetime import datetime
 from typing import Optional
 from scipy import interpolate
@@ -22,15 +21,9 @@ from mom6_forge.git_utils import get_domain_dir, get_repo
 from pathlib import Path
 from mom6_forge.edit_command import *
 from mom6_forge.command_manager import TopoCommandManager, CommandType
-from mom6_forge.mapping import (
-    regrid_dataset_via_xesmf,
-    regrid_with_subsampling,
-    regrid_dataset_via_cressman,
-)
 from mom6_forge._source_bathy import SourceBathy
 from mom6_forge.channel_width import ChannelWidthList
 from mom6_forge._supergrid import haversine, _DEFAULT_RADIUS
-import regionmask
 from mom6_forge._supergrid import _DEFAULT_RADIUS, SupergridBase
 
 VALID_MASK_METHODS = ("naturalearth", "ocean_frac", "dataset", "manual")
@@ -142,6 +135,16 @@ def ww3_timesteps_from_spacing(
     }
 
 
+def _number(edit, key):
+    """edit[key] as a float, else a ValueError that names the edit and the field."""
+    try:
+        return float(edit[key])
+    except (TypeError, ValueError):
+        raise ValueError(
+            f"{edit.get('op')!r} edit needs a number for {key!r}, got {edit[key]!r}."
+        ) from None
+
+
 class Topo:
     """
     Bathymetry Generator for MOM6 grids (mom6_forge.grid.Grid).
@@ -168,12 +171,12 @@ class Topo:
             Channel width constraints. Can be a filepath to load from, a ChannelWidthList object, or None.
         version_control_dir: str, optional
             Directory in which to store version-controlled bathymetry data. Defaults to
-            "TopoLibrary". Ignored if git is False (version control is no longer used)
+            "TopoLibrary". Ignored if git is False.
         git: bool, optional
-            If True (default), initialize a git repository for version control and
-            undo/redo support. If False, skip all git and filesystem side-effects;
-            note that undo(), redo(), branch, and tag operations will be
-            unavailable. TopoEditor also requires git=True.
+            If True, record every edit in a git repository under version_control_dir,
+            which enables undo, redo, reset, branches and tags. If False (default),
+            edits apply directly with no history and nothing is written to disk.
+            TopoEditor works either way; without git it has no undo or redo.
         """
 
         self._grid = grid
@@ -202,32 +205,30 @@ class Topo:
             self.channel_widths = ChannelWidthList(filepath=channel_widths)
 
         if git:
-
-            # Create a folder to store bathymetry objects in
-            self.topos_root = Path(version_control_dir).mkdir(exist_ok=True)
-            (Path(version_control_dir) / ".gitignore").write_text("*")
-
-            # Create the subfolder for this specific bathymetry
-            self.domain_dir = Path(get_domain_dir(grid, base_dir=version_control_dir))
-            self.domain_dir.mkdir(
-                exist_ok=True
-            )  # This folder should not already exist.
-
-            # Save the grid info there (there can only be 1 grid per bathymetry)
-            self.grid_file_path = self.domain_dir / "grid.nc"
-            grid.write_supergrid_file(self.grid_file_path)
-
-            # Initialize the git repo
-            self.repo = get_repo(self.domain_dir)
-
-            # Set up TCM (requires that self.domain_dir exists)
-            self.tcm = TopoCommandManager(self, command_registry=COMMAND_REGISTRY)
+            self._start_version_control(version_control_dir)
             self.apply_edit(initial_command)
-
         else:
             self.tcm = None
             # Apply the initial min_depth command directly without git recording
             initial_command()
+
+    def _start_version_control(self, version_control_dir):
+        """Open (or create) the git edit history for this grid under version_control_dir."""
+        # Create a folder to store bathymetry objects in
+        Path(version_control_dir).mkdir(exist_ok=True)
+        (Path(version_control_dir) / ".gitignore").write_text("*")
+
+        # Create the subfolder for this specific bathymetry
+        self.domain_dir = Path(get_domain_dir(self._grid, base_dir=version_control_dir))
+        self.domain_dir.mkdir(exist_ok=True)
+
+        # Save the grid info there (there can only be 1 grid per bathymetry)
+        self.grid_file_path = self.domain_dir / "grid.nc"
+        self._grid.write_supergrid_file(self.grid_file_path)
+
+        # Initialize the git repo and the TCM (requires that self.domain_dir exists)
+        self.repo = get_repo(self.domain_dir)
+        self.tcm = TopoCommandManager(self, command_registry=COMMAND_REGISTRY)
 
     def __getitem__(self, slices):
         """
@@ -279,19 +280,11 @@ class Topo:
 
         grid = Grid.from_supergrid_file(grid_file_path)
 
-        # Create the topo object
-        topo = Topo(
-            grid,
-            0.0,
-            version_control_dir=folder_path.parent,
-            channel_widths=channel_widths,
-            git=True,
-        )  # Because we hash the grid, the correct domain will be selected
-
-        # Reapply any changes
+        # Build without git so loading adds nothing to the history, then attach the
+        # history (the grid hash selects this folder) and replay it, min_depth included.
+        topo = Topo(grid, 0.0, channel_widths=channel_widths)
+        topo._start_version_control(folder_path.parent)
         topo.tcm.reapply_changes()
-        topo.tcm.undo()  # Undo the initialization min_depth set to 0.0. (How it works is the changes are ordered from the previous state to the new state, so undoing the initial set to 0.0 leaves the correct min_depth)
-
         return topo
 
     @classmethod
@@ -715,6 +708,172 @@ class Topo:
         else:
             self.tcm.execute(cmd, cmd_type=cmd_type)
 
+    @property
+    def can_undo(self):
+        """True if there is an edit to undo. Always False without git."""
+        return self.has_version_control and self.tcm.undo(check_only=True)
+
+    @property
+    def can_redo(self):
+        """True if there is an undone edit to redo. Always False without git."""
+        return self.has_version_control and self.tcm.redo(check_only=True)
+
+    def undo(self):
+        """Undo the latest edit. Returns the (n, 2) array of (j, i) cells that changed."""
+        return self._history_step("undo")
+
+    def redo(self):
+        """Redo the latest undone edit. Returns the (n, 2) array of (j, i) cells that changed."""
+        return self._history_step("redo")
+
+    def reset(self):
+        """
+        Undo the edits made since the bathymetry was last set as a whole (set_flat,
+        set_from_dataset, a full user_mask, ...). Recorded in git, so it survives a
+        reload and can be redone. Returns the (n, 2) array of (j, i) cells that changed.
+        """
+        return self._history_step("reset")
+
+    def _history_step(self, name):
+        """Run tcm.undo, tcm.redo or tcm.reset and return the (j, i) cells it changed."""
+        if not self.has_version_control:
+            raise RuntimeError(
+                "This Topo has no edit history; create it with git=True to undo, redo or reset."
+            )
+        before = self._cell_state()
+        getattr(self.tcm, name)()
+        return self._cells_changed_since(before)
+
+    def apply_edits(self, edits):
+        """
+        Apply a list of JSON-able edits in order, each one history step when git is on.
+
+        cells are (n, 2) (j, i) pairs. The ops are:
+            {"op": "depth", "cells": cells, "value": float}   set depth (m, positive down)
+            {"op": "land", "cells": cells}                     manual mask -> land
+            {"op": "ocean", "cells": cells}                    manual mask -> ocean
+            {"op": "clear_mask"}                               clear the manual mask
+            {"op": "min_depth", "value": float}
+            {"op": "fill_from_stats", "cells": cells, "statistic": "mean" | "max" | "min"}
+            {"op": "erase_selected_basin", "cell": [j, i]}
+            {"op": "erase_disconnected_basin", "cell": [j, i]}
+
+        Every edit is checked before any is applied; a bad one raises ValueError. An
+        edit that changes nothing is skipped and adds no history step.
+
+        Returns the (n, 2) int array of (j, i) cells whose depth or mask changed.
+        """
+        steps = [self._edit_step(edit) for edit in edits]
+        before = self._cell_state()
+        for step in steps:
+            step()
+        return self._cells_changed_since(before)
+
+    def _edit_step(self, edit):
+        """Check one apply_edits dict and return a function that applies it."""
+        op = edit.get("op")
+        try:
+            if op == "depth":
+                cells, value = self._checked_cells(edit["cells"]), _number(
+                    edit, "value"
+                )
+                return lambda: self._edit_cells(
+                    DepthEditCommand, cells, self._depth.values, value
+                )
+            if op in ("land", "ocean"):
+                cells, value = self._checked_cells(edit["cells"]), int(op == "ocean")
+                return lambda: self._edit_cells(
+                    MaskEditCommand, cells, self.tmask.values, value
+                )
+            if op == "clear_mask":
+
+                def clear_mask():
+                    if self._user_mask is not None:
+                        self.clear_user_mask()
+
+                return clear_mask
+            if op == "min_depth":
+                value = _number(edit, "value")
+
+                def set_min_depth():
+                    if value != self.min_depth:
+                        self.apply_edit(MinDepthEditCommand(self, "min_depth", value))
+
+                return set_min_depth
+            if op == "fill_from_stats":
+                cells, statistic = self._checked_cells(edit["cells"]), edit["statistic"]
+                if self.stats is None:
+                    raise ValueError(
+                        "fill_from_stats needs topo.stats; call set_src and compute_stats first."
+                    )
+                if statistic not in ("mean", "max", "min"):
+                    raise ValueError(
+                        f"statistic must be 'mean', 'max' or 'min', not {statistic!r}."
+                    )
+                stat = self.stats[f"D_{statistic}"].values[cells[:, 0], cells[:, 1]]
+                has_data = np.isfinite(stat)  # cells without source data are left alone
+                return lambda: self._edit_cells(
+                    DepthEditCommand,
+                    cells[has_data],
+                    self._depth.values,
+                    stat[has_data],
+                )
+            if op in ("erase_selected_basin", "erase_disconnected_basin"):
+                j, i = self._checked_cells([edit["cell"]])[0]
+                return lambda: getattr(self, op)(i=int(i), j=int(j))
+        except KeyError as missing:
+            raise ValueError(
+                f"{op!r} edit is missing the {missing} field: {edit}"
+            ) from None
+        raise ValueError(
+            f"Unknown edit op {op!r}; expected one of depth, land, ocean, clear_mask, "
+            "min_depth, fill_from_stats, erase_selected_basin, erase_disconnected_basin."
+        )
+
+    def _checked_cells(self, cells):
+        """cells as an (n, 2) int array of (j, i) on this grid, else ValueError."""
+        cells = np.asarray(cells)
+        if cells.size == 0:
+            return np.empty((0, 2), dtype=int)
+        if (
+            cells.ndim != 2
+            or cells.shape[1] != 2
+            or not np.issubdtype(cells.dtype, np.integer)
+        ):
+            raise ValueError(
+                f"cells must be an (n, 2) array of integer (j, i) pairs, "
+                f"got shape {cells.shape} and dtype {cells.dtype}."
+            )
+        off_grid = cells[((cells < 0) | (cells >= self._depth.shape)).any(axis=1)]
+        if len(off_grid):
+            raise ValueError(
+                f"cells {off_grid[:5].tolist()} are off the (ny, nx) = "
+                f"{self._depth.shape} grid."
+            )
+        return cells
+
+    def _edit_cells(self, command, cells, current, new):
+        """Apply a depth or mask command to the cells whose value changes, if any do."""
+        new = np.broadcast_to(new, len(cells))
+        old = current[cells[:, 0], cells[:, 1]]
+        changed = old != new
+        if changed.any():
+            self.apply_edit(
+                command(self, cells[changed], new[changed], old_values=old[changed])
+            )
+
+    def _cell_state(self):
+        """Raw depth, masked depth and mask of every cell, stacked into one array."""
+        return np.stack(
+            [self._depth.values, self.masked_depth.values, self.tmask.values]
+        )
+
+    def _cells_changed_since(self, before):
+        """(n, 2) int array of the (j, i) cells whose _cell_state differs from before."""
+        after = self._cell_state()
+        same = (before == after) | (np.isnan(before) & np.isnan(after))
+        return np.argwhere(~same.all(axis=0))
+
     def set_src(
         self,
         bathymetry_path,
@@ -1051,6 +1210,8 @@ class Topo:
             and self.stats.attrs.get("mask_hmin") == mask_hmin
         ):
             return self.stats
+
+        from mom6_forge.mapping import regrid_with_subsampling
 
         # Compute subsampling factor and generate sub-point grid
         ds, _ = regrid_with_subsampling(
@@ -1525,6 +1686,8 @@ class Topo:
         # circle: global and tripolar grids as well as polar caps, whose rim
         # crosses the antimeridian. Without it, destination cells between the
         # source's last and first column get no data.
+        from mom6_forge.mapping import regrid_dataset_via_xesmf
+
         self.depth = regrid_dataset_via_xesmf(
             input_dataset=self.src_bathymetry_dataset,
             output_dataset=self.destination_bathymetry,
@@ -1656,6 +1819,8 @@ class Topo:
             Where to save the ESMF weights netCDF. If ``None`` (default), the
             weights are kept in memory and nothing is written.
         """
+        from mom6_forge.mapping import regrid_dataset_via_cressman
+
         # --- Regrid via mapping module (weights → file → cressman Regridder) ---
 
         dst_ds = self._grid.get_esmf_ready_tracer_ds()
@@ -1973,6 +2138,8 @@ class Topo:
             data_vars={}, coords={"lat": self._grid.tlat, "lon": self._grid.tlon}
         )
 
+        import xesmf as xe
+
         regridder = xe.Regridder(
             ds, ds_mapped, method, periodic=self._grid.supergrid.is_cyclic_x
         )
@@ -2022,6 +2189,8 @@ class Topo:
         version : str
             Version of the Natural Earth dataset in regionmask. e.g. "v5_1_2".
         """
+
+        import regionmask
 
         region_attr = f"natural_earth_{version}"
         land_attr = f"land_{resolution}"

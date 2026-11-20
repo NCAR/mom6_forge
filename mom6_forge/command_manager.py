@@ -30,6 +30,11 @@ class CommandManager(ABC):
             with self.history_file_path.open("r") as f:
                 self.history_dict = json.load(f)
 
+        # Edit history (see _history_state), kept in step with each commit and
+        # rebuilt from git only when HEAD moves under it (checkout, another process).
+        self._cache = None
+        self._cache_head = None
+
     def write_history(self):
         """Write the current history dictionary to the history file."""
         with self.history_file_path.open("w") as f:
@@ -47,14 +52,16 @@ class CommandManager(ABC):
         pass
 
     def commit(self, command, cmd_type: CommandType, command_message=None):
-        """Add a command to the history."""
+        """Commit a command to git and step the cached history to match."""
+        state = self._history()  # bring the cache up to date before HEAD moves
 
-        # The command must be serializable to JSON
-        command_data = command.serialize()
+        command_data = None
         if cmd_type == CommandType.COMMAND:
+            command_data = command.serialize()  # must be JSON-serializable
             self.add_to_history("head", json.dumps(command_data))
         else:
-            self.touch_history()  # just bump history to let the commt happen
+            # UNDO/REDO commits store no data; just bump history to let the commit happen
+            self.touch_history()
         # git add it
         rel_path = os.path.relpath(self.history_file_path, self.repo.working_tree_dir)
 
@@ -65,6 +72,9 @@ class CommandManager(ABC):
             "-m",
             f"{cmd_type.value}-{command_message if command_message is not None else ''}",
         )
+        sha = self.repo.head.commit.hexsha
+        self._step(state, cmd_type, sha, command_message, command_data)
+        self._cache_head = sha
 
     def parse_commit_message(self, sha):
         """
@@ -139,38 +149,44 @@ class CommandManager(ABC):
 
     def _history_state(self):
         """
-        Build a linear logical history of commands and their undo/redo state.
-        Returns a dict: sha -> state dict.
+        Rebuild the edit history by walking the git log.
+
+        Returns {"cmd_data": {sha: data}, "applied": [sha, ...], "undone": [sha, ...]}:
+        the applied commands oldest first, and the redo stack with the next redo last.
         """
         self.load_history()
-        state = {}  # sha -> {cmd_data, applied, undone, redone}
-        state["undone_order"] = []
-
+        state = {"cmd_data": {}, "applied": [], "undone": []}
+        if not self.repo.head.is_valid():
+            return state  # no commits yet
         for commit in self.repo.iter_commits(reverse=True):
-            sha = commit.hexsha
-
             try:
-                cmd_type, affected_sha, cmd_data = self.parse_commit_message(sha)
+                cmd_type, target, cmd_data = self.parse_commit_message(commit.hexsha)
             except ValueError:
-                continue
-
-            if cmd_type == CommandType.COMMAND:
-                state[sha] = dict(
-                    cmd_data=cmd_data,
-                    applied=True,
-                )
-                state["undone_order"].clear()
-
-            elif cmd_type == CommandType.UNDO:
-                # this UNDO targets affected_sha
-                state["undone_order"].append(affected_sha)
-                state[affected_sha]["applied"] = False
-
-            elif cmd_type == CommandType.REDO:
-                state[affected_sha]["applied"] = True
-                state["undone_order"].remove(affected_sha)
-
+                continue  # not a history commit
+            self._step(state, cmd_type, commit.hexsha, target, cmd_data)
         return state
+
+    @staticmethod
+    def _step(state, cmd_type, sha, target, cmd_data):
+        """Advance a history state by one commit. An UNDO or REDO that matches nothing is ignored."""
+        if cmd_type == CommandType.COMMAND:
+            state["cmd_data"][sha] = cmd_data
+            state["applied"].append(sha)
+            state["undone"].clear()
+        elif cmd_type == CommandType.UNDO and target in state["applied"]:
+            state["applied"].remove(target)
+            state["undone"].append(target)
+        elif cmd_type == CommandType.REDO and target in state["undone"]:
+            state["undone"].remove(target)
+            state["applied"].append(target)
+
+    def _history(self):
+        """The edit history, cached; the git log is walked again only if HEAD has moved."""
+        head = self.repo.head.commit.hexsha if self.repo.head.is_valid() else None
+        if self._cache is None or head != self._cache_head:
+            self._cache = self._history_state()
+            self._cache_head = head
+        return self._cache
 
     def get_current_branch(self):
         return self.repo.active_branch.name
@@ -216,16 +232,15 @@ class TopoCommandManager(CommandManager):
         self.reapply_changes()
 
     def reapply_changes(self):
-        """Reapply all changes from history to the topo."""
-        # Load the original topo file
-        branch_topo_path = self.directory / "original_topog.nc"
-        self._topo.set_depth_via_topog_file(branch_topo_path, skip_version_control=True)
-        state = self._history_state()
-        for commit in state:
-            if isinstance(state[commit], dict) and state[commit]["applied"]:
-                command_class = self.command_registry[state[commit]["cmd_data"]["type"]]
-                cmd = command_class.deserialize(state[commit]["cmd_data"])(self._topo)
-                cmd()  # No need to execute again, just replay
+        """Rebuild the topo from the original file by replaying the applied commands."""
+        self._topo.set_depth_via_topog_file(
+            self._original_topo_path, skip_version_control=True
+        )
+        self._topo._user_mask = None  # the original has no manual mask
+        state = self._history()
+        for sha in state["applied"]:
+            cmd_data = state["cmd_data"][sha]
+            self.command_registry[cmd_data["type"]].deserialize(cmd_data)(self._topo)()
 
     def execute(self, cmd, cmd_type: CommandType = CommandType.COMMAND, message=None):
         """
@@ -247,55 +262,50 @@ class TopoCommandManager(CommandManager):
             )
 
     def undo(self, check_only=False):
-        # Find first commit that isn't an undo
-        state = self._history_state()
-        can_undo = False
-        for commit in self.repo.iter_commits():
-            commit_sha = commit.hexsha
-            if (
-                commit_sha in state
-            ):  # i.e. it is a command (undo and redo's are not stored)
-                if state[commit_sha]["applied"]:
-                    cmd_data = state[commit_sha]["cmd_data"]
-                    can_undo = True
-                    break
-
-        if can_undo and not check_only:
-            command_class = self.command_registry[cmd_data["type"]]
-            cmd = command_class.reverse_deserialize(cmd_data)(self._topo)
-            self.execute(
-                cmd, cmd_type=CommandType.UNDO, message=f"{commit_sha}"
-            )  # This is the revert right here, a revert commit
-        return can_undo
+        """Undo the latest applied command with an UNDO commit. Returns whether there was one."""
+        state = self._history()
+        if check_only or not state["applied"]:
+            return bool(state["applied"])
+        sha = state["applied"][-1]
+        cmd_data = state["cmd_data"][sha]
+        command_class = self.command_registry[cmd_data["type"]]
+        cmd = command_class.reverse_deserialize(cmd_data)(self._topo)
+        self.execute(cmd, cmd_type=CommandType.UNDO, message=sha)
+        return True
 
     def redo(self, check_only=False):
-        # Redo needs to find the first revert commit and only runs if it doesn't hit a COMMAND cmd_type in the backwards iteration then takes the revert commit and reverse desearlies and has the message "REDO-<original commit sha>"
-        can_redo = False
-        state = self._history_state()
-        if len(state["undone_order"]) > 0:
-            can_redo = True
-
-        if can_redo and not check_only:
-            cmd_data = state[state["undone_order"][-1]]["cmd_data"]
-            command_class = self.command_registry[cmd_data["type"]]
-            cmd = command_class.deserialize(cmd_data)(self._topo)
-            self.execute(
-                cmd, cmd_type=CommandType.REDO, message=f"{state['undone_order'][-1]}"
-            )
-        return can_redo
+        """Redo the latest undone command with a REDO commit. Returns whether there was one."""
+        state = self._history()
+        if check_only or not state["undone"]:
+            return bool(state["undone"])
+        sha = state["undone"][-1]
+        cmd_data = state["cmd_data"][sha]
+        command_class = self.command_registry[cmd_data["type"]]
+        cmd = command_class.deserialize(cmd_data)(self._topo)
+        self.execute(cmd, cmd_type=CommandType.REDO, message=sha)
+        return True
 
     def reset(self):
-        """Reset the bathymetry to its original state by replaying commands from end to beginning."""
+        """
+        Undo back to the latest command that set every cell's depth or mask.
 
-        for commit in self.repo.iter_commits():
-            commit_sha = commit.hexsha
-            try:
-                cmd_type, affected_sha, cmd_data = self.parse_commit_message(commit_sha)
-            except ValueError:
-                continue  # skip malformed messages
+        That command (set_flat, set_from_dataset, topo.user_mask = ..., ...) is the
+        baseline the later edits were made on. The first command, made when the Topo
+        was created, is never undone. Each step is an UNDO commit, so a reset is kept
+        on reload and can be redone.
+        """
+        while True:
+            state = self._history()
+            applied = state["applied"]
+            if len(applied) <= 1 or self._sets_every_cell(
+                state["cmd_data"][applied[-1]]
+            ):
+                return
+            self.undo()
 
-            if cmd_type == CommandType.COMMAND:
-                # Reconstruct and execute the command
-                command_class = self.command_registry[cmd_data["type"]]
-                cmd = command_class.reverse_deserialize(cmd_data)(self._topo)
-                cmd()  # No need to execute again, just replay
+    def _sets_every_cell(self, cmd_data):
+        """True for a depth or mask edit that covers the whole grid (old histories included)."""
+        if cmd_data["type"] not in ("DepthEditCommand", "MaskEditCommand"):
+            return False
+        cmd = self.command_registry[cmd_data["type"]].deserialize(cmd_data)(self._topo)
+        return len(cmd.affected_indices) == self._topo.depth.size

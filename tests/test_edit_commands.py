@@ -87,8 +87,8 @@ def test_serialize_deserialize_MaskEditCommand(gen_MaskEditCommand):
     rdc = MaskEditCommand.reverse_deserialize(serialized)(command._topo)
     assert deserialized_command.affected_indices == command.affected_indices
     assert deserialized_command.new_values == command.new_values
-    assert rdc.affected_indices == command.affected_indices
-    assert rdc.new_values == command.old_values
+    # This edit started the manual mask, so undoing it clears the mask again
+    assert isinstance(rdc, ClearMaskCommand)
 
 
 def test_ClearMaskCommand_init_and_execute(get_rect_topo_without_vc):
