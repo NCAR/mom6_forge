@@ -44,14 +44,6 @@ mom6\_forge.grid module
    :undoc-members:
    :show-inheritance:
 
-mom6\_forge.grid\_creator module
---------------------------------
-
-.. automodule:: mom6_forge.grid_creator
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 mom6\_forge.mapping module
 --------------------------
 
@@ -76,14 +68,6 @@ mom6\_forge.topo module
    :undoc-members:
    :show-inheritance:
 
-mom6\_forge.topo\_editor module
--------------------------------
-
-.. automodule:: mom6_forge.topo_editor
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 mom6\_forge.utils module
 ------------------------
 
@@ -100,12 +84,18 @@ mom6\_forge.vgrid module
    :undoc-members:
    :show-inheritance:
 
-mom6\_forge.vgrid\_creator module
----------------------------------
+mom6\_forge.widgets.topo\_editor module
+---------------------------------------
 
-.. automodule:: mom6_forge.vgrid_creator
+.. automodule:: mom6_forge.widgets.topo_editor
    :members:
-   :undoc-members:
+   :show-inheritance:
+
+mom6\_forge.widgets.vgrid\_creator module
+-----------------------------------------
+
+.. automodule:: mom6_forge.widgets.vgrid_creator
+   :members:
    :show-inheritance:
 
 Module contents

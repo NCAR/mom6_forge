@@ -32,16 +32,16 @@ pip install mom6_forge
 
 ## Quick Start
 
-See the tutorial notebooks in [`notebooks/`](notebooks/) for guided examples:
+See the tutorial notebooks in [`docs/source/notebooks/`](docs/source/notebooks/) for guided examples:
 
-1. [Spherical Grid](notebooks/1_spherical_grid.ipynb) — Create a basic spherical grid
-2. [Equatorial Refinement](notebooks/2_equatorial_res.ipynb) — Add enhanced equatorial resolution
-3. [Custom Bathymetry](notebooks/3_custom_bathy.ipynb) — Generate bathymetry from topography data
-4. [Ingest Land Mask](notebooks/4_ingest_landmask.ipynb) — Apply an external land mask
-5. [Modify Existing](notebooks/5_modify_existing.ipynb) — Modify an existing grid/bathymetry
-6. [Coarsen Existing](notebooks/6_coarsen_existing.ipynb) — Create a coarser version of an existing MOM6 grid
-7. [Demo Editors](notebooks/7_demo_editors.ipynb) — Interactive bathymetry editing tools
-8. [Cressman Interpolation](notebooks/8_cressman_interpolation.ipynb) — Deep dive into the Cressman distance-weighted interpolation used for bathymetry
+1. [Spherical Grid](docs/source/notebooks/1_spherical_grid.ipynb) — Create a basic spherical grid
+2. [Equatorial Refinement](docs/source/notebooks/2_equatorial_res.ipynb) — Add enhanced equatorial resolution
+3. [Custom Bathymetry](docs/source/notebooks/3_custom_bathy.ipynb) — Generate bathymetry from topography data
+4. [Ingest Land Mask](docs/source/notebooks/4_ingest_landmask.ipynb) — Apply an external land mask
+5. [Modify Existing](docs/source/notebooks/5_modify_existing.ipynb) — Modify an existing grid/bathymetry
+6. [Coarsen Existing](docs/source/notebooks/6_coarsen_existing.ipynb) — Create a coarser version of an existing MOM6 grid
+7. [Interactive Editors](docs/source/notebooks/7_demo_editors.ipynb) — The `TopoEditor` and `VGridCreator` notebook widgets
+8. [Cressman Interpolation](docs/source/notebooks/8_cressman_interpolation.ipynb) — Deep dive into the Cressman distance-weighted interpolation used for bathymetry
 
 ## Requirements
 

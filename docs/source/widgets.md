@@ -1,239 +1,325 @@
-# UI  Widgets
+# Interactive Widgets
 
-This document explains the widget modules in `mom6_forge`.
+`mom6_forge` has two notebook widgets:
 
-`mom6_forge` comes with three UI modules/classes that wrap the three main
-classes—`VGrid`, `Grid`, and `Topo`—to help with creating vertical grids
-(`VGridCreator`), horizontal grids (`GridCreator`), and editing topography
-(`TopoEditor`).
+* `TopoEditor` edits a bathymetry (`Topo`) cell by cell.
+* `VGridCreator` builds a vertical grid (`VGrid`) and keeps a library of saved ones.
 
-## Creators
-
-The creators act as visual wrappers around the constructors of their respective
-classes, providing sliders and visualizations. They automatically generate
-folders called `VGridLibrary` and `GridLibrary` to store created grids.
-The currently selected grid is directly accessible as an object inside each
-creator.
-
-### GridCreator
-
-`GridCreator` is a split-panel widget: a control panel on the left and an
-interactive cartopy map on the right.  It supports three creation modes,
-selected via radio buttons before any grid is defined.
-
-**Lat/Lon Corners**
-
-Drag a rectangle on the map.  A uniform-degree `Grid` is created
-from the bounding box.  After creation, five degree sliders appear
-(`xstart`, `ystart`, `lenx`, `leny`, `resolution`) for live
-adjustment.
-
-**From Center**
-
-Set the domain width (km), height (km), resolution (km), and a clockwise
-rotation angle (degrees from north) in the input fields, then click the
-domain centre on the map.  This calls `Grid.from_center()`, which builds a
-rotated rectangular grid using an azimuthal equidistant projection centred at
-the clicked point.  This mode is particularly useful for aligning a domain
-with a coastline or estuary.
-
-**From Projection**
-
-Set a CRS (chosen from a preset dropdown or typed as any EPSG string) and
-resolution (km), then click two corners on the map.  This calls
-`Grid.from_projection()`.
-
-When a preset CRS is selected the map axes switches to the matching native
-cartopy projection so that clicks deliver coordinates in that projection's
-metres directly — no additional transformation is needed, and domains near or
-over the poles work correctly.  Supported presets:
-
-```{list-table}
-:header-rows: 1
-:widths: 30 40 30
-
-* - Preset
-  - Cartopy projection
-  - Default view
-* - EPSG:4326 (Plate Carrée)
-  - PlateCarree (no switch)
-  - Global
-* - EPSG:3995 (Arctic Polar Stereographic)
-  - NorthPolarStereo
-  - 45–90°N
-* - EPSG:3031 (Antarctic Polar Stereographic)
-  - SouthPolarStereo
-  - 90–45°S
-* - EPSG:5070 (CONUS Albers Equal Area)
-  - AlbersEqualArea
-  - CONUS
-* - Any other EPSG string
-  - PlateCarree (fallback)
-  - CRS area-of-use (via pyproj)
+```python
+from mom6_forge.widgets import TopoEditor, VGridCreator
 ```
 
-**Editing projected grids**
+Each widget is a front end over ordinary `mom6_forge` calls. It does nothing you
+could not do in Python, and what it builds is an ordinary object: the editor
+changes the `Topo` you give it, and the creator's grid is `creator.vgrid`. The
+{doc}`notebooks/7_demo_editors` notebook shows both.
 
-After a projected grid (From Center or From Projection) is created or loaded,
-the control panel shows the same parameter inputs pre-filled with the current
-values alongside a **Recreate Grid** button.  Adjust the inputs and click
-Recreate to rebuild the grid without needing to re-click the map.
+## Where the widgets run
 
-**GridLibrary**
+The widgets are [anywidgets](https://anywidget.dev) with plain JavaScript front
+ends. They run in JupyterLab, Jupyter Notebook 7, VS Code, Google Colab and
+marimo. Installing `mom6_forge` installs `anywidget`; nothing else is needed (no
+`%matplotlib ipympl`).
 
-Grids are saved as MOM6 supergrid NetCDF files under `<repo_root>/GridLibrary/`
-(naming convention: `grid_<name>.nc`).  The directory is created automatically
-and a blanket `.gitignore` is written into it so saved grids are not
-accidentally committed.
+**NCAR's JupyterHub.** The Hub's JupyterLab server runs from NCAR's own
+environment, which does not include anywidget's browser side, so the widgets do
+not appear. Install it once for your user, with the same anywidget version as
+your `mom6_forge` environment (the browser side only loads widgets of a matching
+version). In a terminal with that environment active:
 
-On **Load**, all creation parameters are restored from the file's metadata, so
-the **Recreate** button works immediately after loading a projected grid without
-any additional clicks.
-
-### VGridCreator
-
-`VGridCreator` is a control-panel-and-plot widget for building a `VGrid`
-interactively: a live plot on the right shows each layer's center depth as a
-horizontal line, updating as the controls on the left change.
-
-A **Type** toggle switches between `Uniform` and `Hyperbolic` vertical grids
-(see {doc}`quickstart`). **Levels** and **Depth (m)** sliders set `nk` and
-`depth`; a **Top/Bottom Ratio** slider (enabled only in `Hyperbolic` mode)
-sets the ratio of bottom to top layer thickness. If a `Topo` instance is
-passed to the constructor (`VGridCreator(topo=topo)`), a warning is shown
-whenever the chosen depth is shallower than that topo's `max_depth`, since the
-vertical grid needs to extend at least to the deepest point of the bathymetry.
-
-**VGridLibrary**
-
-Like `GridCreator`, `VGridCreator` has a **Library** section for saving and
-loading named vertical grids. Enter a name and message and click **Save
-VGrid** to write `VgridLibrary/vgrid_<name>.nc`; the dropdown lists
-previously saved vgrids (most recent first) with their name, depth, and level
-count for **Load**. The `Reset` button reverts the current session's edits
-back to the vgrid the widget was constructed with.
-
-## Topo & TopoEditor Edits
-
-The `Topo` & `TopoEditor` workflow is a bit more nuanced.
-
-Grids are simple: they are created once and rarely modified. `Topo` objects,
-however, are built on top of the horizontal grid and are heavily edited during
-the development cycle (filling bays, deepening ridges, etc.).
-
-Because of this, `Topo` has many editing functions. `TopoEditor` provides a
-visual, point-and-click interface on top of these functions.
-
-Current editing functions (`*` = available in `TopoEditor`):
-
-1. `*` Edit depth at a specific point
-2. `*` Edit the minimum depth
-3. `*` Erase a basin at a selected point
-4. `*` Erase every basin except the one containing the selected point
-5. Generate and apply an ocean mask from a land-fraction dataset
-6. Apply a ridge to the bathymetry
-
-You can also reapply an initializer (none supported in the TopoEditor):
-
-1. Set flat bathy
-2. Set spoon bathy
-3. Set bowl bathy
-4. Set from dataset
-5. Set from previous topo object
-
-## Undo & Redo
-
-To support the iterative editing process, we provide **undo and redo**
-functionality across sessions. This requires maintaining a structured history,
-stored inside a directory associated with your `Topo` object.
-
-This folder contains:
-
-1. The grid underlying the topo
-2. The original blank topo
-3. A permanent command history
-
-```{figure} images/TopoLibrarySample.png
-:align: center
-:width: 500px
-
-Layout of a `Topo` folder.
+```bash
+pip install --user "anywidget==$(python -c 'import anywidget; print(anywidget.__version__)')"
 ```
 
-```{figure} images/TopoTempCommandHistory.png
-:align: center
-:width: 500px
+Then restart your server (File > Hub Control Panel > Stop My Server, then start
+it again). Alternatively, ask CISL to add anywidget to the Hub environment.
 
-Structure of the command history JSON file.
+**Errors** show inside the widget, in a red box. If something goes wrong in the
+browser, the error is also kept in Python as `widget.js_errors`; the traceback of
+the last Python error is `widget.last_traceback`. Include them when you report a
+problem.
+
+## TopoEditor
+
+`TopoEditor` is for fixing a bathymetry by hand: filling bays, opening or closing
+straits, removing lakes and disconnected basins, and setting the minimum depth.
+
+```python
+from mom6_forge.topo import Topo
+from mom6_forge.widgets import TopoEditor
+
+topo = Topo(grid, min_depth=10.0, git=True)  # git=True keeps an edit history
+topo.set_from_dataset(...)                   # or set_flat, Topo.from_topo_file, ...
+
+editor = TopoEditor(topo)
+editor
 ```
 
-## How It Works
+The editor changes `topo` in place (`editor.topo` is the same object). Write it
+out with `topo.write_topo_file(...)` when you are done.
 
-1. You create your `Topo` object, which initializes the four files above.
-2. You make changes using `Topo` or `TopoEditor`.
-3. Each change is added to history.
-4. Each change is then **committed via Git**—this powers undo/redo.
+With `git=True`, every button press and every brush stroke is one step in the
+edit history, which gives you undo, redo, reset, tags and branches (see
+{ref}`topo-edit-history` below). With `git=False` (the default) the editor
+edits the same way, but keeps no history.
 
-## Topo Git Functionality and How to Use It
+### Try it in your browser
 
-We use Git to implement undo/redo functionality inside the topo directory.
+The button below starts Python in your browser (Pyodide, through JupyterLite),
+installs `mom6_forge` and opens the editor on a small test bathymetry. Nothing
+is installed on your computer, and nothing you do is kept. There is no git in
+the browser, so this topo has no edit history.
 
-You can view the history with:
+```{replite}
+:kernel: python
+:height: 1000px
+:prompt: Start TopoEditor
 
-`git log`
-
-The command history is a JSON file mapping commit SHAs to change
-metadata. You can cross-reference the Git log with this JSON file to inspect
-details of each edit.
-
-We also support simple version-control actions:
-
-- `topo.tcm.create_branch("branchname")` — create a branch  
-- `topo.tcm.checkout("branchname")` — switch branches  
-- `topo.tcm.tag("tagname")` — create a tag and save a `tagname_topog.nc` file  
-
-Tags cannot be checked out (this can cause unexpected states).
-
-Undo and redo:
-
-- `topo.tcm.undo()`
-- `topo.tcm.redo()`
-
-These appear in the Git log as:
-
-- `UNDO-<sha>`
-- `REDO-<sha>`
-
-Be careful not to undo your initial set-function!
-
-```{warning}
-Do **not** run Git commands inside this folder except for harmless commands like `git log`.
-We manage the folder internally. External Git commands (like `git checkout`)
-may break state management.
+import piplite
+await piplite.install(["anywidget", "numpy", "scipy", "xarray", "pyproj"])
+await piplite.install(["mom6_forge"], deps=False)  # skip ESMF and the rest, not needed here
+from mom6_forge.grid import Grid
+from mom6_forge.topo import Topo
+from mom6_forge.widgets import TopoEditor
+grid = Grid(lenx=6.0, leny=4.0, resolution=0.1, xstart=283.0, ystart=35.0, name="demo")
+topo = Topo(grid, min_depth=10.0)
+topo.set_bowl(max_depth=2000.0, dedge=200.0)
+TopoEditor(topo)
 ```
+
+### The map
+
+The map is drawn in grid-index space: one pixel per cell, `i` to the right and
+`j` up. Picking a cell is exact on any grid, including rotated, curvilinear and
+polar ones, where a longitude/latitude map would distort the domain or split it.
+Hover over a cell to read its `i`, `j`, longitude, latitude and depth under the
+map; the colour bar below gives the depth scale.
+
+Scroll to zoom, or use the **+**, **−** and fit buttons at the corner of the
+map. Pan with the right mouse button, or by holding Space and dragging.
+
+### Controls
+
+**View** chooses what the map shows:
+
+* **depth**: ocean cells coloured by depth.
+* **mask**: land and ocean only.
+* **basinmask**: each connected ocean basin in its own colour, to find lakes and
+  basins cut off from the main ocean.
+
+**Tool** chooses what clicking and dragging on the map does:
+
+* **Select**: click a cell, or drag to select a rectangle of cells.
+* **Paint depth**, **Paint land**, **Paint ocean**: paint with a brush. Paint
+  depth sets each painted cell to the depth in the **Selection** depth field.
+  The **Brush** slider sets the brush radius in cells. One stroke is one edit.
+
+**Selection** acts on the selected cell or rectangle. Selecting one ocean cell
+puts its depth in the depth field.
+
+* **Set depth**: set every selected cell to the depth in the field (m, positive
+  down).
+* **Set land**, **Set ocean**: mark the selected cells as land or ocean in the
+  manual mask.
+* **From source: Mean / Max / Min**: set each selected cell to the mean, maximum
+  or minimum of the source bathymetry over that cell. These buttons appear only
+  when the topo has source statistics (`topo.stats`), which `set_from_dataset`
+  computes on its sub-sampling path; otherwise call `topo.set_src(...)` and
+  `topo.compute_stats(...)` first.
+* **Clear selection**.
+
+**Mask and minimum depth**:
+
+* **Clear manual mask**: drop the land and ocean marks you made and go back to
+  the mask that follows from depth and minimum depth.
+* The minimum depth field and **Apply**: cells shallower than this become land.
+
+Land and ocean edits change only the manual mask, never the depth. The first
+one starts the manual mask; from then on, depth and minimum-depth edits no
+longer change which cells are land, until you clear the manual mask.
+
+**Basins** (shown in the basinmask view) act on the basin that contains the
+selected ocean cell:
+
+* **Erase selected basin**: turn that basin into land.
+* **Erase disconnected basins**: keep that basin and turn every basin not
+  connected to it into land.
+
+**History** (only with `git=True`; otherwise the panel says how to turn it on):
+
+* **Undo**, **Redo**.
+* **Reset**: go back to the bathymetry as it was before your edits, that is, to
+  the last call that set the whole field (`set_flat`, `set_from_dataset`, ...).
+  A reset is itself a history step, so it can be undone.
+* **Tag**: name the current state. This also writes `<tag>_topog.nc` into the
+  topo's history folder. The tags are listed below the buttons.
+* **Create branch**, and the branch list with **Checkout**: keep alternative
+  versions of the bathymetry and switch between them. The list marks the current
+  branch.
+
+A status line under the map says what the last action changed.
+
+### The same edits from Python
+
+Every editor action is one call to `topo.apply_edits`, so a script or an AI
+assistant can make the same edits. Cells are `(j, i)` index pairs:
+
+```python
+changed = topo.apply_edits([
+    {"op": "depth", "cells": [(10, 20), (10, 21)], "value": 250.0},
+    {"op": "land", "cells": [(5, 7)]},
+    {"op": "erase_disconnected_basin", "cell": [30, 40]},
+])
+topo.undo()
+topo.redo()
+topo.reset()
+```
+
+The ops are `depth`, `land`, `ocean`, `clear_mask`, `min_depth`,
+`fill_from_stats`, `erase_selected_basin` and `erase_disconnected_basin`; the
+{py:meth}`Topo.apply_edits <mom6_forge.topo.Topo.apply_edits>` docstring gives
+the fields of each. Each entry is one history step. Every entry is checked
+before any is applied, so a bad one raises `ValueError` and changes nothing; an
+edit that changes nothing adds no history step. `apply_edits`, `undo`, `redo`
+and `reset` return the `(j, i)` cells that changed. `undo`, `redo` and `reset`
+need `git=True`; `topo.can_undo` and `topo.can_redo` say whether there is
+anything to undo or redo.
+
+An open editor does not redraw for edits made from Python. Show it again (run a
+cell with just `editor`) and every view of it redraws from the current topo.
+
+## VGridCreator
+
+`VGridCreator` is for choosing the number of layers, the depth and the layer
+spacing of a vertical grid by eye.
+
+```python
+from mom6_forge.vgrid import VGrid
+from mom6_forge.widgets import VGridCreator
+
+creator = VGridCreator()  # uniform, 10 levels, 100 m
+creator = VGridCreator(vgrid=VGrid.hyperbolic(50, 4000.0, 10.0), topo=topo)
+creator
+
+vgrid = creator.vgrid
+```
+
+All arguments are optional:
+
+* `vgrid`: the grid to start from. **Reset** returns to it.
+* `topo`: anything with a `max_depth`, such as a `Topo`. The widget warns while
+  the grid is shallower than that.
+* `repo_root`: the folder that holds `VGridLibrary/`. Default: the current
+  directory.
+
+Controls:
+
+* **Uniform / Hyperbolic**: uniform layers all have the same thickness;
+  hyperbolic layers change thickness smoothly with depth (see {doc}`quickstart`).
+* **Levels** and **Depth (m)**: the number of layers and the total depth.
+* **Bottom/top thickness ratio** (hyperbolic only): bottom layer thickness
+  divided by top layer thickness, as in `VGrid.hyperbolic`. Above 1 gives thin
+  layers near the surface and thick ones at depth; below 1 the reverse.
+* **Reset to the starting grid**.
+
+The plot shows each layer as a bar from its top to its bottom interface, as wide
+as its thickness, with a dot at the layer centre. The caption gives the number
+of layers, the total depth and the top and bottom layer thicknesses.
+
+A grid passed in, or loaded from the library, need not be uniform or hyperbolic.
+The widget then shows it as it is and sets the controls to the nearest uniform
+or hyperbolic settings; changing a control replaces it with a grid built from
+the controls.
+
+**Library.** Enter a name (letters, digits, `_`, `-` or `.`) and a message
+saying what the grid is for, then **Save** to write
+`VGridLibrary/vgrid_<name>.nc`. The folder is created on the first save. If a
+grid with that name exists, the widget asks before replacing it. The table lists
+the saved grids, newest first, with their levels, depth, date and message;
+**Load** opens one.
+
+### Try it in your browser
+
+As for TopoEditor, the button below runs VGridCreator in your browser. The
+library does not work there: a saved grid is listed, but cannot be read back.
+
+```{replite}
+:kernel: python
+:height: 800px
+:prompt: Start VGridCreator
+
+import piplite
+await piplite.install(["anywidget", "numpy", "scipy", "xarray"])
+await piplite.install(["mom6_forge"], deps=False)  # skip ESMF and the rest, not needed here
+from mom6_forge.vgrid import VGrid
+from mom6_forge.widgets import VGridCreator
+VGridCreator(vgrid=VGrid.hyperbolic(nk=20, depth=1500.0, ratio=8.0, name="demo"))
+```
+
+(topo-edit-history)=
+
+## Edit history
+
+`Topo(grid, min_depth, git=True)` records every edit in a git repository, which
+is what powers undo, redo, reset, tags and branches, in the editor and in
+Python. The repository is a folder under `TopoLibrary/` (set with
+`version_control_dir`), named after a hash of the grid's cell centres, so every
+`Topo` on the same grid shares one folder:
+
+```text
+TopoLibrary/<grid hash>/
+    .gitignore
+    command_history.json   # every edit, keyed by commit
+    grid.nc                # the horizontal grid
+    original_topog.nc      # the blank topo the history is replayed onto
+    <tag>_topog.nc         # one per tag
+```
+
+Each edit is one commit, and `command_history.json` maps each commit to the
+edit it made, for example:
+
+```text
+"8e351d1a94...": {"type": "DepthEditCommand", "affected_indices": [[0, 0], [0, 1], ...], ...}
+```
+
+Undo and redo are commits too, named `UNDO-<sha>` and `REDO-<sha>`, so the full
+history, including what was undone, is kept. You can read it with `git log` in
+the folder:
 
 ```{figure} images/TopoSampleGitLog.png
 :align: center
 :width: 500px
 
-Example `git log` for a topo editing session.
+Example `git log` of a topo editing session.
 ```
 
-## Nuances (Initialization, Naming, etc.)
+From Python:
 
-Folders are named after the hash of the grid's `tlon` variable.  
-This means that **any topo using the same grid** will share the same folder.
+* `topo.undo()`, `topo.redo()`, `topo.reset()`.
+* `topo.tcm.tag("name")` tags the current state and writes `name_topog.nc`.
+  Tags cannot be checked out.
+* `topo.tcm.create_branch("name")` and `topo.tcm.checkout("name")` create and
+  switch branches. `topo.tcm.list_branches()` lists them.
 
-You can initialize `Topo` in three ways:
+```{warning}
+Only read the folder with git (`git log` and the like). mom6_forge manages it,
+and git commands that change it, such as `git checkout` or `git reset`, can
+leave the topo history in a broken state.
+```
 
-1. `Topo()` — creates an empty topo with the provided minimum depth
-2. `Topo.from_version_control(path)` — loads a folder, applies saved history, and returns the reconstructed topo
-3. `Topo.from_topo_file(file)` — loads a topo file and applies it on top of any existing changes in the folder
+There are three ways to get a `Topo` with history:
 
-All of the git versioning (undo, redo, reset, checkout, tag, create branch) is handled by the TopoCommandManager, which can be accessed as the class variable "tcm". The code for this manager resides in the command_manager class. 
-We would use straight git functions, but the topo file itself is handled independently of the commits. (In the future, expect this to use icechunk)
+1. `Topo(grid, min_depth, git=True)`: start a new bathymetry. If the grid's
+   folder already exists, new edits are added to its history.
+2. `Topo.from_version_control(path)`: rebuild a topo from a history folder by
+   replaying its edits.
+3. `Topo.from_topo_file(grid, file, git=True)`: read a topography file and
+   record it as an edit on top of the folder's history.
 
+## GridCreator was removed
 
-See also the demonstration notebook:
-
-[7_demo_editors.ipynb](https://github.com/NCAR/mom6_forge/blob/master/notebooks/7_demo_editors.ipynb)
+Earlier versions had a `GridCreator` widget for drawing horizontal grids on a
+map. It has been removed; an interactive replacement (GridSketcher) is planned.
+Until then, make grids in code with `Grid(...)`, `Grid.from_center(...)` (a
+rotated rectangle around a centre point) or `Grid.from_projection(...)` (any
+map projection, including polar stereographic); see {doc}`quickstart`.

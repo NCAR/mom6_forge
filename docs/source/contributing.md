@@ -40,3 +40,19 @@ sphinx-build -b html docs/source docs/_build
 
 Output is written to `docs/_build/`. Open `docs/_build/index.html` to preview
 locally.
+
+The build runs one notebook, `notebooks/7_demo_editors.ipynb`, so that its
+widgets show on the website. It writes a `TopoLibrary/` folder and two `.nc`
+files next to the notebook (all ignored by git), and its `Topo(git=True)` needs
+a git user name and email to commit with.
+
+The live widget demos on the {doc}`widgets` page need `jupyterlite-sphinx`,
+`jupyterlite-core` and `jupyterlite-pyodide-kernel` (see
+`.github/workflows/docs.yml` for the versions) and a `mom6_forge` wheel in
+`dist/`:
+
+```bash
+pip wheel --no-deps -w dist .
+```
+
+Without either, the build still works and leaves the live demos out.
