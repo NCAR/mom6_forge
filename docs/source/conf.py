@@ -11,6 +11,7 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 import os
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.abspath("../../mom6_forge/"))
 
@@ -38,7 +39,9 @@ extensions = [
     "myst_parser",
 ]
 
-# Never re-execute notebooks during docs build — use existing cell outputs.
+# Never re-execute notebooks during docs build — use existing cell outputs. The demo
+# notebook (7_demo_editors) opts in through its metadata, so that its widgets are
+# drawn from fresh widget state.
 nbsphinx_execute = "never"
 
 # Hand-written pages are MyST Markdown; sphinx-apidoc still emits .rst.
@@ -72,3 +75,36 @@ html_static_path = ["images"]
 # docstrings ----------------------
 napoleon_numpy_docstring = True
 autoclass_content = "both"
+
+
+# -- Live widgets (JupyterLite) ----------------------------------------------
+# The widgets page runs TopoEditor and VGridCreator in the browser: each {replite}
+# block opens a JupyterLite console with a Pyodide kernel that installs the
+# mom6_forge wheel from <repo>/dist (docs.yml builds it). Without jupyterlite-sphinx
+# or the wheel, the docs still build and each block becomes a short note.
+_wheels = sorted((Path(__file__).parents[2] / "dist").glob("mom6_forge-*.whl"))
+try:
+    import jupyterlite_sphinx  # noqa: F401
+except ImportError:
+    _wheels = []
+
+if _wheels:
+    extensions.append("jupyterlite_sphinx")
+    jupyterlite_bind_ipynb_suffix = False  # nbsphinx renders the notebooks
+    jupyterlite_build_command_options = {"piplite-wheels": str(_wheels[-1])}
+else:
+    from docutils import nodes
+    from docutils.parsers.rst import Directive, directives
+
+    class _NoReplite(Directive):
+        has_content = True
+        option_spec = dict.fromkeys(
+            ["kernel", "height", "prompt"], directives.unchanged
+        )
+
+        def run(self):
+            text = "The live demo is left out of this build (see Contributing)."
+            return [nodes.note("", nodes.paragraph(text=text))]
+
+    def setup(app):
+        app.add_directive("replite", _NoReplite)

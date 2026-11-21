@@ -25,13 +25,30 @@ jobs:
       - name: Set up Micromamba (with caching)
         uses: mamba-org/setup-micromamba@v2
         with:
-          environment-file: environment.yml    
+          environment-file: environment.yml
           cache-environment: true
+          # The env pip-installs mom6_forge, so its dependencies come from setup.py.
+          # Rebuild the cached env when they change, not only when environment.yml does.
+          cache-environment-key: env-${{ hashFiles('setup.py') }}
           cache-downloads: true
           micromamba-version: "latest"
 
       - name: Install Pandoc
         run: sudo apt-get install -y pandoc
+
+      # The build runs notebook 7, whose Topo(git=True) commits its edit history.
+      - name: Set a git identity for the demo notebook
+        run: |
+          git config --global user.email "docs@example.com"
+          git config --global user.name "Docs build"
+
+      # Live widget demos on the widgets page: JupyterLite with a Pyodide kernel,
+      # which installs mom6_forge from the wheel in dist/ (see docs/source/conf.py).
+      - name: Install JupyterLite and build the mom6_forge wheel
+        shell: bash -l {0}
+        run: |
+          pip install jupyterlite-sphinx==0.23.0 jupyterlite-core==0.8.7 jupyterlite-pyodide-kernel==0.8.7
+          pip wheel --no-deps -w dist .
 
       - name: Build Sphinx docs
         shell: bash -l {0}

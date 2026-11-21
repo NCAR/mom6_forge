@@ -12,7 +12,8 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/NCAR/mom6_forge",
-    packages=["mom6_forge"],
+    packages=setuptools.find_packages(include=["mom6_forge", "mom6_forge.*"]),
+    package_data={"mom6_forge.widgets": ["*.js"]},
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
@@ -27,7 +28,7 @@ setuptools.setup(
         "scipy>=1.11,<1.18.0",
         "netcdf4>=1.6,<1.8.0",
         "jupyterlab>=4.0,<4.6.0",
-        "ipympl>=0.9.4,<0.10.0",
+        "anywidget>=0.9,<0.12",
         "ipywidgets>=8.1.1,<8.2.0",
         "sphinx>=8.1,<9.2.0",
         "sphinx_rtd_theme>=3.0,<3.2.0",

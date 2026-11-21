@@ -94,7 +94,7 @@ class VGrid:
         nk: int
             Number of vertical levels
         ratio: float
-            Target ratio of top to bottom layer thicknesses
+            Target ratio of bottom to top layer thicknesses (``dz[-1] / dz[0]``)
         depth: float
             Total depth of the water column (meters)
         name: str, optional
@@ -151,22 +151,22 @@ class VGrid:
             variable_type in valid_coordinate_types
         ), f"Coordinate type {variable_type} is not a valid option from {valid_coordinate_types}"
 
-        ds = xr.open_dataset(file_path)
-        assert (
-            variable_name in ds
-        ), f"File {file_path} does not contain a '{variable_name}' variable"
+        with xr.open_dataset(file_path) as ds:
+            assert (
+                variable_name in ds
+            ), f"File {file_path} does not contain a '{variable_name}' variable"
+            values = ds[variable_name].values
+            if name is None:
+                name = ds.attrs.get("name", None)
 
         if variable_type == "layer_thickness":
-            dz = ds[variable_name].values
+            dz = values
         if variable_type == "cell_center":
-            dz = _cell_center_to_layer_thickness(ds[variable_name].values)
+            dz = _cell_center_to_layer_thickness(values)
         if variable_type == "cell_interface":
-            dz = _cell_interface_to_layer_thickness(ds[variable_name].values)
+            dz = _cell_interface_to_layer_thickness(values)
 
         assert np.all(dz > 0), "Layer thickness cannot be zero."
-
-        if name is None:
-            name = ds.attrs.get("name", None)
 
         return cls(dz, name)
 

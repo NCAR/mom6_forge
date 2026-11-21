@@ -1,16 +1,11 @@
+import json
 import numpy as np
 import pytest
 from pathlib import Path
 import xarray as xr
 from mom6_forge.grid import Grid
 from mom6_forge.topo import Topo
-from mom6_forge.topo_editor import TopoEditor
 from mom6_forge._source_bathy import SourceBathy
-
-
-@pytest.fixture
-def get_editor(get_rect_topo_with_vc):
-    return TopoEditor(get_rect_topo_with_vc, build_ui=False)
 
 
 @pytest.fixture
@@ -536,3 +531,10 @@ def get_dateline_seam_grid():
         name="dateline_seam",
     )
     return grid
+
+
+@pytest.fixture(scope="session")
+def get_california():
+    """The California bays outline (lon, lat, corners) that the notebooks also use."""
+    path = Path(__file__).parent / "data" / "california_bays.outline.json"
+    return json.loads(path.read_text())["outline"]

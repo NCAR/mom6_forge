@@ -92,6 +92,10 @@ constructors for domains that aren't naturally expressed as `nx`/`ny`/`lenx`/`le
   — builds a uniform grid in a given `pyproj` CRS (e.g. a polar stereographic or
   Lambert conformal projection) and reprojects it to geographic coordinates,
   remaining accurate at high latitudes.
+* `Grid.from_outline(lon, lat, corners=None, resolution_km=None)` — builds an
+  orthogonal (conformal) grid inside a polygon outline with 4 marked corners, so the
+  domain edge can follow a coastline. The `GridSketcher` widget draws the outline on a
+  map; see {doc}`widgets`.
 * `Grid.from_supergrid_file(file_path)` — loads a grid from an existing MOM6 supergrid file.
 * `Grid.from_esmf_mesh_file(file_path)` — loads a grid from an existing ESMF mesh file.
 
@@ -108,8 +112,8 @@ grid = Grid.from_center(
 )
 ```
 
-These constructors are also available interactively through the `GridCreator`
-widget — see {doc}`widgets`.
+Grids are made in code with these constructors; there is currently no interactive
+grid widget (see {doc}`widgets`).
 
 ### *Avoiding singularity points*
 
@@ -243,8 +247,8 @@ vgrid.write_vgrid_file("my_vgrid.nc")
 the interface (`zi`) and center (`zl`) depths directly, rather than
 thicknesses.
 
-Like horizontal grids, vertical grids can also be created and edited
-interactively via the `VGridCreator` widget — see {doc}`widgets`.
+Vertical grids can also be built interactively with the `VGridCreator`
+widget — see {doc}`widgets`.
 
 ## Step 4: Create Bathymetry
 
@@ -360,9 +364,9 @@ Both the masking method (`mask_method`: `'naturalearth'`, `'ocean_frac'`,
 `'dataset'`, or `'manual'`) and the depth method (`depth_method`: `'stats'`,
 `'cressman'`, or `'xesmf'`) can be overridden explicitly instead of relying on
 the automatic diagnosis. This is still an opinionated, multi-step workflow —
-inspect the resulting mask and depth afterward, and adjust manually (e.g., via
-`TopoEditor`) as needed. For the reasoning behind this workflow and how it
-relates to NCAR's global bathymetry pipeline, see {doc}`bathymetry_workflow`.
+inspect the resulting mask and depth afterward, and adjust manually (e.g., with
+the `TopoEditor` widget, see {doc}`widgets`) as needed. For the reasoning behind
+this workflow and how it relates to NCAR's global bathymetry pipeline, see {doc}`bathymetry_workflow`.
 
 ### *Channel Width Constraints*
 
@@ -491,19 +495,26 @@ writes it out:
 topo.write_scrip_grid_file("my_ocean_scrip.nc")
 ```
 
-## Step 6: Editing Grids and Bathymetry
+## Step 6: Editing Bathymetry and Vertical Grids Interactively
 
-Beyond creating standard grids and simple topographies, mom6_forge provides advanced tools
-for interactively editing and creating complex model domains. These features are designed to
-facilitate reproducible workflows for custom model configurations and model tuning. These
-domain configurators can be used for tasks such as:
+`mom6_forge` has notebook widgets for the steps that are easier to do by eye. The
+first, `GridSketcher`, draws a grid's outline (see the constructors above); the other
+two come after the grid:
 
-* Editing Bathymetry: Manually or programmatically modifying ocean depths.
-* Creating New Grids: Defining entirely new horizontal grid structures.
-* Creating Vertical Grids: Specifying the vertical layering of the ocean model.
+* `TopoEditor` edits the bathymetry cell by cell (depths, land and ocean, basins), with
+  undo and redo. Every edit is also an ordinary Python call, `topo.apply_edits(...)`, so
+  the same edits can be scripted.
+* `VGridCreator` builds a uniform or hyperbolic vertical grid with a live plot of the
+  layers, and keeps a library of saved grids.
 
-Check out the notebook for examples of these advanced features: 
-[7_demo_editors.ipynb](https://github.com/NCAR/mom6_forge/blob/master/notebooks/7_demo_editors.ipynb)
+```python
+from mom6_forge.widgets import TopoEditor, VGridCreator
+
+TopoEditor(topo)
+```
+
+See {doc}`widgets` for every control, and the {doc}`notebooks/7_demo_editors` notebook
+for both widgets on a small test domain.
 
 ## Further steps
 

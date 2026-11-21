@@ -1,300 +1,196 @@
-from unittest.mock import MagicMock
+"""TopoEditor's Python half: state it sends, and what each front-end action does."""
 
 import numpy as np
 import pytest
 
-from mom6_forge.grid import Grid
-from mom6_forge.topo import Topo
-from mom6_forge.topo_editor import TopoEditor
-
-# --- active_cells ---
+from mom6_forge.corner_diagnostics import OBC_SIDES
+from mom6_forge.widgets._base import as_bytes
+from mom6_forge.widgets.topo_editor import TopoEditor
 
 
-def test_active_cells_empty(get_editor):
-    """No selection returns empty list."""
-    assert get_editor.active_cells == []
-
-
-def test_active_cells_single_cell(get_editor):
-    """Single cell selection returns correct (j, i) tuple."""
-    get_editor._select_cell(3, 2)  # note (i, j) order
-    assert get_editor.active_cells == [(2, 3)]
-
-
-def test_active_cells_rect(get_editor):
-    """Rectangle selection returns all selected (j, i) tuples."""
-    get_editor._selected_cells = [(0, 0), (0, 1), (1, 0)]
-    assert get_editor.active_cells == [(0, 0), (0, 1), (1, 0)]
-
-
-def test_active_cells_rect_takes_priority(get_editor):
-    """Rectangle selection takes priority over single cell."""
-    get_editor._select_cell(0, 0)
-    get_editor._selected_cells = [(1, 1), (2, 2)]
-    assert get_editor.active_cells == [(1, 1), (2, 2)]
-
-
-# --- mask ---
-
-
-def test_mask_single_cell(get_editor):
-    get_editor._select_cell(0, 0)
-    get_editor.on_mask_change({"new": "Land"})
-    assert get_editor.topo.tmask.data[0, 0] == 0
-
-
-def test_mask_no_op_if_same_value(get_editor):
-    """Should not apply edit if mask value unchanged."""
-    get_editor._select_cell(0, 0)
-    get_editor.on_mask_change({"new": "Ocean"})
-    history_len = len(get_editor.topo.tcm.history_dict)
-    get_editor.on_mask_change({"new": "Ocean"})
-    assert len(get_editor.topo.tcm.history_dict) == history_len  # no new command
-
-
-def test_mask_multi_cell_rect(get_editor):
-    """Rectangle selection applies mask to all selected cells."""
-    get_editor._selected_cells = [(0, 0), (0, 1), (1, 0)]
-    get_editor.on_mask_change({"new": "Land"})
-    assert get_editor.topo.tmask.data[0, 0] == 0
-    assert get_editor.topo.tmask.data[0, 1] == 0
-    assert get_editor.topo.tmask.data[1, 0] == 0
-
-
-def test_mask_no_selection(get_editor):
-    """No selection should not raise or apply any edit."""
-    get_editor.on_mask_change({"new": "Land"})  # should just return
-
-
-# --- depth ---
-
-
-def test_depth_single_cell(get_editor):
-    get_editor._select_cell(0, 0)
-    get_editor.on_depth_change({"new": 500.0})
-    assert get_editor.topo.depth.data[0, 0] == 500.0
-
-
-def test_depth_no_op_if_same_value(get_editor):
-    get_editor._select_cell(0, 0)
-    get_editor.on_depth_change({"new": 1000.0})  # already flat 1000
-    history_len = len(get_editor.topo.tcm.history_dict)
-    get_editor.on_depth_change({"new": 1000.0})
-    assert len(get_editor.topo.tcm.history_dict) == history_len
-
-
-def test_depth_multi_cell_rect(get_editor):
-    """Rectangle selection applies depth to all selected cells."""
-    get_editor._selected_cells = [(0, 0), (0, 1), (1, 0)]
-    get_editor.on_depth_change({"new": 200.0})
-    assert get_editor.topo.depth.data[0, 0] == 200.0
-    assert get_editor.topo.depth.data[0, 1] == 200.0
-    assert get_editor.topo.depth.data[1, 0] == 200.0
-
-
-# --- undo/redo ---
-
-
-def test_undo_depth_change(get_editor):
-    get_editor._select_cell(0, 0)
-    get_editor.on_depth_change({"new": 500.0})
-    assert get_editor.topo.depth.data[0, 0] == 500.0
-    get_editor.undo_last_edit()
-    assert get_editor.topo.depth.data[0, 0] == 1000.0
-
-
-def test_redo_depth_change(get_editor):
-    get_editor._select_cell(0, 0)
-    get_editor.on_depth_change({"new": 500.0})
-    get_editor.undo_last_edit()
-    get_editor.redo_last_edit()
-    assert get_editor.topo.depth.data[0, 0] == 500.0
-
-
-def test_undo_mask_change(get_editor):
-    get_editor._select_cell(0, 0)
-    original = get_editor.topo.tmask.data[0, 0]
-    get_editor.on_mask_change({"new": "Land"})
-    get_editor.undo_last_edit()
-    assert get_editor.topo.tmask.data[0, 0] == original
-
-
-# --- rect select toggle ---
-
-
-def test_rect_toggle_gates_double_click(get_editor):
-    """Double click should be ignored when rect mode is active."""
-    get_editor._rect_or_single_select_button.value = "Rectangular Area"
-    mock_event = MagicMock()
-    mock_event.dblclick = True
-    mock_event.xdata = 279.0 - get_editor._central_longitude
-    mock_event.ydata = 8.0
-    get_editor.on_double_click(mock_event)
-    assert get_editor._selected_cell is None
-
-
-def test_rect_toggle_off_clears_selection(get_editor):
-    """Turning off rect mode clears selected cells."""
-    get_editor._selected_cells = [(0, 0), (1, 1)]
-    get_editor._rect_or_single_select_button.value = "Rectangular Area"
-    get_editor._rect_or_single_select_button.value = "Single Cell"
-    assert get_editor._selected_cells == []
-
-
-# --- rect select logic ---
-
-
-def test_rect_select_finds_cells_in_bounds(get_editor):
-    """Cells within the rectangle bounds are selected."""
-    # The axes are centred on the domain, so event.xdata is native to that
-    # shifted frame -- offset the true longitudes the same way a real drag
-    # inside the domain would arrive.
-    central_lon = get_editor._central_longitude
-    mock_eclick = MagicMock()
-    mock_erelease = MagicMock()
-    mock_eclick.xdata = 278.0 - central_lon
-    mock_eclick.ydata = 7.0
-    mock_erelease.xdata = 279.0 - central_lon
-    mock_erelease.ydata = 8.0
-    get_editor._on_rect_select(mock_eclick, mock_erelease)
-    assert len(get_editor._selected_cells) > 0
-
-
-def test_rect_select_empty_outside_bounds(get_editor):
-    """No cells selected when rectangle is outside the grid."""
-    # 120-121E is far outside the 278-282E domain, so this exercises the
-    # longitude mask and not just the latitude one.
-    central_lon = get_editor._central_longitude
-    mock_eclick = MagicMock()
-    mock_erelease = MagicMock()
-    mock_eclick.xdata = 120.0 - central_lon
-    mock_eclick.ydata = 0.0
-    mock_erelease.xdata = 121.0 - central_lon
-    mock_erelease.ydata = 1.0
-    get_editor._on_rect_select(mock_eclick, mock_erelease)
-    assert len(get_editor._selected_cells) == 0
-
-
-# --- antimeridian-crossing domains ---
-
-
-def _editor_for(xstart, lenx, ystart=-10.0, leny=20.0):
-    """A TopoEditor over a flat domain spanning [xstart, xstart + lenx]."""
-    grid = Grid(
-        resolution=0.5,
-        xstart=xstart,
-        lenx=lenx,
-        ystart=ystart,
-        leny=leny,
-        name="dateline",
+def _editor(topo, monkeypatch):
+    """An editor whose custom messages (patches, reloads) are kept in ``editor.sent``."""
+    editor = TopoEditor(topo)
+    editor.sent = []
+    monkeypatch.setattr(
+        editor,
+        "send",
+        lambda content, buffers=None: editor.sent.append((content, buffers)),
     )
-    topo = Topo(grid, min_depth=0, git=False)
-    topo.set_flat(1000)
-    return grid, TopoEditor(topo, build_ui=False)
+    return editor
+
+
+def _decode(raw, dtype, editor):
+    return np.frombuffer(raw, dtype=dtype).reshape(editor.ny, editor.nx)
+
+
+def _patch(editor):
+    """(cells, depth, mask) from the single patch the last action sent."""
+    ((content, buffers),) = editor.sent
+    assert content["kind"] == "patch"
+    cells = np.frombuffer(buffers[0], "<i4").reshape(-1, 2)
+    return cells, np.frombuffer(buffers[1], "<f4"), np.frombuffer(buffers[2], "u1")
 
 
 @pytest.mark.parametrize(
-    "xstart, lenx",
-    [
-        (170.0, 20.0),  # crosses +180
-        (-190.0, 20.0),  # crosses -180
-        (278.0, 4.0),  # ordinary out-of-[-180, 180] domain
-        (-82.0, 4.0),  # ordinary in-range domain
-    ],
+    "fixture, history",
+    [("get_rect_topo_with_vc", True), ("get_rect_topo_without_vc", False)],
 )
-def test_axes_zoom_to_domain_not_globe(xstart, lenx):
-    """set_extent must zoom to the domain, including one running past +/-180.
+def test_construction_sends_the_topo(request, fixture, history):
+    topo = request.getfixturevalue(fixture)
+    editor = TopoEditor(topo)
 
-    A plain PlateCarree() axes has its own seam at +/-180 and silently resets
-    to the whole globe when asked for an extent that crosses it.
-    """
-    _, editor = _editor_for(xstart, lenx)
-    x_min, x_max = editor.ax.get_xlim()
-    assert x_max - x_min == pytest.approx(lenx)
-
-
-def test_click_recovers_true_longitude_across_dateline():
-    """event.xdata is native to the shifted frame; handlers must undo the shift."""
-    grid, editor = _editor_for(170.0, 20.0)
-    true_lon, true_lat = 185.0, 4.0
-    expected = grid.get_indices(true_lat, true_lon)
-
-    event = MagicMock()
-    event.dblclick = True
-    event.xdata = true_lon - editor._central_longitude
-    event.ydata = true_lat
-    editor._rect_or_single_select_button.value = "Single Cell"
-    editor.on_double_click(event)
-
-    assert editor._selected_cell[:2] == expected
-
-
-def test_rect_select_spans_the_antimeridian():
-    """A drag straddling +/-180 selects the cells it actually covers."""
-    grid, editor = _editor_for(170.0, 20.0)
-    central_lon = editor._central_longitude
-
-    eclick, erelease = MagicMock(), MagicMock()
-    eclick.xdata, eclick.ydata = 178.0 - central_lon, -2.0
-    erelease.xdata, erelease.ydata = 182.0 - central_lon, 2.0
-    editor._on_rect_select(eclick, erelease)
-
-    tlon = (grid.tlon.data + 360) % 360
-    tlat = grid.tlat.data
-    expected = (
-        (tlon >= 178.0) & (tlon <= 182.0) & (tlat >= -2.0) & (tlat <= 2.0)
-    ).sum()
-
-    assert expected > 0
-    assert len(editor._selected_cells) == expected
-
-
-def test_hover_readout_reports_true_longitude():
-    """format_coord converts back out of the shifted frame."""
-    _, editor = _editor_for(170.0, 20.0)
-    readout = editor.ax.format_coord(185.0 - editor._central_longitude, 0.0)
-    assert "x=185.00" in readout
-
-
-# --- canvas refresh after basin edits ---
-
-
-def _editor_with_two_basins(tmp_path):
-    """An editor in basinmask mode over a domain split into two basins."""
-    grid = Grid(
-        resolution=0.5,
-        xstart=0.0,
-        lenx=20.0,
-        ystart=0.0,
-        leny=10.0,
-        name="basins",
+    assert (editor.ny, editor.nx) == topo.depth.shape
+    np.testing.assert_array_equal(
+        _decode(editor.depth, "<f4", editor), topo.masked_depth.data.astype("<f4")
     )
-    topo = Topo(grid, min_depth=0, version_control_dir=tmp_path, git=True)
-    topo.set_flat(1000)
-    topo.depth.data[:, 20] = -10.0  # land barrier splits the domain in two
-
-    editor = TopoEditor(topo, build_ui=False)
-    editor._display_mode_toggle.value = "basinmask"
-    editor._select_cell(30, 5)  # a cell east of the barrier
-    return topo, editor
+    np.testing.assert_array_equal(_decode(editor.mask, "u1", editor), topo.tmask.data)
+    assert editor.has_history is history
 
 
-@pytest.mark.parametrize(
-    "handler", ["erase_selected_basin", "erase_disconnected_basin"]
-)
-def test_erase_basin_redraws_canvas(tmp_path, handler):
-    """Erasing a basin must redraw the canvas, not just update the buttons.
+def test_brush_stroke_changes_exactly_its_cells(get_rect_topo_without_vc, monkeypatch):
+    topo = get_rect_topo_without_vc
+    editor = _editor(topo, monkeypatch)
+    cells = np.array([[0, 0], [2, 3], [5, 7]])
 
-    Topo.erase_* applies its edit through the topo, bypassing
-    TopoEditor.apply_edit and therefore its refresh, so the mask used to
-    change underneath a stale plot.
-    """
-    topo, editor = _editor_with_two_basins(tmp_path)
-    assert len(set(topo.basintmask.data.ravel().tolist())) > 2  # land + 2 basins
+    editor._act(
+        "edit", buffers=[as_bytes(cells, "<i4")], edit={"op": "depth", "value": 250.0}
+    )
 
-    before = np.array(editor.im.get_array(), dtype=float)
-    getattr(editor, handler)(None)
-    after = np.array(editor.im.get_array(), dtype=float)
+    assert not editor.errors, editor.last_traceback
+    expected = np.full(topo.depth.shape, 1000.0)
+    expected[cells[:, 0], cells[:, 1]] = 250.0
+    np.testing.assert_array_equal(topo.depth.data, expected)
+    sent_cells, depth, mask = _patch(editor)
+    assert {tuple(c) for c in sent_cells} == {tuple(c) for c in cells}
+    np.testing.assert_array_equal(depth, 250.0)
+    np.testing.assert_array_equal(mask, 1)
 
-    assert not np.array_equal(before, after)
-    assert np.array_equal(after, np.asarray(topo.basintmask.data, dtype=float))
+
+@pytest.mark.parametrize("op, value", [("land", 0), ("ocean", 1)])
+def test_mask_edit_on_a_selected_box(get_rect_topo_without_vc, monkeypatch, op, value):
+    topo = get_rect_topo_without_vc
+    if op == "ocean":
+        topo.depth.data[2:5, 3:8] = -10.0  # start the box as land
+    editor = _editor(topo, monkeypatch)
+
+    editor._act("edit", edit={"op": op, "rect": [2, 3, 4, 7]})  # [j0, i0, j1, i1]
+
+    assert not editor.errors, editor.last_traceback
+    box = np.zeros(topo.depth.shape, dtype=bool)
+    box[2:5, 3:8] = True
+    np.testing.assert_array_equal(topo.tmask.data[box], value)
+    np.testing.assert_array_equal(topo.tmask.data[~box], 1)
+    sent_cells, _, mask = _patch(editor)
+    assert len(sent_cells) == box.sum()
+    np.testing.assert_array_equal(mask, value)
+
+
+def test_large_change_resends_the_full_arrays(get_rect_topo_without_vc, monkeypatch):
+    """Past a quarter of the grid the page reloads from the traits, so they must be current."""
+    topo = get_rect_topo_without_vc
+    editor = _editor(topo, monkeypatch)
+
+    editor._act(
+        "edit", edit={"op": "depth", "value": 300.0, "rect": [0, 0, editor.ny - 1, 20]}
+    )
+
+    assert not editor.errors, editor.last_traceback
+    assert [content for content, _ in editor.sent] == [{"kind": "reload"}]
+    np.testing.assert_array_equal(
+        _decode(editor.depth, "<f4", editor), topo.masked_depth.data.astype("<f4")
+    )
+
+
+def test_erase_disconnected_basins_in_the_basinmask_view(
+    get_rect_topo_without_vc, monkeypatch
+):
+    topo = get_rect_topo_without_vc
+    topo.depth.data[:, 20] = -10.0  # a land column splits the domain in two basins
+    editor = _editor(topo, monkeypatch)
+
+    editor._act("view", view="basinmask")
+    assert len(np.unique(_decode(editor.basins, "<i4", editor))) == 3  # land + 2 basins
+
+    editor._act("edit", edit={"op": "erase_disconnected_basin", "cell": [5, 30]})
+
+    assert not editor.errors, editor.last_traceback
+    assert not topo.tmask.data[:, :20].any()  # the western basin is gone
+    assert topo.tmask.data[:, 21:].all()
+    np.testing.assert_array_equal(
+        _decode(editor.basins, "<i4", editor), topo.basintmask.data
+    )
+
+
+def test_undo_redo_reset_round_trip(get_rect_topo_with_vc, monkeypatch):
+    topo = get_rect_topo_with_vc
+    editor = _editor(topo, monkeypatch)
+    cells = np.array([[1, 1], [1, 2]])
+    stroke = as_bytes(cells, "<i4")
+
+    editor._act("edit", buffers=[stroke], edit={"op": "depth", "value": 250.0})
+    assert editor.can_undo and not editor.can_redo
+    editor._act("undo")
+    assert (topo.depth.data[1, 1:3] == 1000.0).all() and editor.can_redo
+    editor._act("redo")
+    assert (topo.depth.data[1, 1:3] == 250.0).all()
+    editor.sent.clear()
+    editor._act("reset")
+
+    assert not editor.errors, editor.last_traceback
+    np.testing.assert_array_equal(topo.depth.data, 1000.0)
+    sent_cells, depth, _ = _patch(editor)  # the page gets the restored cells
+    assert {tuple(c) for c in sent_cells} == {tuple(c) for c in cells}
+    np.testing.assert_array_equal(depth, 1000.0)
+
+
+def test_undo_without_history_reports_in_the_widget(get_rect_topo_without_vc):
+    editor = TopoEditor(get_rect_topo_without_vc)
+
+    editor._act("undo")
+
+    assert editor.errors and editor.errors[0].startswith("RuntimeError")
+
+
+# --- open-boundary overlay ---
+
+
+def _inlet(topo):
+    """Make the 40 x 30 topo's south edge land but for a 2-cell inlet at i = 10, 11."""
+    topo.depth.data[:3, :] = -10.0
+    topo.depth.data[:3, 10:12] = 1000.0
+    return topo
+
+
+def _runs(editor):
+    """(start, stop) of each open-water run per side, from the trait, in S/E/N/W order."""
+    trait = editor.open_boundary_runs
+    return [[(r["start"], r["stop"]) for r in trait[side]] for side in OBC_SIDES]
+
+
+def test_open_boundary_overlay_is_off_until_asked(get_rect_topo_without_vc):
+    editor = TopoEditor(_inlet(get_rect_topo_without_vc))
+    assert editor.open_boundary_runs == {}
+    assert editor.open_boundaries == ["south", "east", "north", "west"]
+
+    editor._act("open_boundaries", show=True)
+
+    assert not editor.errors, editor.last_traceback
+    assert _runs(editor) == [[(10, 12)], [(3, 30)], [(0, 40)], [(3, 30)]]
+    tiny = [r["tiny"] for side in OBC_SIDES for r in editor.open_boundary_runs[side]]
+    assert tiny == [True, False, False, False]  # only the 2-cell inlet
+    editor._act("edit", edit={"op": "min_depth", "value": 1000.0})  # all land: a reload
+    assert _runs(editor) == [[], [], [], []] and editor.open_boundaries == []
+
+
+def test_open_boundaries_follow_mask_edits_and_undo(get_rect_topo_with_vc):
+    editor = TopoEditor(_inlet(get_rect_topo_with_vc), open_boundaries=True)
+
+    editor._act("edit", edit={"op": "land", "rect": [0, 10, 0, 11]})  # close the inlet
+
+    assert not editor.errors, editor.last_traceback
+    assert _runs(editor)[0] == []
+    assert editor.open_boundaries == ["east", "north", "west"]
+    editor._act("undo")
+    assert _runs(editor)[0] == [(10, 12)]
+    assert editor.open_boundaries == ["south", "east", "north", "west"]

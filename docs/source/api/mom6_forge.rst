@@ -20,6 +20,14 @@ mom6\_forge.command\_manager module
    :undoc-members:
    :show-inheritance:
 
+mom6\_forge.corner\_diagnostics module
+--------------------------------------
+
+.. automodule:: mom6_forge.corner_diagnostics
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 mom6\_forge.edit\_command module
 --------------------------------
 
@@ -40,14 +48,6 @@ mom6\_forge.grid module
 -----------------------
 
 .. automodule:: mom6_forge.grid
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-mom6\_forge.grid\_creator module
---------------------------------
-
-.. automodule:: mom6_forge.grid_creator
    :members:
    :undoc-members:
    :show-inheritance:
@@ -76,14 +76,6 @@ mom6\_forge.topo module
    :undoc-members:
    :show-inheritance:
 
-mom6\_forge.topo\_editor module
--------------------------------
-
-.. automodule:: mom6_forge.topo_editor
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 mom6\_forge.utils module
 ------------------------
 
@@ -100,12 +92,25 @@ mom6\_forge.vgrid module
    :undoc-members:
    :show-inheritance:
 
-mom6\_forge.vgrid\_creator module
----------------------------------
+mom6\_forge.widgets.grid\_sketcher module
+-----------------------------------------
 
-.. automodule:: mom6_forge.vgrid_creator
+.. automodule:: mom6_forge.widgets.grid_sketcher
    :members:
-   :undoc-members:
+   :show-inheritance:
+
+mom6\_forge.widgets.topo\_editor module
+---------------------------------------
+
+.. automodule:: mom6_forge.widgets.topo_editor
+   :members:
+   :show-inheritance:
+
+mom6\_forge.widgets.vgrid\_creator module
+-----------------------------------------
+
+.. automodule:: mom6_forge.widgets.vgrid_creator
+   :members:
    :show-inheritance:
 
 Module contents

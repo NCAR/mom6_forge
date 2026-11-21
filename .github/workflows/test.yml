@@ -50,6 +50,15 @@ jobs:
           restore-keys: |
             cesm-inputdata-
 
+      # Headless Chromium for the widget front-end tests (tests/test_widgets_js.py).
+      # One Python version is enough; elsewhere those tests skip themselves.
+      - name: Install Playwright for the widget front-end tests
+        if: matrix.python-version == '3.13'
+        shell: bash -l {0}
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium-headless-shell
+
       - name: Run pytest
         shell: bash -l {0}
         run: |

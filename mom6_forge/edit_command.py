@@ -71,12 +71,14 @@ def to_native_tuple(t):
     return tuple(int(x) for x in t)
 
 
-@register_command
-class DepthEditCommand(EditCommand):
-    """Define any edit that affects one or more elements of an array"""
+class _CellEditCommand(EditCommand):
+    """An edit that sets new values on a list of (j, i) cells. Subclasses say where."""
+
+    default_message = "Cell Edit"
+    nc_dtype = np.float64  # dtype of the values in a large-edit NetCDF file
 
     def __init__(
-        self, topo, affected_indices, new_values, old_values=None, message="Depth Edit"
+        self, topo, affected_indices, new_values, old_values=None, message=None
     ):
         self._topo = topo
         # Convert indices and values to native types for consistency and serialization
@@ -85,7 +87,109 @@ class DepthEditCommand(EditCommand):
         self.old_values = (
             [to_native(v) for v in old_values] if old_values is not None else None
         )
-        self.message = message
+        self.message = message if message is not None else self.default_message
+
+    @abstractmethod
+    def _get_value(self, j, i):
+        pass
+
+    @abstractmethod
+    def _set_value(self, j, i, value):
+        pass
+
+    def __call__(self):
+        if self.old_values is None:
+            self.old_values = [
+                to_native(self._get_value(j, i)) for j, i in self.affected_indices
+            ]
+        for (j, i), value in zip(self.affected_indices, self.new_values):
+            self._set_value(j, i, value)
+
+    def _get_large_edits_dir(self):
+        if not self._topo.has_version_control:
+            return None
+        d = self._topo.domain_dir / LARGE_EDITS_DIR
+        d.mkdir(exist_ok=True)
+        return d
+
+    def serialize(self):
+        """Inline JSON for small edits; a NetCDF file under the domain dir for large ones."""
+        data = {"type": self.__class__.__name__}
+        large_edits_dir = (
+            self._get_large_edits_dir()
+            if len(self.affected_indices) > SIZE_THRESHOLD
+            else None
+        )
+        if large_edits_dir is None:
+            data["affected_indices"] = list(self.affected_indices)
+            data["new_values"] = list(self.new_values)
+            data["old_values"] = (
+                list(self.old_values) if self.old_values is not None else None
+            )
+            return data
+
+        idx_arr = np.array(self.affected_indices, dtype=np.int32)
+        nv_arr = np.array(self.new_values, dtype=self.nc_dtype)
+        ov_arr = np.array(
+            self.old_values if self.old_values is not None else [],
+            dtype=self.nc_dtype,
+        )
+        h = hashlib.sha256(
+            idx_arr.tobytes() + nv_arr.tobytes() + ov_arr.tobytes()
+        ).hexdigest()[:16]
+        nc_path = large_edits_dir / f"edit_{h}.nc"
+
+        if not nc_path.exists():
+            xr.Dataset(
+                {
+                    "indices": xr.DataArray(idx_arr, dims=["n", "coord"]),
+                    "new_values": xr.DataArray(nv_arr, dims=["n"]),
+                    "old_values": xr.DataArray(ov_arr, dims=["n"]),
+                }
+            ).to_netcdf(nc_path)
+
+        data["nc_filename"] = nc_path.name
+        return data
+
+    @classmethod
+    def deserialize(cls, data):
+        return cls._factory(data, "new_values", "old_values")
+
+    @classmethod
+    def reverse_deserialize(cls, data):
+        return cls._factory(data, "old_values", "new_values")  # swapped
+
+    @classmethod
+    def _factory(cls, data, new_key, old_key):
+        """topo -> command, taking the new and old values from the given keys."""
+
+        def factory(topo):
+            if "nc_filename" not in data:
+                return cls(
+                    topo,
+                    affected_indices=[tuple(idx) for idx in data["affected_indices"]],
+                    new_values=data[new_key],
+                    old_values=data[old_key],
+                )
+            nc_path = topo.domain_dir / LARGE_EDITS_DIR / data["nc_filename"]
+            with xr.open_dataset(nc_path) as ds:
+                return cls(
+                    topo,
+                    affected_indices=[
+                        tuple(row) for row in ds["indices"].values.tolist()
+                    ],
+                    new_values=ds[new_key].values.tolist(),
+                    old_values=ds[old_key].values.tolist(),
+                )
+
+        return factory
+
+
+@register_command
+class DepthEditCommand(_CellEditCommand):
+    """Set the raw depth of one or more cells."""
+
+    default_message = "Depth Edit"
 
     def _get_value(self, j, i):
         return self._topo._depth.data[j, i]
@@ -93,268 +197,44 @@ class DepthEditCommand(EditCommand):
     def _set_value(self, j, i, value):
         self._topo._depth.data[j, i] = value
 
-    def __call__(self):
-        if self.old_values is None:
-            self.old_values = [
-                to_native(self._get_value(j, i)) for j, i in self.affected_indices
-            ]
-        for idx, (j, i) in enumerate(self.affected_indices):
-            self._set_value(j, i, self.new_values[idx])
-
-    def _get_large_edits_dir(self):
-        if not self._topo.has_version_control:
-            return None
-        d = self._topo.domain_dir / LARGE_EDITS_DIR
-        d.mkdir(exist_ok=True)
-        return d
-
-    def serialize(self):
-        if len(self.affected_indices) <= SIZE_THRESHOLD:
-            return {
-                "type": self.__class__.__name__,
-                "affected_indices": [
-                    to_native_tuple(idx) for idx in self.affected_indices
-                ],
-                "new_values": [to_native(v) for v in self.new_values],
-                "old_values": (
-                    [to_native(v) for v in self.old_values]
-                    if self.old_values is not None
-                    else None
-                ),
-            }
-
-        large_edits_dir = self._get_large_edits_dir()
-        if large_edits_dir is None:
-            return {
-                "type": self.__class__.__name__,
-                "affected_indices": [
-                    to_native_tuple(idx) for idx in self.affected_indices
-                ],
-                "new_values": [to_native(v) for v in self.new_values],
-                "old_values": (
-                    [to_native(v) for v in self.old_values]
-                    if self.old_values is not None
-                    else None
-                ),
-            }
-
-        idx_arr = np.array(self.affected_indices, dtype=np.int32)
-        nv_arr = np.array(self.new_values, dtype=np.float64)
-        ov_arr = np.array(
-            self.old_values if self.old_values is not None else [], dtype=np.float64
-        )
-        h = hashlib.sha256(
-            idx_arr.tobytes() + nv_arr.tobytes() + ov_arr.tobytes()
-        ).hexdigest()[:16]
-        nc_path = large_edits_dir / f"edit_{h}.nc"
-
-        if not nc_path.exists():
-            xr.Dataset(
-                {
-                    "indices": xr.DataArray(idx_arr, dims=["n", "coord"]),
-                    "new_values": xr.DataArray(nv_arr, dims=["n"]),
-                    "old_values": xr.DataArray(ov_arr, dims=["n"]),
-                }
-            ).to_netcdf(nc_path)
-
-        return {"type": self.__class__.__name__, "nc_filename": nc_path.name}
-
-    @classmethod
-    def deserialize(cls, data):
-        if "nc_filename" in data:
-
-            def factory(topo):
-                nc_path = topo.domain_dir / LARGE_EDITS_DIR / data["nc_filename"]
-                with xr.open_dataset(nc_path) as ds:
-                    return cls(
-                        topo,
-                        affected_indices=[
-                            tuple(row) for row in ds["indices"].values.tolist()
-                        ],
-                        new_values=ds["new_values"].values.tolist(),
-                        old_values=ds["old_values"].values.tolist(),
-                    )
-
-            return factory
-        return lambda topo: cls(
-            topo,
-            affected_indices=[tuple(idx) for idx in data["affected_indices"]],
-            new_values=data["new_values"],
-            old_values=data["old_values"],
-        )
-
-    @classmethod
-    def reverse_deserialize(cls, data):
-        if "nc_filename" in data:
-
-            def factory(topo):
-                nc_path = topo.domain_dir / LARGE_EDITS_DIR / data["nc_filename"]
-                with xr.open_dataset(nc_path) as ds:
-                    return cls(
-                        topo,
-                        affected_indices=[
-                            tuple(row) for row in ds["indices"].values.tolist()
-                        ],
-                        new_values=ds["old_values"].values.tolist(),  # swapped
-                        old_values=ds["new_values"].values.tolist(),  # swapped
-                    )
-
-            return factory
-        return lambda topo: cls(
-            topo,
-            affected_indices=[tuple(idx) for idx in data["affected_indices"]],
-            new_values=data["old_values"],
-            old_values=data["new_values"],
-        )
-
 
 @register_command
-class MaskEditCommand(EditCommand):
-    """Define any edit that affects one or more elements of the binary ocean/land mask array"""
+class MaskEditCommand(_CellEditCommand):
+    """Set the binary ocean/land manual mask (1 ocean, 0 land) of one or more cells."""
 
-    def __init__(
-        self, topo, affected_indices, new_values, old_values=None, message="Mask Edit"
-    ):
-        self._topo = topo
-        # Convert indices and values to native types for consistency and serialization
-        self.affected_indices = [to_native_tuple(idx) for idx in affected_indices]
-        self.new_values = [to_native(v) for v in new_values]
-        self.old_values = (
-            [to_native(v) for v in old_values] if old_values is not None else None
-        )
-        self.message = message
+    default_message = "Mask Edit"
+    nc_dtype = np.int8
+    creates_mask = (
+        None  # set on the first run: True if this edit started the manual mask
+    )
 
     def _get_value(self, j, i):
         return self._topo.tmask.data[j, i]
 
     def _set_value(self, j, i, value):
-        """
-        Set the mask value at the specified indices.
-        The value must be binary (0 for land, 1 for ocean)."""
-
-        # Validate binary value
         assert value in [0, 1], f"Mask value must be 0 (land) or 1 (ocean), got {value}"
         self._topo._user_mask.data[j, i] = value
 
     def __call__(self):
-        """If the manual mask is not initialized, it will be created from the depth raw mask, because at this point we are creating a mask."""
+        """If there is no manual mask yet, start one from the depth-derived mask."""
+        if self.creates_mask is None:
+            self.creates_mask = self._topo._user_mask is None
         if self._topo._user_mask is None:
             print(
                 "The manual mask is not initialized. Initializing it now from the depth raw mask"
             )
             self._topo._user_mask = self._topo._compute_tmask_from_raw_depth()
-        if self.old_values is None:
-            self.old_values = [
-                to_native(self._get_value(j, i)) for j, i in self.affected_indices
-            ]
-        for idx, (j, i) in enumerate(self.affected_indices):
-            self._set_value(j, i, self.new_values[idx])
-
-    def _get_large_edits_dir(self):
-        if not self._topo.has_version_control:
-            return None
-        d = self._topo.domain_dir / LARGE_EDITS_DIR
-        d.mkdir(exist_ok=True)
-        return d
+        super().__call__()
 
     def serialize(self):
-        if len(self.affected_indices) <= SIZE_THRESHOLD:
-            return {
-                "type": self.__class__.__name__,
-                "affected_indices": [
-                    to_native_tuple(idx) for idx in self.affected_indices
-                ],
-                "new_values": [to_native(v) for v in self.new_values],
-                "old_values": (
-                    [to_native(v) for v in self.old_values]
-                    if self.old_values is not None
-                    else None
-                ),
-            }
-
-        large_edits_dir = self._get_large_edits_dir()
-        if large_edits_dir is None:
-            return {
-                "type": self.__class__.__name__,
-                "affected_indices": [
-                    to_native_tuple(idx) for idx in self.affected_indices
-                ],
-                "new_values": [to_native(v) for v in self.new_values],
-                "old_values": (
-                    [to_native(v) for v in self.old_values]
-                    if self.old_values is not None
-                    else None
-                ),
-            }
-
-        idx_arr = np.array(self.affected_indices, dtype=np.int32)
-        nv_arr = np.array(self.new_values, dtype=np.int8)
-        ov_arr = np.array(
-            self.old_values if self.old_values is not None else [], dtype=np.int8
-        )
-        h = hashlib.sha256(
-            idx_arr.tobytes() + nv_arr.tobytes() + ov_arr.tobytes()
-        ).hexdigest()[:16]
-        nc_path = large_edits_dir / f"edit_{h}.nc"
-
-        if not nc_path.exists():
-            xr.Dataset(
-                {
-                    "indices": xr.DataArray(idx_arr, dims=["n", "coord"]),
-                    "new_values": xr.DataArray(nv_arr, dims=["n"]),
-                    "old_values": xr.DataArray(ov_arr, dims=["n"]),
-                }
-            ).to_netcdf(nc_path)
-
-        return {"type": self.__class__.__name__, "nc_filename": nc_path.name}
-
-    @classmethod
-    def deserialize(cls, data):
-        if "nc_filename" in data:
-
-            def factory(topo):
-                nc_path = topo.domain_dir / LARGE_EDITS_DIR / data["nc_filename"]
-                with xr.open_dataset(nc_path) as ds:
-                    return cls(
-                        topo,
-                        affected_indices=[
-                            tuple(row) for row in ds["indices"].values.tolist()
-                        ],
-                        new_values=ds["new_values"].values.tolist(),
-                        old_values=ds["old_values"].values.tolist(),
-                    )
-
-            return factory
-        return lambda topo: cls(
-            topo,
-            affected_indices=[tuple(idx) for idx in data["affected_indices"]],
-            new_values=data["new_values"],
-            old_values=data["old_values"],
-        )
+        return {**super().serialize(), "creates_mask": self.creates_mask}
 
     @classmethod
     def reverse_deserialize(cls, data):
-        if "nc_filename" in data:
-
-            def factory(topo):
-                nc_path = topo.domain_dir / LARGE_EDITS_DIR / data["nc_filename"]
-                with xr.open_dataset(nc_path) as ds:
-                    return cls(
-                        topo,
-                        affected_indices=[
-                            tuple(row) for row in ds["indices"].values.tolist()
-                        ],
-                        new_values=ds["old_values"].values.tolist(),  # swapped
-                        old_values=ds["new_values"].values.tolist(),  # swapped
-                    )
-
-            return factory
-        return lambda topo: cls(
-            topo,
-            affected_indices=[tuple(idx) for idx in data["affected_indices"]],
-            new_values=data["old_values"],
-            old_values=data["new_values"],
-        )
+        """Undoing the edit that started the manual mask clears the mask again."""
+        if data.get("creates_mask"):
+            return lambda topo: ClearMaskCommand(topo)
+        return super().reverse_deserialize(data)
 
 
 @register_command
