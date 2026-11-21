@@ -211,14 +211,94 @@ def test_topo_box_selection_and_history_send_actions(page, get_rect_topo_with_vc
     """Select a box, set it to land (sent as a rect), then undo."""
     from mom6_forge.widgets import TopoEditor
 
-    render(page, TopoEditor(get_rect_topo_with_vc))
+    render(page, TopoEditor(get_rect_topo_with_vc, open_boundaries=True))
     page.click("[data-action=tool-select]")
     _drag(page, (0.4, 0.4), (0.6, 0.6))
     page.click("[data-action=set-land]")
+    page.click("[data-action=show-open-boundaries]")  # turn the overlay off
     page.evaluate("window.__model.set('can_undo', true)")
     page.click("[data-action=undo]")
     ops = [m["op"] for m in sent(page) if m["op"] != "sync"]
     land = next(m["edit"] for m in sent(page) if m["op"] == "edit")
-    assert ops == ["edit", "undo"]
+    assert ops == ["edit", "open_boundaries", "undo"]
     assert land["op"] == "land" and len(land["rect"]) == 4
+    assert_clean(page)
+
+
+# --- GridSketcher (loads OpenLayers and proj4 from cdn.jsdelivr.net) --------------------
+
+# The outline's vertex i, as a page position; and the map's layers' feature counts
+_VERTEX = """(i) => { const map = document.querySelector('[data-role=map]').olMap;
+  const ring = map.getLayers().item(2).getSource().getFeatures()[0].getGeometry();
+  const p = map.getPixelFromCoordinate(ring.getCoordinates()[0][i]);
+  const box = map.getTargetElement().getBoundingClientRect();
+  return [box.left + p[0], box.top + p[1]]; }"""
+_MAP = """() => { const map = document.querySelector('[data-role=map]').olMap;
+  return {code: map.getView().getProjection().getCode(),
+          features: map.getLayers().getArray().map((l) => l.getSource().getFeatures().length)}; }"""
+
+
+def _sketch(page, widget):
+    """Render a GridSketcher and wait for its map (the libraries load from the CDN)."""
+    render(page, widget)
+    page.wait_for_function(
+        "document.querySelector('[data-role=map]').olMap", timeout=30_000
+    )
+
+
+def test_sketcher_draws_python_state_in_its_projection(page):
+    """The map is drawn in the solve projection, and follows Python to a polar one."""
+    from mom6_forge.widgets import GridSketcher
+
+    _sketch(page, GridSketcher())
+    first = page.evaluate(_MAP)
+    assert first["features"] == [2, 1, 1]  # land + graticule, grid lines, outline
+    assert page.get_attribute("[data-action=projection-merc]", "aria-pressed") == "true"
+    polar = GridSketcher(
+        outline=dict(lon=[0, 90, 180, 270], lat=[75] * 4, corners=[0, 1, 2, 3]),
+        resolution_km=150,
+    )
+    state = {k: v for k, v in polar.get_state().items() if not k.startswith("_")}
+    page.evaluate(
+        """(state) => { for (const [k, v] of Object.entries(state)) {
+             const bytes = v && v.__bytes__ !== undefined;
+             const bin = bytes && Uint8Array.from(atob(v.__bytes__), (c) => c.charCodeAt(0));
+             window.__model.set(k, bytes ? new DataView(bin.buffer) : v); } }""",
+        {k: _encode(v) for k, v in state.items()},
+    )
+    page.wait_for_function(f"({_MAP})().code !== {first['code']!r}")
+    assert (
+        page.get_attribute("[data-action=projection-stere]", "aria-pressed") == "true"
+    )
+    assert_clean(page)
+
+
+def test_sketcher_gestures_send_actions(page):
+    """Drag a vertex, double- and right-click one, drag a Box, pick a projection."""
+    from mom6_forge.widgets import GridSketcher
+
+    _sketch(page, GridSketcher())
+    x, y = page.evaluate(_VERTEX, 2)
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x + 30, y - 20, steps=6)
+    page.mouse.up()
+    x, y = page.evaluate(_VERTEX, 3)
+    page.mouse.dblclick(x, y)
+    page.mouse.click(x, y, button="right")
+    page.click("[data-action=box]")
+    page.mouse.move(600, 200)
+    page.mouse.down()
+    page.mouse.move(700, 300, steps=8)
+    page.mouse.up()
+    page.click("[data-action=projection-lcc]")
+    actions = [m for m in sent(page) if m["op"] != "view"]
+    assert [(m["op"], m.get("i"), m["_buffers"]) for m in actions] == [
+        ("outline", None, [64]),  # 4 (lon, lat) float64 pairs
+        ("corner", 3, []),
+        ("delete", 3, []),
+        ("draw", None, [64]),  # the box: 4 vertices
+        ("projection", None, []),
+    ]
+    assert actions[-1]["kind"] == "lcc"
     assert_clean(page)
