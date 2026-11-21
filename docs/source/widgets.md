@@ -1,18 +1,21 @@
 # Interactive Widgets
 
-`mom6_forge` has two notebook widgets:
+`mom6_forge` has three notebook widgets:
 
+* `GridSketcher` builds a horizontal grid (`Grid`) from an outline sketched on a map.
 * `TopoEditor` edits a bathymetry (`Topo`) cell by cell.
 * `VGridCreator` builds a vertical grid (`VGrid`) and keeps a library of saved ones.
 
 ```python
-from mom6_forge.widgets import TopoEditor, VGridCreator
+from mom6_forge.widgets import GridSketcher, TopoEditor, VGridCreator
 ```
 
 Each widget is a front end over ordinary `mom6_forge` calls. It does nothing you
-could not do in Python, and what it builds is an ordinary object: the editor
-changes the `Topo` you give it, and the creator's grid is `creator.vgrid`. The
-{doc}`notebooks/7_demo_editors` notebook shows both.
+could not do in Python, and what it builds is an ordinary object: the sketcher's
+grid is `sketch.grid`, the editor changes the `Topo` you give it, and the
+creator's grid is `creator.vgrid`. The {doc}`notebooks/7_demo_editors` notebook
+shows the editor and the creator, and {doc}`notebooks/9_grid_sketcher` the
+sketcher.
 
 ## Where the widgets run
 
@@ -38,6 +41,125 @@ it again). Alternatively, ask CISL to add anywidget to the Hub environment.
 browser, the error is also kept in Python as `widget.js_errors`; the traceback of
 the last Python error is `widget.last_traceback`. Include them when you report a
 problem.
+
+## GridSketcher
+
+`GridSketcher` builds an orthogonal (conformal) regional `Grid` from a sketched
+outline and four chosen corners, so the domain boundary can follow an irregular
+coastline instead of straight lon/lat or projected edges.
+
+```python
+from mom6_forge.widgets import GridSketcher
+
+sketch = GridSketcher(resolution_km=10)
+sketch
+```
+
+With no outline it starts from a box off California (the CrocoDash tutorial
+domain). `GridSketcher(grid)` reopens a grid: exactly the outline it was built
+from if it has one (grids built by the sketcher or by `Grid.from_outline` keep it
+as `grid.outline`), or else its edge traced with `per_side` vertices a side, as
+in `GridSketcher(grid, per_side=4)`.
+
+The map loads OpenLayers and proj4 from `cdn.jsdelivr.net`, so the browser needs
+internet access. Land and coastlines come from Natural Earth, through cartopy.
+
+### The map
+
+The map is drawn in the projection the grid is solved in, so an edge that is
+straight on the screen is straight for the solver too.
+
+* **Drag** a vertex to move it, or drag an edge to add a vertex there.
+* **Right-click** (or **Alt-click**) a vertex to delete it.
+* **Double-click** a vertex to make or unmake it a corner. A grid needs 4
+  corners, numbered 1–4 on the map; corners that are too flat (over 170°) are
+  ringed in red.
+* **Clear** empties the map: click points, then click the first one again to
+  close the outline. With 4 points, all 4 become corners.
+* **Draw box**, then drag on the map, for a new 4-corner box. It is straight in
+  the map's projection.
+* **Scroll** to zoom and drag the map to pan; **Zoom to outline** shows the whole
+  outline again.
+* Every edit is solved again at a coarse preview resolution. Preview grid lines
+  turn orange or red where ocean cells are badly shaped (orthogonality, size jump
+  or aspect ratio); land cells are not judged.
+
+### The panel
+
+* **Undo** and **Redo** step through outline edits.
+* **Projection** picks the conformal projection the grid is solved in: Lambert
+  conformal, Mercator, transverse Mercator or polar stereographic. The pressed
+  button is the one in use. The one ringed in green is recommended, since its
+  cells vary least in size; a new sketch, and each newly drawn outline, uses it
+  until you press another. Either way the projection is centred on the outline
+  after each edit.
+* **Resolution** sets the nominal cell size in km and shows the `nx × ny` it gives.
+* **Build grid** solves at full resolution and sets `sketch.grid`, a `Grid` with
+  `.outline`, ready for `Topo` (and CrocoDash's `Case`). **Save** writes it to
+  `GridLibrary/grid_<name>.nc`; tick **Overwrite** to replace a saved grid of the
+  same name. Reopen it with `GridSketcher(Grid.from_supergrid_file(path))`. Any
+  later edit, projection or resolution change drops `sketch.grid` until the next
+  **Build grid**.
+* **Errors** say why **Build grid** is greyed out: fewer than 4 corners, crossing
+  edges, a failed solve, folded ocean cells or more than 2.4 million cells (over
+  4 GB to build: use `Grid.from_outline` in a job with more memory).
+  **Warnings** list what to check, such as abrupt size changes, non-orthogonal or
+  stretched cells, nearly flat corners and small open boundaries along the
+  coast. Each is one line and counts ocean cells only.
+* **Preview** gives the preview grid's size and quality; **Details** has the full
+  diagnostics table.
+
+Once the grid has a bathymetry, `TopoEditor`'s **Show open boundaries** shows
+where its open boundaries are (see below).
+
+### Without the widget
+
+`Grid.from_outline` is the same solve. Give it an outline (at least 4 vertices,
+in degrees) and its 4 corner indices (`[0, 1, 2, 3]` by default for a 4-vertex
+outline), and either `resolution_km` (nominal cell size) or `n_cells` (target
+`nx * ny`). `projection` is a kind name (`"lcc"`, `"merc"`, `"tmerc"`,
+`"stere"`) or `"auto"` (the default), which picks the kind the widget
+recommends:
+
+```python
+from mom6_forge.grid import Grid
+
+lon, lat = [235.0, 243.0, 243.0, 235.0], [31.0, 31.0, 39.0, 39.0]
+grid = Grid.from_outline(lon, lat, resolution_km=10)
+grid = Grid.from_outline(lon, lat, resolution_km=10, projection="lcc")
+```
+
+A longer outline needs its 4 corners, e.g.
+`Grid.from_outline(sketch.outline.lon, sketch.outline.lat, sketch.outline.corners)`.
+`write_supergrid_file` stores the grid's `.outline` in the file, and
+`Grid.from_supergrid_file` reads it back.
+
+Once bathymetry exists, get the same quality numbers over the true wet cells:
+
+```python
+from mom6_forge import corner_diagnostics as diag
+
+limits = diag.timestep_limits(grid, wet=topo.tmask)
+print(diag.warnings(limits))
+```
+
+### Acknowledgements
+
+GridSketcher and `Grid.from_outline` are by Dan Amrhein (#149). They build on
+earlier ocean-grid tools:
+
+- [gridgen](https://github.com/sakov/gridgen-c) (Pavel Sakov) and
+  [pygridgen](https://github.com/pygridgen/pygridgen) (Rob Hetland, Paul Hobson and
+  contributors): orthogonal grids from a polygon with marked corners, mapped conformally
+  onto a rectangle. They use the Schwarz-Christoffel CRDT method of Driscoll and Vavasis
+  (1998); mom6_forge solves Laplace problems with finite elements instead.
+- [pyroms](https://github.com/ESMG/pyroms) (Frederic Castruccio, Kate Hedstrom and
+  contributors): its interactive boundary editor is the model for sketching an outline
+  and marking its corners.
+- Coastlines and land come from [Natural Earth](https://www.naturalearthdata.com)
+  (public domain), through cartopy.
+
+The code was written with AI assistance (Claude Code, Anthropic).
 
 ## TopoEditor
 
@@ -76,7 +198,7 @@ the browser, so this topo has no edit history.
 :prompt: Start TopoEditor
 
 import piplite
-await piplite.install(["anywidget", "numpy", "scipy", "xarray", "pyproj"])
+await piplite.install(["anywidget", "numpy", "scipy", "xarray", "pyproj", "shapely"])
 await piplite.install(["mom6_forge"], deps=False)  # skip ESMF and the rest, not needed here
 from mom6_forge.grid import Grid
 from mom6_forge.topo import Topo
@@ -106,6 +228,14 @@ map. Pan with the right mouse button, or by holding Space and dragging.
 * **mask**: land and ocean only.
 * **basinmask**: each connected ocean basin in its own colour, to find lakes and
   basins cut off from the main ocean.
+
+**Show open boundaries** draws a line just outside the grid wherever ocean
+reaches the edge of the domain: these are the open boundaries the model will
+need boundary forcing for. Runs too short to make good open boundaries are drawn
+in red; mask them, or widen them. The overlay follows every edit, undo and reset.
+`editor.open_boundaries` lists the sides with open water (`["south", "east", ...]`),
+in the form `case.configure_forcings(boundaries=...)` takes. Start with the
+overlay on with `TopoEditor(topo, open_boundaries=True)`.
 
 **Tool** chooses what clicking and dragging on the map does:
 
@@ -319,7 +449,7 @@ There are three ways to get a `Topo` with history:
 ## GridCreator was removed
 
 Earlier versions had a `GridCreator` widget for drawing horizontal grids on a
-map. It has been removed; an interactive replacement (GridSketcher) is planned.
-Until then, make grids in code with `Grid(...)`, `Grid.from_center(...)` (a
-rotated rectangle around a centre point) or `Grid.from_projection(...)` (any
-map projection, including polar stereographic); see {doc}`quickstart`.
+map. `GridSketcher` replaces it. Grids can also be made in code with
+`Grid(...)`, `Grid.from_center(...)` (a rotated rectangle around a centre
+point), `Grid.from_projection(...)` (any map projection, including polar
+stereographic) or `Grid.from_outline(...)`; see {doc}`quickstart`.

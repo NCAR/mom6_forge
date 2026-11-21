@@ -42,6 +42,7 @@ See the tutorial notebooks in [`docs/source/notebooks/`](docs/source/notebooks/)
 6. [Coarsen Existing](docs/source/notebooks/6_coarsen_existing.ipynb) — Create a coarser version of an existing MOM6 grid
 7. [Interactive Editors](docs/source/notebooks/7_demo_editors.ipynb) — The `TopoEditor` and `VGridCreator` notebook widgets
 8. [Cressman Interpolation](docs/source/notebooks/8_cressman_interpolation.ipynb) — Deep dive into the Cressman distance-weighted interpolation used for bathymetry
+9. [Grid Sketcher](docs/source/notebooks/9_grid_sketcher.ipynb) — Sketch an outline on a map and build its conformal grid with the `GridSketcher` widget
 
 ## Requirements
 
