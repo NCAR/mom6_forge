@@ -114,3 +114,27 @@ def test_ClearMaskCommand_init_and_execute(get_rect_topo_without_vc):
     reverse_deserialized_command()
     assert topo._user_mask is not None
     assert (topo._user_mask == 1).all()
+
+
+@pytest.mark.parametrize("has_mask", [False, True])
+def test_ClearMaskCommand_serialize_deserialize(get_rect_topo_without_vc, has_mask):
+    topo = get_rect_topo_without_vc
+    mask = np.ones((topo._grid.ny, topo._grid.nx), dtype=int)
+    mask[0, 0] = 0
+    if has_mask:
+        topo.user_mask = mask
+    command = ClearMaskCommand(topo)
+    serialized = command.serialize()
+
+    # Deserialization must retain the recorded mask, not the current one.
+    topo.user_mask = 1 - mask
+    restored = ClearMaskCommand.deserialize(serialized)(topo)
+    assert restored.serialize() == serialized
+    restored()
+    assert topo._user_mask is None
+
+    ClearMaskCommand.reverse_deserialize(restored.serialize())(topo)()
+    if has_mask:
+        np.testing.assert_array_equal(topo._user_mask.values, mask)
+    else:
+        assert topo._user_mask is None

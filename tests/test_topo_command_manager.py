@@ -208,3 +208,41 @@ def test_tcm_commit(get_rect_topo_with_vc, gen_MinDepthCommand):
         and "touch" in topo.tcm.history_dict
         and "touch" not in old_history.keys()
     )  # History should not change on undo/redo commits
+
+
+@pytest.mark.parametrize("has_mask", [False, True])
+def test_clear_mask_reload_undo_redo(get_rect_topo_with_vc, has_mask):
+    from mom6_forge.topo import Topo
+
+    topo = get_rect_topo_with_vc
+    mask = np.ones((topo._grid.ny, topo._grid.nx), dtype=int)
+    mask[0, 0] = 0
+    if has_mask:
+        topo.user_mask = mask
+    topo.clear_user_mask()
+
+    restored = Topo.from_version_control(topo.domain_dir)
+    assert restored._user_mask is None
+    assert restored.tcm.undo()
+    if has_mask:
+        np.testing.assert_array_equal(restored._user_mask.values, mask)
+    else:
+        assert restored._user_mask is None
+    assert restored.tcm.redo()
+    assert restored._user_mask is None
+
+
+@pytest.mark.parametrize("has_mask", [False, True])
+def test_clear_mask_branch_checkout(get_rect_topo_with_vc, has_mask):
+    topo = get_rect_topo_with_vc
+    original_branch = topo.tcm.repo.active_branch.name
+    topo.tcm.create_branch("clear-mask")
+    topo.tcm.checkout("clear-mask")
+    if has_mask:
+        mask = np.ones((topo._grid.ny, topo._grid.nx), dtype=int)
+        mask[0, 0] = 0
+        topo.user_mask = mask
+    topo.clear_user_mask()
+    topo.tcm.checkout(original_branch)
+    topo.tcm.checkout("clear-mask")
+    assert topo._user_mask is None
