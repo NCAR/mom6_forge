@@ -222,13 +222,26 @@ class SupergridBase:
                 )
 
     @staticmethod
+    def _is_rectilinear_lonlat(x, y, atol=1e-6):
+        """Return whether every row of x, y is one latitude and every column one longitude.
+
+        smallangle assumes exactly this alignment; a rotated or otherwise
+        curvilinear grid needs haversine even where its metrics stay positive.
+        """
+        return np.allclose(y, y[:, :1], rtol=0.0, atol=atol) and np.allclose(
+            x, x[:1, :], rtol=0.0, atol=atol
+        )
+
+    @staticmethod
     def _calc_dx_dy_checked(x, y, R=_DEFAULT_RADIUS, type="smallangle"):
         """Compute dx/dy, falling back to haversine if smallangle breaks down.
 
         smallangle differences adjacent longitudes and latitudes, which is only
         valid while the grid lines follow parallels and meridians. A curvilinear
         grid crossing a pole breaks that: y stops varying monotonically with row
-        index, so np.diff(y) flips sign and the metrics come out negative.
+        index, so np.diff(y) flips sign and the metrics come out negative. A
+        rotated grid breaks the same assumption without flipping any sign, so a
+        non-rectilinear x, y also forces the fallback (see _is_rectilinear_lonlat).
 
         Negative metrics are the direct symptom, so testing for them keys off
         the geometry rather than a proxy for it. Latitude is the wrong trigger
@@ -244,7 +257,11 @@ class SupergridBase:
             The method actually used, for the caller to record.
         """
         dx, dy = SupergridBase._calc_dx_dy(x, y, R=R, type=type)
-        if type == "smallangle" and (np.nanmin(dx) < 0.0 or np.nanmin(dy) < 0.0):
+        if type == "smallangle" and (
+            np.nanmin(dx) < 0.0
+            or np.nanmin(dy) < 0.0
+            or not SupergridBase._is_rectilinear_lonlat(x, y)
+        ):
             type = "haversine"
             dx, dy = SupergridBase._calc_dx_dy(x, y, R=R, type=type)
         return dx, dy, type
