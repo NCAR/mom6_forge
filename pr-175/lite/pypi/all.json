@@ -5,19 +5,19 @@
         {
           "comment_text": "",
           "digests": {
-            "md5": "7ab23b8ddb0a977f23a96bcb2d3eea06",
-            "sha256": "5821ac0f414beab6a80afd95d99950af872c9f873c30e5b6220baeefcca96d28"
+            "md5": "ce8c0c3500507cead7bf3696ff44db96",
+            "sha256": "d4f5bf6ab74050614baaf93ec263bc0c22d55c905bd4cb47969d449d6be3d212"
           },
           "downloads": -1,
           "filename": "mom6_forge-0.4.0-py3-none-any.whl",
           "has_sig": false,
-          "md5_digest": "7ab23b8ddb0a977f23a96bcb2d3eea06",
+          "md5_digest": "ce8c0c3500507cead7bf3696ff44db96",
           "packagetype": "bdist_wheel",
           "python_version": "py3",
           "requires_python": ">=3.11,<3.15",
-          "size": 173895,
-          "upload_time": "2026-11-21T01:42:43.031272Z",
-          "upload_time_iso_8601": "2026-11-21T01:42:43.031272Z",
+          "size": 174133,
+          "upload_time": "2026-11-21T01:56:03.847422Z",
+          "upload_time_iso_8601": "2026-11-21T01:56:03.847422Z",
           "url": "./mom6_forge-0.4.0-py3-none-any.whl",
           "yanked": false,
           "yanked_reason": null
