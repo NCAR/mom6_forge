@@ -1,6 +1,7 @@
 import xarray as xr
 import numpy as np
 import scipy.sparse as sp
+import sparse
 import pytest
 from pathlib import Path
 from mom6_forge.mapping import (
@@ -407,6 +408,42 @@ def test_write_mapping_file_uses_shape_lookup_not_full_reconstruction(
     ds = xr.open_dataset(out_path)
     assert list(ds["src_grid_dims"].values) == [3, 2]
     assert list(ds["dst_grid_dims"].values) == [2, 2]
+
+
+def test_write_mapping_file_without_source_geometry(tmp_path):
+    """Without the source grid's per-cell fields, the weights are unchanged: the
+    area normalization reads the areas of just the cells the weights use."""
+    src_grid = Grid(
+        resolution=1.0, xstart=0.0, lenx=4.0, ystart=0.0, leny=3.0, name="src_geom"
+    )
+    dst_grid = Grid(
+        resolution=1.0, xstart=0.0, lenx=2.0, ystart=0.0, leny=2.0, name="dst_geom"
+    )
+    src_path = _write_esmf_mesh(src_grid, tmp_path / "src.nc")
+    dst_path = _write_esmf_mesh(dst_grid, tmp_path / "dst.nc")
+    # Source cells 1, 5, 6 and 11 of 12 map to destination cells 0, 1, 3, 3,
+    # as xESMF hands gen_rof_maps its weights.
+    weights = xr.DataArray(
+        sparse.COO([[0, 1, 3, 3], [1, 5, 6, 11]], [1.0, 1.0, 1.0, 1.0], shape=(4, 12))
+    )
+
+    def write(name, source_geometry):
+        write_mapping_file(
+            src_mesh=str(src_path),
+            dst_mesh=str(dst_path),
+            filename=tmp_path / name,
+            weights=weights,
+            area_normalization=True,
+            source_geometry=source_geometry,
+        )
+        return xr.open_dataset(tmp_path / name)
+
+    full, lean = write("full.nc", True), write("lean.nc", False)
+    for var in ("S", "row", "col", "src_grid_dims", "area_b"):
+        np.testing.assert_array_equal(lean[var].values, full[var].values)
+    assert not {"xc_a", "yc_a", "xv_a", "yv_a", "mask_a", "area_a", "frac_a"} & set(
+        lean.data_vars
+    )
 
 
 # ---------------------------------------------------------------------------

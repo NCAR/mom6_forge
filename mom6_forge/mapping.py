@@ -182,7 +182,21 @@ def get_suggested_smoothing_params(ocn_mesh_path):
     return suggested_rmax, suggested_fold
 
 
-def _construct_vertex_coords(mesh):
+def _read_rows(var, rows, chunk_size=2_000_000):
+    """``var[rows]`` for sorted, unique row indices, read a chunk at a time so a
+    large variable (a global mesh's connectivity or nodes) is never loaded whole."""
+    out = []
+    for start in range(0, var.shape[0], chunk_size):
+        stop = min(start + chunk_size, var.shape[0])
+        lo, hi = np.searchsorted(rows, [start, stop])
+        if lo < hi:
+            out.append(np.asarray(var[start:stop].values)[rows[lo:hi] - start])
+    if not out:
+        return np.empty((0,) + var.shape[1:], dtype=var.dtype)
+    return np.concatenate(out)
+
+
+def _construct_vertex_coords(mesh, elements=None):
     """Construct the vertex coordinates for a given mesh that's participating in a
     mapping generation. The mesh could be src or dst mesh.
 
@@ -190,6 +204,9 @@ def _construct_vertex_coords(mesh):
     ----------
     mesh : xr.Dataset
         The ESMF mesh dataset.
+    elements : np.ndarray, optional
+        Sorted, unique zero-based indices of the elements to build; all of them by
+        default. Only those elements, and the nodes they use, are read.
     Returns
     -------
     xv_data : np.ndarray
@@ -198,8 +215,10 @@ def _construct_vertex_coords(mesh):
         The vertex coordinates in the y-direction.
     """
 
-    element_conn = mesh.elementConn.data - 1  # one-based to zero-based indexing
-    node_coords = mesh.nodeCoords.data
+    if elements is None:
+        element_conn = mesh.elementConn.data - 1  # one-based to zero-based indexing
+    else:
+        element_conn = _read_rows(mesh.elementConn, elements) - 1
 
     if np.issubdtype(element_conn.dtype, np.floating):
         is_tri = np.isnan(element_conn[:, 3])
@@ -209,6 +228,13 @@ def _construct_vertex_coords(mesh):
     conn = element_conn.copy()
     conn[is_tri, 3] = conn[is_tri, 2]
     conn = conn.astype(np.intp)
+
+    if elements is None:
+        node_coords = mesh.nodeCoords.data
+    else:
+        nodes, inverse = np.unique(conn, return_inverse=True)
+        conn = inverse.reshape(conn.shape)
+        node_coords = _read_rows(mesh.nodeCoords, nodes)
 
     xv_data = node_coords[conn, 0]
     yv_data = node_coords[conn, 1]
@@ -244,6 +270,12 @@ def _cached_cell_areas(mesh, xv_data, yv_data):
     return areas
 
 
+def _cell_areas_of(mesh, elements):
+    """Areas (radians^2) of the given elements only (sorted, unique, zero-based):
+    for a global source mesh, the few cells a regional map uses."""
+    return cell_area_rad(*_construct_vertex_coords(mesh, elements))
+
+
 def write_mapping_file(
     src_mesh,
     dst_mesh,
@@ -252,6 +284,7 @@ def write_mapping_file(
     weights_esmpy=None,
     weights_coo=None,
     area_normalization=False,
+    source_geometry=True,
 ):
     """Based on a given source mesh, destination mesh, and weights, write out an ESMF map file.
 
@@ -273,6 +306,12 @@ def write_mapping_file(
         Regridding method, by default 'bilinear'.
     area_normalization : bool, optional
         Whether to multiply the weights by (area_source / area_destination), by default False.
+    source_geometry : bool, optional
+        Whether to write the source grid's per-cell fields (xc_a, yc_a, xv_a, yv_a,
+        mask_a, area_a, frac_a), by default True. CESM's coupler reads only S, row
+        and col (ESMF_FieldSMMStore), and for a large source mesh these fields are
+        most of the time, memory and file size. Without them, source areas are
+        computed only for the cells the weights use.
 
     Returns
     -------
@@ -319,67 +358,78 @@ def write_mapping_file(
     # 1/3: Source Domain Fields
     # -------------------
 
-    xc_a = xr.DataArray(
-        src_mesh.centerCoords.data[:, 0],
-        dims=["n_a"],
-        attrs={
-            "long_name": "longitude of grid cell center (input)",
-            "units": "degrees east",
-        },
-    )
+    source_fields = {}
+    if source_geometry:
+        xc_a = xr.DataArray(
+            src_mesh.centerCoords.data[:, 0],
+            dims=["n_a"],
+            attrs={
+                "long_name": "longitude of grid cell center (input)",
+                "units": "degrees east",
+            },
+        )
 
-    yc_a = xr.DataArray(
-        src_mesh.centerCoords.data[:, 1],
-        dims=["n_a"],
-        attrs={
-            "long_name": "latitude of grid cell center (input)",
-            "units": "degrees north",
-        },
-    )
+        yc_a = xr.DataArray(
+            src_mesh.centerCoords.data[:, 1],
+            dims=["n_a"],
+            attrs={
+                "long_name": "latitude of grid cell center (input)",
+                "units": "degrees north",
+            },
+        )
 
-    xv_a_data, yv_a_data = _construct_vertex_coords(src_mesh)
-    area_a_data = _cached_cell_areas(src_mesh, xv_a_data, yv_a_data)
+        xv_a_data, yv_a_data = _construct_vertex_coords(src_mesh)
+        area_a_data = _cached_cell_areas(src_mesh, xv_a_data, yv_a_data)
 
-    xv_a = xr.DataArray(
-        xv_a_data,
-        dims=["n_a", "nv_a"],
-        attrs={
-            "long_name": "longitude of grid cell verticies (input)",
-            "units": "degrees east",
-        },
-    )
+        xv_a = xr.DataArray(
+            xv_a_data,
+            dims=["n_a", "nv_a"],
+            attrs={
+                "long_name": "longitude of grid cell verticies (input)",
+                "units": "degrees east",
+            },
+        )
 
-    yv_a = xr.DataArray(
-        yv_a_data,
-        dims=["n_a", "nv_a"],
-        attrs={
-            "long_name": "latitude of grid cell verticies (input)",
-            "units": "degrees north",
-        },
-    )
+        yv_a = xr.DataArray(
+            yv_a_data,
+            dims=["n_a", "nv_a"],
+            attrs={
+                "long_name": "latitude of grid cell verticies (input)",
+                "units": "degrees north",
+            },
+        )
 
-    mask_a = xr.DataArray(
-        src_mesh.elementMask.data,
-        dims=["n_a"],
-        attrs={
-            "long_name": "domain mask (input)",
-        },
-    )
+        mask_a = xr.DataArray(
+            src_mesh.elementMask.data,
+            dims=["n_a"],
+            attrs={
+                "long_name": "domain mask (input)",
+            },
+        )
 
-    area_a = xr.DataArray(
-        area_a_data,
-        dims=["n_a"],
-        attrs={"long_name": "area of cell (input)", "units": "radians^2"},
-    )
+        area_a = xr.DataArray(
+            area_a_data,
+            dims=["n_a"],
+            attrs={"long_name": "area of cell (input)", "units": "radians^2"},
+        )
 
-    frac_a = xr.DataArray(
-        src_mesh.elementMask.data.astype(np.float64),
-        dims=["n_a"],
-        attrs={
-            "long_name": "fraction of domain intersection (input)",
-            #'units': ''
-        },
-    )
+        frac_a = xr.DataArray(
+            src_mesh.elementMask.data.astype(np.float64),
+            dims=["n_a"],
+            attrs={
+                "long_name": "fraction of domain intersection (input)",
+                #'units': ''
+            },
+        )
+        source_fields = {
+            "xc_a": xc_a,
+            "yc_a": yc_a,
+            "xv_a": xv_a,
+            "yv_a": yv_a,
+            "mask_a": mask_a,
+            "area_a": area_a,
+            "frac_a": frac_a,
+        }
 
     src_grid_dims = xr.DataArray(
         np.array([src_nx, src_ny]).astype(np.int32),
@@ -499,7 +549,14 @@ def write_mapping_file(
         row_data = weights_coo.row + 1
 
     if area_normalization:
-        area_scale = area_a.data[col_data - 1] / area_b.data[row_data - 1]
+        if source_geometry:
+            src_area = area_a.data[col_data - 1]
+        else:
+            used = np.unique(col_data) - 1
+            src_area = _cell_areas_of(src_mesh, used)[
+                np.searchsorted(used, col_data - 1)
+            ]
+        area_scale = src_area / area_b.data[row_data - 1]
         if hasattr(w, "data"):
             w.data *= area_scale
         else:
@@ -540,13 +597,7 @@ def write_mapping_file(
 
     ds = xr.Dataset(
         {
-            "xc_a": xc_a,
-            "yc_a": yc_a,
-            "xv_a": xv_a,
-            "yv_a": yv_a,
-            "mask_a": mask_a,
-            "area_a": area_a,
-            "frac_a": frac_a,
+            **source_fields,
             "src_grid_dims": src_grid_dims,
             "nj_a": nj_a,
             "ni_a": ni_a,
@@ -592,6 +643,7 @@ def generate_ESMF_map_via_xesmf(
     area_normalization=False,
     map_overlap=True,
     coastline_masking=False,
+    source_geometry=True,
 ):
     """Generate an ESMF mapping file using xesmf.
 
@@ -612,6 +664,8 @@ def generate_ESMF_map_via_xesmf(
         zero out the mask in the source mesh that falls outside the rectangle defined by the destination mesh.
     coastline_masking : bool
         If True, apply coastline masking to the destination mesh.
+    source_geometry : bool
+        Whether the file carries the source grid's per-cell fields; see write_mapping_file.
     """
 
     src_grid = grid_from_esmf_mesh(src_mesh_path)
@@ -682,6 +736,7 @@ def generate_ESMF_map_via_xesmf(
         weights=regridder.weights,
         filename=mapping_file,
         area_normalization=area_normalization,
+        source_geometry=source_geometry,
     )
 
 
@@ -1116,6 +1171,7 @@ def gen_rof_maps(
     mapping_file_prefix,
     rmax=None,
     fold=None,
+    source_geometry=False,
 ):
     """Generate (1) nearest neighbor and (2) smoothed nearest neighbor mapping files
     from a runoff mesh to an ocean mesh.
@@ -1135,6 +1191,11 @@ def gen_rof_maps(
         Maximum distance for smoothing weights, in kilometers. If None, no smoothing is applied.
     fold : float, optional
         Fold factor (km) determining the strength of smoothing based on distance. If None, no smoothing is applied.
+    source_geometry : bool, optional
+        Whether the maps also carry the runoff mesh's per-cell fields (xc_a, yc_a,
+        xv_a, yv_a, mask_a, area_a, frac_a), by default False. CESM reads only S,
+        row and col, and for a global runoff mesh (GLOFAS: 21.6M cells) these
+        fields are most of the time and memory, and make each file ~2 GB.
     """
 
     print(f"Generating nearest neighbor mapping file...")
@@ -1165,6 +1226,7 @@ def gen_rof_maps(
         method="nearest_d2s",
         area_normalization=True,
         coastline_masking=True,
+        source_geometry=source_geometry,
     )
 
     print(f"  Generated nearest mapping file in {(t1:=time()) - t0:.2f} seconds at:")
@@ -1173,8 +1235,15 @@ def gen_rof_maps(
     nn_map = xr.open_dataset(nn_map_filepath)
     rof_nx, rof_ny = len(nn_map.ni_a), len(nn_map.nj_a)
     ocn_nx, ocn_ny = len(nn_map.ni_b), len(nn_map.nj_b)
-    area_a = nn_map["area_a"].data
     area_b = nn_map["area_b"].data
+    if source_geometry:
+        area_a = nn_map["area_a"].data
+    else:
+        # Only the cells the map uses need an area, for the checks below.
+        used = np.unique(nn_map.col.data) - 1
+        area_a = np.zeros(rof_nx * rof_ny)
+        with xr.open_dataset(rof_mesh_path) as rof_mesh:
+            area_a[used] = _cell_areas_of(rof_mesh, used)
 
     # Sparse form of the nearest-neighbor weights, reused below for smoothing.
     S_coo = coo_matrix(
@@ -1225,6 +1294,7 @@ def gen_rof_maps(
             filename=nnsm_map_filepath,
             weights_coo=S_smooth,
             area_normalization=False,  # No area normalization for smoothing
+            source_geometry=source_geometry,
         )
 
         print(f"  Generated smoothed mapping file in {time() - t1:.2f} seconds at:")
