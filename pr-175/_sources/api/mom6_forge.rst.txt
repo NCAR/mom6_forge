@@ -20,6 +20,14 @@ mom6\_forge.command\_manager module
    :undoc-members:
    :show-inheritance:
 
+mom6\_forge.corner\_diagnostics module
+--------------------------------------
+
+.. automodule:: mom6_forge.corner_diagnostics
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 mom6\_forge.edit\_command module
 --------------------------------
 
@@ -82,6 +90,13 @@ mom6\_forge.vgrid module
 .. automodule:: mom6_forge.vgrid
    :members:
    :undoc-members:
+   :show-inheritance:
+
+mom6\_forge.widgets.grid\_sketcher module
+-----------------------------------------
+
+.. automodule:: mom6_forge.widgets.grid_sketcher
+   :members:
    :show-inheritance:
 
 mom6\_forge.widgets.topo\_editor module

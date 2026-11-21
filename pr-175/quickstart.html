@@ -212,6 +212,10 @@ north. Useful for aligning a regional domain with a coastline or estuary.</p></l
 — builds a uniform grid in a given <code class="docutils literal notranslate"><span class="pre">pyproj</span></code> CRS (e.g. a polar stereographic or
 Lambert conformal projection) and reprojects it to geographic coordinates,
 remaining accurate at high latitudes.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Grid.from_outline(lon,</span> <span class="pre">lat,</span> <span class="pre">corners=None,</span> <span class="pre">resolution_km=None)</span></code> — builds an
+orthogonal (conformal) grid inside a polygon outline with 4 marked corners, so the
+domain edge can follow a coastline. The <code class="docutils literal notranslate"><span class="pre">GridSketcher</span></code> widget draws the outline on a
+map; see <a class="reference internal" href="widgets.html"><span class="doc">Interactive Widgets</span></a>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">Grid.from_supergrid_file(file_path)</span></code> — loads a grid from an existing MOM6 supergrid file.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">Grid.from_esmf_mesh_file(file_path)</span></code> — loads a grid from an existing ESMF mesh file.</p></li>
 </ul>
@@ -579,7 +583,9 @@ writes it out:</p>
 </section>
 <section id="step-6-editing-bathymetry-and-vertical-grids-interactively">
 <h2>Step 6: Editing Bathymetry and Vertical Grids Interactively<a class="headerlink" href="#step-6-editing-bathymetry-and-vertical-grids-interactively" title="Link to this heading"></a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">mom6_forge</span></code> has two notebook widgets for the steps that are easier to do by eye:</p>
+<p><code class="docutils literal notranslate"><span class="pre">mom6_forge</span></code> has notebook widgets for the steps that are easier to do by eye. The
+first, <code class="docutils literal notranslate"><span class="pre">GridSketcher</span></code>, draws a grid’s outline (see the constructors above); the other
+two come after the grid:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">TopoEditor</span></code> edits the bathymetry cell by cell (depths, land and ocean, basins), with
 undo and redo. Every edit is also an ordinary Python call, <code class="docutils literal notranslate"><span class="pre">topo.apply_edits(...)</span></code>, so

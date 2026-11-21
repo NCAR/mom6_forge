@@ -92,6 +92,10 @@ constructors for domains that aren't naturally expressed as `nx`/`ny`/`lenx`/`le
   — builds a uniform grid in a given `pyproj` CRS (e.g. a polar stereographic or
   Lambert conformal projection) and reprojects it to geographic coordinates,
   remaining accurate at high latitudes.
+* `Grid.from_outline(lon, lat, corners=None, resolution_km=None)` — builds an
+  orthogonal (conformal) grid inside a polygon outline with 4 marked corners, so the
+  domain edge can follow a coastline. The `GridSketcher` widget draws the outline on a
+  map; see {doc}`widgets`.
 * `Grid.from_supergrid_file(file_path)` — loads a grid from an existing MOM6 supergrid file.
 * `Grid.from_esmf_mesh_file(file_path)` — loads a grid from an existing ESMF mesh file.
 
@@ -493,7 +497,9 @@ topo.write_scrip_grid_file("my_ocean_scrip.nc")
 
 ## Step 6: Editing Bathymetry and Vertical Grids Interactively
 
-`mom6_forge` has two notebook widgets for the steps that are easier to do by eye:
+`mom6_forge` has notebook widgets for the steps that are easier to do by eye. The
+first, `GridSketcher`, draws a grid's outline (see the constructors above); the other
+two come after the grid:
 
 * `TopoEditor` edits the bathymetry cell by cell (depths, land and ocean, basins), with
   undo and redo. Every edit is also an ordinary Python call, `topo.apply_edits(...)`, so

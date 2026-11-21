@@ -103,6 +103,7 @@
  | <a href="#L"><strong>L</strong></a>
  | <a href="#M"><strong>M</strong></a>
  | <a href="#N"><strong>N</strong></a>
+ | <a href="#O"><strong>O</strong></a>
  | <a href="#P"><strong>P</strong></a>
  | <a href="#Q"><strong>Q</strong></a>
  | <a href="#R"><strong>R</strong></a>
@@ -157,6 +158,8 @@
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.utils.cell_area_rad">cell_area_rad() (in module mom6_forge.utils)</a>
 </li>
+      <li><a href="api/mom6_forge.html#mom6_forge.corner_diagnostics.cell_metrics">cell_metrics() (in module mom6_forge.corner_diagnostics)</a>
+</li>
       <li><a href="glossary.html#term-channel-width-constraint"><strong>channel width constraint</strong></a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidthList.channels">channels (mom6_forge.channel_width.ChannelWidthList attribute)</a>
@@ -195,6 +198,8 @@
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.utils.compute_subsampling_factor">compute_subsampling_factor() (in module mom6_forge.utils)</a>
 </li>
+      <li><a href="api/mom6_forge.html#mom6_forge.widgets.grid_sketcher.GridSketcher.corners">corners (mom6_forge.widgets.grid_sketcher.GridSketcher attribute)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.command_manager.CommandManager.create_branch">create_branch() (mom6_forge.command_manager.CommandManager method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.edit_command.MaskEditCommand.creates_mask">creates_mask (mom6_forge.edit_command.MaskEditCommand attribute)</a>
@@ -231,6 +236,8 @@
         <li><a href="api/mom6_forge.html#mom6_forge.edit_command.MinDepthEditCommand.deserialize">(mom6_forge.edit_command.MinDepthEditCommand class method)</a>
 </li>
       </ul></li>
+      <li><a href="api/mom6_forge.html#mom6_forge.widgets.grid_sketcher.GridSketcher.details">details (mom6_forge.widgets.grid_sketcher.GridSketcher attribute)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.diagnose_resolution">diagnose_resolution() (mom6_forge.topo.Topo method)</a>
 </li>
   </ul></td>
@@ -295,6 +302,10 @@
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.utils.fill_missing_data">fill_missing_data() (in module mom6_forge.utils)</a>
 </li>
+      <li><a href="api/mom6_forge.html#mom6_forge.widgets.grid_sketcher.GridSketcher.flags">flags (mom6_forge.widgets.grid_sketcher.GridSketcher attribute)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.widgets.grid_sketcher.GridSketcher.flat_corners">flat_corners (mom6_forge.widgets.grid_sketcher.GridSketcher attribute)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.mapping.flatten_to_mesh">flatten_to_mesh() (in module mom6_forge.mapping)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidthList.FMT_OUT">FMT_OUT (mom6_forge.channel_width.ChannelWidthList attribute)</a>
@@ -317,7 +328,13 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.vgrid.VGrid.from_file">from_file() (mom6_forge.vgrid.VGrid class method)</a>
 </li>
+      <li><a href="api/mom6_forge.html#mom6_forge.widgets.grid_sketcher.Outline.from_grid">from_grid() (mom6_forge.widgets.grid_sketcher.Outline class method)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidth.from_line">from_line() (mom6_forge.channel_width.ChannelWidth class method)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.from_lonlat_arrays">from_lonlat_arrays() (mom6_forge.grid.Grid class method)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.from_outline">from_outline() (mom6_forge.grid.Grid class method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.from_projection">from_projection() (mom6_forge.grid.Grid class method)</a>
 </li>
@@ -361,10 +378,10 @@
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.get_bounding_boxes">get_bounding_boxes() (mom6_forge.grid.Grid class method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.command_manager.CommandManager.get_current_branch">get_current_branch() (mom6_forge.command_manager.CommandManager method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.git_utils.get_domain_dir">get_domain_dir() (in module mom6_forge.git_utils)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.get_esmf_ready_tracer_ds">get_esmf_ready_tracer_ds() (mom6_forge.grid.Grid method)</a>
@@ -386,6 +403,10 @@
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid">Grid (class in mom6_forge.grid)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.mapping.grid_from_esmf_mesh">grid_from_esmf_mesh() (in module mom6_forge.mapping)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.corner_diagnostics.grid_quality">grid_quality() (in module mom6_forge.corner_diagnostics)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.widgets.grid_sketcher.GridSketcher">GridSketcher (class in mom6_forge.widgets.grid_sketcher)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -439,6 +460,8 @@
 <h2 id="L">L</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/mom6_forge.html#mom6_forge.widgets.grid_sketcher.GridSketcher.land">land (mom6_forge.widgets.grid_sketcher.GridSketcher attribute)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.land_fillval">land_fillval (mom6_forge.topo.Topo property)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidth.lat1">lat1 (mom6_forge.channel_width.ChannelWidth attribute)</a>
@@ -449,10 +472,10 @@
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.leny">leny (mom6_forge.grid.Grid property)</a>
 </li>
-      <li><a href="api/mom6_forge.html#mom6_forge.widgets.vgrid_creator.VGridCreator.library">library (mom6_forge.widgets.vgrid_creator.VGridCreator attribute)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/mom6_forge.html#mom6_forge.widgets.vgrid_creator.VGridCreator.library">library (mom6_forge.widgets.vgrid_creator.VGridCreator attribute)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.command_manager.CommandManager.list_branches">list_branches() (mom6_forge.command_manager.CommandManager method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidthList.load">load() (mom6_forge.channel_width.ChannelWidthList method)</a>
@@ -493,6 +516,8 @@
 </li>
         <li><a href="api/mom6_forge.html#module-mom6_forge.command_manager">mom6_forge.command_manager</a>
 </li>
+        <li><a href="api/mom6_forge.html#module-mom6_forge.corner_diagnostics">mom6_forge.corner_diagnostics</a>
+</li>
         <li><a href="api/mom6_forge.html#module-mom6_forge.edit_command">mom6_forge.edit_command</a>
 </li>
         <li><a href="api/mom6_forge.html#module-mom6_forge.git_utils">mom6_forge.git_utils</a>
@@ -508,6 +533,8 @@
         <li><a href="api/mom6_forge.html#module-mom6_forge.utils">mom6_forge.utils</a>
 </li>
         <li><a href="api/mom6_forge.html#module-mom6_forge.vgrid">mom6_forge.vgrid</a>
+</li>
+        <li><a href="api/mom6_forge.html#module-mom6_forge.widgets.grid_sketcher">mom6_forge.widgets.grid_sketcher</a>
 </li>
         <li><a href="api/mom6_forge.html#module-mom6_forge.widgets.topo_editor">mom6_forge.widgets.topo_editor</a>
 </li>
@@ -535,6 +562,13 @@
 
       <ul>
         <li><a href="api/mom6_forge.html#module-mom6_forge.command_manager">module</a>
+</li>
+      </ul></li>
+      <li>
+    mom6_forge.corner_diagnostics
+
+      <ul>
+        <li><a href="api/mom6_forge.html#module-mom6_forge.corner_diagnostics">module</a>
 </li>
       </ul></li>
       <li>
@@ -594,6 +628,13 @@
 </li>
       </ul></li>
       <li>
+    mom6_forge.widgets.grid_sketcher
+
+      <ul>
+        <li><a href="api/mom6_forge.html#module-mom6_forge.widgets.grid_sketcher">module</a>
+</li>
+      </ul></li>
+      <li>
     mom6_forge.widgets.topo_editor
 
       <ul>
@@ -627,11 +668,33 @@
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/mom6_forge.html#mom6_forge.widgets.grid_sketcher.GridSketcher.nodes">nodes (mom6_forge.widgets.grid_sketcher.GridSketcher attribute)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.utils.normalize_deg">normalize_deg() (in module mom6_forge.utils)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.nx">nx (mom6_forge.grid.Grid property)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.ny">ny (mom6_forge.grid.Grid property)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="O">O</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/mom6_forge.html#mom6_forge.corner_diagnostics.ocean_mask">ocean_mask() (in module mom6_forge.corner_diagnostics)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.widgets.topo_editor.TopoEditor.open_boundaries">open_boundaries (mom6_forge.widgets.topo_editor.TopoEditor property)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.widgets.topo_editor.TopoEditor.open_boundary_runs">open_boundary_runs (mom6_forge.widgets.topo_editor.TopoEditor attribute)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/mom6_forge.html#mom6_forge.corner_diagnostics.open_boundary_runs">open_boundary_runs() (in module mom6_forge.corner_diagnostics)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.widgets.grid_sketcher.Outline">Outline (class in mom6_forge.widgets.grid_sketcher)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.outline">outline (mom6_forge.grid.Grid attribute)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -645,13 +708,17 @@
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.plot">plot() (mom6_forge.grid.Grid method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.plot_cross_section">plot_cross_section() (mom6_forge.grid.Grid method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.plotting.plot_esmf_mesh">plot_esmf_mesh() (in module mom6_forge.plotting)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.point_is_ocean">point_is_ocean() (mom6_forge.topo.Topo method)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.widgets.grid_sketcher.GridSketcher.preview_errors">preview_errors (mom6_forge.widgets.grid_sketcher.GridSketcher attribute)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.widgets.grid_sketcher.GridSketcher.proj4">proj4 (mom6_forge.widgets.grid_sketcher.GridSketcher attribute)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -661,11 +728,13 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.qlat">qlat (mom6_forge.grid.Grid attribute)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.qlon">qlon (mom6_forge.grid.Grid attribute)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.qmask">qmask (mom6_forge.topo.Topo property)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.corner_diagnostics.quality_messages">quality_messages() (in module mom6_forge.corner_diagnostics)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -679,6 +748,8 @@
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.command_manager.TopoCommandManager.reapply_changes">reapply_changes() (mom6_forge.command_manager.TopoCommandManager method)</a>
 </li>
+      <li><a href="api/mom6_forge.html#mom6_forge.widgets.grid_sketcher.GridSketcher.recommended">recommended (mom6_forge.widgets.grid_sketcher.GridSketcher attribute)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.command_manager.CommandType.REDO">REDO (mom6_forge.command_manager.CommandType attribute)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.command_manager.CommandManager.redo">redo() (mom6_forge.command_manager.CommandManager method)</a>
@@ -691,10 +762,10 @@
       </ul></li>
       <li><a href="api/mom6_forge.html#mom6_forge.edit_command.register_command">register_command() (in module mom6_forge.edit_command)</a>
 </li>
-      <li><a href="api/mom6_forge.html#mom6_forge.mapping.regrid_dataset_via_cressman">regrid_dataset_via_cressman() (in module mom6_forge.mapping)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/mom6_forge.html#mom6_forge.mapping.regrid_dataset_via_cressman">regrid_dataset_via_cressman() (in module mom6_forge.mapping)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.mapping.regrid_dataset_via_xesmf">regrid_dataset_via_xesmf() (in module mom6_forge.mapping)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.mapping.regrid_with_subsampling">regrid_with_subsampling() (in module mom6_forge.mapping)</a>
@@ -739,6 +810,8 @@
         <li><a href="api/mom6_forge.html#mom6_forge.edit_command.MinDepthEditCommand.serialize">(mom6_forge.edit_command.MinDepthEditCommand method)</a>
 </li>
       </ul></li>
+      <li><a href="api/mom6_forge.html#mom6_forge.widgets.grid_sketcher.Outline.set">set() (mom6_forge.widgets.grid_sketcher.Outline method)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.set_bowl">set_bowl() (mom6_forge.topo.Topo method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.set_depth_from_stats">set_depth_from_stats() (mom6_forge.topo.Topo method)</a>
@@ -749,13 +822,15 @@
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.set_flat">set_flat() (mom6_forge.topo.Topo method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.set_from_dataset">set_from_dataset() (mom6_forge.topo.Topo method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.set_spoon">set_spoon() (mom6_forge.topo.Topo method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.set_src">set_src() (mom6_forge.topo.Topo method)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.corner_diagnostics.size_ratios">size_ratios() (in module mom6_forge.corner_diagnostics)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.widgets.vgrid_creator.VGridCreator.source">source (mom6_forge.widgets.vgrid_creator.VGridCreator attribute)</a>
 </li>
@@ -765,8 +840,12 @@
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.topo.Topo.stats">stats (mom6_forge.topo.Topo property)</a>
 </li>
-      <li><a href="api/mom6_forge.html#mom6_forge.widgets.topo_editor.TopoEditor.status">status (mom6_forge.widgets.topo_editor.TopoEditor attribute)</a>
+      <li><a href="api/mom6_forge.html#mom6_forge.widgets.grid_sketcher.GridSketcher.status">status (mom6_forge.widgets.grid_sketcher.GridSketcher attribute)</a>
+
+      <ul>
+        <li><a href="api/mom6_forge.html#mom6_forge.widgets.topo_editor.TopoEditor.status">(mom6_forge.widgets.topo_editor.TopoEditor attribute)</a>
 </li>
+      </ul></li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.subgrid_from_supergrid">subgrid_from_supergrid() (mom6_forge.grid.Grid class method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.mapping.sum_weights">sum_weights() (in module mom6_forge.mapping)</a>
@@ -788,6 +867,8 @@
       <li><a href="api/mom6_forge.html#mom6_forge.command_manager.TopoCommandManager.tag">tag() (mom6_forge.command_manager.TopoCommandManager method)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.tarea">tarea (mom6_forge.grid.Grid attribute)</a>
+</li>
+      <li><a href="api/mom6_forge.html#mom6_forge.corner_diagnostics.timestep_limits">timestep_limits() (in module mom6_forge.corner_diagnostics)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.grid.Grid.tlat">tlat (mom6_forge.grid.Grid attribute)</a>
 </li>
@@ -849,6 +930,8 @@
 <h2 id="V">V</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/mom6_forge.html#mom6_forge.widgets.grid_sketcher.GridSketcher.vertices">vertices (mom6_forge.widgets.grid_sketcher.GridSketcher attribute)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.vgrid.VGrid">VGrid (class in mom6_forge.vgrid)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.widgets.vgrid_creator.VGridCreator">VGridCreator (class in mom6_forge.widgets.vgrid_creator)</a>
@@ -867,6 +950,8 @@
 <h2 id="W">W</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/mom6_forge.html#mom6_forge.corner_diagnostics.warnings">warnings() (in module mom6_forge.corner_diagnostics)</a>
+</li>
       <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidth.width">width (mom6_forge.channel_width.ChannelWidth attribute)</a>
 </li>
       <li><a href="api/mom6_forge.html#mom6_forge.channel_width.ChannelWidthList.write">write() (mom6_forge.channel_width.ChannelWidthList method)</a>

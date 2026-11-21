@@ -57,15 +57,22 @@
 <li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Interactive Widgets</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#where-the-widgets-run">Where the widgets run</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#gridsketcher">GridSketcher</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#the-map">The map</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#the-panel">The panel</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#without-the-widget">Without the widget</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#acknowledgements">Acknowledgements</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="#topoeditor">TopoEditor</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#try-it-in-your-browser">Try it in your browser</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#the-map">The map</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id1">The map</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#controls">Controls</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#the-same-edits-from-python">The same edits from Python</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#vgridcreator">VGridCreator</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#id1">Try it in your browser</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id2">Try it in your browser</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#edit-history">Edit history</a></li>
@@ -108,18 +115,21 @@
              
   <section id="interactive-widgets">
 <h1>Interactive Widgets<a class="headerlink" href="#interactive-widgets" title="Link to this heading"></a></h1>
-<p><code class="docutils literal notranslate"><span class="pre">mom6_forge</span></code> has two notebook widgets:</p>
+<p><code class="docutils literal notranslate"><span class="pre">mom6_forge</span></code> has three notebook widgets:</p>
 <ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">GridSketcher</span></code> builds a horizontal grid (<code class="docutils literal notranslate"><span class="pre">Grid</span></code>) from an outline sketched on a map.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">TopoEditor</span></code> edits a bathymetry (<code class="docutils literal notranslate"><span class="pre">Topo</span></code>) cell by cell.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">VGridCreator</span></code> builds a vertical grid (<code class="docutils literal notranslate"><span class="pre">VGrid</span></code>) and keeps a library of saved ones.</p></li>
 </ul>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mom6_forge.widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">TopoEditor</span><span class="p">,</span> <span class="n">VGridCreator</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mom6_forge.widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">GridSketcher</span><span class="p">,</span> <span class="n">TopoEditor</span><span class="p">,</span> <span class="n">VGridCreator</span>
 </pre></div>
 </div>
 <p>Each widget is a front end over ordinary <code class="docutils literal notranslate"><span class="pre">mom6_forge</span></code> calls. It does nothing you
-could not do in Python, and what it builds is an ordinary object: the editor
-changes the <code class="docutils literal notranslate"><span class="pre">Topo</span></code> you give it, and the creator’s grid is <code class="docutils literal notranslate"><span class="pre">creator.vgrid</span></code>. The
-<a class="reference internal" href="notebooks/7_demo_editors.html"><span class="doc">Interactive editors</span></a> notebook shows both.</p>
+could not do in Python, and what it builds is an ordinary object: the sketcher’s
+grid is <code class="docutils literal notranslate"><span class="pre">sketch.grid</span></code>, the editor changes the <code class="docutils literal notranslate"><span class="pre">Topo</span></code> you give it, and the
+creator’s grid is <code class="docutils literal notranslate"><span class="pre">creator.vgrid</span></code>. The <a class="reference internal" href="notebooks/7_demo_editors.html"><span class="doc">Interactive editors</span></a> notebook
+shows the editor and the creator, and <a class="reference internal" href="notebooks/9_grid_sketcher.html"><span class="doc">GridSketcher: a conformal regional grid from a sketched outline</span></a> the
+sketcher.</p>
 <section id="where-the-widgets-run">
 <h2>Where the widgets run<a class="headerlink" href="#where-the-widgets-run" title="Link to this heading"></a></h2>
 <p>The widgets are <a class="reference external" href="https://anywidget.dev">anywidgets</a> with plain JavaScript front
@@ -140,6 +150,120 @@ it again). Alternatively, ask CISL to add anywidget to the Hub environment.</p>
 browser, the error is also kept in Python as <code class="docutils literal notranslate"><span class="pre">widget.js_errors</span></code>; the traceback of
 the last Python error is <code class="docutils literal notranslate"><span class="pre">widget.last_traceback</span></code>. Include them when you report a
 problem.</p>
+</section>
+<section id="gridsketcher">
+<h2>GridSketcher<a class="headerlink" href="#gridsketcher" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">GridSketcher</span></code> builds an orthogonal (conformal) regional <code class="docutils literal notranslate"><span class="pre">Grid</span></code> from a sketched
+outline and four chosen corners, so the domain boundary can follow an irregular
+coastline instead of straight lon/lat or projected edges.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mom6_forge.widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">GridSketcher</span>
+
+<span class="n">sketch</span> <span class="o">=</span> <span class="n">GridSketcher</span><span class="p">(</span><span class="n">resolution_km</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+<span class="n">sketch</span>
+</pre></div>
+</div>
+<p>With no outline it starts from a box off California (the CrocoDash tutorial
+domain). <code class="docutils literal notranslate"><span class="pre">GridSketcher(grid)</span></code> reopens a grid: exactly the outline it was built
+from if it has one (grids built by the sketcher or by <code class="docutils literal notranslate"><span class="pre">Grid.from_outline</span></code> keep it
+as <code class="docutils literal notranslate"><span class="pre">grid.outline</span></code>), or else its edge traced with <code class="docutils literal notranslate"><span class="pre">per_side</span></code> vertices a side, as
+in <code class="docutils literal notranslate"><span class="pre">GridSketcher(grid,</span> <span class="pre">per_side=4)</span></code>.</p>
+<p>The map loads OpenLayers and proj4 from <code class="docutils literal notranslate"><span class="pre">cdn.jsdelivr.net</span></code>, so the browser needs
+internet access. Land and coastlines come from Natural Earth, through cartopy.</p>
+<section id="the-map">
+<h3>The map<a class="headerlink" href="#the-map" title="Link to this heading"></a></h3>
+<p>The map is drawn in the projection the grid is solved in, so an edge that is
+straight on the screen is straight for the solver too.</p>
+<ul class="simple">
+<li><p><strong>Drag</strong> a vertex to move it, or drag an edge to add a vertex there.</p></li>
+<li><p><strong>Right-click</strong> (or <strong>Alt-click</strong>) a vertex to delete it.</p></li>
+<li><p><strong>Double-click</strong> a vertex to make or unmake it a corner. A grid needs 4
+corners, numbered 1–4 on the map; corners that are too flat (over 170°) are
+ringed in red.</p></li>
+<li><p><strong>Clear</strong> empties the map: click points, then click the first one again to
+close the outline. With 4 points, all 4 become corners.</p></li>
+<li><p><strong>Draw box</strong>, then drag on the map, for a new 4-corner box. It is straight in
+the map’s projection.</p></li>
+<li><p><strong>Scroll</strong> to zoom and drag the map to pan; <strong>Zoom to outline</strong> shows the whole
+outline again.</p></li>
+<li><p>Every edit is solved again at a coarse preview resolution. Preview grid lines
+turn orange or red where ocean cells are badly shaped (orthogonality, size jump
+or aspect ratio); land cells are not judged.</p></li>
+</ul>
+</section>
+<section id="the-panel">
+<h3>The panel<a class="headerlink" href="#the-panel" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><strong>Undo</strong> and <strong>Redo</strong> step through outline edits.</p></li>
+<li><p><strong>Projection</strong> picks the conformal projection the grid is solved in: Lambert
+conformal, Mercator, transverse Mercator or polar stereographic. The pressed
+button is the one in use. The one ringed in green is recommended, since its
+cells vary least in size; a new sketch, and each newly drawn outline, uses it
+until you press another. Either way the projection is centred on the outline
+after each edit.</p></li>
+<li><p><strong>Resolution</strong> sets the nominal cell size in km and shows the <code class="docutils literal notranslate"><span class="pre">nx</span> <span class="pre">×</span> <span class="pre">ny</span></code> it gives.</p></li>
+<li><p><strong>Build grid</strong> solves at full resolution and sets <code class="docutils literal notranslate"><span class="pre">sketch.grid</span></code>, a <code class="docutils literal notranslate"><span class="pre">Grid</span></code> with
+<code class="docutils literal notranslate"><span class="pre">.outline</span></code>, ready for <code class="docutils literal notranslate"><span class="pre">Topo</span></code> (and CrocoDash’s <code class="docutils literal notranslate"><span class="pre">Case</span></code>). <strong>Save</strong> writes it to
+<code class="docutils literal notranslate"><span class="pre">GridLibrary/grid_&lt;name&gt;.nc</span></code>; tick <strong>Overwrite</strong> to replace a saved grid of the
+same name. Reopen it with <code class="docutils literal notranslate"><span class="pre">GridSketcher(Grid.from_supergrid_file(path))</span></code>. Any
+later edit, projection or resolution change drops <code class="docutils literal notranslate"><span class="pre">sketch.grid</span></code> until the next
+<strong>Build grid</strong>.</p></li>
+<li><p><strong>Errors</strong> say why <strong>Build grid</strong> is greyed out: fewer than 4 corners, crossing
+edges, a failed solve, folded ocean cells or more than 2.4 million cells (over
+4 GB to build: use <code class="docutils literal notranslate"><span class="pre">Grid.from_outline</span></code> in a job with more memory).
+<strong>Warnings</strong> list what to check, such as abrupt size changes, non-orthogonal or
+stretched cells, nearly flat corners and small open boundaries along the
+coast. Each is one line and counts ocean cells only.</p></li>
+<li><p><strong>Preview</strong> gives the preview grid’s size and quality; <strong>Details</strong> has the full
+diagnostics table.</p></li>
+</ul>
+<p>Once the grid has a bathymetry, <code class="docutils literal notranslate"><span class="pre">TopoEditor</span></code>’s <strong>Show open boundaries</strong> shows
+where its open boundaries are (see below).</p>
+</section>
+<section id="without-the-widget">
+<h3>Without the widget<a class="headerlink" href="#without-the-widget" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">Grid.from_outline</span></code> is the same solve. Give it an outline (at least 4 vertices,
+in degrees) and its 4 corner indices (<code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">3]</span></code> by default for a 4-vertex
+outline), and either <code class="docutils literal notranslate"><span class="pre">resolution_km</span></code> (nominal cell size) or <code class="docutils literal notranslate"><span class="pre">n_cells</span></code> (target
+<code class="docutils literal notranslate"><span class="pre">nx</span> <span class="pre">*</span> <span class="pre">ny</span></code>). <code class="docutils literal notranslate"><span class="pre">projection</span></code> is a kind name (<code class="docutils literal notranslate"><span class="pre">&quot;lcc&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;merc&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;tmerc&quot;</span></code>,
+<code class="docutils literal notranslate"><span class="pre">&quot;stere&quot;</span></code>) or <code class="docutils literal notranslate"><span class="pre">&quot;auto&quot;</span></code> (the default), which picks the kind the widget
+recommends:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mom6_forge.grid</span><span class="w"> </span><span class="kn">import</span> <span class="n">Grid</span>
+
+<span class="n">lon</span><span class="p">,</span> <span class="n">lat</span> <span class="o">=</span> <span class="p">[</span><span class="mf">235.0</span><span class="p">,</span> <span class="mf">243.0</span><span class="p">,</span> <span class="mf">243.0</span><span class="p">,</span> <span class="mf">235.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">31.0</span><span class="p">,</span> <span class="mf">31.0</span><span class="p">,</span> <span class="mf">39.0</span><span class="p">,</span> <span class="mf">39.0</span><span class="p">]</span>
+<span class="n">grid</span> <span class="o">=</span> <span class="n">Grid</span><span class="o">.</span><span class="n">from_outline</span><span class="p">(</span><span class="n">lon</span><span class="p">,</span> <span class="n">lat</span><span class="p">,</span> <span class="n">resolution_km</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+<span class="n">grid</span> <span class="o">=</span> <span class="n">Grid</span><span class="o">.</span><span class="n">from_outline</span><span class="p">(</span><span class="n">lon</span><span class="p">,</span> <span class="n">lat</span><span class="p">,</span> <span class="n">resolution_km</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">projection</span><span class="o">=</span><span class="s2">"lcc"</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>A longer outline needs its 4 corners, e.g.
+<code class="docutils literal notranslate"><span class="pre">Grid.from_outline(sketch.outline.lon,</span> <span class="pre">sketch.outline.lat,</span> <span class="pre">sketch.outline.corners)</span></code>.
+<code class="docutils literal notranslate"><span class="pre">write_supergrid_file</span></code> stores the grid’s <code class="docutils literal notranslate"><span class="pre">.outline</span></code> in the file, and
+<code class="docutils literal notranslate"><span class="pre">Grid.from_supergrid_file</span></code> reads it back.</p>
+<p>Once bathymetry exists, get the same quality numbers over the true wet cells:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">mom6_forge</span><span class="w"> </span><span class="kn">import</span> <span class="n">corner_diagnostics</span> <span class="k">as</span> <span class="n">diag</span>
+
+<span class="n">limits</span> <span class="o">=</span> <span class="n">diag</span><span class="o">.</span><span class="n">timestep_limits</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">wet</span><span class="o">=</span><span class="n">topo</span><span class="o">.</span><span class="n">tmask</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">diag</span><span class="o">.</span><span class="n">warnings</span><span class="p">(</span><span class="n">limits</span><span class="p">))</span>
+</pre></div>
+</div>
+</section>
+<section id="acknowledgements">
+<h3>Acknowledgements<a class="headerlink" href="#acknowledgements" title="Link to this heading"></a></h3>
+<p>GridSketcher and <code class="docutils literal notranslate"><span class="pre">Grid.from_outline</span></code> are by Dan Amrhein (#149). They build on
+earlier ocean-grid tools:</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://github.com/sakov/gridgen-c">gridgen</a> (Pavel Sakov) and
+<a class="reference external" href="https://github.com/pygridgen/pygridgen">pygridgen</a> (Rob Hetland, Paul Hobson and
+contributors): orthogonal grids from a polygon with marked corners, mapped conformally
+onto a rectangle. They use the Schwarz-Christoffel CRDT method of Driscoll and Vavasis
+(1998); mom6_forge solves Laplace problems with finite elements instead.</p></li>
+<li><p><a class="reference external" href="https://github.com/ESMG/pyroms">pyroms</a> (Frederic Castruccio, Kate Hedstrom and
+contributors): its interactive boundary editor is the model for sketching an outline
+and marking its corners.</p></li>
+<li><p>Coastlines and land come from <a class="reference external" href="https://www.naturalearthdata.com">Natural Earth</a>
+(public domain), through cartopy.</p></li>
+</ul>
+<p>The code was written with AI assistance (Claude Code, Anthropic).</p>
+</section>
 </section>
 <section id="topoeditor">
 <h2>TopoEditor<a class="headerlink" href="#topoeditor" title="Link to this heading"></a></h2>
@@ -172,12 +296,12 @@ the browser, so this topo has no edit history.</p>
                     class="jupyterlite_sphinx_iframe_container"
                     style="width: 100%; height: 1000px;"
                     onclick="window.jupyterliteShowIframe(
-                        '4753ac8c-8e2a-4b4d-9318-a0908741e3ed',
-                        window.jupyterliteConcatSearchParams('lite/repl/index.html?kernel=python&execute=1&clearCellsOnExecute=0&clearCodeContentOnExecute=0&hideCodeInput=0&showBanner=1&promptCellPosition=bottom&code=import%20piplite%0Aawait%20piplite.install%28%5B%22anywidget%22%2C%20%22numpy%22%2C%20%22scipy%22%2C%20%22xarray%22%2C%20%22pyproj%22%5D%29%0Aawait%20piplite.install%28%5B%22mom6_forge%22%5D%2C%20deps%3DFalse%29%20%20%23%20skip%20ESMF%20and%20the%20rest%2C%20not%20needed%20here%0Afrom%20mom6_forge.grid%20import%20Grid%0Afrom%20mom6_forge.topo%20import%20Topo%0Afrom%20mom6_forge.widgets%20import%20TopoEditor%0Agrid%20%3D%20Grid%28lenx%3D6.0%2C%20leny%3D4.0%2C%20resolution%3D0.1%2C%20xstart%3D283.0%2C%20ystart%3D35.0%2C%20name%3D%22demo%22%29%0Atopo%20%3D%20Topo%28grid%2C%20min_depth%3D10.0%29%0Atopo.set_bowl%28max_depth%3D2000.0%2C%20dedge%3D200.0%29%0ATopoEditor%28topo%29', false)
+                        '9169e79a-5e1d-43b4-8348-9fded29a022e',
+                        window.jupyterliteConcatSearchParams('lite/repl/index.html?kernel=python&execute=1&clearCellsOnExecute=0&clearCodeContentOnExecute=0&hideCodeInput=0&showBanner=1&promptCellPosition=bottom&code=import%20piplite%0Aawait%20piplite.install%28%5B%22anywidget%22%2C%20%22numpy%22%2C%20%22scipy%22%2C%20%22xarray%22%2C%20%22pyproj%22%2C%20%22shapely%22%5D%29%0Aawait%20piplite.install%28%5B%22mom6_forge%22%5D%2C%20deps%3DFalse%29%20%20%23%20skip%20ESMF%20and%20the%20rest%2C%20not%20needed%20here%0Afrom%20mom6_forge.grid%20import%20Grid%0Afrom%20mom6_forge.topo%20import%20Topo%0Afrom%20mom6_forge.widgets%20import%20TopoEditor%0Agrid%20%3D%20Grid%28lenx%3D6.0%2C%20leny%3D4.0%2C%20resolution%3D0.1%2C%20xstart%3D283.0%2C%20ystart%3D35.0%2C%20name%3D%22demo%22%29%0Atopo%20%3D%20Topo%28grid%2C%20min_depth%3D10.0%29%0Atopo.set_bowl%28max_depth%3D2000.0%2C%20dedge%3D200.0%29%0ATopoEditor%28topo%29', false)
                     )"
                 >
                     <div
-                        id=4753ac8c-8e2a-4b4d-9318-a0908741e3ed
+                        id=9169e79a-5e1d-43b4-8348-9fded29a022e
                         class="jupyterlite_sphinx_try_it_button jupyterlite_sphinx_try_it_button_unclicked"
                         style="background-color: #f7dc1e;"
                     >
@@ -185,8 +309,8 @@ the browser, so this topo has no edit history.</p>
                     </div>
                 </div>
             </section>
-<section id="the-map">
-<h3>The map<a class="headerlink" href="#the-map" title="Link to this heading"></a></h3>
+<section id="id1">
+<h3>The map<a class="headerlink" href="#id1" title="Link to this heading"></a></h3>
 <p>The map is drawn in grid-index space: one pixel per cell, <code class="docutils literal notranslate"><span class="pre">i</span></code> to the right and
 <code class="docutils literal notranslate"><span class="pre">j</span></code> up. Picking a cell is exact on any grid, including rotated, curvilinear and
 polar ones, where a longitude/latitude map would distort the domain or split it.
@@ -204,6 +328,13 @@ map. Pan with the right mouse button, or by holding Space and dragging.</p>
 <li><p><strong>basinmask</strong>: each connected ocean basin in its own colour, to find lakes and
 basins cut off from the main ocean.</p></li>
 </ul>
+<p><strong>Show open boundaries</strong> draws a line just outside the grid wherever ocean
+reaches the edge of the domain: these are the open boundaries the model will
+need boundary forcing for. Runs too short to make good open boundaries are drawn
+in red; mask them, or widen them. The overlay follows every edit, undo and reset.
+<code class="docutils literal notranslate"><span class="pre">editor.open_boundaries</span></code> lists the sides with open water (<code class="docutils literal notranslate"><span class="pre">[&quot;south&quot;,</span> <span class="pre">&quot;east&quot;,</span> <span class="pre">...]</span></code>),
+in the form <code class="docutils literal notranslate"><span class="pre">case.configure_forcings(boundaries=...)</span></code> takes. Start with the
+overlay on with <code class="docutils literal notranslate"><span class="pre">TopoEditor(topo,</span> <span class="pre">open_boundaries=True)</span></code>.</p>
 <p><strong>Tool</strong> chooses what clicking and dragging on the map does:</p>
 <ul class="simple">
 <li><p><strong>Select</strong>: click a cell, or drag to select a rectangle of cells.</p></li>
@@ -327,8 +458,8 @@ saying what the grid is for, then <strong>Save</strong> to write
 grid with that name exists, the widget asks before replacing it. The table lists
 the saved grids, newest first, with their levels, depth, date and message;
 <strong>Load</strong> opens one.</p>
-<section id="id1">
-<h3>Try it in your browser<a class="headerlink" href="#id1" title="Link to this heading"></a></h3>
+<section id="id2">
+<h3>Try it in your browser<a class="headerlink" href="#id2" title="Link to this heading"></a></h3>
 <p>As for TopoEditor, the button below runs VGridCreator in your browser. The
 library does not work there: a saved grid is listed, but cannot be read back.</p>
 
@@ -336,12 +467,12 @@ library does not work there: a saved grid is listed, but cannot be read back.</p
                     class="jupyterlite_sphinx_iframe_container"
                     style="width: 100%; height: 800px;"
                     onclick="window.jupyterliteShowIframe(
-                        'c4d7e958-0f04-4fd5-a748-0ae1da45f928',
+                        '4719699b-2db9-4edd-8b1e-611f5410b4ff',
                         window.jupyterliteConcatSearchParams('lite/repl/index.html?kernel=python&execute=1&clearCellsOnExecute=0&clearCodeContentOnExecute=0&hideCodeInput=0&showBanner=1&promptCellPosition=bottom&code=import%20piplite%0Aawait%20piplite.install%28%5B%22anywidget%22%2C%20%22numpy%22%2C%20%22scipy%22%2C%20%22xarray%22%5D%29%0Aawait%20piplite.install%28%5B%22mom6_forge%22%5D%2C%20deps%3DFalse%29%20%20%23%20skip%20ESMF%20and%20the%20rest%2C%20not%20needed%20here%0Afrom%20mom6_forge.vgrid%20import%20VGrid%0Afrom%20mom6_forge.widgets%20import%20VGridCreator%0AVGridCreator%28vgrid%3DVGrid.hyperbolic%28nk%3D20%2C%20depth%3D1500.0%2C%20ratio%3D8.0%2C%20name%3D%22demo%22%29%29', false)
                     )"
                 >
                     <div
-                        id=c4d7e958-0f04-4fd5-a748-0ae1da45f928
+                        id=4719699b-2db9-4edd-8b1e-611f5410b4ff
                         class="jupyterlite_sphinx_try_it_button jupyterlite_sphinx_try_it_button_unclicked"
                         style="background-color: #f7dc1e;"
                     >
@@ -373,11 +504,11 @@ edit it made, for example:</p>
 <p>Undo and redo are commits too, named <code class="docutils literal notranslate"><span class="pre">UNDO-&lt;sha&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">REDO-&lt;sha&gt;</span></code>, so the full
 history, including what was undone, is kept. You can read it with <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">log</span></code> in
 the folder:</p>
-<figure class="align-center" id="id2">
+<figure class="align-center" id="id3">
 <a class="reference internal image-reference" href="_images/TopoSampleGitLog.png"><img alt="_images/TopoSampleGitLog.png" src="_images/TopoSampleGitLog.png" style="width: 500px;" />
 </a>
 <figcaption>
-<p><span class="caption-text">Example <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">log</span></code> of a topo editing session.</span><a class="headerlink" href="#id2" title="Link to this image"></a></p>
+<p><span class="caption-text">Example <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">log</span></code> of a topo editing session.</span><a class="headerlink" href="#id3" title="Link to this image"></a></p>
 </figcaption>
 </figure>
 <p>From Python:</p>
@@ -407,10 +538,10 @@ record it as an edit on top of the folder’s history.</p></li>
 <section id="gridcreator-was-removed">
 <h2>GridCreator was removed<a class="headerlink" href="#gridcreator-was-removed" title="Link to this heading"></a></h2>
 <p>Earlier versions had a <code class="docutils literal notranslate"><span class="pre">GridCreator</span></code> widget for drawing horizontal grids on a
-map. It has been removed; an interactive replacement (GridSketcher) is planned.
-Until then, make grids in code with <code class="docutils literal notranslate"><span class="pre">Grid(...)</span></code>, <code class="docutils literal notranslate"><span class="pre">Grid.from_center(...)</span></code> (a
-rotated rectangle around a centre point) or <code class="docutils literal notranslate"><span class="pre">Grid.from_projection(...)</span></code> (any
-map projection, including polar stereographic); see <a class="reference internal" href="quickstart.html"><span class="doc">Quickstart Guide</span></a>.</p>
+map. <code class="docutils literal notranslate"><span class="pre">GridSketcher</span></code> replaces it. Grids can also be made in code with
+<code class="docutils literal notranslate"><span class="pre">Grid(...)</span></code>, <code class="docutils literal notranslate"><span class="pre">Grid.from_center(...)</span></code> (a rotated rectangle around a centre
+point), <code class="docutils literal notranslate"><span class="pre">Grid.from_projection(...)</span></code> (any map projection, including polar
+stereographic) or <code class="docutils literal notranslate"><span class="pre">Grid.from_outline(...)</span></code>; see <a class="reference internal" href="quickstart.html"><span class="doc">Quickstart Guide</span></a>.</p>
 </section>
 </section>
 

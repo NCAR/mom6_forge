@@ -75,6 +75,17 @@
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.command_manager.TopoCommandManager"><code class="docutils literal notranslate"><span class="pre">TopoCommandManager</span></code></a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="#module-mom6_forge.corner_diagnostics">mom6_forge.corner_diagnostics module</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.corner_diagnostics.cell_metrics"><code class="docutils literal notranslate"><span class="pre">cell_metrics()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.corner_diagnostics.grid_quality"><code class="docutils literal notranslate"><span class="pre">grid_quality()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.corner_diagnostics.ocean_mask"><code class="docutils literal notranslate"><span class="pre">ocean_mask()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.corner_diagnostics.open_boundary_runs"><code class="docutils literal notranslate"><span class="pre">open_boundary_runs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.corner_diagnostics.quality_messages"><code class="docutils literal notranslate"><span class="pre">quality_messages()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.corner_diagnostics.size_ratios"><code class="docutils literal notranslate"><span class="pre">size_ratios()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.corner_diagnostics.timestep_limits"><code class="docutils literal notranslate"><span class="pre">timestep_limits()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.corner_diagnostics.warnings"><code class="docutils literal notranslate"><span class="pre">warnings()</span></code></a></li>
+</ul>
+</li>
 <li class="toctree-l3"><a class="reference internal" href="#module-mom6_forge.edit_command">mom6_forge.edit_command module</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.edit_command.ClearMaskCommand"><code class="docutils literal notranslate"><span class="pre">ClearMaskCommand</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.edit_command.DepthEditCommand"><code class="docutils literal notranslate"><span class="pre">DepthEditCommand</span></code></a></li>
@@ -143,6 +154,11 @@
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#module-mom6_forge.vgrid">mom6_forge.vgrid module</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#mom6_forge.vgrid.VGrid"><code class="docutils literal notranslate"><span class="pre">VGrid</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#module-mom6_forge.widgets.grid_sketcher">mom6_forge.widgets.grid_sketcher module</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.widgets.grid_sketcher.GridSketcher"><code class="docutils literal notranslate"><span class="pre">GridSketcher</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mom6_forge.widgets.grid_sketcher.Outline"><code class="docutils literal notranslate"><span class="pre">Outline</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#module-mom6_forge.widgets.topo_editor">mom6_forge.widgets.topo_editor module</a><ul>
@@ -466,6 +482,216 @@ on reload and can be redone.</p>
 <dd><p>Undo the latest applied command with an UNDO commit. Returns whether there was one.</p>
 </dd></dl>
 
+</dd></dl>
+
+</section>
+<section id="module-mom6_forge.corner_diagnostics">
+<span id="mom6-forge-corner-diagnostics-module"></span><h2>mom6_forge.corner_diagnostics module<a class="headerlink" href="#module-mom6_forge.corner_diagnostics" title="Link to this heading"></a></h2>
+<p>Quality, time-step and open-boundary diagnostics for a conformal grid.</p>
+<p>Lengths are measured in the projection plane and corrected to true lengths with the
+local scale factor (one factor serves every direction, since the map is conformal).</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="mom6_forge.corner_diagnostics.cell_metrics">
+<span class="sig-prename descclassname"><span class="pre">mom6_forge.corner_diagnostics.</span></span><span class="sig-name descname"><span class="pre">cell_metrics</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cg</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wet</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ortho_warn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ortho_bad</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ratio_warn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ratio_bad</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">aspect_warn</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">aspect_bad</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4.0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.corner_diagnostics.cell_metrics" title="Link to this definition"></a></dt>
+<dd><p>Per-cell quality checks and the status they give.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cg</strong> (<em>mom6_forge._conformal.ConformalGrid</em>) – A solved grid.</p></li>
+<li><p><strong>wet</strong> (<em>numpy.ndarray</em><em> of </em><em>bool</em><em>, </em><em>optional</em>) – (ny, nx) ocean mask: land cells then have status 0.</p></li>
+<li><p><strong>ortho_warn</strong> (<em>float</em><em>, </em><em>optional</em>) – Deviation from 90 degrees at a corner node above which a cell is warn / bad.</p></li>
+<li><p><strong>ortho_bad</strong> (<em>float</em><em>, </em><em>optional</em>) – Deviation from 90 degrees at a corner node above which a cell is warn / bad.</p></li>
+<li><p><strong>ratio_warn</strong> (<em>float</em><em>, </em><em>optional</em>) – Size ratio to a neighbouring cell above which a cell is warn / bad.</p></li>
+<li><p><strong>ratio_bad</strong> (<em>float</em><em>, </em><em>optional</em>) – Size ratio to a neighbouring cell above which a cell is warn / bad.</p></li>
+<li><p><strong>aspect_warn</strong> (<em>float</em><em>, </em><em>optional</em>) – Cell aspect ratio above which a cell is warn / bad.</p></li>
+<li><p><strong>aspect_bad</strong> (<em>float</em><em>, </em><em>optional</em>) – Cell aspect ratio above which a cell is warn / bad.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>(ny, nx) arrays <code class="docutils literal notranslate"><span class="pre">ortho</span></code> (worst node, degrees; nodes near the outline are
+exempt), <code class="docutils literal notranslate"><span class="pre">ratio</span></code> (to ocean neighbours only, given <cite>wet</cite>), <code class="docutils literal notranslate"><span class="pre">aspect</span></code>,
+<code class="docutils literal notranslate"><span class="pre">size</span></code> (km), <code class="docutils literal notranslate"><span class="pre">folded</span></code> (cells turned inside out, always bad) and
+<code class="docutils literal notranslate"><span class="pre">status</span></code> (0 ok, 1 warn, 2 bad: the worst check), plus <code class="docutils literal notranslate"><span class="pre">thresholds</span></code>, the
+six values used.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mom6_forge.corner_diagnostics.grid_quality">
+<span class="sig-prename descclassname"><span class="pre">mom6_forge.corner_diagnostics.</span></span><span class="sig-name descname"><span class="pre">grid_quality</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cg</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wet</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metrics</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.corner_diagnostics.grid_quality" title="Link to this definition"></a></dt>
+<dd><p>Cell size, shape, orthogonality and corner-angle summary of a solved grid.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cg</strong> (<em>mom6_forge._conformal.ConformalGrid</em>) – A solved grid.</p></li>
+<li><p><strong>wet</strong> (<em>numpy.ndarray</em><em> of </em><em>bool</em><em>, </em><em>optional</em>) – (ny, nx) ocean mask: orthogonality is then judged at wet nodes only, against
+5 degrees instead of 3.</p></li>
+<li><p><strong>metrics</strong> (<em>dict</em><em>, </em><em>optional</em>) – <code class="docutils literal notranslate"><span class="pre">cell_metrics(cg)</span></code>, if already computed.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">nx,</span> <span class="pre">ny,</span> <span class="pre">n_cells</span></code>; cell size in km (<code class="docutils literal notranslate"><span class="pre">size_min,</span> <span class="pre">size_median,</span> <span class="pre">size_max,</span>
+<span class="pre">size_ratio</span></code>); <code class="docutils literal notranslate"><span class="pre">aspect_max</span></code>; node orthogonality in degrees (<code class="docutils literal notranslate"><span class="pre">ortho_median,</span>
+<span class="pre">ortho_p99,</span> <span class="pre">ortho_max</span></code>, over the nodes <cite>cell_metrics</cite> judges);
+<code class="docutils literal notranslate"><span class="pre">max_neighbour_ratio</span></code>; <code class="docutils literal notranslate"><span class="pre">ortho_warn_threshold</span></code>; and <code class="docutils literal notranslate"><span class="pre">corner_angles</span></code>
+({corner 1-4: interior angle in degrees}).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mom6_forge.corner_diagnostics.ocean_mask">
+<span class="sig-prename descclassname"><span class="pre">mom6_forge.corner_diagnostics.</span></span><span class="sig-name descname"><span class="pre">ocean_mask</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cg</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'50m'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.corner_diagnostics.ocean_mask" title="Link to this definition"></a></dt>
+<dd><p>Coastline-based ocean mask of a solved grid’s cells.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cg</strong> (<em>mom6_forge._conformal.ConformalGrid</em>) – A solved grid.</p></li>
+<li><p><strong>scale</strong> (<em>{&quot;110m&quot;</em><em>, </em><em>&quot;50m&quot;</em><em>, </em><em>&quot;10m&quot;}</em><em>, </em><em>optional</em>) – Natural Earth scale (the land the widget draws).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>(ny, nx), True where the cell centre is off land; None if the land data
+can’t be loaded. Never raises.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray of bool or None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mom6_forge.corner_diagnostics.open_boundary_runs">
+<span class="sig-prename descclassname"><span class="pre">mom6_forge.corner_diagnostics.</span></span><span class="sig-name descname"><span class="pre">open_boundary_runs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ocean</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_cells</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_fraction</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.03</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">many_transitions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">4</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'50m'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.corner_diagnostics.open_boundary_runs" title="Link to this definition"></a></dt>
+<dd><p>Ocean/land split of each side’s boundary cells and the open-water runs along it.</p>
+<p>Sides follow <cite>mom6_forge.grid.Grid</cite>: south is cell row 0, north row ny - 1, west
+column 0 and east column nx - 1.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>grid</strong> (<em>mom6_forge._conformal.ConformalGrid</em><em> or </em><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid"><em>mom6_forge.grid.Grid</em></a>) – A solved grid.</p></li>
+<li><p><strong>ocean</strong> (<em>numpy.ndarray</em><em> of </em><em>bool</em><em>, </em><em>optional</em>) – (ny, nx) ocean mask (a real wet mask). By default it is estimated from the
+coastline; if that fails, every side is all ocean and <code class="docutils literal notranslate"><span class="pre">ocean_known</span></code> is False.</p></li>
+<li><p><strong>min_cells</strong> (<em>int</em><em>, </em><em>optional</em>) – A run shorter than this is “tiny”, unless it spans the whole side.</p></li>
+<li><p><strong>min_fraction</strong> (<em>float</em><em>, </em><em>optional</em>) – A run shorter than this fraction of its side’s length is also “tiny”.</p></li>
+<li><p><strong>many_transitions</strong> (<em>int</em><em>, </em><em>optional</em>) – A side with at least this many land/ocean changes is “alternating”.</p></li>
+<li><p><strong>scale</strong> (<em>{&quot;110m&quot;</em><em>, </em><em>&quot;50m&quot;</em><em>, </em><em>&quot;10m&quot;}</em><em>, </em><em>optional</em>) – Natural Earth scale of the coastline estimate.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">ocean_known</span></code> plus, for each name in <cite>OBC_SIDES</cite>, a dict with <code class="docutils literal notranslate"><span class="pre">ocean</span></code>
+(bool along the side), <code class="docutils literal notranslate"><span class="pre">length_km</span></code>, <code class="docutils literal notranslate"><span class="pre">n_transitions</span></code>, <code class="docutils literal notranslate"><span class="pre">alternating</span></code> and
+<code class="docutils literal notranslate"><span class="pre">runs</span></code>: a list of <code class="docutils literal notranslate"><span class="pre">{start,</span> <span class="pre">stop,</span> <span class="pre">length_cells,</span> <span class="pre">length_km,</span> <span class="pre">tiny,</span> <span class="pre">lon,</span> <span class="pre">lat}</span></code>
+(cell indices along the side, stop exclusive; lon/lat of the middle cell).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mom6_forge.corner_diagnostics.quality_messages">
+<span class="sig-prename descclassname"><span class="pre">mom6_forge.corner_diagnostics.</span></span><span class="sig-name descname"><span class="pre">quality_messages</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cg</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wet</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metrics</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">runs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.corner_diagnostics.quality_messages" title="Link to this definition"></a></dt>
+<dd><p>Errors and warnings about a solved grid’s ocean cells, one sentence per kind.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cg</strong> (<em>mom6_forge._conformal.ConformalGrid</em>) – A solved grid.</p></li>
+<li><p><strong>wet</strong> (<em>numpy.ndarray</em><em> of </em><em>bool</em><em>, </em><em>optional</em>) – (ny, nx) ocean mask: land cells are left out. Default: every cell counts.</p></li>
+<li><p><strong>metrics</strong> (<em>dict</em><em>, </em><em>optional</em>) – <code class="docutils literal notranslate"><span class="pre">cell_metrics(cg)</span></code>, if already computed.</p></li>
+<li><p><strong>runs</strong> (<em>dict</em><em>, </em><em>optional</em>) – <code class="docutils literal notranslate"><span class="pre">open_boundary_runs</span></code> of the grid, to add its open-boundary warnings.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>errors, warnings</strong> – Errors are folded cells, which make the grid unusable. Warnings are cell-size
+jumps, non-orthogonal or stretched cells (each with how many cells in how many
+areas, and where the worst cells of the 3 worst areas are), crowding, nearly
+flat corners and open-boundary problems.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list of str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mom6_forge.corner_diagnostics.size_ratios">
+<span class="sig-prename descclassname"><span class="pre">mom6_forge.corner_diagnostics.</span></span><span class="sig-name descname"><span class="pre">size_ratios</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lon</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lat</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">corners</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.corner_diagnostics.size_ratios" title="Link to this definition"></a></dt>
+<dd><p>How much the true cell size varies in each projection kind an outline can use.</p>
+<p>A quick coarse solve (256 cells) in each kind: the smallest ratio marks the
+recommended kind, which <code class="docutils literal notranslate"><span class="pre">projection=&quot;auto&quot;</span></code> picks in <cite>GridSketcher</cite> and
+<cite>mom6_forge.grid.Grid.from_outline</cite>. The ratio is of percentiles, so the few cells
+at a sharp corner, which shrink as the grid is refined, don’t decide it.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>lon</strong> (<em>array_like</em>) – Outline vertices (not closed), degrees.</p></li>
+<li><p><strong>lat</strong> (<em>array_like</em>) – Outline vertices (not closed), degrees.</p></li>
+<li><p><strong>corners</strong> (<em>sequence</em><em> of </em><em>int</em>) – The 4 corner vertex indices.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>{kind: 99th over 1st percentile of cell size} for each kind whose solve works;
+empty for an outline that can’t be solved.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mom6_forge.corner_diagnostics.timestep_limits">
+<span class="sig-prename descclassname"><span class="pre">mom6_forge.corner_diagnostics.</span></span><span class="sig-name descname"><span class="pre">timestep_limits</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wet</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coupling_dt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3600.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ice_speed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ocean_speed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mom6_dt</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">900.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ww3</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.corner_diagnostics.timestep_limits" title="Link to this definition"></a></dt>
+<dd><p>MOM6 and CICE (and WW3, for reference) time-step limits set by the smallest cell.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>grid</strong> (<em>mom6_forge._conformal.ConformalGrid</em><em> or </em><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid"><em>mom6_forge.grid.Grid</em></a>) – A solved grid (a <cite>Grid</cite> uses its true <code class="docutils literal notranslate"><span class="pre">tarea</span></code>).</p></li>
+<li><p><strong>wet</strong> (<em>array_like</em><em> of </em><em>bool</em><em>, </em><em>optional</em>) – (ny, nx) ocean mask; the CFL numbers then use the smallest wet cell.</p></li>
+<li><p><strong>coupling_dt</strong> (<em>float</em><em>, </em><em>optional</em>) – MOM6-CICE coupling interval, seconds.</p></li>
+<li><p><strong>ice_speed</strong> (<em>float</em><em>, </em><em>optional</em>) – Nominal ice and ocean speeds, m/s.</p></li>
+<li><p><strong>ocean_speed</strong> (<em>float</em><em>, </em><em>optional</em>) – Nominal ice and ocean speeds, m/s.</p></li>
+<li><p><strong>mom6_dt</strong> (<em>float</em><em>, </em><em>optional</em>) – MOM6 baroclinic time step, seconds.</p></li>
+<li><p><strong>ww3</strong> (<em>bool</em><em>, </em><em>optional</em>) – Also compute the WW3 numbers (imports <cite>mom6_forge.topo</cite>, and so xesmf).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">min_dx,</span> <span class="pre">min_wet_dx</span></code> (metres), <code class="docutils literal notranslate"><span class="pre">metric</span></code> (“sqrt(area)”), the echoed
+<code class="docutils literal notranslate"><span class="pre">coupling_dt,</span> <span class="pre">ice_speed,</span> <span class="pre">ocean_speed,</span> <span class="pre">mom6_dt</span></code>, <code class="docutils literal notranslate"><span class="pre">cice_cfl</span></code>,
+<code class="docutils literal notranslate"><span class="pre">cice_max_coupling_dt</span></code> (largest coupling interval with CICE CFL &lt;= 0.5),
+<code class="docutils literal notranslate"><span class="pre">mom6_cfl</span></code>, <code class="docutils literal notranslate"><span class="pre">mom6_hint</span></code> (one line) and <code class="docutils literal notranslate"><span class="pre">ww3</span></code> (a dict, or None).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="mom6_forge.corner_diagnostics.warnings">
+<span class="sig-prename descclassname"><span class="pre">mom6_forge.corner_diagnostics.</span></span><span class="sig-name descname"><span class="pre">warnings</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">q</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.corner_diagnostics.warnings" title="Link to this definition"></a></dt>
+<dd><p>Plain-language warnings for a <cite>grid_quality</cite> and/or <cite>timestep_limits</cite> dict.</p>
+<p>The summary-dict counterpart of <cite>quality_messages</cite>, which also says where.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>q</strong> (<em>dict</em>) – Either dict, or both merged; checks whose keys are missing are skipped.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>One sentence per problem.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list of str</p>
+</dd>
+</dl>
 </dd></dl>
 
 </section>
@@ -934,6 +1160,63 @@ If not provided, the name will be derived from the file name.</p></li>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.grid.Grid.from_lonlat_arrays">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_lonlat_arrays</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lon</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lat</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grid_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dx_dy_calc_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'haversine'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.grid.Grid.from_lonlat_arrays" title="Link to this definition"></a></dt>
+<dd><p>Create a Grid from supergrid node longitudes and latitudes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>lon</strong> (<em>numpy.ndarray</em>) – Supergrid nodes in degrees, shape (2 ny + 1, 2 nx + 1), axis 0 south to north.</p></li>
+<li><p><strong>lat</strong> (<em>numpy.ndarray</em>) – Supergrid nodes in degrees, shape (2 ny + 1, 2 nx + 1), axis 0 south to north.</p></li>
+<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of the grid.</p></li>
+<li><p><strong>grid_type</strong> (<em>str</em><em>, </em><em>optional</em>) – Type of grid, e.g. “conformal_orthogonal”.</p></li>
+<li><p><strong>dx_dy_calc_type</strong> (<em>{&quot;haversine&quot;</em><em>, </em><em>&quot;smallangle&quot;}</em><em>, </em><em>optional</em>) – How dx and dy are computed.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The grid on those nodes.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid">Grid</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.grid.Grid.from_outline">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_outline</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lon</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lat</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">corners</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resolution_km</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_cells</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">projection</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'auto'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.grid.Grid.from_outline" title="Link to this definition"></a></dt>
+<dd><p>Create a conformal orthogonal Grid from a polygon outline and 4 corners.</p>
+<p>This is <cite>GridSketcher</cite>’s Build without the widget.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>lon</strong> (<em>array_like</em>) – Outline vertices (not closed), degrees; at least 4.</p></li>
+<li><p><strong>lat</strong> (<em>array_like</em>) – Outline vertices (not closed), degrees; at least 4.</p></li>
+<li><p><strong>corners</strong> (<em>list</em><em> of </em><em>int</em><em>, </em><em>optional</em>) – The 4 corner vertex indices, in any order; needed for more than 4 vertices.</p></li>
+<li><p><strong>resolution_km</strong> (<em>float</em><em>, </em><em>optional</em>) – Nominal resolution: the edge of a square cell with the mean cell area, km.</p></li>
+<li><p><strong>n_cells</strong> (<em>int</em><em>, </em><em>optional</em>) – Target cell count nx * ny, instead of <cite>resolution_km</cite> (default 10,000).</p></li>
+<li><p><strong>projection</strong> (<em>str</em><em> or </em><em>MapProjection</em><em>, </em><em>optional</em>) – “auto” (or None): the kind whose cells vary least in size, as
+<cite>corner_diagnostics.size_ratios</cite> finds and <cite>GridSketcher</cite> recommends; a kind
+(“lcc”, “merc”, “tmerc”, “stere”) centred on the outline; or a
+<cite>MapProjection</cite>.</p></li>
+<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of the grid.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A “conformal_orthogonal” grid whose <code class="docutils literal notranslate"><span class="pre">outline</span></code> attribute (<code class="docutils literal notranslate"><span class="pre">lon,</span> <span class="pre">lat,</span>
+<span class="pre">corners,</span> <span class="pre">projection,</span> <span class="pre">resolution_km</span></code>) lets <cite>GridSketcher</cite> reopen it.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid">Grid</a></p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – For both <cite>resolution_km</cite> and <cite>n_cells</cite>, missing corners, or an outline or
+    projection the solver rejects.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="mom6_forge.grid.Grid.from_projection">
 <span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_projection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">crs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_min</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_max</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_min</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_max</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resolution_m</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid"><span class="pre">Grid</span></a></span></span><a class="headerlink" href="#mom6_forge.grid.Grid.from_projection" title="Link to this definition"></a></dt>
 <dd><p>Create a Grid from projected coordinate extents.</p>
@@ -1159,6 +1442,12 @@ coordinate array will do, matching is_cyclic_x above.</p>
 <dt class="sig sig-object py" id="mom6_forge.grid.Grid.ny">
 <span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">ny</span></span><a class="headerlink" href="#mom6_forge.grid.Grid.ny" title="Link to this definition"></a></dt>
 <dd><p>Number of cells in y-direction.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mom6_forge.grid.Grid.outline">
+<span class="sig-name descname"><span class="pre">outline</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#mom6_forge.grid.Grid.outline" title="Link to this definition"></a></dt>
+<dd><p>lon, lat, corners, projection and resolution_km of a from_outline grid, or None</p>
 </dd></dl>
 
 <dl class="py method">
@@ -2953,6 +3242,160 @@ Assumes there is a surface interface at 0 meters.</p>
 </dd></dl>
 
 </section>
+<section id="module-mom6_forge.widgets.grid_sketcher">
+<span id="mom6-forge-widgets-grid-sketcher-module"></span><h2>mom6_forge.widgets.grid_sketcher module<a class="headerlink" href="#module-mom6_forge.widgets.grid_sketcher" title="Link to this heading"></a></h2>
+<p>GridSketcher: sketch an outline on a map, pick its 4 corners and build its conformal grid.</p>
+<p>GridSketcher’s logic comes from NCAR/mom6_forge PR #149 by Dan Amrhein: the outline with
+its corners and undo/redo history, the checks on it, the projection choice, the preview
+solve with its diagnostics, Build, Save, and reopening a saved grid. This module keeps
+that logic; its front end, <code class="docutils literal notranslate"><span class="pre">grid_sketcher.js</span></code>, draws it with OpenLayers in the projection
+the grid is solved in (the <code class="docutils literal notranslate"><span class="pre">proj4</span></code> trait), so an edge drawn straight on screen is
+straight in the solver’s plane. Everything on the wire is lon/lat degrees.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mom6_forge.widgets.grid_sketcher.GridSketcher">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mom6_forge.widgets.grid_sketcher.</span></span><span class="sig-name descname"><span class="pre">GridSketcher</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">t.Any</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">t.Any</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.widgets.grid_sketcher.GridSketcher" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ActionWidget</span></code></p>
+<p>Sketch an outline on a map, pick its 4 corners and build its conformal grid.</p>
+<p>Every edit is solved at preview resolution and shown with its quality checks. Build
+sets <code class="docutils literal notranslate"><span class="pre">grid</span></code>, a <cite>Grid</cite> whose <code class="docutils literal notranslate"><span class="pre">outline</span></code> lets <code class="docutils literal notranslate"><span class="pre">GridSketcher(grid=...)</span></code> reopen it
+(an edit, a projection or a resolution change drops it until the next Build); Save
+writes it to <code class="docutils literal notranslate"><span class="pre">GridLibrary/grid_&lt;name&gt;.nc</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>grid</strong> (<a class="reference internal" href="#mom6_forge.grid.Grid" title="mom6_forge.grid.Grid"><em>mom6_forge.grid.Grid</em></a><em>, </em><em>optional</em>) – Reopen this grid: its <code class="docutils literal notranslate"><span class="pre">outline</span></code> (kept by grids this widget or
+<cite>Grid.from_outline</cite> built), or else its edge traced with <cite>per_side</cite> vertices a side.</p></li>
+<li><p><strong>outline</strong> (<em>dict</em><em>, </em><em>optional</em>) – Start from <code class="docutils literal notranslate"><span class="pre">lon</span></code>, <code class="docutils literal notranslate"><span class="pre">lat</span></code> (degrees) and <code class="docutils literal notranslate"><span class="pre">corners</span></code> (vertex indices), as in
+<cite>Grid.outline</cite>. Default: a box off California.</p></li>
+<li><p><strong>resolution_km</strong> (<em>float</em><em>, </em><em>optional</em>) – Target cell size, km. Default: the outline’s own, or 10 km.</p></li>
+<li><p><strong>projection</strong> (<em>str</em><em> or </em><em>MapProjection</em><em>, </em><em>optional</em>) – “lcc”, “merc”, “tmerc” or “stere”, re-centred on the outline after each edit, or
+a <cite>MapProjection</cite>. Default: the kind whose cells vary least in size, which the
+widget recommends, until a projection button picks another.</p></li>
+<li><p><strong>working_dir</strong> (<em>str</em><em> or </em><em>pathlib.Path</em><em>, </em><em>optional</em>) – Save writes to its <code class="docutils literal notranslate"><span class="pre">GridLibrary/</span></code>. Default: the current directory.</p></li>
+<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – Grid name. Default: the grid’s own name, or “sketch”.</p></li>
+<li><p><strong>per_side</strong> (<em>int</em><em>, </em><em>optional</em>) – Vertices a side when tracing a grid that has no outline.</p></li>
+</ul>
+</dd>
+</dl>
+<p>Public constructor</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mom6_forge.widgets.grid_sketcher.GridSketcher.corners">
+<span class="sig-name descname"><span class="pre">corners</span></span><a class="headerlink" href="#mom6_forge.widgets.grid_sketcher.GridSketcher.corners" title="Link to this definition"></a></dt>
+<dd><p>the grid’s own order, from
+its south-west corner counter-clockwise. Fewer are in the order picked.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Corner vertices. With 4, <a class="reference internal" href="#mom6_forge.widgets.grid_sketcher.GridSketcher.corners" title="mom6_forge.widgets.grid_sketcher.GridSketcher.corners">corners</a>[k] is labelled k + 1</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mom6_forge.widgets.grid_sketcher.GridSketcher.details">
+<span class="sig-name descname"><span class="pre">details</span></span><a class="headerlink" href="#mom6_forge.widgets.grid_sketcher.GridSketcher.details" title="Link to this definition"></a></dt>
+<dd><p>the quality table, the time-step hint and open boundaries.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>[label, value] rows</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mom6_forge.widgets.grid_sketcher.GridSketcher.flags">
+<span class="sig-name descname"><span class="pre">flags</span></span><a class="headerlink" href="#mom6_forge.widgets.grid_sketcher.GridSketcher.flags" title="Link to this definition"></a></dt>
+<dd><p>worst <cite>corner_diagnostics.cell_metrics</cite> status (0 ok,
+1 warn, 2 bad) of the cells in each block between drawn lines.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>uint8 (rows - 1, cols - 1)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mom6_forge.widgets.grid_sketcher.GridSketcher.flat_corners">
+<span class="sig-name descname"><span class="pre">flat_corners</span></span><a class="headerlink" href="#mom6_forge.widgets.grid_sketcher.GridSketcher.flat_corners" title="Link to this definition"></a></dt>
+<dd><p>Corner vertices whose interior angle is over 170 degrees.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mom6_forge.widgets.grid_sketcher.GridSketcher.land">
+<span class="sig-name descname"><span class="pre">land</span></span><a class="headerlink" href="#mom6_forge.widgets.grid_sketcher.GridSketcher.land" title="Link to this definition"></a></dt>
+<dd><p>land polygons and graticule lines.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>GeoJSON FeatureCollection (lon/lat)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mom6_forge.widgets.grid_sketcher.GridSketcher.nodes">
+<span class="sig-name descname"><span class="pre">nodes</span></span><a class="headerlink" href="#mom6_forge.widgets.grid_sketcher.GridSketcher.nodes" title="Link to this definition"></a></dt>
+<dd><p>float64 (rows, cols, 2) lon/lat of every k-th preview grid node, k chosen so at
+most <code class="docutils literal notranslate"><span class="pre">_MAX_LINES</span></code> lines show each way; <code class="docutils literal notranslate"><span class="pre">node_shape</span></code> is [rows, cols].</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mom6_forge.widgets.grid_sketcher.GridSketcher.preview_errors">
+<span class="sig-name descname"><span class="pre">preview_errors</span></span><a class="headerlink" href="#mom6_forge.widgets.grid_sketcher.GridSketcher.preview_errors" title="Link to this definition"></a></dt>
+<dd><p>an outline problem, a failed preview or folded cells.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>What stops Build</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mom6_forge.widgets.grid_sketcher.GridSketcher.proj4">
+<span class="sig-name descname"><span class="pre">proj4</span></span><a class="headerlink" href="#mom6_forge.widgets.grid_sketcher.GridSketcher.proj4" title="Link to this definition"></a></dt>
+<dd><p>The projection the grid is solved in, and the map drawn in.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mom6_forge.widgets.grid_sketcher.GridSketcher.recommended">
+<span class="sig-name descname"><span class="pre">recommended</span></span><a class="headerlink" href="#mom6_forge.widgets.grid_sketcher.GridSketcher.recommended" title="Link to this definition"></a></dt>
+<dd><p>The kind whose cells vary least in size (”” when the outline can’t be solved).</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mom6_forge.widgets.grid_sketcher.GridSketcher.status">
+<span class="sig-name descname"><span class="pre">status</span></span><a class="headerlink" href="#mom6_forge.widgets.grid_sketcher.GridSketcher.status" title="Link to this definition"></a></dt>
+<dd><p>What the last Build, Save or edit did, or what to do next.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mom6_forge.widgets.grid_sketcher.GridSketcher.vertices">
+<span class="sig-name descname"><span class="pre">vertices</span></span><a class="headerlink" href="#mom6_forge.widgets.grid_sketcher.GridSketcher.vertices" title="Link to this definition"></a></dt>
+<dd><p>float64 (n, 2) lon/lat of the outline, not closed.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mom6_forge.widgets.grid_sketcher.Outline">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">mom6_forge.widgets.grid_sketcher.</span></span><span class="sig-name descname"><span class="pre">Outline</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lon</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">()</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lat</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">()</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">corners</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">()</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.widgets.grid_sketcher.Outline" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>An editable polygon: vertex lon/lat (degrees, not closed), up to 4 corner vertex
+indices in the order they were picked, and an undo/redo history of whole states.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.widgets.grid_sketcher.Outline.from_grid">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_grid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">per_side</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.widgets.grid_sketcher.Outline.from_grid" title="Link to this definition"></a></dt>
+<dd><p>A grid’s edge, counter-clockwise from its south-west corner, <cite>per_side</cite>
+vertices a side; the grid’s corners are the corners.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mom6_forge.widgets.grid_sketcher.Outline.set">
+<span class="sig-name descname"><span class="pre">set</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lon</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lat</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">corners</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mom6_forge.widgets.grid_sketcher.Outline.set" title="Link to this definition"></a></dt>
+<dd><p>Replace the outline, as one undo step.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
 <section id="module-mom6_forge.widgets.topo_editor">
 <span id="mom6-forge-widgets-topo-editor-module"></span><h2>mom6_forge.widgets.topo_editor module<a class="headerlink" href="#module-mom6_forge.widgets.topo_editor" title="Link to this heading"></a></h2>
 <p>TopoEditor: edit a Topo’s bathymetry in a notebook, drawn in grid index space.</p>
@@ -2973,8 +3416,13 @@ j up, so picking is exact on rotated, curvilinear and polar grids. Every edit is
 <p>Edit a <a class="reference internal" href="#mom6_forge.topo.Topo" title="mom6_forge.topo.Topo"><code class="xref py py-class docutils literal notranslate"><span class="pre">Topo</span></code></a> in place: paint, select, erase basins.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>topo</strong> (<a class="reference internal" href="#mom6_forge.topo.Topo" title="mom6_forge.topo.Topo"><em>mom6_forge.topo.Topo</em></a>) – The bathymetry to edit. It is changed in place and stays available as
-<code class="docutils literal notranslate"><span class="pre">editor.topo</span></code>. Undo, redo, reset, tags and branches need <code class="docutils literal notranslate"><span class="pre">Topo(...,</span> <span class="pre">git=True)</span></code>.</p>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>topo</strong> (<a class="reference internal" href="#mom6_forge.topo.Topo" title="mom6_forge.topo.Topo"><em>mom6_forge.topo.Topo</em></a>) – The bathymetry to edit. It is changed in place and stays available as
+<code class="docutils literal notranslate"><span class="pre">editor.topo</span></code>. Undo, redo, reset, tags and branches need <code class="docutils literal notranslate"><span class="pre">Topo(...,</span> <span class="pre">git=True)</span></code>.</p></li>
+<li><p><strong>open_boundaries</strong> (<em>bool</em><em>, </em><em>optional</em>) – Start with the open-boundary overlay on: the grid edges where ocean meets the
+domain boundary, drawn just outside the grid. The page’s “Show open boundaries”
+checkbox turns it on and off.</p></li>
+</ul>
 </dd>
 </dl>
 <p>Public constructor</p>
@@ -2982,6 +3430,20 @@ j up, so picking is exact on rotated, curvilinear and polar grids. Every edit is
 <dt class="sig sig-object py" id="mom6_forge.widgets.topo_editor.TopoEditor.basins">
 <span class="sig-name descname"><span class="pre">basins</span></span><a class="headerlink" href="#mom6_forge.widgets.topo_editor.TopoEditor.basins" title="Link to this definition"></a></dt>
 <dd><p>int32 basin labels (<code class="docutils literal notranslate"><span class="pre">topo.basintmask</span></code>), kept current only in the basinmask view.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="mom6_forge.widgets.topo_editor.TopoEditor.open_boundaries">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">open_boundaries</span></span><a class="headerlink" href="#mom6_forge.widgets.topo_editor.TopoEditor.open_boundaries" title="Link to this definition"></a></dt>
+<dd><p>Sides with open water in the current mask, in S/E/N/W order, as
+<code class="docutils literal notranslate"><span class="pre">configure_forcings(boundaries=...)</span></code> takes them.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="mom6_forge.widgets.topo_editor.TopoEditor.open_boundary_runs">
+<span class="sig-name descname"><span class="pre">open_boundary_runs</span></span><a class="headerlink" href="#mom6_forge.widgets.topo_editor.TopoEditor.open_boundary_runs" title="Link to this definition"></a></dt>
+<dd><p>Open-water runs along each side, <code class="docutils literal notranslate"><span class="pre">{side:</span> <span class="pre">[{&quot;start&quot;,</span> <span class="pre">&quot;stop&quot;,</span> <span class="pre">&quot;tiny&quot;},</span> <span class="pre">...]}</span></code> with
+cell indices along the side (stop exclusive), while the overlay is on; else <code class="docutils literal notranslate"><span class="pre">{}</span></code>.</p>
 </dd></dl>
 
 <dl class="py attribute">
