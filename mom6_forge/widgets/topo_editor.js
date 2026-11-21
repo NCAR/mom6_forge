@@ -7,13 +7,16 @@
 // Python → page
 //   traits: depth (float32), mask (uint8), lon, lat (float32), basins (int32, basinmask
 //           view only), nx, ny, view, min_depth, max_depth, has_history, has_stats,
-//           has_user_mask, can_undo, can_redo, branches, current_branch, tags, status
+//           has_user_mask, can_undo, can_redo, branches, current_branch, tags, status,
+//           show_open_boundaries, open_boundary_runs ({side: [{start, stop, tiny}]}, cell
+//           indices along the side, stop exclusive; {} while the overlay is off)
 //   msg:    {kind: "patch", n} + buffers [cells int32 (j, i) pairs, depth float32, mask uint8]
 //           {kind: "reload"}: the depth and mask traits are current, redraw from them
 // Page → Python
 //   {op: "edit", edit: {op, value?, statistic?, cell?, rect?}}, plus one int32 buffer of
 //   (j, i) pairs for a brush stroke; {op: "view", view}; {op: "undo" | "redo" | "reset"};
-//   {op: "tag" | "create_branch" | "checkout", name}; {op: "sync"} once per render.
+//   {op: "tag" | "create_branch" | "checkout", name}; {op: "open_boundaries", show};
+//   {op: "sync"} once per render.
 //
 // Performance at 2000 × 2000: the image is rebuilt in full only when the arrays, the
 // view or the colour scale change. Patches and brush strokes write single pixels and
@@ -42,6 +45,11 @@ const BASIN_COLORS = [
   [227, 119, 194], [127, 127, 127], [188, 189, 34], [23, 190, 207], [174, 199, 232], [255, 187, 120],
 ];
 const rgb = (c) => `rgb(${c.join(",")})`;
+// Open-boundary overlay: open water along the domain edge, and runs too small to be good
+// open boundaries ("tiny" in corner_diagnostics.open_boundary_runs).
+const OBC_COLOR = "#CC79A7";
+const OBC_TINY_COLOR = "#d7191c";
+const OBC_GAP = 4; // screen pixels from the grid edge to the centre of an overlay line
 
 /* ============================== small helpers ============================== */
 
@@ -138,6 +146,8 @@ function render({ model, el, guard, errorBox }) {
       mask: btn("view-mask", "mask", "Land and ocean"),
       basinmask: btn("view-basinmask", "basinmask", "Connected ocean basins"),
     },
+    obc: input("show-open-boundaries", "checkbox"),
+    obcInfo: hint(),
     tools: {
       select: btn("tool-select", "Select", "Click a cell, or drag a box"),
       depth: btn("tool-depth", "Paint depth", "Paint the depth set below"),
@@ -202,7 +212,12 @@ function render({ model, el, guard, errorBox }) {
 
   const rail = h(
     "div", { class: "mf-topo-rail" },
-    section("View", row(...Object.values(ui.views))),
+    section(
+      "View",
+      row(...Object.values(ui.views)),
+      row(h("label", { class: "mf-topo-hint" }, ui.obc, " Show open boundaries")),
+      ui.obcInfo,
+    ),
     section("Tool", row(...Object.values(ui.tools)), row(label("Brush"), ui.radius, ui.radiusLabel)),
     section(
       "Selection",
@@ -341,7 +356,8 @@ function render({ model, el, guard, errorBox }) {
 
   function fit() {
     const [w, ht] = [ui.canvas.clientWidth, ui.canvas.clientHeight];
-    S.s = Math.min(w / S.nx, ht / S.ny);
+    const m = 2 * (OBC_GAP + 6); // room for the open-boundary lines outside the grid
+    S.s = Math.min((w - m) / S.nx, (ht - m) / S.ny);
     S.ox = (w - S.nx * S.s) / 2;
     S.oy = (ht - S.ny * S.s) / 2;
     S.fitted = true;
@@ -365,6 +381,7 @@ function render({ model, el, guard, errorBox }) {
     ctx.setTransform(S.s * dpr, 0, 0, S.s * dpr, S.ox * dpr, S.oy * dpr);
     ctx.drawImage(S.off, 0, 0);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawOpenBoundaries();
 
     const box = S.drag ? boxFrom(S.drag.a, S.drag.b) : S.sel;
     if (box) {
@@ -395,6 +412,61 @@ function render({ model, el, guard, errorBox }) {
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
+  }
+
+  /* ============================== open boundaries ============================== */
+
+  // Screen endpoints [x0, y0, x1, y1] of the cells start..stop-1 along one side of the
+  // grid, OBC_GAP pixels outside it. South is row j = 0 (the bottom of the image).
+  function sideLine(side, start, stop) {
+    const { s, ox, oy, nx, ny } = S;
+    if (side === "south" || side === "north") {
+      const y = side === "south" ? oy + ny * s + OBC_GAP : oy - OBC_GAP;
+      return [ox + start * s, y, ox + stop * s, y];
+    }
+    const x = side === "west" ? ox - OBC_GAP : ox + nx * s + OBC_GAP;
+    return [x, oy + (ny - start) * s, x, oy + (ny - stop) * s]; // j counts up the screen
+  }
+
+  // One thick line per open-water run, labelled with its side inside the grid if it fits.
+  function drawOpenBoundaries() {
+    const runs = model.get("open_boundary_runs") || {};
+    const inward = { south: [0, -1], north: [0, 1], west: [1, 0], east: [-1, 0] };
+    ctx.font = "600 11px system-ui, sans-serif";
+    ctx.textBaseline = "middle";
+    for (const [side, list] of Object.entries(runs)) {
+      for (const { start, stop, tiny } of list) {
+        const [x0, y0, x1, y1] = sideLine(side, start, stop);
+        ctx.strokeStyle = tiny ? OBC_TINY_COLOR : OBC_COLOR;
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+        if (Math.hypot(x1 - x0, y1 - y0) < 60) continue; // no room for a label
+        const [dx, dy] = inward[side];
+        const [x, y] = [(x0 + x1) / 2 + dx * (OBC_GAP + 6), (y0 + y1) / 2 + dy * (OBC_GAP + 10)];
+        ctx.textAlign = side === "west" ? "left" : side === "east" ? "right" : "center";
+        ctx.lineWidth = 3; // a dark halo keeps the white label readable on any colour
+        ctx.strokeStyle = "rgba(0,0,0,.7)";
+        ctx.strokeText(side, x, y);
+        ctx.fillStyle = "#fff";
+        ctx.fillText(side, x, y);
+      }
+    }
+  }
+
+  // The checkbox and the summary under it follow Python's state.
+  function showOpenBoundaries() {
+    const runs = model.get("open_boundary_runs") || {};
+    ui.obc.checked = model.get("show_open_boundaries");
+    ui.obcInfo.hidden = !ui.obc.checked;
+    const sides = Object.keys(runs).filter((side) => runs[side].length);
+    const n = Object.values(runs).flat().filter((r) => r.tiny).length;
+    // The same wording as corner_diagnostics.quality_messages.
+    const warn = n ? ` Warning: ${n} small open boundar${n === 1 ? "y" : "ies"} along coastline (red).` : "";
+    ui.obcInfo.textContent = `Open boundaries: ${sides.join(", ") || "none"}.${warn}`;
+    requestDraw();
   }
 
   // All drawing happens here, at most once per animation frame.
@@ -672,6 +744,7 @@ function render({ model, el, guard, errorBox }) {
   /* ============================== events: controls ============================== */
 
   for (const [view, b] of Object.entries(ui.views)) on(b, "click", () => send({ op: "view", view }));
+  on(ui.obc, "change", () => send({ op: "open_boundaries", show: ui.obc.checked }));
   for (const [name, b] of Object.entries(ui.tools)) {
     on(b, "click", () => {
       S.tool = name;
@@ -762,6 +835,8 @@ function render({ model, el, guard, errorBox }) {
   for (const name of ["has_stats", "has_user_mask", "can_undo", "can_redo", "tags"]) {
     listen(`change:${name}`, updateControls);
   }
+  listen("change:show_open_boundaries", showOpenBoundaries);
+  listen("change:open_boundary_runs", showOpenBoundaries);
   listen("change:branches", updateBranches);
   listen("change:current_branch", updateBranches);
   const showStatus = () => (ui.status.textContent = model.get("status") || "");
@@ -774,6 +849,7 @@ function render({ model, el, guard, errorBox }) {
   onScale();
   updateControls();
   updateBranches();
+  showOpenBoundaries();
   showStatus();
   ui.readout.textContent = readout(null);
   const observer = new ResizeObserver(guard(resize));

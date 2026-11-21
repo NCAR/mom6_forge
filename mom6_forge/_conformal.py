@@ -23,7 +23,6 @@ from functools import cached_property, lru_cache
 import numpy as np
 import scipy.sparse as sp
 import shapely
-from matplotlib.path import Path as MplPath
 from pyproj import Geod, Proj
 from scipy.sparse.linalg import spsolve
 from scipy.spatial import Delaunay, cKDTree
@@ -414,6 +413,8 @@ def _sides(P, corners, h, spots):
 def _mesh(P, sides, h, spots):
     """Mesh nodes (corners, side points, then lattice points inside: h apart, or h / 2^l
     round the spots), triangles and each side's node ids."""
+    from matplotlib.path import Path as MplPath  # here, so the overlay runs without it
+
     inner = [pts[1:-1] for pts, _ in sides]
     ends = np.cumsum([4] + [len(p) for p in inner])
     ids = [np.r_[k, np.arange(ends[k], ends[k + 1]), (k + 1) % 4] for k in range(4)]

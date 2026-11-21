@@ -3,6 +3,7 @@
 import numpy as np
 import pytest
 
+from mom6_forge.corner_diagnostics import OBC_SIDES
 from mom6_forge.widgets._base import as_bytes
 from mom6_forge.widgets.topo_editor import TopoEditor
 
@@ -149,3 +150,47 @@ def test_undo_without_history_reports_in_the_widget(get_rect_topo_without_vc):
     editor._act("undo")
 
     assert editor.errors and editor.errors[0].startswith("RuntimeError")
+
+
+# --- open-boundary overlay ---
+
+
+def _inlet(topo):
+    """Make the 40 x 30 topo's south edge land but for a 2-cell inlet at i = 10, 11."""
+    topo.depth.data[:3, :] = -10.0
+    topo.depth.data[:3, 10:12] = 1000.0
+    return topo
+
+
+def _runs(editor):
+    """(start, stop) of each open-water run per side, from the trait, in S/E/N/W order."""
+    trait = editor.open_boundary_runs
+    return [[(r["start"], r["stop"]) for r in trait[side]] for side in OBC_SIDES]
+
+
+def test_open_boundary_overlay_is_off_until_asked(get_rect_topo_without_vc):
+    editor = TopoEditor(_inlet(get_rect_topo_without_vc))
+    assert editor.open_boundary_runs == {}
+    assert editor.open_boundaries == ["south", "east", "north", "west"]
+
+    editor._act("open_boundaries", show=True)
+
+    assert not editor.errors, editor.last_traceback
+    assert _runs(editor) == [[(10, 12)], [(3, 30)], [(0, 40)], [(3, 30)]]
+    tiny = [r["tiny"] for side in OBC_SIDES for r in editor.open_boundary_runs[side]]
+    assert tiny == [True, False, False, False]  # only the 2-cell inlet
+    editor._act("edit", edit={"op": "min_depth", "value": 1000.0})  # all land: a reload
+    assert _runs(editor) == [[], [], [], []] and editor.open_boundaries == []
+
+
+def test_open_boundaries_follow_mask_edits_and_undo(get_rect_topo_with_vc):
+    editor = TopoEditor(_inlet(get_rect_topo_with_vc), open_boundaries=True)
+
+    editor._act("edit", edit={"op": "land", "rect": [0, 10, 0, 11]})  # close the inlet
+
+    assert not editor.errors, editor.last_traceback
+    assert _runs(editor)[0] == []
+    assert editor.open_boundaries == ["east", "north", "west"]
+    editor._act("undo")
+    assert _runs(editor)[0] == [(10, 12)]
+    assert editor.open_boundaries == ["south", "east", "north", "west"]

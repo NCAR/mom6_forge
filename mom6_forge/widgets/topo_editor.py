@@ -26,6 +26,10 @@ class TopoEditor(ActionWidget):
     topo : mom6_forge.topo.Topo
         The bathymetry to edit. It is changed in place and stays available as
         ``editor.topo``. Undo, redo, reset, tags and branches need ``Topo(..., git=True)``.
+    open_boundaries : bool, optional
+        Start with the open-boundary overlay on: the grid edges where ocean meets the
+        domain boundary, drawn just outside the grid. The page's "Show open boundaries"
+        checkbox turns it on and off.
     """
 
     _js_file = "topo_editor.js"
@@ -57,7 +61,12 @@ class TopoEditor(ActionWidget):
     status = traitlets.Unicode("").tag(sync=True)
     """What the last action did, shown under the map. Errors go to ``errors`` instead."""
 
-    def __init__(self, topo):
+    show_open_boundaries = traitlets.Bool(False).tag(sync=True)
+    open_boundary_runs = traitlets.Dict().tag(sync=True)
+    """Open-water runs along each side, ``{side: [{"start", "stop", "tiny"}, ...]}`` with
+    cell indices along the side (stop exclusive), while the overlay is on; else ``{}``."""
+
+    def __init__(self, topo, open_boundaries=False):
         grid = topo._grid
         super().__init__(
             nx=int(grid.nx),
@@ -65,6 +74,7 @@ class TopoEditor(ActionWidget):
             lon=as_bytes(grid.tlon, "<f4"),
             lat=as_bytes(grid.tlat, "<f4"),
             has_history=topo.has_version_control,
+            show_open_boundaries=bool(open_boundaries),
         )
         self.topo = topo
         self._send_full()
@@ -72,6 +82,12 @@ class TopoEditor(ActionWidget):
     def _handle(self, widget, msg, buffers):
         self.status = ""  # the status line describes the last action only
         super()._handle(widget, msg, buffers)
+
+    @property
+    def open_boundaries(self):
+        """Sides with open water in the current mask, in S/E/N/W order, as
+        ``configure_forcings(boundaries=...)`` takes them."""
+        return [side for side, side_runs in _open_runs(self.topo).items() if side_runs]
 
     # ------------------------------------------------------------------ actions
 
@@ -83,6 +99,10 @@ class TopoEditor(ActionWidget):
         with self.hold_sync():  # one update, so the page never draws basins it lacks
             self.view = msg["view"]
             self._update_basins()
+
+    def _op_open_boundaries(self, msg, buffers):
+        self.show_open_boundaries = bool(msg["show"])
+        self._refresh()
 
     def _op_edit(self, msg, buffers):
         """One ``topo.apply_edits`` entry. Cells come as a brush stroke's (j, i) buffer
@@ -164,12 +184,26 @@ class TopoEditor(ActionWidget):
         self.max_depth = float(np.nan_to_num(topo.max_depth))
         self.has_stats = topo.stats is not None
         self.has_user_mask = topo.user_mask is not None
+        # Every action that can change the mask ends here, so the overlay stays current.
+        self.open_boundary_runs = _open_runs(topo) if self.show_open_boundaries else {}
         if topo.has_version_control:
             self.can_undo = topo.can_undo
             self.can_redo = topo.can_redo
             self.branches = topo.tcm.list_branches()
             self.current_branch = topo.tcm.get_current_branch()
             self.tags = topo.tcm.get_tag_names()
+
+
+def _open_runs(topo):
+    """The ``open_boundary_runs`` trait: each side's open-water runs in ``topo``'s mask."""
+    # Imported here: the editor itself runs without the grid-sketching stack (shapely).
+    from mom6_forge import corner_diagnostics as diag
+
+    runs = diag.open_boundary_runs(topo._grid, ocean=topo.tmask > 0)
+    keep = ("start", "stop", "tiny")
+    return {
+        s: [{k: r[k] for k in keep} for r in runs[s]["runs"]] for s in diag.OBC_SIDES
+    }
 
 
 def _name(msg):
