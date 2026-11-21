@@ -84,12 +84,13 @@ def page(browser, tmp_path):
     page.close()
 
 
-def render(page, widget):
-    """Render ``widget``'s front end in ``page`` from its current Python state."""
+def render(page, widget, head=""):
+    """Render ``widget``'s front end in ``page`` from its current Python state, after
+    loading the ``head`` HTML."""
     state = {
         k: _encode(v) for k, v in widget.get_state().items() if not k.startswith("_")
     }
-    page.set_content(MOCK)
+    page.set_content(head + MOCK)
     page.evaluate("([esm, state]) => window.__render(esm, state)", [widget._esm, state])
     return page
 
@@ -238,9 +239,9 @@ _MAP = """() => { const map = document.querySelector('[data-role=map]').olMap;
           features: map.getLayers().getArray().map((l) => l.getSource().getFeatures().length)}; }"""
 
 
-def _sketch(page, widget):
+def _sketch(page, widget, head=""):
     """Render a GridSketcher and wait for its map (the libraries load from the CDN)."""
-    render(page, widget)
+    render(page, widget, head)
     page.wait_for_function(
         "document.querySelector('[data-role=map]').olMap", timeout=30_000
     )
@@ -301,4 +302,15 @@ def test_sketcher_gestures_send_actions(page):
         ("projection", None, []),
     ]
     assert actions[-1]["kind"] == "lcc"
+    assert_clean(page)
+
+
+def test_sketcher_draws_beside_requirejs(page):
+    """The docs site's saved widgets come with require.js, which proj4's build registers
+    with instead of setting window.proj4."""
+    from mom6_forge.widgets import GridSketcher
+
+    requirejs = "https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"
+    _sketch(page, GridSketcher(), head=f'<script src="{requirejs}"></script>')
+    assert page.evaluate(_MAP)["features"] == [2, 1, 1]
     assert_clean(page)

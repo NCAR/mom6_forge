@@ -37,16 +37,25 @@ const OL_CSS = "https://cdn.jsdelivr.net/npm/ol@10.6.1/ol.css";
 const PROJ4_JS = "https://cdn.jsdelivr.net/npm/proj4@2.15.0/dist/proj4.js";
 
 // Load a classic script once per page; the promise resolves once it has run.
-function sketchScript(url) {
+// `global` names the window global a UMD build sets. On a page with require.js (the docs
+// site's saved widgets), such a build registers with require.js instead of setting its
+// global, so it is loaded through require.js and the global set here.
+function sketchScript(url, global) {
   const cache = (window.__mfSketchScripts ||= {});
   cache[url] ||= new Promise((resolve, reject) => {
-    const tag = document.createElement("script");
-    tag.src = url;
-    tag.onload = resolve;
-    tag.onerror = () => {
+    const fail = () => {
       delete cache[url]; // a later render tries again
       reject(new Error(`Could not load ${url}: the map needs cdn.jsdelivr.net.`));
     };
+    const amd = typeof window.define === "function" && window.define.amd;
+    if (global && amd && typeof window.require === "function") {
+      window.require([url], (lib) => resolve((window[global] = lib)), fail);
+      return;
+    }
+    const tag = document.createElement("script");
+    tag.src = url;
+    tag.onload = resolve;
+    tag.onerror = fail;
     document.head.appendChild(tag);
   });
   return cache[url];
@@ -60,7 +69,8 @@ function sketchLibraries() {
     link.href = OL_CSS;
     document.head.appendChild(link);
   }
-  return Promise.all([sketchScript(OL_JS), sketchScript(PROJ4_JS)]);
+  // ol.js sets window.ol on any page; proj4.js is a UMD build.
+  return Promise.all([sketchScript(OL_JS), sketchScript(PROJ4_JS, "proj4")]);
 }
 
 // The OpenLayers projection code for a proj4 string, registered on first use.
