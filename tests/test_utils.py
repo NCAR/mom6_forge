@@ -250,3 +250,23 @@ def test_longitude_slicer_returns_whole_axis_for_global_request(nlon, start):
     for extent in ([-180.0, 180.0], [-181.0, 181.0], [-200.0, 200.0]):
         sliced = longitude_slicer(data, extent, "lon")
         assert sliced.lon.size == nlon, f"{extent} on nlon={nlon}"
+
+
+@pytest.mark.parametrize(
+    "start, extent",
+    [(-180.0, (174.5, 185.5)), (-180.0, (-185.5, -174.5)), (0.0, (-5.5, 5.5))],
+)
+def test_longitude_slicer_box_centred_on_data_seam(start, extent):
+    """Global cell-centred data stops half a cell short of its seam (GEBCO on
+    -180..180). A box centred on the seam must still slice: increasing
+    longitudes, the right data under each, and cells covering the box."""
+    d = 0.25
+    lon = start + (np.arange(1440) + 0.5) * d
+    data = xr.Dataset({"v": ("lon", lon)}, coords={"lon": lon})
+
+    sliced = longitude_slicer(data, extent, "lon")
+
+    out = sliced.lon.values
+    assert np.all(np.diff(out) > 0)
+    np.testing.assert_array_equal(np.mod(sliced.v.values - out, 360.0), 0.0)
+    assert out[0] - d / 2 <= extent[0] and out[-1] + d / 2 >= extent[1]

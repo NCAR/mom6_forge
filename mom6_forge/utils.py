@@ -75,11 +75,21 @@ def longitude_slicer(data, longitude_extent, longitude_coords):
             # for as -180..180 has midpoint 0, which data on 0.25..359.75 lacks.
             continue
 
+        # Data covering the whole circle is periodic: cell-centred data on
+        # -180..180 stops half a cell short of +-180 but still covers 180 once
+        # it wraps. Accept a centre anywhere in [lons[0], lons[0] + 360).
+        is_periodic = abs(lon_span - 360) < abs(dlons) / 2
+
         is_longitude_extent_in_data = (
             False  # This boolean checks if the 360 + i adjustment isn't found
         )
         for i in range(-1, 2, 1):
-            if data[lon][0] <= central_longitude + 360 * i <= data[lon][-1]:
+            c = central_longitude + 360 * i
+            if (
+                lons[0] <= c < lons[0] + lon_span
+                if is_periodic
+                else lons[0] <= c <= lons[-1]
+            ):
                 is_longitude_extent_in_data = True
 
                 ## Shifted version of target midpoint; e.g., could be -90 vs 270
