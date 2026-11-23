@@ -559,3 +559,39 @@ def test_check_runoff_conserved(capsys):
     capsys.readouterr()
     mapping._check_runoff_conserved(*_toy_weights(drop_last=True), "toy")
     assert "1 map nowhere" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# map_overlap masking
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "xstart, ystart",
+    [(10.0, 30.0), (-4.0, 30.0), (-8.0, 30.0), (352.0, 30.0), (10.0, -4.0)],
+    ids=["ordinary", "crosses_0E", "edge_at_0E", "edge_at_360E", "crosses_equator"],
+)
+def test_map_overlap_maps_only_source_cells_inside_destination(
+    tmp_path, xstart, ystart
+):
+    """With map_overlap, only source cells inside the destination's lon/lat box
+    get a weight, wherever the box sits relative to 0E and the equator."""
+    src = Grid(
+        resolution=2.0, xstart=-30.0, lenx=60.0, ystart=-20.0, leny=60.0, name="src"
+    )
+    dst = Grid(
+        resolution=1.0, xstart=xstart, lenx=8.0, ystart=ystart, leny=8.0, name="dst"
+    )
+    src_path = _write_esmf_mesh(src, tmp_path / "src.nc")
+    dst_path = _write_esmf_mesh(dst, tmp_path / "dst.nc")
+    map_path = tmp_path / "map.nc"
+    mapping.generate_ESMF_map_via_xesmf(src_path, dst_path, map_path, "nearest_d2s")
+
+    with xr.open_dataset(map_path) as ds:
+        mapped = np.unique(ds["col"].values) - 1
+        lon = ds["xc_a"].values[mapped]
+        lat = ds["yc_a"].values[mapped]
+    # Source cells are centred on odd degrees, so 4 x 4 of them lie in the box.
+    assert lon.size == 16
+    assert np.all(np.mod(lon - xstart, 360.0) < 8.0)
+    assert np.all((lat > ystart) & (lat < ystart + 8.0))
