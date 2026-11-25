@@ -9,9 +9,9 @@ dependencies:
   - xesmf>=0.8.10,<1.0.0
   - pip
   - pip:
-    - -e ./[dev,docs,notebook] # mom6_forge itself, with its test, docs and notebook tools
-    # The versions NCAR's environment is tested with. matplotlib and ipympl stay
-    # below 3.10 and 0.10 for NCAR's JupyterHub (#95).
+    - -e ./[dev,docs,notebook,ncar] # mom6_forge itself, with its test, docs, notebook tools and NCAR JupyterHub pins
+    # The versions NCAR's environment is tested with. The ncar extra above pins
+    # matplotlib<3.10 and ipympl<0.10 for NCAR's JupyterHub (#95).
     - setuptools>=69.0,<82.1
     - numpy>=1.26,<2.5.0
     - xarray>=2023.12,<2026.3.0
